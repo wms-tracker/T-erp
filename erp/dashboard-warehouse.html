@@ -306,6 +306,18 @@
             <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printPickList('${o._id}')">🖨 ใบ Pick List</button>
             <button class="btn btn-primary" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__openScanPick('${o._id}')">📷 สแกนหยิบสินค้า</button>
           ` + actionsHtml;
+        } else if (stageKey === 'packing') {
+          actionsHtml = `
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printPackingSlip('${o._id}')">🖨 ใบเช็คแพ็ค</button>
+          ` + actionsHtml;
+        } else if (stageKey === 'qc') {
+          actionsHtml = `
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printQcSheet('${o._id}')">🖨 ใบตรวจสอบ QC</button>
+          ` + actionsHtml;
+        } else if (stageKey === 'outbound') {
+          actionsHtml = `
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printShippingLabel('${o._id}')">🖨 ใบปะหน้า/Tracking</button>
+          ` + actionsHtml;
         }
         if (flow.rejectTo) {
           actionsHtml += ` <button class="btn btn-danger" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__rejectOrder('${o._id}','${stageKey}')">${flow.rejectLabel}</button>`;
@@ -401,6 +413,182 @@
     const w = window.open('', '_blank');
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     else alert('เบราว์เซอร์บล็อกป๊อปอัป กรุณาอนุญาตป๊อปอัปสำหรับเว็บไซต์นี้');
+  };
+
+  function printHtmlWindow(html) {
+    const w = window.open('', '_blank');
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    else alert('เบราว์เซอร์บล็อกป๊อปอัป กรุณาอนุญาตป๊อปอัปสำหรับเว็บไซต์นี้');
+  }
+  function docHeaderStyle() {
+    return `
+      body { font-family:'Segoe UI','Sarabun',Tahoma,sans-serif; padding:26px; color:#222; }
+      h1 { font-size:18px; margin:0 0 4px; }
+      .sub { color:#888; font-size:13px; margin-bottom:16px; }
+      table { width:100%; border-collapse:collapse; font-size:14px; }
+      th, td { border:1px solid #ddd; padding:8px 10px; text-align:left; }
+      th { background:#f4f6fa; }
+      @media print { .no-print { display:none; } }
+    `;
+  }
+  function printBtn() {
+    return `<div class="no-print" style="text-align:right;margin-bottom:10px;">
+      <button onclick="window.print()" style="padding:8px 18px;border:none;background:#1a73e8;color:#fff;border-radius:8px;cursor:pointer;">🖨 พิมพ์เอกสาร</button>
+    </div>`;
+  }
+
+  // ===================================================================
+  // 🖨 ใบเช็คแพ็ค (Packing Slip / Checklist) — สำหรับขั้นตอน Packing
+  // ===================================================================
+  window.__printPackingSlip = async function (orderDocId) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+    const items = order.items || [];
+    const html = `
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
+      <title>ใบเช็คแพ็ค — ${escPL(order.id)}</title>
+      <style>${docHeaderStyle()}
+        td.chk { text-align:center; font-size:18px; width:90px; }
+      </style></head>
+      <body>
+        ${printBtn()}
+        <h1>📦 ใบเช็คแพ็คสินค้า — เลขออเดอร์ ${escPL(order.id)}</h1>
+        <div class="sub">ลูกค้า: ${escPL(order.customer?.name || '-')} &nbsp;|&nbsp; ช่องทาง: ${escPL(order.channel || '-')} &nbsp;|&nbsp; พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+        <table>
+          <thead><tr><th style="width:40px;">#</th><th>SKU</th><th>รายการสินค้า</th><th style="width:90px;">จำนวน</th><th class="chk">☑ แพ็คแล้ว</th></tr></thead>
+          <tbody>
+            ${items.map((it, idx) => `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td>${escPL(it.sku || it.model || '-')}</td>
+                <td>${escPL(it.name || it.model || '-')}</td>
+                <td style="text-align:center;font-weight:700;">${escPL(it.qty ?? '-')}</td>
+                <td class="chk">☐</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="margin-top:20px;font-size:13px;">📦 วัสดุกันกระแทก: ☐ ใช้ &nbsp;&nbsp; กล่อง/ซองที่ใช้: ____________________</p>
+        <p style="margin-top:8px;font-size:13px;">ผู้แพ็ค: ____________________ &nbsp;&nbsp;&nbsp; วันที่/เวลา: ____________________ &nbsp;&nbsp;&nbsp; ผู้ตรวจสอบก่อนส่ง QC: ____________________</p>
+      </body></html>
+    `;
+    printHtmlWindow(html);
+  };
+
+  // ===================================================================
+  // 🖨 ใบตรวจสอบ QC — เช็คลิสต์ตรวจคุณภาพ/ความถูกต้องก่อนจัดส่ง
+  // ===================================================================
+  window.__printQcSheet = async function (orderDocId) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+    const items = order.items || [];
+    const CHECK_POINTS = [
+      'จำนวนสินค้าตรงตามออเดอร์',
+      'ชนิด/รุ่น/สี ตรงตามที่ลูกค้าสั่ง',
+      'สภาพสินค้าสมบูรณ์ ไม่ชำรุด/ไม่มีตำหนิ',
+      'บรรจุภัณฑ์แน่นหนา เหมาะกับการขนส่ง',
+      'แนบเอกสาร/ใบกำกับ/ของแถม (ถ้ามี) ครบถ้วน',
+      'ชื่อ-ที่อยู่-เบอร์โทรผู้รับถูกต้องตรงกับออเดอร์',
+    ];
+    const html = `
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
+      <title>ใบตรวจสอบ QC — ${escPL(order.id)}</title>
+      <style>${docHeaderStyle()}
+        td.chk { text-align:center; font-size:16px; width:70px; }
+        .result-box { display:flex; gap:30px; margin-top:18px; font-size:14px; }
+      </style></head>
+      <body>
+        ${printBtn()}
+        <h1>✅ ใบตรวจสอบคุณภาพก่อนจัดส่ง (QC) — เลขออเดอร์ ${escPL(order.id)}</h1>
+        <div class="sub">ลูกค้า: ${escPL(order.customer?.name || '-')} &nbsp;|&nbsp; พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+
+        <h3 style="font-size:14px;margin:16px 0 6px;">1) รายการสินค้าที่ต้องตรวจสอบ</h3>
+        <table>
+          <thead><tr><th style="width:40px;">#</th><th>SKU</th><th>รายการสินค้า</th><th style="width:90px;">จำนวน</th><th class="chk">ผ่าน</th><th class="chk">ไม่ผ่าน</th></tr></thead>
+          <tbody>
+            ${items.map((it, idx) => `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td>${escPL(it.sku || it.model || '-')}</td>
+                <td>${escPL(it.name || it.model || '-')}</td>
+                <td style="text-align:center;font-weight:700;">${escPL(it.qty ?? '-')}</td>
+                <td class="chk">☐</td>
+                <td class="chk">☐</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <h3 style="font-size:14px;margin:18px 0 6px;">2) จุดตรวจสอบทั่วไป (Checklist)</h3>
+        <table>
+          <thead><tr><th style="width:40px;">#</th><th>รายการตรวจสอบ</th><th class="chk">ผ่าน</th><th class="chk">ไม่ผ่าน</th></tr></thead>
+          <tbody>
+            ${CHECK_POINTS.map((c, idx) => `
+              <tr>
+                <td style="text-align:center;">${idx + 1}</td>
+                <td>${escPL(c)}</td>
+                <td class="chk">☐</td>
+                <td class="chk">☐</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div class="result-box">
+          <div>ผลการตรวจสอบโดยรวม: &nbsp; ☐ ผ่าน (ส่งต่อจัดส่ง) &nbsp;&nbsp;&nbsp; ☐ ไม่ผ่าน (ตีกลับไปแพ็คใหม่)</div>
+        </div>
+        <p style="margin-top:14px;font-size:13px;">หมายเหตุ/เหตุผลกรณีไม่ผ่าน: ________________________________________________</p>
+        <p style="margin-top:14px;font-size:13px;">ผู้ตรวจสอบ (QC): ____________________ &nbsp;&nbsp;&nbsp; วันที่/เวลา: ____________________ &nbsp;&nbsp;&nbsp; ลายเซ็น: ____________________</p>
+      </body></html>
+    `;
+    printHtmlWindow(html);
+  };
+
+  // ===================================================================
+  // 🖨 ใบปะหน้า / Tracking — สำหรับขั้นตอน Outbound (จัดส่งสินค้า)
+  // ===================================================================
+  window.__printShippingLabel = async function (orderDocId) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+    const c = order.customer || {};
+    const sh = order.shipping || {};
+    const addr = [c.addressDetail, c.district, c.province, c.zipcode].filter(Boolean).join(' ');
+    const tracking = sh.trackingInfo || '';
+    const html = `
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
+      <title>ใบปะหน้า/Tracking — ${escPL(order.id)}</title>
+      <style>${docHeaderStyle()}
+        .label-box { border:2px dashed #888; border-radius:12px; padding:20px; margin-top:14px; }
+        .label-box p { margin:0 0 6px; }
+      </style></head>
+      <body>
+        ${printBtn()}
+        <h1>🚚 ใบปะหน้าพัสดุ / Tracking — เลขออเดอร์ ${escPL(order.id)}</h1>
+        <div class="sub">พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+        <div class="label-box">
+          <p style="font-size:12px;color:#888;">ผู้ส่ง</p>
+          <p style="font-size:14px;"><b>คลังสินค้า / ผู้ขาย</b></p>
+          <p style="font-size:12px;color:#888;margin-top:14px;">ผู้รับ</p>
+          <p style="font-size:20px;"><b>${escPL(c.name || '-')}</b></p>
+          <p style="font-size:14px;">โทร: ${escPL(c.phone || '-')} ${c.phone2 ? '/ ' + escPL(c.phone2) : ''}</p>
+          <p style="font-size:14px;">${escPL(addr || '-')}</p>
+          <p style="font-size:12px;color:#888;margin-top:14px;">หมายเหตุ COD</p>
+          <p style="font-size:14px;">${escPL(sh.codNotes || '— ไม่มี —')}</p>
+        </div>
+        <table style="margin-top:16px;">
+          <tbody>
+            <tr><th style="width:170px;">ขนส่งโดย</th><td>${escPL(sh.deliveryBy || '-')}</td></tr>
+            <tr><th>วันที่จัดส่ง</th><td>${escPL(sh.shipDate || '-')}</td></tr>
+            <tr><th>เลข Tracking</th><td style="font-weight:700;font-size:16px;">${tracking ? escPL(tracking) : '____________________ (กรอกหลังรับเลขจากขนส่ง)'}</td></tr>
+          </tbody>
+        </table>
+        <p style="margin-top:20px;font-size:13px;">ผู้จัดส่ง/ผู้ส่งมอบให้ขนส่ง: ____________________ &nbsp;&nbsp;&nbsp; วันที่/เวลา: ____________________</p>
+      </body></html>
+    `;
+    printHtmlWindow(html);
   };
 
   // ===================================================================
