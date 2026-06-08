@@ -41,6 +41,9 @@ const NAV = {
     { key: "routing",   label: "🗺 จัดรูทขนส่ง / คัตออฟ",     href: "dashboard-admin.html#routing" },
     { key: "users",     label: "👥 จัดการผู้ใช้งาน & สิทธิ์", href: "dashboard-admin.html#users" },
     { key: "reports",   label: "📊 รายงานประจำวัน",          href: "dashboard-admin.html#reports" },
+    { key: "go-warehouse",  label: "🔗 ดูแดชบอร์ดคลังสินค้า",  href: "dashboard-warehouse.html#stock" },
+    { key: "go-accounting", label: "🔗 ดูแดชบอร์ดบัญชี",       href: "dashboard-accounting.html#invoices" },
+    { key: "go-sales",      label: "🔗 ดูแดชบอร์ดฝ่ายขาย",     href: "dashboard-sales.html#orders" },
   ],
   manager: [
     { key: "overview",  label: "📊 ภาพรวมทุกแผนก", href: "dashboard-manager.html#overview" },
@@ -49,17 +52,33 @@ const NAV = {
   ],
 };
 
+// แมปชื่อไฟล์ dashboard -> แผนก (ใช้ตอนแอดมินเปิดหน้าแผนกอื่น จะได้เห็นเมนูที่ตรงกับหน้านั้นจริงๆ)
+const PAGE_DEPARTMENT = {
+  "dashboard-sales.html": "sales",
+  "dashboard-warehouse.html": "warehouse",
+  "dashboard-accounting.html": "accounting",
+  "dashboard-admin.html": "admin",
+  "dashboard-manager.html": "manager",
+};
+
 export function renderShell(profile, activeKey, title) {
-  const nav = NAV[profile.role] || [];
+  const currentPage = location.pathname.split('/').pop();
+  // ถ้าแอดมินเปิดหน้าแผนกอื่น ให้แสดงเมนูของแผนกนั้น (ไม่ใช่เมนูแอดมิน) เพื่อไม่ให้สับสน
+  const navKey = (profile.role === 'admin' && PAGE_DEPARTMENT[currentPage]) ? PAGE_DEPARTMENT[currentPage] : profile.role;
+  const nav = NAV[navKey] || [];
   const navHtml = nav.map(item =>
     `<a href="${item.href}" class="${item.key === activeKey ? 'active' : ''}">${item.label}</a>`
   ).join('');
+  const viewingAsBadge = (profile.role === 'admin' && navKey !== 'admin')
+    ? `<div style="background:#fff3cd;color:#7a5b00;font-size:0.72rem;padding:5px 10px;border-radius:6px;margin:6px 0;text-align:center;">👁 แอดมินกำลังดูแผนก: ${ROLE_LABEL[navKey] || navKey}</div>`
+    : '';
 
   document.body.innerHTML = `
     <div class="app-shell">
       <aside class="sidebar">
         <h2>🏢 Web ERP</h2>
         <span class="role-badge">${ROLE_LABEL[profile.role] || profile.role}</span>
+        ${viewingAsBadge}
         <nav>${navHtml}</nav>
         <div class="spacer"></div>
         <div class="user-box">
