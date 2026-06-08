@@ -19,7 +19,7 @@
   const SECTIONS = {
     orders:    { title: '📋 ออเดอร์ทั้งหมด',          desc: 'ดูและติดตามสถานะออเดอร์ของทุกฝ่ายขาย ประสานงานกับคลังสินค้า', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
     documents: { title: '📑 เอกสารขาย/ขนส่ง',         desc: 'จัดทำและจัดเก็บเอกสารประกอบการขายและการขนส่ง (ใบส่งของ/ใบกำกับสินค้า, ใบปะหน้าพัสดุ, ใบสรุปแพ็คสินค้า) พร้อมพิมพ์และบันทึกประวัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
-    routing:   { title: '🗺 จัดรูทขนส่ง / คัตออฟ',      desc: 'จัดกลุ่มออเดอร์ตามเส้นทางขนส่งและเวลาคัตออฟประจำวัน ส่งสรุปยอดให้ฝ่ายที่เกี่ยวข้อง', phase: 'เฟส 2' },
+    routing:   { title: '🗺 จัดรูทขนส่ง / คัตออฟ',      desc: 'จัดกลุ่มออเดอร์ที่รอจัดส่งตามผู้ขนส่ง/เส้นทาง กำหนดเวลาคัตออฟประจำวัน และปิดรอบเพื่อส่งสรุปยอดให้ฝ่ายที่เกี่ยวข้อง', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
     users:     { title: '👥 จัดการผู้ใช้งาน & สิทธิ์', desc: 'เพิ่ม/ลบ/แก้ไขบัญชีผู้ใช้งาน กำหนดแผนกและสิทธิ์การเข้าถึง (RBAC)', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
     reports:   { title: '📊 รายงานประจำวัน',          desc: 'สรุปยอดขาย สถานะคลัง และภาพรวมการดำเนินงานประจำวันของทุกแผนก', phase: 'เฟส 4' },
   };
@@ -30,6 +30,7 @@
   if (key === 'users') renderUserManagement();
   else if (key === 'orders') renderAllOrders();
   else if (key === 'documents') renderDocuments();
+  else if (key === 'routing') renderRouting();
   else renderPlaceholder(key);
 
   window.addEventListener('hashchange', () => location.reload());
@@ -331,6 +332,212 @@
     const w = window.open('', '_blank');
     if (w) { w.document.open(); w.document.write(html); w.document.close(); }
   };
+
+  // =========================================================
+  // 🗺 จัดรูทขนส่ง / คัตออฟ (เฟส 2)
+  // =========================================================
+  let _routeOrdersCache = [];
+  let _routeBatchCache = [];
+  const ROUTE_OTHER = 'อื่นๆ / ไม่ระบุผู้ขนส่ง';
+
+  function routeKeyOf(order) {
+    return (order.shipping?.deliveryBy || '').trim() || ROUTE_OTHER;
+  }
+  function fmtTimeNow() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+
+  async function renderRouting() {
+    main.innerHTML = `
+      <div class="card"><p>${SECTIONS.routing.desc}</p></div>
+      <div class="card">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;">
+          <div>
+            <label style="display:block;font-size:0.8rem;color:#666;margin-bottom:4px;">⏰ เวลาคัตออฟประจำวัน</label>
+            <input type="time" id="cutoff-time" value="15:00" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:0.9rem;" />
+          </div>
+          <div style="font-size:0.85rem;color:${'#888'};margin-top:18px;" id="cutoff-status"></div>
+          <div style="flex:1;"></div>
+          <button class="btn btn-outline" id="btn-route-refresh" style="margin-top:18px;">🔄 รีเฟรช</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">📦 ออเดอร์ที่รอจัดส่ง — จัดกลุ่มตามผู้ขนส่ง/เส้นทาง</h3>
+        <div id="route-groups">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">🗂 ประวัติการปิดรอบ (Cutoff Batches)</h3>
+        <div id="route-batches">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+    document.getElementById('btn-route-refresh').addEventListener('click', loadRoutingData);
+    document.getElementById('cutoff-time').addEventListener('change', updateCutoffStatus);
+    await loadRoutingData();
+    updateCutoffStatus();
+  }
+
+  function updateCutoffStatus() {
+    const el = document.getElementById('cutoff-status');
+    if (!el) return;
+    const cutoff = document.getElementById('cutoff-time')?.value || '15:00';
+    const now = fmtTimeNow();
+    if (now < cutoff) {
+      el.innerHTML = `🟢 ยังไม่ถึงเวลาคัตออฟ (ตอนนี้ ${now} น. — คัตออฟ ${cutoff} น.)`;
+      el.style.color = '#1a8a3a';
+    } else {
+      el.innerHTML = `🔴 เลยเวลาคัตออฟแล้ว (ตอนนี้ ${now} น. — คัตออฟ ${cutoff} น.) ควรปิดรอบและส่งสรุปยอด`;
+      el.style.color = '#d23';
+    }
+  }
+
+  async function loadRoutingData() {
+    const groupBox = document.getElementById('route-groups');
+    const batchBox = document.getElementById('route-batches');
+    if (groupBox) groupBox.innerHTML = '⏳ กำลังโหลด...';
+    if (batchBox) batchBox.innerHTML = '⏳ กำลังโหลด...';
+    try {
+      const snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAtServer', 'desc'), limit(400)));
+      _routeOrdersCache = snap.docs.map(d => ({ _id: d.id, ...d.data() }))
+        .filter(o => o.warehouseStage && o.warehouseStage !== 'จัดส่งแล้ว' && !o.routingBatchId);
+    } catch (e) { _routeOrdersCache = []; console.warn(e); }
+    try {
+      const bsnap = await getDocs(query(collection(db, 'routingBatches'), orderBy('createdAtServer', 'desc'), limit(50)));
+      _routeBatchCache = bsnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) { _routeBatchCache = []; console.warn(e); }
+    renderRouteGroups();
+    renderRouteBatches();
+  }
+
+  function renderRouteGroups() {
+    const box = document.getElementById('route-groups');
+    if (!box) return;
+    if (!_routeOrdersCache.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ไม่มีออเดอร์ที่รอจัดส่งในขณะนี้ 🎉 —</p>`;
+      return;
+    }
+    const groups = {};
+    _routeOrdersCache.forEach(o => {
+      const k = routeKeyOf(o);
+      groups[k] = groups[k] || [];
+      groups[k].push(o);
+    });
+    const sortedKeys = Object.keys(groups).sort((a, b) => groups[b].length - groups[a].length);
+
+    box.innerHTML = sortedKeys.map(routeName => {
+      const list = groups[routeName];
+      const total = list.reduce((s, o) => s + Number(o.subtotal || 0), 0);
+      const gid = 'rg_' + routeName.replace(/[^a-zA-Z0-9ก-๙]/g, '_');
+      return `
+        <div style="border:1px solid #e6e9f0;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;justify-content:space-between;">
+            <div>
+              <span style="font-weight:700;font-size:1rem;">🚚 ${escapeHtmlR(routeName)}</span>
+              <span style="color:#888;font-size:0.82rem;margin-left:8px;">${list.length} ออเดอร์ • ยอดรวม ${fmtMoneyR(total)} บาท</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <label style="font-size:0.8rem;color:#555;display:flex;align-items:center;gap:5px;">
+                <input type="checkbox" class="route-select-all" data-group="${gid}" /> เลือกทั้งหมด
+              </label>
+              <button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem;" onclick="window.__closeCutoff('${escAttr(routeName)}','${gid}')">🔒 ปิดรอบ / คัตออฟกลุ่มนี้</button>
+            </div>
+          </div>
+          <table style="margin-top:10px;">
+            <thead><tr><th style="width:30px;"></th><th>เลขออเดอร์</th><th>ลูกค้า</th><th>ที่อยู่ปลายทาง</th><th>ยอดรวม</th><th>สถานะคลัง</th></tr></thead>
+            <tbody>
+              ${list.map(o => `
+                <tr>
+                  <td><input type="checkbox" class="route-order-pick" data-group="${gid}" data-order="${o._id}" checked /></td>
+                  <td>${escapeHtmlR(o.id)}</td>
+                  <td>${escapeHtmlR(o.customer?.name || '-')}</td>
+                  <td>${escapeHtmlR([o.customer?.district, o.customer?.province].filter(Boolean).join(', ') || '-')}</td>
+                  <td>${fmtMoneyR(o.subtotal)}</td>
+                  <td>${escapeHtmlR(o.warehouseStage || '-')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }).join('');
+
+    box.querySelectorAll('.route-select-all').forEach(cb => {
+      cb.addEventListener('change', (ev) => {
+        const gid = ev.target.dataset.group;
+        box.querySelectorAll(`.route-order-pick[data-group="${gid}"]`).forEach(c => { c.checked = ev.target.checked; });
+      });
+    });
+  }
+
+  function renderRouteBatches() {
+    const box = document.getElementById('route-batches');
+    if (!box) return;
+    if (!_routeBatchCache.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีประวัติการปิดรอบ —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>เลขที่รอบ</th><th>เส้นทาง/ผู้ขนส่ง</th><th>จำนวนออเดอร์</th><th>ยอดรวม</th><th>เวลาปิดรอบ</th><th>โดย</th></tr></thead>
+        <tbody>
+          ${_routeBatchCache.map(b => `
+            <tr>
+              <td>${escapeHtmlR(b.batchNo)}</td>
+              <td>${escapeHtmlR(b.routeName)}</td>
+              <td>${(b.orderIds || []).length}</td>
+              <td>${fmtMoneyR(b.totalAmount)}</td>
+              <td>${b.closedAt ? new Date(b.closedAt).toLocaleString('th-TH') : '-'}</td>
+              <td>${escapeHtmlR(b.closedByName || '-')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  window.__closeCutoff = async function (routeName, gid) {
+    const box = document.getElementById('route-groups');
+    const checked = [...box.querySelectorAll(`.route-order-pick[data-group="${gid}"]:checked`)];
+    if (!checked.length) { alert('กรุณาเลือกออเดอร์อย่างน้อย 1 รายการ'); return; }
+    const orderDocIds = checked.map(c => c.dataset.order);
+    const orders = orderDocIds.map(id => _routeOrdersCache.find(o => o._id === id)).filter(Boolean);
+    const total = orders.reduce((s, o) => s + Number(o.subtotal || 0), 0);
+    const cutoff = document.getElementById('cutoff-time')?.value || '15:00';
+
+    if (!confirm(`ปิดรอบขนส่ง "${routeName}" จำนวน ${orders.length} ออเดอร์ ยอดรวม ${fmtMoneyR(total)} บาท ใช่หรือไม่?\n(ระบบจะบันทึกเป็นรอบขนส่งและทำเครื่องหมายในออเดอร์ว่าเข้ารอบนี้แล้ว)`)) return;
+
+    try {
+      const batchNo = await nextDocNo('routingBatchCounter', 'RT-');
+      const batchRef = await addDoc(collection(db, 'routingBatches'), {
+        batchNo,
+        routeName,
+        orderIds: orders.map(o => o.id),
+        orderDocIds,
+        totalAmount: total,
+        cutoffTime: cutoff,
+        closedAt: new Date().toISOString(),
+        createdAtServer: serverTimestamp(),
+        closedBy: profile.uid,
+        closedByName: profile.name || profile.email || '',
+      });
+      // ทำเครื่องหมายในออเดอร์แต่ละรายการว่าเข้ารอบนี้แล้ว (กันถูกเลือกซ้ำในรอบถัดไป)
+      for (const o of orders) {
+        try { await updateDoc(doc(db, 'orders', o._id), { routingBatchId: batchRef.id, routingBatchNo: batchNo }); }
+        catch (e) { console.warn('update order routing flag failed', o._id, e); }
+      }
+      alert(`ปิดรอบขนส่งเลขที่ ${batchNo} เรียบร้อยแล้ว — ${orders.length} ออเดอร์ ยอดรวม ${fmtMoneyR(total)} บาท\nสามารถแจ้งสรุปยอดนี้ให้ฝ่ายที่เกี่ยวข้องได้เลย`);
+      await loadRoutingData();
+    } catch (e) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาด: ' + (e.message || e));
+    }
+  };
+
+  function escapeHtmlR(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function escAttr(s) { return String(s ?? '').replace(/'/g, "\\'"); }
+  function fmtMoneyR(n) { return Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
   // ---------- ออเดอร์ทั้งหมด (ทุกฝ่ายขาย — เฟส 1) ----------
   const ORDER_CLS = { 'รอดำเนินการ': 'badge-pending', 'เสร็จสิ้น': 'badge-done', 'ยกเลิก': 'badge-cancel' };

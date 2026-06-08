@@ -56,6 +56,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ----- routingBatches: ประวัติการจัดรูทขนส่ง/ปิดรอบคัตออฟ -----
+    match /routingBatches/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if hasRole('admin') || hasRole('warehouse');
+      allow delete: if isAdmin();
+    }
+
     // ----- products / stockMovements: คลัง/แอดมินจัดการได้เต็มสิทธิ์ -----
     // sales อนุญาตให้ "update" ได้ด้วย (เพื่อจองสต๊อก/ปรับ reservedQty ตอนสร้างออเดอร์)
     // แต่สร้าง/ลบสินค้าได้เฉพาะคลังและแอดมินเท่านั้น
