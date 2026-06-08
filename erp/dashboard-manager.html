@@ -8,33 +8,346 @@
 </head>
 <body></body>
 <script type="module">
-  import { requireRole } from "./js/auth.js";
-  import { renderShell } from "./js/shell.js";
+  import { requireRole, db } from "./js/auth.js";
+  import { renderShell, statusBadge } from "./js/shell.js";
+  import {
+    collection, getDocs, query, orderBy, limit
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const profile = await requireRole(['manager']);
 
   const SECTIONS = {
-    overview: { title: '📊 ภาพรวมทุกแผนก',            desc: 'สรุปยอดขาย สถานะคลัง และสถานะการเงินแบบภาพรวมข้ามแผนก สำหรับผู้บริหาร', phase: 'เฟส 4' },
-    orders:   { title: '📋 ออเดอร์ทั้งหมด (ดูอย่างเดียว)', desc: 'ดูออเดอร์ทุกรายการในระบบแบบ read-only เพื่อติดตามภาพรวมการขาย', phase: 'เฟส 4' },
-    finance:  { title: '💰 รายงานการเงิน (ดูอย่างเดียว)', desc: 'ดูสรุปยอดขาย ต้นทุน กำไร และกระแสเงินสดแบบ read-only', phase: 'เฟส 4' },
+    overview: { title: '📊 ภาพรวมทุกแผนก',                  desc: 'สรุปยอดขาย สถานะคลัง และสถานะการเงินแบบภาพรวมข้ามแผนก สำหรับผู้บริหาร — ข้อมูลแบบ read-only' },
+    orders:   { title: '📋 ออเดอร์ทั้งหมด (ดูอย่างเดียว)',   desc: 'ดูออเดอร์ทุกรายการในระบบจากทุกฝ่ายขาย เพื่อติดตามภาพรวมการขายและสถานะคลัง' },
+    finance:  { title: '💰 รายงานการเงิน (ดูอย่างเดียว)',    desc: 'สรุปยอดขาย ยอดรับชำระ ยอดค้างรับ (AR) และรายจ่าย แยกตามช่วงเวลา' },
   };
 
   const key = (location.hash || '#overview').replace('#', '');
   const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.overview).title);
-  renderSection(key);
   window.addEventListener('hashchange', () => location.reload());
 
-  function renderSection(k) {
-    const s = SECTIONS[k] || SECTIONS.overview;
+  const RENDERERS = { overview: renderOverview, orders: renderOrdersView, finance: renderFinanceView };
+  (RENDERERS[key] || renderOverview)();
+
+  // ---------- Helpers ----------
+  function fmtMoney(n) { return Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtNum(n) { return Number(n || 0).toLocaleString('th-TH'); }
+  function fmtDate(d) {
+    if (!d) return '-';
+    try { return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return d; }
+  }
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  const ORDER_CLS = { 'รอดำเนินการ': 'badge-pending', 'เสร็จสิ้น': 'badge-done', 'ยกเลิก': 'badge-cancel' };
+  function orderStatusBadge(status) {
+    return `<span class="badge ${ORDER_CLS[status] || 'badge-pending'}">${escapeHtml(status || '-')}</span>`;
+  }
+
+  async function fetchAll(name, orderField, max = 500) {
+    try {
+      const snap = await getDocs(query(collection(db, name), orderBy(orderField, 'desc'), limit(max)));
+      return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) {
+      console.warn(`load ${name} error`, e);
+      return [];
+    }
+  }
+  async function fetchAllProducts() {
+    try {
+      const snap = await getDocs(collection(db, 'products'));
+      return snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) { console.warn('load products error', e); return []; }
+  }
+
+  // =========================================================
+  // 📊 OVERVIEW — สรุปข้ามแผนก
+  // =========================================================
+  async function renderOverview() {
     main.innerHTML = `
+      <div class="card"><p>${SECTIONS.overview.desc}</p></div>
+      <div class="grid-cards">
+        <div class="card stat-card"><div class="num" id="ov-orders">-</div><div class="label">ออเดอร์ทั้งหมด</div></div>
+        <div class="card stat-card"><div class="num" id="ov-sales">-</div><div class="label">ยอดขายรวม (บาท)</div></div>
+        <div class="card stat-card"><div class="num" id="ov-pending-wh">-</div><div class="label">ออเดอร์ค้างในคลัง</div></div>
+        <div class="card stat-card"><div class="num" id="ov-low-stock">-</div><div class="label">สินค้าใกล้หมด/หมดสต๊อก</div></div>
+        <div class="card stat-card"><div class="num" id="ov-ar">-</div><div class="label">ลูกหนี้คงค้าง (AR)</div></div>
+        <div class="card stat-card"><div class="num" id="ov-cash">-</div><div class="label">กระแสเงินสดสุทธิ</div></div>
+      </div>
+
       <div class="card">
-        <p>${s.desc}</p>
-        <div style="background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.88rem;color:#8a6400;">
-          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b> หลังจากโมดูลคลังสินค้าและบัญชีพร้อมใช้งาน
-          (เพราะรายงานภาพรวมต้องดึงข้อมูลจากทุกโมดูลมารวมกัน)
-        </div>
+        <h3 style="margin-top:0;">🏭 สถานะไปป์ไลน์คลังสินค้า (ออเดอร์ตามขั้นตอน)</h3>
+        <div id="ov-pipeline">⏳ กำลังโหลด...</div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">🏆 ยอดขายแยกตามพนักงานขาย (Top 10)</h3>
+        <div id="ov-bysales">⏳ กำลังโหลด...</div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0;">📦 สินค้าใกล้หมด / หมดสต๊อก</h3>
+        <div id="ov-stockwarn">⏳ กำลังโหลด...</div>
       </div>
     `;
+
+    const [orders, products, invoices, payments] = await Promise.all([
+      fetchAll('orders', 'createdAtServer', 1000),
+      fetchAllProducts(),
+      fetchAll('invoices', 'issuedAtServer', 1000),
+      fetchAll('payments', 'dateServer', 1000),
+    ]);
+
+    // ----- การ์ดสรุป -----
+    const totalSales = orders.reduce((s, o) => s + Number(o.subtotal || 0), 0);
+    const pendingWarehouse = orders.filter(o => o.warehouseStage && o.warehouseStage !== 'จัดส่งแล้ว').length;
+    const lowStock = products.filter(p => Number(p.stockQty || 0) <= Number(p.reorderPoint ?? p.reorderLevel ?? 0));
+    const unpaidInv = invoices.filter(i => i.payStatus !== 'paid');
+    const totalAR = unpaidInv.reduce((s, i) => s + Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0)), 0);
+    const received = payments.filter(p => p.type === 'receipt').reduce((s, p) => s + Number(p.amount || 0), 0);
+    const expense = payments.filter(p => p.type === 'expense').reduce((s, p) => s + Number(p.amount || 0), 0);
+    const netCash = received - expense;
+
+    document.getElementById('ov-orders').textContent = fmtNum(orders.length);
+    document.getElementById('ov-sales').textContent = fmtMoney(totalSales);
+    document.getElementById('ov-pending-wh').textContent = fmtNum(pendingWarehouse);
+    document.getElementById('ov-low-stock').textContent = fmtNum(lowStock.length);
+    document.getElementById('ov-ar').textContent = fmtMoney(totalAR);
+    const cashEl = document.getElementById('ov-cash');
+    cashEl.textContent = (netCash >= 0 ? '+' : '') + fmtMoney(netCash);
+    cashEl.style.color = netCash >= 0 ? '#1a8a3a' : '#d23';
+
+    // ----- ไปป์ไลน์คลัง -----
+    const STAGES = ['รอหยิบสินค้า', 'กำลังแพ็ค', 'รอตรวจสอบ QC', 'พร้อมจัดส่ง', 'จัดส่งแล้ว'];
+    const stageCounts = {};
+    STAGES.forEach(s => stageCounts[s] = 0);
+    orders.forEach(o => { if (o.warehouseStage && stageCounts.hasOwnProperty(o.warehouseStage)) stageCounts[o.warehouseStage]++; });
+    const maxCount = Math.max(1, ...Object.values(stageCounts));
+    document.getElementById('ov-pipeline').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${STAGES.map(s => `
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:140px;font-size:0.85rem;color:#555;">${escapeHtml(s)}</div>
+            <div style="flex:1;background:#eef1f7;border-radius:8px;overflow:hidden;height:22px;">
+              <div style="height:100%;width:${(stageCounts[s] / maxCount * 100).toFixed(1)}%;background:linear-gradient(90deg,#1a73e8,#5a8dfb);border-radius:8px;"></div>
+            </div>
+            <div style="width:40px;text-align:right;font-weight:700;color:#1a2540;">${stageCounts[s]}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    // ----- ยอดขายแยกตามพนักงานขาย -----
+    const bySales = {};
+    orders.forEach(o => {
+      const name = o.salesperson || 'ไม่ระบุ';
+      bySales[name] = bySales[name] || { count: 0, total: 0 };
+      bySales[name].count++;
+      bySales[name].total += Number(o.subtotal || 0);
+    });
+    const topSales = Object.entries(bySales).sort((a, b) => b[1].total - a[1].total).slice(0, 10);
+    document.getElementById('ov-bysales').innerHTML = topSales.length ? `
+      <table>
+        <thead><tr><th>พนักงานขาย</th><th>จำนวนออเดอร์</th><th>ยอดขายรวม (บาท)</th></tr></thead>
+        <tbody>
+          ${topSales.map(([name, d]) => `
+            <tr><td>${escapeHtml(name)}</td><td>${fmtNum(d.count)}</td><td>${fmtMoney(d.total)}</td></tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีข้อมูล —</p>`;
+
+    // ----- สินค้าใกล้หมด -----
+    const stockBox = document.getElementById('ov-stockwarn');
+    stockBox.innerHTML = lowStock.length ? `
+      <table>
+        <thead><tr><th>SKU / รหัสสินค้า</th><th>ชื่อสินค้า</th><th>คงเหลือ</th><th>จองแล้ว</th><th>จุดสั่งซื้อซ้ำ</th></tr></thead>
+        <tbody>
+          ${lowStock.slice(0, 30).map(p => `
+            <tr>
+              <td>${escapeHtml(p._id || p.sku || '-')}</td>
+              <td>${escapeHtml(p.name || '-')}</td>
+              <td style="color:${Number(p.stockQty || 0) <= 0 ? '#d23' : '#b8740a'};font-weight:700;">${fmtNum(p.stockQty)}</td>
+              <td>${fmtNum(p.reservedQty)}</td>
+              <td>${fmtNum(p.reorderPoint ?? p.reorderLevel ?? 0)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : `<p style="color:#888;font-size:0.88rem;">— สต๊อกสินค้าทั้งหมดอยู่ในระดับปกติ 🎉 —</p>`;
+  }
+
+  // =========================================================
+  // 📋 ORDERS — ดูอย่างเดียว
+  // =========================================================
+  let _mgrOrdersCache = [];
+
+  async function renderOrdersView() {
+    main.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <p style="margin:0;">${SECTIONS.orders.desc}</p>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" id="mgr-order-search" placeholder="ค้นหาเลขออเดอร์/ลูกค้า/พนักงานขาย..." style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem;min-width:220px;" />
+            <select id="mgr-order-filter">
+              <option value="">ทุกสถานะ</option>
+              <option value="รอดำเนินการ">รอดำเนินการ</option>
+              <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+              <option value="ยกเลิก">ยกเลิก</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>พนักงานขาย</th><th>ยอดรวม</th><th>วันที่</th><th>สถานะคลัง</th><th>สถานะ</th></tr></thead>
+          <tbody id="mgr-order-rows"><tr><td colspan="8" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('mgr-order-search').addEventListener('input', renderMgrOrderRows);
+    document.getElementById('mgr-order-filter').addEventListener('change', renderMgrOrderRows);
+    _mgrOrdersCache = await fetchAll('orders', 'createdAtServer', 500);
+    renderMgrOrderRows();
+  }
+
+  function renderMgrOrderRows() {
+    const tbody = document.getElementById('mgr-order-rows');
+    if (!tbody) return;
+    const term = (document.getElementById('mgr-order-search')?.value || '').trim().toLowerCase();
+    const filterStatus = document.getElementById('mgr-order-filter')?.value || '';
+    let list = _mgrOrdersCache;
+    if (filterStatus) list = list.filter(o => o.status === filterStatus);
+    if (term) {
+      list = list.filter(o =>
+        (o.id || '').toLowerCase().includes(term) ||
+        (o.customer?.name || '').toLowerCase().includes(term) ||
+        (o.salesperson || '').toLowerCase().includes(term)
+      );
+    }
+    list = list.slice(0, 200);
+    if (!list.length) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#999;">— ไม่พบรายการ —</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = list.map(o => `
+      <tr>
+        <td>${escapeHtml(o.id)}</td>
+        <td>${escapeHtml(o.customer?.name || '-')}</td>
+        <td>${escapeHtml(o.channel || '-')}</td>
+        <td>${escapeHtml(o.salesperson || '-')}</td>
+        <td>${fmtMoney(o.subtotal)}</td>
+        <td>${escapeHtml(o.orderDate || o.createdAt || '-')}</td>
+        <td>${statusBadge ? statusBadge(o.warehouseStage) : escapeHtml(o.warehouseStage || '-')}</td>
+        <td>${orderStatusBadge(o.status)}</td>
+      </tr>
+    `).join('');
+  }
+
+  // =========================================================
+  // 💰 FINANCE — ดูอย่างเดียว
+  // =========================================================
+  async function renderFinanceView() {
+    main.innerHTML = `
+      <div class="card"><p>${SECTIONS.finance.desc}</p></div>
+      <div class="grid-cards">
+        <div class="card stat-card"><div class="num" id="fv-sales">-</div><div class="label">ยอดขายรวม (จากใบแจ้งหนี้)</div></div>
+        <div class="card stat-card"><div class="num" id="fv-received">-</div><div class="label">รับชำระแล้ว</div></div>
+        <div class="card stat-card"><div class="num" id="fv-outstanding">-</div><div class="label">ค้างรับ (AR)</div></div>
+        <div class="card stat-card"><div class="num" id="fv-expense">-</div><div class="label">รายจ่ายรวม</div></div>
+        <div class="card stat-card"><div class="num" id="fv-net">-</div><div class="label">กระแสเงินสดสุทธิ</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">📅 สรุปยอดรายเดือน</h3>
+        <div id="fv-monthly">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">🔁 ใบแจ้งหนี้ที่ยังไม่ปิด (Top ค้างชำระสูงสุด)</h3>
+        <div id="fv-unpaid">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+    const [invoices, payments] = await Promise.all([
+      fetchAll('invoices', 'issuedAtServer', 1000),
+      fetchAll('payments', 'dateServer', 1000),
+    ]);
+
+    const totalSales = invoices.reduce((s, i) => s + Number(i.total || 0), 0);
+    const received = payments.filter(p => p.type === 'receipt').reduce((s, p) => s + Number(p.amount || 0), 0);
+    const expense = payments.filter(p => p.type === 'expense').reduce((s, p) => s + Number(p.amount || 0), 0);
+    const outstanding = invoices.reduce((s, i) => s + Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0)), 0);
+
+    document.getElementById('fv-sales').textContent = fmtMoney(totalSales) + ' ฿';
+    document.getElementById('fv-received').textContent = fmtMoney(received) + ' ฿';
+    document.getElementById('fv-outstanding').textContent = fmtMoney(outstanding) + ' ฿';
+    document.getElementById('fv-expense').textContent = fmtMoney(expense) + ' ฿';
+    const net = received - expense;
+    const netEl = document.getElementById('fv-net');
+    netEl.textContent = (net >= 0 ? '+' : '') + fmtMoney(net) + ' ฿';
+    netEl.style.color = net >= 0 ? '#1a8a3a' : '#d23';
+
+    // รายเดือน
+    const months = {};
+    const monthKey = (iso) => {
+      const d = new Date(iso);
+      if (!isFinite(d.getTime())) return null;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    };
+    invoices.forEach(i => {
+      const k = monthKey(i.issuedAt); if (!k) return;
+      months[k] = months[k] || { sales: 0, received: 0, expense: 0 };
+      months[k].sales += Number(i.total || 0);
+    });
+    payments.forEach(p => {
+      const k = monthKey(p.date); if (!k) return;
+      months[k] = months[k] || { sales: 0, received: 0, expense: 0 };
+      if (p.type === 'receipt') months[k].received += Number(p.amount || 0);
+      else months[k].expense += Number(p.amount || 0);
+    });
+    const sortedMonths = Object.keys(months).sort().reverse();
+    document.getElementById('fv-monthly').innerHTML = sortedMonths.length ? `
+      <table>
+        <thead><tr><th>เดือน</th><th>ยอดขาย</th><th>รับชำระ</th><th>รายจ่าย</th><th>กระแสเงินสดสุทธิ</th></tr></thead>
+        <tbody>
+          ${sortedMonths.map(k => {
+            const m = months[k];
+            const netM = m.received - m.expense;
+            const [y, mo] = k.split('-');
+            const label = new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
+            return `<tr>
+              <td>${escapeHtml(label)}</td>
+              <td>${fmtMoney(m.sales)}</td>
+              <td>${fmtMoney(m.received)}</td>
+              <td>${fmtMoney(m.expense)}</td>
+              <td style="color:${netM >= 0 ? '#1a8a3a' : '#d23'};font-weight:600;">${netM >= 0 ? '+' : ''}${fmtMoney(netM)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    ` : `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีข้อมูลเพียงพอ —</p>`;
+
+    // ใบแจ้งหนี้ค้างชำระสูงสุด
+    const unpaid = invoices
+      .filter(i => i.payStatus !== 'paid')
+      .map(i => ({ ...i, remaining: Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0)) }))
+      .sort((a, b) => b.remaining - a.remaining)
+      .slice(0, 15);
+    document.getElementById('fv-unpaid').innerHTML = unpaid.length ? `
+      <table>
+        <thead><tr><th>เลขที่ใบแจ้งหนี้</th><th>ลูกค้า</th><th>วันที่ออก</th><th>ยอดรวม</th><th>ค้างชำระ</th></tr></thead>
+        <tbody>
+          ${unpaid.map(i => `
+            <tr>
+              <td>${escapeHtml(i.invoiceNo)}</td>
+              <td>${escapeHtml(i.customerName)}</td>
+              <td>${fmtDate(i.issuedAt)}</td>
+              <td>${fmtMoney(i.total)}</td>
+              <td style="color:#d23;font-weight:700;">${fmtMoney(i.remaining)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : `<p style="color:#888;font-size:0.88rem;">— ไม่มีใบแจ้งหนี้ค้างชำระ 🎉 —</p>`;
   }
 </script>
 </html>
