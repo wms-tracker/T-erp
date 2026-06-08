@@ -11,14 +11,14 @@
   import { requireRole, db } from "./js/auth.js";
   import { renderShell } from "./js/shell.js";
   import {
-    collection, getDocs, doc, setDoc, updateDoc, query, orderBy, limit, runTransaction
+    collection, getDocs, addDoc, doc, setDoc, updateDoc, query, orderBy, limit, runTransaction, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const profile = await requireRole(['admin']);
 
   const SECTIONS = {
     orders:    { title: '📋 ออเดอร์ทั้งหมด',          desc: 'ดูและติดตามสถานะออเดอร์ของทุกฝ่ายขาย ประสานงานกับคลังสินค้า', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
-    documents: { title: '📑 เอกสารขาย/ขนส่ง',         desc: 'จัดทำและจัดเก็บเอกสารประกอบการขายและการขนส่ง', phase: 'เฟส 2' },
+    documents: { title: '📑 เอกสารขาย/ขนส่ง',         desc: 'จัดทำและจัดเก็บเอกสารประกอบการขายและการขนส่ง (ใบส่งของ/ใบกำกับสินค้า, ใบปะหน้าพัสดุ, ใบสรุปแพ็คสินค้า) พร้อมพิมพ์และบันทึกประวัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
     routing:   { title: '🗺 จัดรูทขนส่ง / คัตออฟ',      desc: 'จัดกลุ่มออเดอร์ตามเส้นทางขนส่งและเวลาคัตออฟประจำวัน ส่งสรุปยอดให้ฝ่ายที่เกี่ยวข้อง', phase: 'เฟส 2' },
     users:     { title: '👥 จัดการผู้ใช้งาน & สิทธิ์', desc: 'เพิ่ม/ลบ/แก้ไขบัญชีผู้ใช้งาน กำหนดแผนกและสิทธิ์การเข้าถึง (RBAC)', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
     reports:   { title: '📊 รายงานประจำวัน',          desc: 'สรุปยอดขาย สถานะคลัง และภาพรวมการดำเนินงานประจำวันของทุกแผนก', phase: 'เฟส 4' },
@@ -29,6 +29,7 @@
 
   if (key === 'users') renderUserManagement();
   else if (key === 'orders') renderAllOrders();
+  else if (key === 'documents') renderDocuments();
   else renderPlaceholder(key);
 
   window.addEventListener('hashchange', () => location.reload());
@@ -44,6 +45,292 @@
       </div>
     `;
   }
+
+  // =========================================================
+  // 📑 เอกสารขาย/ขนส่ง (เฟส 2)
+  // =========================================================
+  function escDoc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function fmtMoneyDoc(n) { return Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtDateDoc(d) {
+    if (!d) return '-';
+    try { return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return d; }
+  }
+
+  const DOC_TYPES = {
+    delivery: { label: '🚚 ใบส่งของ / ใบกำกับสินค้า', code: 'DN' },
+    packing:  { label: '📦 ใบสรุปแพ็คสินค้า',          code: 'PK' },
+    shipping: { label: '🏷 ใบปะหน้าพัสดุ',             code: 'SH' },
+  };
+
+  let _docOrdersCache = [];
+  let _docLogCache = [];
+
+  async function renderDocuments() {
+    main.innerHTML = `
+      <div class="card">
+        <p>${SECTIONS.documents.desc}</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">🔍 ค้นหาออเดอร์เพื่อจัดทำเอกสาร</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+          <input type="text" id="doc-search" placeholder="ค้นหาด้วยเลขออเดอร์ หรือชื่อลูกค้า..." style="flex:1;min-width:220px;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:0.9rem;" />
+          <button class="btn btn-outline" id="btn-doc-refresh">🔄 รีเฟรช</button>
+        </div>
+        <div id="doc-orders-box">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">🗂 ประวัติเอกสารที่จัดทำแล้ว</h3>
+        <div id="doc-log-box">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+    document.getElementById('btn-doc-refresh').addEventListener('click', loadDocOrdersAndLog);
+    document.getElementById('doc-search').addEventListener('input', renderDocOrderRows);
+    await loadDocOrdersAndLog();
+  }
+
+  async function loadDocOrdersAndLog() {
+    const box = document.getElementById('doc-orders-box');
+    const logBox = document.getElementById('doc-log-box');
+    if (box) box.innerHTML = '⏳ กำลังโหลด...';
+    if (logBox) logBox.innerHTML = '⏳ กำลังโหลด...';
+    try {
+      const ordersSnap = await getDocs(query(collection(db, 'orders'), orderBy('createdAtServer', 'desc'), limit(200)));
+      _docOrdersCache = ordersSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) { _docOrdersCache = []; console.warn(e); }
+    try {
+      const logSnap = await getDocs(query(collection(db, 'salesDocuments'), orderBy('generatedAtServer', 'desc'), limit(100)));
+      _docLogCache = logSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) { _docLogCache = []; console.warn(e); }
+    renderDocOrderRows();
+    renderDocLog();
+  }
+
+  function renderDocOrderRows() {
+    const box = document.getElementById('doc-orders-box');
+    if (!box) return;
+    const term = (document.getElementById('doc-search')?.value || '').trim().toLowerCase();
+    let list = _docOrdersCache;
+    if (term) {
+      list = list.filter(o =>
+        (o.id || '').toLowerCase().includes(term) ||
+        (o.customer?.name || '').toLowerCase().includes(term) ||
+        (o.customer?.phone || '').includes(term)
+      );
+    }
+    list = list.slice(0, 60);
+    if (!list.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ไม่พบออเดอร์ที่ตรงกับคำค้นหา —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>เลขออเดอร์</th><th>ลูกค้า</th><th>ช่องทาง/ขนส่ง</th><th>ยอดรวม</th><th>สถานะคลัง</th><th>จัดทำเอกสาร</th></tr></thead>
+        <tbody>
+          ${list.map(o => `
+            <tr>
+              <td>${escDoc(o.id)}</td>
+              <td>${escDoc(o.customer?.name || '-')}</td>
+              <td>${escDoc(o.shipping?.deliveryBy || o.channel || '-')}</td>
+              <td>${fmtMoneyDoc(o.subtotal)}</td>
+              <td>${escDoc(o.warehouseStage || '-')}</td>
+              <td>
+                <select data-order="${o._id}" class="doc-type-pick" style="padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:0.8rem;">
+                  ${Object.entries(DOC_TYPES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}
+                </select>
+                <button class="btn btn-primary" style="padding:6px 12px;font-size:0.78rem;" onclick="window.__genDoc('${o._id}', this)">🖨 สร้าง/พิมพ์</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderDocLog() {
+    const box = document.getElementById('doc-log-box');
+    if (!box) return;
+    if (!_docLogCache.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีประวัติการจัดทำเอกสาร —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>เลขที่เอกสาร</th><th>ประเภท</th><th>เลขออเดอร์</th><th>ลูกค้า</th><th>วันที่จัดทำ</th><th>โดย</th><th></th></tr></thead>
+        <tbody>
+          ${_docLogCache.map(d => `
+            <tr>
+              <td>${escDoc(d.docNo)}</td>
+              <td>${escDoc((DOC_TYPES[d.docType] || {}).label || d.docType)}</td>
+              <td>${escDoc(d.orderId)}</td>
+              <td>${escDoc(d.customerName || '-')}</td>
+              <td>${fmtDateDoc(d.generatedAt)}</td>
+              <td>${escDoc(d.generatedByName || '-')}</td>
+              <td><button class="btn btn-outline" style="padding:5px 12px;font-size:0.76rem;" onclick="window.__reprintDoc('${d._id}')">🖨 พิมพ์ซ้ำ</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  async function nextDocNo(counterId, prefix) {
+    const ref = doc(db, 'counters', counterId);
+    const next = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const cur = snap.exists() ? (snap.data().value || 0) : 0;
+      const updated = cur + 1;
+      tx.set(ref, { value: updated }, { merge: true });
+      return updated;
+    });
+    return prefix + String(next).padStart(6, '0');
+  }
+
+  function buildDocHtml(docType, docNo, order) {
+    const typeLabel = (DOC_TYPES[docType] || {}).label || docType;
+    const c = order.customer || {};
+    const addr = [c.addressDetail, c.district, c.province, c.zipcode].filter(Boolean).join(' ');
+    const itemsRows = (order.items || []).map((it, idx) => `
+      <tr>
+        <td style="text-align:center;">${idx + 1}</td>
+        <td>${escDoc(it.name || it.model || it.sku || '-')}</td>
+        <td style="text-align:center;">${escDoc(it.qty ?? '-')}</td>
+        <td style="text-align:right;">${it.price != null ? fmtMoneyDoc(it.price) : '-'}</td>
+        <td style="text-align:right;">${(it.price != null && it.qty != null) ? fmtMoneyDoc(Number(it.price) * Number(it.qty)) : '-'}</td>
+      </tr>
+    `).join('');
+
+    let bodyExtra = '';
+    if (docType === 'delivery') {
+      bodyExtra = `
+        <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;">
+          <thead><tr style="background:#f4f6fa;">
+            <th style="border:1px solid #ddd;padding:6px;">#</th>
+            <th style="border:1px solid #ddd;padding:6px;text-align:left;">รายการสินค้า</th>
+            <th style="border:1px solid #ddd;padding:6px;">จำนวน</th>
+            <th style="border:1px solid #ddd;padding:6px;">ราคา/หน่วย</th>
+            <th style="border:1px solid #ddd;padding:6px;">รวม</th>
+          </tr></thead>
+          <tbody>${itemsRows}</tbody>
+        </table>
+        <p style="text-align:right;margin-top:10px;font-size:14px;"><b>ยอดรวมทั้งสิ้น: ${fmtMoneyDoc(order.subtotal)} บาท</b></p>
+      `;
+    } else if (docType === 'packing') {
+      bodyExtra = `
+        <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;">
+          <thead><tr style="background:#f4f6fa;">
+            <th style="border:1px solid #ddd;padding:6px;">#</th>
+            <th style="border:1px solid #ddd;padding:6px;text-align:left;">รายการสินค้า</th>
+            <th style="border:1px solid #ddd;padding:6px;">จำนวนที่ต้องแพ็ค</th>
+            <th style="border:1px solid #ddd;padding:6px;">☑ แพ็คแล้ว</th>
+          </tr></thead>
+          <tbody>
+            ${(order.items || []).map((it, idx) => `
+              <tr>
+                <td style="text-align:center;border:1px solid #ddd;padding:6px;">${idx + 1}</td>
+                <td style="border:1px solid #ddd;padding:6px;">${escDoc(it.name || it.model || it.sku || '-')}</td>
+                <td style="text-align:center;border:1px solid #ddd;padding:6px;">${escDoc(it.qty ?? '-')}</td>
+                <td style="text-align:center;border:1px solid #ddd;padding:6px;">☐</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="margin-top:16px;font-size:13px;">ผู้แพ็ค: ____________________&nbsp;&nbsp;&nbsp; ผู้ตรวจสอบ (QC): ____________________&nbsp;&nbsp;&nbsp; วันที่: ____________________</p>
+      `;
+    } else if (docType === 'shipping') {
+      bodyExtra = `
+        <div style="border:2px dashed #888;border-radius:10px;padding:18px;margin-top:16px;">
+          <p style="font-size:12px;color:#888;margin:0 0 4px;">ผู้ส่ง</p>
+          <p style="font-size:14px;margin:0 0 14px;"><b>คลังสินค้า / ผู้ขาย</b></p>
+          <p style="font-size:12px;color:#888;margin:0 0 4px;">ผู้รับ</p>
+          <p style="font-size:18px;margin:0 0 6px;"><b>${escDoc(c.name || '-')}</b></p>
+          <p style="font-size:14px;margin:0 0 4px;">โทร: ${escDoc(c.phone || '-')} ${c.phone2 ? '/ ' + escDoc(c.phone2) : ''}</p>
+          <p style="font-size:14px;margin:0;">${escDoc(addr || '-')}</p>
+        </div>
+        <p style="margin-top:14px;font-size:13px;">ขนส่งโดย: ${escDoc(order.shipping?.deliveryBy || '-')} &nbsp;&nbsp;&nbsp; วันที่จัดส่ง: ${fmtDateDoc(order.shipping?.shipDate)}</p>
+        <p style="font-size:13px;">หมายเหตุ COD: ${escDoc(order.shipping?.codNotes || '-')}</p>
+      `;
+    }
+
+    return `
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
+      <title>${escDoc(docNo)} — ${escDoc(typeLabel)}</title>
+      <style>
+        body { font-family: 'Segoe UI','Sarabun',Tahoma,sans-serif; padding: 28px; color:#222; }
+        h1 { font-size: 18px; margin: 0 0 2px; }
+        .doc-no { color:#888; font-size: 13px; margin-bottom: 18px; }
+        .grid { display:flex; justify-content:space-between; gap:24px; font-size:13px; margin-bottom: 10px; }
+        .grid > div { flex:1; }
+        .grid b { display:block; margin-bottom:4px; color:#555; }
+        @media print { .no-print { display:none; } }
+      </style></head>
+      <body>
+        <div class="no-print" style="text-align:right;margin-bottom:10px;">
+          <button onclick="window.print()" style="padding:8px 18px;border:none;background:#1a73e8;color:#fff;border-radius:8px;cursor:pointer;">🖨 พิมพ์เอกสาร</button>
+        </div>
+        <h1>${escDoc(typeLabel)}</h1>
+        <div class="doc-no">เลขที่เอกสาร: ${escDoc(docNo)} &nbsp;|&nbsp; เลขออเดอร์อ้างอิง: ${escDoc(order.id)} &nbsp;|&nbsp; วันที่ออกเอกสาร: ${fmtDateDoc(new Date().toISOString())}</div>
+        <div class="grid">
+          <div><b>ลูกค้า / ผู้รับสินค้า</b>
+            ${escDoc(c.name || '-')}<br/>
+            โทร: ${escDoc(c.phone || '-')}<br/>
+            ${escDoc(addr || '-')}
+          </div>
+          <div><b>รายละเอียดออเดอร์</b>
+            ช่องทางขาย: ${escDoc(order.channel || '-')}<br/>
+            พนักงานขาย: ${escDoc(order.salesperson || '-')}<br/>
+            วันที่สั่งซื้อ: ${escDoc(order.orderDate || '-')}
+          </div>
+        </div>
+        ${bodyExtra}
+        <p style="margin-top:30px;font-size:12px;color:#999;">เอกสารนี้จัดทำโดยระบบ Web ERP — ${escDoc(docNo)}</p>
+      </body></html>
+    `;
+  }
+
+  window.__genDoc = async function (orderDocId, btnEl) {
+    const order = _docOrdersCache.find(o => o._id === orderDocId);
+    if (!order) return;
+    const row = btnEl.closest('tr');
+    const docType = row.querySelector('.doc-type-pick')?.value || 'delivery';
+    btnEl.disabled = true;
+    try {
+      const docNo = await nextDocNo('salesDocCounter', (DOC_TYPES[docType]?.code || 'DOC') + '-');
+      await addDoc(collection(db, 'salesDocuments'), {
+        docNo, docType,
+        orderId: order.id,
+        orderDocId: order._id,
+        customerName: order.customer?.name || '-',
+        generatedAt: new Date().toISOString(),
+        generatedAtServer: serverTimestamp(),
+        generatedBy: profile.uid,
+        generatedByName: profile.name || profile.email || '',
+      });
+      const html = buildDocHtml(docType, docNo, order);
+      const w = window.open('', '_blank');
+      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+      else alert('เบราว์เซอร์บล็อกป๊อปอัป กรุณาอนุญาตป๊อปอัปสำหรับเว็บไซต์นี้');
+      await loadDocOrdersAndLog();
+    } catch (e) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาด: ' + (e.message || e));
+    } finally {
+      btnEl.disabled = false;
+    }
+  };
+
+  window.__reprintDoc = function (logDocId) {
+    const logEntry = _docLogCache.find(d => d._id === logDocId);
+    if (!logEntry) return;
+    const order = _docOrdersCache.find(o => o._id === logEntry.orderDocId) ||
+                  _docOrdersCache.find(o => o.id === logEntry.orderId);
+    if (!order) { alert('ไม่พบข้อมูลออเดอร์ต้นทางสำหรับเอกสารนี้ (อาจถูกลบไปแล้ว)'); return; }
+    const html = buildDocHtml(logEntry.docType, logEntry.docNo, order);
+    const w = window.open('', '_blank');
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+  };
 
   // ---------- ออเดอร์ทั้งหมด (ทุกฝ่ายขาย — เฟส 1) ----------
   const ORDER_CLS = { 'รอดำเนินการ': 'badge-pending', 'เสร็จสิ้น': 'badge-done', 'ยกเลิก': 'badge-cancel' };

@@ -49,6 +49,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ----- salesDocuments: ประวัติเอกสารขาย/ขนส่งที่จัดทำ (ใบส่งของ/ใบแพ็ค/ใบปะหน้าพัสดุ) -----
+    match /salesDocuments/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create: if hasRole('admin') || hasRole('sales') || hasRole('warehouse');
+      allow update, delete: if isAdmin();
+    }
+
     // ----- products / stockMovements: คลัง/แอดมินจัดการได้เต็มสิทธิ์ -----
     // sales อนุญาตให้ "update" ได้ด้วย (เพื่อจองสต๊อก/ปรับ reservedQty ตอนสร้างออเดอร์)
     // แต่สร้าง/ลบสินค้าได้เฉพาะคลังและแอดมินเท่านั้น
