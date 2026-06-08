@@ -11,7 +11,7 @@
   import { requireRole, db } from "./js/auth.js";
   import { renderShell } from "./js/shell.js";
   import {
-    collection, getDocs, doc, setDoc, updateDoc, query, orderBy, limit
+    collection, getDocs, doc, setDoc, updateDoc, query, orderBy, limit, runTransaction
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const profile = await requireRole(['admin']);
@@ -64,6 +64,10 @@
             <button class="btn btn-outline" id="btn-refresh-orders">🔄 รีเฟรช</button>
           </div>
         </div>
+        <div id="dup-fix-box" style="display:none;margin-top:14px;background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.85rem;color:#8a6400;">
+          <span id="dup-fix-msg"></span>
+          <button class="btn btn-outline" id="btn-fix-dup" style="margin-left:10px;font-size:0.8rem;padding:6px 14px;">🔧 แก้เลขออเดอร์ที่ซ้ำกันให้อัตโนมัติ</button>
+        </div>
       </div>
       <div class="card">
         <table>
@@ -96,8 +100,61 @@
       // เรียงสำรองด้วย id ออเดอร์ (เผื่อ fallback ไม่มี server timestamp)
       _allOrdersCache.sort((a, b) => (b.id || '').localeCompare(a.id || ''));
       renderOrderRows();
+      checkDuplicateOrderIds();
     } catch (err) {
       tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
+  }
+
+  // ตรวจหาเลขออเดอร์ที่ซ้ำกัน (ปัญหาที่เกิดจากระบบเก่าก่อนเชื่อมตัวนับกลาง) — แสดงกล่องแจ้งเตือน + ปุ่มแก้ไขอัตโนมัติ
+  function checkDuplicateOrderIds() {
+    const box = document.getElementById('dup-fix-box');
+    const msg = document.getElementById('dup-fix-msg');
+    const btn = document.getElementById('btn-fix-dup');
+    const groups = {};
+    _allOrdersCache.forEach(o => { if (o.id) (groups[o.id] = groups[o.id] || []).push(o); });
+    const dupGroups = Object.values(groups).filter(g => g.length > 1);
+    if (!dupGroups.length) { box.style.display = 'none'; return; }
+    const totalExtra = dupGroups.reduce((sum, g) => sum + (g.length - 1), 0);
+    box.style.display = '';
+    msg.textContent = `⚠ พบเลขออเดอร์ซ้ำกัน ${dupGroups.length} ชุด (รวม ${totalExtra} รายการที่ต้องเปลี่ยนเลขใหม่) — มักเกิดจากออเดอร์ที่สร้างไว้ก่อนเชื่อมตัวนับเลขกลาง`;
+    btn.onclick = () => fixDuplicateOrderIds(dupGroups);
+  }
+
+  async function fixDuplicateOrderIds(dupGroups) {
+    if (!confirm('ระบบจะออกเลขออเดอร์ใหม่ให้กับรายการที่ซ้ำกัน (เก็บรายการที่สร้างก่อนไว้เลขเดิม ส่วนรายการหลังจะได้เลขใหม่) ยืนยันดำเนินการ?')) return;
+    const btn = document.getElementById('btn-fix-dup');
+    btn.disabled = true;
+    btn.textContent = 'กำลังแก้ไข...';
+    let fixed = 0;
+    try {
+      for (const group of dupGroups) {
+        // เรียงตามเวลาสร้าง (ถ้ามี) เก็บอันแรกไว้เลขเดิม ที่เหลือออกเลขใหม่
+        const sorted = [...group].sort((a, b) => {
+          const ta = a.createdAtServer?.toMillis ? a.createdAtServer.toMillis() : 0;
+          const tb = b.createdAtServer?.toMillis ? b.createdAtServer.toMillis() : 0;
+          return ta - tb;
+        });
+        for (let i = 1; i < sorted.length; i++) {
+          const o = sorted[i];
+          const counterRef = doc(db, 'counters', 'orderCounter');
+          const newId = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(counterRef);
+            const current = snap.exists() ? (snap.data().value || 0) : 0;
+            const updated = current + 1;
+            tx.set(counterRef, { value: updated }, { merge: true });
+            return 'ORD-' + String(updated).padStart(6, '0');
+          });
+          await updateDoc(doc(db, 'orders', o._id), { id: newId, idFixedFrom: o.id });
+          fixed++;
+        }
+      }
+      alert(`แก้ไขเลขออเดอร์ที่ซ้ำกันสำเร็จ ${fixed} รายการ — ระบบจะรีเฟรชรายการให้`);
+      await loadAllOrders();
+    } catch (err) {
+      alert('แก้ไขไม่สำเร็จ: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = '🔧 แก้เลขออเดอร์ที่ซ้ำกันให้อัตโนมัติ';
     }
   }
 
