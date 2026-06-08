@@ -70,7 +70,10 @@ export function renderShell(profile, activeKey, title) {
     `<a href="${item.href}" class="${item.key === activeKey ? 'active' : ''}">${item.label}</a>`
   ).join('');
   const viewingAsBadge = (profile.role === 'admin' && navKey !== 'admin')
-    ? `<div style="background:#fff3cd;color:#7a5b00;font-size:0.72rem;padding:5px 10px;border-radius:6px;margin:6px 0;text-align:center;">👁 แอดมินกำลังดูแผนก: ${ROLE_LABEL[navKey] || navKey}</div>`
+    ? `<div style="background:#fff3cd;color:#7a5b00;font-size:0.72rem;padding:5px 10px;border-radius:6px;margin:6px 0;text-align:center;">
+         👁 แอดมินกำลังดูแผนก: ${ROLE_LABEL[navKey] || navKey}<br/>
+         <a href="dashboard-admin.html" style="display:inline-block;margin-top:4px;background:#7a5b00;color:#fff;padding:3px 10px;border-radius:5px;text-decoration:none;font-weight:600;">⬅ กลับเมนูหลักแอดมิน</a>
+       </div>`
     : '';
 
   document.body.innerHTML = `
