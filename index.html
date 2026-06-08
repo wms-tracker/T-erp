@@ -1140,13 +1140,35 @@ initForm();
         createdBy: erpUser.uid,
         createdByName: erpProfile?.name || erpUser.email,
         createdByEmail: erpUser.email,
+        warehouseStage: 'รอหยิบสินค้า', // เข้าคิวให้ฝ่ายคลังหยิบสินค้า (Phase 2)
         createdAtServer: serverTimestamp(),
       });
+      reserveStockForOrder(order); // จองสต๊อกตามรายการสินค้าในออเดอร์ (ไม่บล็อกการบันทึกออเดอร์ ถ้าจองไม่สำเร็จ)
     } catch (err) {
       console.error('บันทึกออเดอร์ขึ้น Firestore ไม่สำเร็จ:', err);
       toast('⚠ บันทึกขึ้นระบบกลาง (Firestore) ไม่สำเร็จ — ข้อมูลยังถูกเก็บไว้ในเครื่องนี้');
     }
   };
+
+  // เพิ่มยอด "จองแล้ว" (reservedQty) ของแต่ละ SKU ตามจำนวนในออเดอร์ — เพื่อให้ฝ่ายคลังเห็นว่าสต๊อกส่วนไหนถูกจองไปแล้ว
+  // (การตัดสต๊อกจริงจะเกิดขึ้นตอนฝ่ายคลังกด "หยิบครบแล้ว" ในหน้า Picking)
+  async function reserveStockForOrder(order) {
+    for (const it of (order.items || [])) {
+      const sku = it.sku || it.model;
+      if (!sku) continue;
+      const qty = Number(it.qty) || 0;
+      if (qty <= 0) continue;
+      try {
+        const productRef = doc(db, 'products', sku);
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(productRef);
+          if (!snap.exists()) return; // ยังไม่มีสินค้านี้ในระบบคลัง — ข้ามไปก่อน
+          const p = snap.data();
+          tx.update(productRef, { reservedQty: (p.reservedQty || 0) + qty });
+        });
+      } catch (e) { console.warn('จองสต๊อกไม่สำเร็จสำหรับ SKU', sku, e); }
+    }
+  }
 
   // โหลดออเดอร์ของผู้ใช้คนนี้จาก Firestore มาผสานกับข้อมูลในเครื่อง (ไม่ให้ตกหล่นเวลาเปลี่ยนเครื่อง/เบราว์เซอร์)
   async function loadMyOrdersFromFirestore() {

@@ -8,42 +8,485 @@
 </head>
 <body></body>
 <script type="module">
-  import { requireRole } from "./js/auth.js";
-  import { renderShell } from "./js/shell.js";
+  import { requireRole, db } from "./js/auth.js";
+  import { renderShell, statusBadge } from "./js/shell.js";
+  import {
+    collection, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, runTransaction,
+    query, where, orderBy, limit, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const profile = await requireRole(['warehouse']);
 
   const SECTIONS = {
-    inbound:    { title: '📥 รับสินค้าเข้า (Inbound)',        desc: 'บันทึกสินค้าที่รับเข้าคลังจากผู้ผลิต/ซัพพลายเออร์ พร้อมจำนวนและเลขอ้างอิงใบส่งของ', phase: 'เฟส 2' },
-    putaway:    { title: '🗄 จัดเก็บเข้าตำแหน่ง (Put Away)',  desc: 'กำหนด/ปรับตำแหน่งจัดเก็บสินค้าในคลัง (location) เพื่อให้ค้นหาและหยิบสินค้าได้รวดเร็ว', phase: 'เฟส 2' },
-    stock:      { title: '📦 จัดการสต๊อกสินค้า',              desc: 'ดูจำนวนคงเหลือ/จอง/พร้อมขายของแต่ละ SKU พร้อมแจ้งเตือนเมื่อสินค้าใกล้หมด (reorder point)', phase: 'เฟส 2' },
-    picking:    { title: '🛒 หยิบสินค้า (Picking)',           desc: 'รายการสินค้าที่ต้องหยิบตามออเดอร์ที่รอจัดส่ง พร้อมยืนยันด้วยการสแกนบาร์โค้ด', phase: 'เฟส 2' },
-    packing:    { title: '📦 แพ็คสินค้า (Packing)',           desc: 'ยืนยันรายการที่แพ็คเสร็จ ผูกกับเลขออเดอร์ และเตรียมส่งมอบให้ฝ่ายขนส่ง', phase: 'เฟส 2' },
-    qc:         { title: '✅ ตรวจสอบสินค้า (QC)',             desc: 'ตรวจสอบคุณภาพ/ความถูกต้องของสินค้าก่อนแพ็คหรือก่อนจัดส่ง บันทึกผลผ่าน/ไม่ผ่าน', phase: 'เฟส 2' },
-    outbound:   { title: '🚚 จัดส่งสินค้า (Outbound)',        desc: 'บันทึกการนำสินค้าออกจากคลังเพื่อจัดส่ง พร้อมเลข tracking และผู้ขนส่ง', phase: 'เฟส 2' },
-    cyclecount: { title: '🔢 ตรวจนับสต๊อก (Cycle Count)',     desc: 'ตรวจนับสต๊อกตามรอบ เปรียบเทียบกับยอดในระบบ และบันทึกผลต่างเพื่อปรับปรุงยอด', phase: 'เฟส 2' },
+    inbound:    { title: '📥 รับสินค้าเข้า (Inbound)',        desc: 'บันทึกสินค้าที่รับเข้าคลังจากผู้ผลิต/ซัพพลายเออร์ พร้อมจำนวนและหมายเหตุอ้างอิง — ระบบจะอัปเดตยอดคงเหลือให้อัตโนมัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    putaway:    { title: '🗄 จัดเก็บเข้าตำแหน่ง (Put Away)',  desc: 'กำหนด/ปรับตำแหน่งจัดเก็บสินค้าในคลัง (location) — แก้ไขได้จากหน้า "จัดการสต๊อกสินค้า" โดยตรง (ระบุช่องตำแหน่งต่อ SKU)', phase: 'เฟส 2 — รวมไว้ในหน้าจัดการสต๊อก 👇' },
+    stock:      { title: '📦 จัดการสต๊อกสินค้า',              desc: 'ดูจำนวนคงเหลือ/จอง/พร้อมขายของแต่ละ SKU พร้อมแจ้งเตือนเมื่อสินค้าใกล้หมด (reorder point) และแก้ไขตำแหน่งจัดเก็บ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    picking:    { title: '🛒 หยิบสินค้า (Picking)',           desc: 'รายการออเดอร์ที่รอหยิบสินค้า — กดยืนยันเมื่อหยิบครบแล้วเพื่อส่งต่อไปขั้นตอนแพ็ค (ระบบจะตัด/จองสต๊อกให้อัตโนมัติ)', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    packing:    { title: '📦 แพ็คสินค้า (Packing)',           desc: 'ยืนยันออเดอร์ที่แพ็คเสร็จแล้ว เตรียมส่งต่อให้ฝ่าย QC ตรวจสอบก่อนจัดส่ง', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    qc:         { title: '✅ ตรวจสอบสินค้า (QC)',             desc: 'ตรวจสอบความถูกต้อง/คุณภาพก่อนจัดส่ง บันทึกผลผ่าน/ไม่ผ่าน — ถ้าไม่ผ่านจะตีกลับไปแพ็คใหม่', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    outbound:   { title: '🚚 จัดส่งสินค้า (Outbound)',        desc: 'บันทึกการนำสินค้าออกจากคลังเพื่อจัดส่ง พร้อมเลข tracking และผู้ขนส่ง ปิดงานออเดอร์ฝั่งคลัง', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    cyclecount: { title: '🔢 ตรวจนับสต๊อก (Cycle Count)',     desc: 'ตรวจนับสต๊อกตามรอบ เปรียบเทียบกับยอดในระบบ และบันทึกผลต่างเพื่อปรับปรุงยอดอัตโนมัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
   };
 
-  const key = (location.hash || '#inbound').replace('#', '');
-  const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.inbound).title);
-  renderSection(key);
+  const key = (location.hash || '#stock').replace('#', '');
+  const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.stock).title);
 
-  window.addEventListener('hashchange', () => {
-    const k = (location.hash || '#inbound').replace('#', '');
-    location.reload(); // โหลดใหม่เพื่อ highlight เมนูที่ active ให้ถูกต้อง
-  });
+  const RENDERERS = {
+    stock: renderStock,
+    inbound: renderInbound,
+    picking: renderPipeline.bind(null, 'รอหยิบสินค้า', 'picking'),
+    packing: renderPipeline.bind(null, 'กำลังแพ็ค', 'packing'),
+    qc: renderPipeline.bind(null, 'รอตรวจสอบ QC', 'qc'),
+    outbound: renderPipeline.bind(null, 'พร้อมจัดส่ง', 'outbound'),
+    cyclecount: renderCycleCount,
+    putaway: renderStock, // ใช้หน้าเดียวกับสต๊อก (แก้ location ได้ตรงนั้น)
+  };
+  (RENDERERS[key] || renderPlaceholder)(key);
 
-  function renderSection(k) {
-    const s = SECTIONS[k] || SECTIONS.inbound;
+  window.addEventListener('hashchange', () => location.reload());
+
+  function renderPlaceholder(k) {
+    const s = SECTIONS[k] || SECTIONS.stock;
     main.innerHTML = `
       <div class="card">
         <p>${s.desc}</p>
         <div style="background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.88rem;color:#8a6400;">
-          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b> (ตามแผน Roadmap ที่วางไว้) —
-          ตอนนี้เป็นโครงหน้า + เมนูที่เชื่อมต่อระบบสิทธิ์ (RBAC) ไว้แล้ว พร้อมต่อยอด
+          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b>
         </div>
       </div>
     `;
+  }
+
+  function fmtNum(n) { return Number(n || 0).toLocaleString('th-TH'); }
+
+  // ===================================================================
+  // 📦 จัดการสต๊อกสินค้า (Stock + Put Away)
+  // ===================================================================
+  let _productsCache = [];
+
+  async function renderStock() {
+    main.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">เพิ่ม / แก้ไขสินค้าในคลัง</h2>
+        <p style="font-size:0.82rem;color:#888;">กรอก SKU เดิมเพื่อ "แก้ไข" ตำแหน่ง/จุดสั่งซื้อซ้ำของสินค้านั้น หรือกรอก SKU ใหม่เพื่อเพิ่มสินค้าเข้าคลัง (ปรับยอดคงเหลือ ให้ใช้เมนู "รับสินค้าเข้า" แทน เพื่อให้มีประวัติ)</p>
+        <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+          <div class="field"><label>SKU</label><input id="p-sku" placeholder="เช่น CLT-001" /></div>
+          <div class="field"><label>ชื่อสินค้า</label><input id="p-name" placeholder="ชื่อสินค้า" /></div>
+          <div class="field"><label>หมวดหมู่</label><input id="p-cat" placeholder="หมวดหมู่" /></div>
+          <div class="field"><label>ราคา</label><input id="p-price" type="number" min="0" placeholder="0" /></div>
+          <div class="field"><label>ตำแหน่งจัดเก็บ (Location)</label><input id="p-loc" placeholder="เช่น A-01-03" /></div>
+          <div class="field"><label>จุดสั่งซื้อซ้ำ (Reorder point)</label><input id="p-reorder" type="number" min="0" placeholder="20" /></div>
+        </div>
+        <button class="btn btn-primary" id="btn-save-product" style="width:auto;">💾 บันทึกข้อมูลสินค้า</button>
+        <p class="msg" id="product-msg"></p>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <h2 style="margin:0;font-size:1.05rem;">รายการสต๊อกสินค้าทั้งหมด</h2>
+          <div style="display:flex;gap:8px;">
+            <input id="stock-search" placeholder="🔍 ค้นหา SKU / ชื่อสินค้า" style="min-width:200px;" />
+            <button class="btn btn-outline" id="btn-refresh-stock">🔄 รีเฟรช</button>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>SKU</th><th>ชื่อสินค้า</th><th>หมวดหมู่</th><th>คงเหลือ</th><th>จองแล้ว</th><th>พร้อมขาย</th><th>ตำแหน่ง</th><th>สถานะ</th></tr></thead>
+          <tbody id="stock-rows"><tr><td colspan="8" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('btn-save-product').addEventListener('click', saveProduct);
+    document.getElementById('btn-refresh-stock').addEventListener('click', loadStock);
+    document.getElementById('stock-search').addEventListener('input', renderStockRows);
+    await loadStock();
+  }
+
+  async function saveProduct() {
+    const sku = document.getElementById('p-sku').value.trim();
+    const name = document.getElementById('p-name').value.trim();
+    const category = document.getElementById('p-cat').value.trim();
+    const price = parseFloat(document.getElementById('p-price').value) || 0;
+    const location = document.getElementById('p-loc').value.trim();
+    const reorderPoint = parseInt(document.getElementById('p-reorder').value, 10) || 0;
+    const msg = document.getElementById('product-msg');
+    msg.className = 'msg';
+    if (!sku || !name) { msg.textContent = 'กรุณากรอก SKU และชื่อสินค้าให้ครบ'; msg.classList.add('error'); return; }
+    try {
+      const ref = doc(db, 'products', sku);
+      const snap = await getDoc(ref);
+      const base = snap.exists() ? snap.data() : { stockQty: 0, reservedQty: 0 };
+      await setDoc(ref, { ...base, sku, name, category, price, location, reorderPoint }, { merge: true });
+      msg.textContent = `บันทึกข้อมูลสินค้า ${sku} สำเร็จแล้ว`;
+      msg.classList.add('ok');
+      ['p-sku','p-name','p-cat','p-price','p-loc','p-reorder'].forEach(id => document.getElementById(id).value = '');
+      await loadStock();
+    } catch (err) {
+      msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+      msg.classList.add('error');
+    }
+  }
+
+  async function loadStock() {
+    const tbody = document.getElementById('stock-rows');
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
+    try {
+      const snap = await getDocs(collection(db, 'products'));
+      _productsCache = [];
+      snap.forEach(d => _productsCache.push({ ...d.data() }));
+      _productsCache.sort((a, b) => (a.sku || '').localeCompare(b.sku || ''));
+      renderStockRows();
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
+  }
+
+  function renderStockRows() {
+    const tbody = document.getElementById('stock-rows');
+    const kw = (document.getElementById('stock-search')?.value || '').trim().toLowerCase();
+    const list = kw ? _productsCache.filter(p => (p.sku||'').toLowerCase().includes(kw) || (p.name||'').toLowerCase().includes(kw)) : _productsCache;
+    if (!list.length) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#999;">ยังไม่มีสินค้าในระบบ — เพิ่มได้จากแบบฟอร์มด้านบน</td></tr>`; return; }
+    tbody.innerHTML = list.map(p => {
+      const stockQty = p.stockQty || 0;
+      const reservedQty = p.reservedQty || 0;
+      const available = stockQty - reservedQty;
+      const low = stockQty <= (p.reorderPoint || 0);
+      const statusHtml = low
+        ? `<span class="badge badge-cancel">⚠ ใกล้หมด</span>`
+        : `<span class="badge badge-done">ปกติ</span>`;
+      return `
+        <tr>
+          <td><strong>${p.sku}</strong></td>
+          <td>${p.name || '-'}</td>
+          <td>${p.category || '-'}</td>
+          <td>${fmtNum(stockQty)}</td>
+          <td>${fmtNum(reservedQty)}</td>
+          <td><strong>${fmtNum(available)}</strong></td>
+          <td>${p.location || '-'}</td>
+          <td>${statusHtml}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // ===================================================================
+  // 📥 รับสินค้าเข้า (Inbound)
+  // ===================================================================
+  async function renderInbound() {
+    main.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">บันทึกรับสินค้าเข้าคลัง</h2>
+        <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+          <div class="field"><label>SKU</label><input id="in-sku" placeholder="เช่น CLT-001" /></div>
+          <div class="field"><label>จำนวนที่รับเข้า</label><input id="in-qty" type="number" min="1" placeholder="0" /></div>
+          <div class="field"><label>เลขที่อ้างอิง / ใบส่งของ</label><input id="in-ref" placeholder="เช่น PO-0021" /></div>
+          <div class="field"><label>หมายเหตุ</label><input id="in-note" placeholder="ไม่บังคับ" /></div>
+        </div>
+        <button class="btn btn-primary" id="btn-inbound-save" style="width:auto;">📥 บันทึกรับเข้า</button>
+        <p class="msg" id="inbound-msg"></p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">ประวัติการรับสินค้าเข้าล่าสุด</h2>
+        <table>
+          <thead><tr><th>วันที่/เวลา</th><th>SKU</th><th>จำนวน</th><th>อ้างอิง</th><th>หมายเหตุ</th><th>โดย</th></tr></thead>
+          <tbody id="inbound-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('btn-inbound-save').addEventListener('click', saveInbound);
+    await loadInboundHistory();
+  }
+
+  async function saveInbound() {
+    const sku = document.getElementById('in-sku').value.trim();
+    const qty = parseInt(document.getElementById('in-qty').value, 10) || 0;
+    const ref = document.getElementById('in-ref').value.trim();
+    const note = document.getElementById('in-note').value.trim();
+    const msg = document.getElementById('inbound-msg');
+    msg.className = 'msg';
+    if (!sku || qty <= 0) { msg.textContent = 'กรุณากรอก SKU และจำนวนที่มากกว่า 0'; msg.classList.add('error'); return; }
+    try {
+      const productRef = doc(db, 'products', sku);
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(productRef);
+        if (snap.exists()) {
+          const cur = snap.data();
+          tx.update(productRef, { stockQty: (cur.stockQty || 0) + qty });
+        } else {
+          tx.set(productRef, { sku, name: sku, category: '', price: 0, location: '', reorderPoint: 0, stockQty: qty, reservedQty: 0 });
+        }
+      });
+      await addDoc(collection(db, 'stockMovements'), {
+        sku, type: 'inbound', qtyChange: qty, refOrderId: ref || null, note,
+        by: profile.uid || profile.email, byName: profile.name || profile.email,
+        createdAt: serverTimestamp(),
+      });
+      msg.textContent = `รับสินค้าเข้า ${sku} จำนวน ${qty} ชิ้น สำเร็จ — อัปเดตยอดคงเหลือแล้ว ✔`;
+      msg.classList.add('ok');
+      ['in-sku','in-qty','in-ref','in-note'].forEach(id => document.getElementById(id).value = '');
+      await loadInboundHistory();
+    } catch (err) {
+      msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+      msg.classList.add('error');
+    }
+  }
+
+  async function loadInboundHistory() {
+    const tbody = document.getElementById('inbound-rows');
+    try {
+      let snap;
+      try {
+        snap = await getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'inbound'), orderBy('createdAt', 'desc'), limit(50)));
+      } catch (e) {
+        snap = await getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'inbound')));
+      }
+      const rows = [];
+      snap.forEach(d => rows.push(d.data()));
+      if (!rows.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">ยังไม่มีประวัติรับสินค้าเข้า</td></tr>`; return; }
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td style="white-space:nowrap;font-size:0.8rem">${r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('th-TH') : '-'}</td>
+          <td><strong>${r.sku}</strong></td>
+          <td>+${fmtNum(r.qtyChange)}</td>
+          <td>${r.refOrderId || '-'}</td>
+          <td>${r.note || '-'}</td>
+          <td>${r.byName || '-'}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
+  }
+
+  // ===================================================================
+  // 🛒📦✅🚚 สายงานจัดส่งออเดอร์ — Picking → Packing → QC → Outbound
+  // แต่ละขั้นตอนใช้ field "warehouseStage" ใน orders เพื่อบอกว่าออเดอร์อยู่ขั้นตอนไหน
+  // ลำดับ: รอหยิบสินค้า -> กำลังแพ็ค -> รอตรวจสอบ QC -> พร้อมจัดส่ง -> จัดส่งแล้ว
+  // ===================================================================
+  const STAGE_FLOW = {
+    picking: { from: 'รอหยิบสินค้า',  to: 'กำลังแพ็ค',     btnLabel: '✔ หยิบครบแล้ว ส่งต่อแพ็ค', emptyMsg: 'ไม่มีออเดอร์ที่รอหยิบสินค้าในขณะนี้' },
+    packing: { from: 'กำลังแพ็ค',     to: 'รอตรวจสอบ QC',  btnLabel: '✔ แพ็คเสร็จแล้ว ส่งตรวจ QC', emptyMsg: 'ไม่มีออเดอร์ที่รอแพ็คในขณะนี้' },
+    qc:      { from: 'รอตรวจสอบ QC', to: 'พร้อมจัดส่ง',   btnLabel: '✔ ผ่าน QC พร้อมจัดส่ง', rejectTo: 'กำลังแพ็ค', rejectLabel: '✘ ไม่ผ่าน ตีกลับไปแพ็คใหม่', emptyMsg: 'ไม่มีออเดอร์ที่รอตรวจ QC ในขณะนี้' },
+    outbound:{ from: 'พร้อมจัดส่ง',   to: 'จัดส่งแล้ว',    btnLabel: '🚚 บันทึกการจัดส่ง', emptyMsg: 'ไม่มีออเดอร์ที่พร้อมจัดส่งในขณะนี้', needsTracking: true },
+  };
+
+  async function renderPipeline(stageTitle, stageKey) {
+    const flow = STAGE_FLOW[stageKey];
+    main.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <p style="margin:0;">ออเดอร์ที่อยู่ในสถานะ <span class="badge badge-progress">${flow.from}</span> — ดำเนินการแล้วระบบจะส่งต่อไปขั้นตอนถัดไปอัตโนมัติ</p>
+          <button class="btn btn-outline" id="btn-refresh-pipeline">🔄 รีเฟรช</button>
+        </div>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>รายการสินค้า</th><th>ยอดรวม</th><th>วันที่สั่ง</th><th>การดำเนินการ</th></tr></thead>
+          <tbody id="pipeline-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('btn-refresh-pipeline').addEventListener('click', () => loadPipeline(stageKey));
+    await loadPipeline(stageKey);
+  }
+
+  async function loadPipeline(stageKey) {
+    const flow = STAGE_FLOW[stageKey];
+    const tbody = document.getElementById('pipeline-rows');
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
+    try {
+      const snap = await getDocs(query(collection(db, 'orders'), where('warehouseStage', '==', flow.from)));
+      const list = [];
+      snap.forEach(d => list.push({ _id: d.id, ...d.data() }));
+      list.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+      if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`; return; }
+      tbody.innerHTML = list.map(o => {
+        const itemsTxt = (o.items || []).map(it => `${it.name || it.model || it.sku || ''} ×${it.qty}`).join(', ');
+        let actionsHtml = `<button class="btn btn-success" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__advanceOrder('${o._id}','${stageKey}')">${flow.btnLabel}</button>`;
+        if (flow.rejectTo) {
+          actionsHtml += ` <button class="btn btn-danger" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__rejectOrder('${o._id}','${stageKey}')">${flow.rejectLabel}</button>`;
+        }
+        return `
+          <tr>
+            <td><strong>${o.id || o._id}</strong></td>
+            <td>${o.customer?.name || '-'}</td>
+            <td style="font-size:0.82rem;max-width:260px;">${itemsTxt || '-'}</td>
+            <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
+            <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || '-'}</td>
+            <td>${actionsHtml}</td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
+  }
+
+  // เดินหน้าออเดอร์ไปขั้นตอนถัดไป (และถ้าเป็นขั้น picking ครั้งแรก จะตัด/จองสต๊อกให้อัตโนมัติ)
+  window.__advanceOrder = async function (orderDocId, stageKey) {
+    const flow = STAGE_FLOW[stageKey];
+    try {
+      const orderRef = doc(db, 'orders', orderDocId);
+
+      if (stageKey === 'picking') {
+        // ตัดสต๊อกจริง (stockQty -= qty, reservedQty -= qty) แบบ atomic ต่อ SKU
+        const snap = await getDoc(orderRef);
+        const order = snap.data();
+        for (const it of (order.items || [])) {
+          const sku = it.sku || it.model;
+          if (!sku) continue;
+          const qty = Number(it.qty) || 0;
+          const productRef = doc(db, 'products', sku);
+          try {
+            await runTransaction(db, async (tx) => {
+              const pSnap = await tx.get(productRef);
+              if (!pSnap.exists()) return;
+              const p = pSnap.data();
+              tx.update(productRef, {
+                stockQty: Math.max(0, (p.stockQty || 0) - qty),
+                reservedQty: Math.max(0, (p.reservedQty || 0) - qty),
+              });
+            });
+            await addDoc(collection(db, 'stockMovements'), {
+              sku, type: 'picking', qtyChange: -qty, refOrderId: order.id || orderDocId,
+              by: profile.uid || profile.email, byName: profile.name || profile.email,
+              createdAt: serverTimestamp(),
+            });
+          } catch (e) { console.warn('ตัดสต๊อกไม่สำเร็จสำหรับ SKU', sku, e); }
+        }
+      }
+
+      const updateData = { warehouseStage: flow.to, updatedAt: serverTimestamp() };
+      if (flow.to === 'จัดส่งแล้ว') updateData.status = 'เสร็จสิ้น';
+      else if (flow.to === 'พร้อมจัดส่ง') updateData.status = 'กำลังแพ็ค';
+
+      if (flow.needsTracking) {
+        const tracking = prompt('กรอกชื่อผู้ขนส่งและเลข Tracking (ไม่บังคับ — กด OK เพื่อบันทึก)') || '';
+        updateData['shipping.trackingInfo'] = tracking;
+      }
+
+      await updateDoc(orderRef, updateData);
+      toast(`อัปเดตสถานะออเดอร์เป็น "${flow.to}" เรียบร้อยแล้ว ✔`);
+      await loadPipeline(stageKey);
+    } catch (err) {
+      alert('ดำเนินการไม่สำเร็จ: ' + err.message);
+    }
+  };
+
+  window.__rejectOrder = async function (orderDocId, stageKey) {
+    const flow = STAGE_FLOW[stageKey];
+    if (!flow.rejectTo) return;
+    if (!confirm('ยืนยันตีกลับออเดอร์นี้ไปขั้นตอนแพ็คใหม่?')) return;
+    try {
+      await updateDoc(doc(db, 'orders', orderDocId), { warehouseStage: flow.rejectTo, updatedAt: serverTimestamp() });
+      toast(`ตีกลับออเดอร์ไปขั้นตอน "${flow.rejectTo}" แล้ว`);
+      await loadPipeline(stageKey);
+    } catch (err) {
+      alert('ดำเนินการไม่สำเร็จ: ' + err.message);
+    }
+  };
+
+  function toast(msg) {
+    let t = document.getElementById('wh-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'wh-toast';
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a73e8;color:#fff;padding:10px 22px;border-radius:10px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,.18);z-index:9999;opacity:0;transition:opacity .25s;';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 2600);
+  }
+
+  // ===================================================================
+  // 🔢 ตรวจนับสต๊อก (Cycle Count)
+  // ===================================================================
+  async function renderCycleCount() {
+    main.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">ตรวจนับสต๊อกและปรับยอด</h2>
+        <p style="font-size:0.82rem;color:#888;">เลือก SKU ที่ต้องการตรวจนับ กรอกยอดที่นับได้จริง ระบบจะคำนวณผลต่างจากยอดในระบบ และบันทึกประวัติการปรับยอดให้อัตโนมัติ</p>
+        <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+          <div class="field"><label>SKU</label><input id="cc-sku" placeholder="เช่น CLT-001" /></div>
+          <div class="field"><label>ยอดที่นับได้จริง</label><input id="cc-actual" type="number" min="0" placeholder="0" /></div>
+          <div class="field"><label>หมายเหตุ</label><input id="cc-note" placeholder="ไม่บังคับ" /></div>
+        </div>
+        <button class="btn btn-primary" id="btn-cc-save" style="width:auto;">🔢 บันทึกผลตรวจนับ &amp; ปรับยอด</button>
+        <p class="msg" id="cc-msg"></p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">ประวัติการปรับยอดล่าสุด</h2>
+        <table>
+          <thead><tr><th>วันที่/เวลา</th><th>SKU</th><th>ยอดเดิม</th><th>ยอดนับได้</th><th>ผลต่าง</th><th>หมายเหตุ</th><th>โดย</th></tr></thead>
+          <tbody id="cc-rows"><tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('btn-cc-save').addEventListener('click', saveCycleCount);
+    await loadCycleCountHistory();
+  }
+
+  async function saveCycleCount() {
+    const sku = document.getElementById('cc-sku').value.trim();
+    const actual = parseInt(document.getElementById('cc-actual').value, 10);
+    const note = document.getElementById('cc-note').value.trim();
+    const msg = document.getElementById('cc-msg');
+    msg.className = 'msg';
+    if (!sku || isNaN(actual) || actual < 0) { msg.textContent = 'กรุณากรอก SKU และยอดที่นับได้ให้ถูกต้อง'; msg.classList.add('error'); return; }
+    try {
+      const productRef = doc(db, 'products', sku);
+      const snap = await getDoc(productRef);
+      if (!snap.exists()) { msg.textContent = `ไม่พบสินค้า SKU "${sku}" ในระบบ`; msg.classList.add('error'); return; }
+      const before = snap.data().stockQty || 0;
+      const diff = actual - before;
+      await updateDoc(productRef, { stockQty: actual });
+      await addDoc(collection(db, 'stockMovements'), {
+        sku, type: 'cycle_count', qtyChange: diff, note: `${note || ''} (เดิม ${before} -> นับได้ ${actual})`.trim(),
+        by: profile.uid || profile.email, byName: profile.name || profile.email,
+        createdAt: serverTimestamp(),
+      });
+      msg.textContent = `บันทึกผลตรวจนับ ${sku} สำเร็จ — ผลต่าง ${diff > 0 ? '+' : ''}${diff} ชิ้น ปรับยอดเป็น ${actual} แล้ว ✔`;
+      msg.classList.add('ok');
+      ['cc-sku','cc-actual','cc-note'].forEach(id => document.getElementById(id).value = '');
+      await loadCycleCountHistory();
+    } catch (err) {
+      msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+      msg.classList.add('error');
+    }
+  }
+
+  async function loadCycleCountHistory() {
+    const tbody = document.getElementById('cc-rows');
+    try {
+      let snap;
+      try {
+        snap = await getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'cycle_count'), orderBy('createdAt', 'desc'), limit(50)));
+      } catch (e) {
+        snap = await getDocs(query(collection(db, 'stockMovements'), where('type', '==', 'cycle_count')));
+      }
+      const rows = [];
+      snap.forEach(d => rows.push(d.data()));
+      if (!rows.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">ยังไม่มีประวัติการตรวจนับ</td></tr>`; return; }
+      tbody.innerHTML = rows.map(r => {
+        const m = (r.note || '').match(/เดิม (\d+) -> นับได้ (\d+)/);
+        const before = m ? m[1] : '-';
+        const actual = m ? m[2] : '-';
+        const diffTxt = (r.qtyChange > 0 ? '+' : '') + fmtNum(r.qtyChange);
+        return `
+          <tr>
+            <td style="white-space:nowrap;font-size:0.8rem">${r.createdAt?.toDate ? r.createdAt.toDate().toLocaleString('th-TH') : '-'}</td>
+            <td><strong>${r.sku}</strong></td>
+            <td>${before}</td>
+            <td>${actual}</td>
+            <td>${diffTxt}</td>
+            <td>${r.note || '-'}</td>
+            <td>${r.byName || '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
   }
 </script>
 </html>

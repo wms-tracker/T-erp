@@ -42,10 +42,13 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && isActive() && (hasRole('sales') || isAdmin());
     }
 
-    // ----- products / stockMovements: เขียนได้เฉพาะคลังและแอดมิน -----
+    // ----- products / stockMovements: คลัง/แอดมินจัดการได้เต็มสิทธิ์ -----
+    // sales อนุญาตให้ "update" ได้ด้วย (เพื่อจองสต๊อก/ปรับ reservedQty ตอนสร้างออเดอร์)
+    // แต่สร้าง/ลบสินค้าได้เฉพาะคลังและแอดมินเท่านั้น
     match /products/{sku} {
       allow read: if isSignedIn() && isActive();
-      allow write: if hasRole('warehouse') || isAdmin();
+      allow create, delete: if hasRole('warehouse') || isAdmin();
+      allow update: if hasRole('warehouse') || hasRole('sales') || isAdmin();
     }
     match /stockMovements/{id} {
       allow read: if isSignedIn() && isActive();
