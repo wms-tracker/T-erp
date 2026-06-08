@@ -37,9 +37,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ----- counters: ตัวนับเลขออเดอร์กลาง (กันเลขซ้ำ) — ผู้ใช้ที่ใช้งานอยู่และมีสิทธิ์สร้างออเดอร์เขียนได้ -----
+    // ----- counters: ตัวนับเลขเอกสารกลาง (กันเลขซ้ำ) เช่น orderCounter, invoiceCounter -----
     match /counters/{id} {
-      allow read, write: if isSignedIn() && isActive() && (hasRole('sales') || isAdmin());
+      allow read, write: if isSignedIn() && isActive() && (hasRole('sales') || hasRole('accounting') || isAdmin());
+    }
+
+    // ----- payments: รายการรับ-จ่ายเงิน — บัญชี/แอดมินบันทึกและแก้ไขได้ -----
+    match /payments/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if hasRole('accounting') || isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ----- products / stockMovements: คลัง/แอดมินจัดการได้เต็มสิทธิ์ -----

@@ -8,34 +8,567 @@
 </head>
 <body></body>
 <script type="module">
-  import { requireRole } from "./js/auth.js";
-  import { renderShell } from "./js/shell.js";
+  import { requireRole, db } from "./js/auth.js";
+  import { renderShell, statusBadge } from "./js/shell.js";
+  import {
+    collection, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, runTransaction,
+    query, where, orderBy, limit, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const profile = await requireRole(['accounting']);
 
   const SECTIONS = {
-    invoices: { title: '🧾 ใบแจ้งหนี้ / ใบกำกับภาษี', desc: 'ออกใบแจ้งหนี้และใบกำกับภาษีจากออเดอร์ที่ปิดการขายแล้ว พร้อมเลขอ้างอิง E-TAX', phase: 'เฟส 3' },
-    payments: { title: '💵 รับ-จ่ายเงิน',              desc: 'บันทึกรายการรับเงินจากลูกค้าและรายจ่ายต่างๆ ผูกกับออเดอร์/ใบแจ้งหนี้', phase: 'เฟส 3' },
-    arap:     { title: '🔁 กระทบยอดลูกหนี้/เจ้าหนี้',   desc: 'ตรวจสอบยอดค้างชำระของลูกค้า (AR) และยอดที่ต้องจ่ายให้ผู้ขาย/ซัพพลายเออร์ (AP)', phase: 'เฟส 3' },
-    reports:  { title: '📊 รายงานทางการเงิน',           desc: 'สรุปยอดขาย ต้นทุน กำไร และกระแสเงินสด รายวัน/รายเดือน พร้อม export', phase: 'เฟส 3' },
+    invoices: { title: '🧾 ใบแจ้งหนี้ / ใบกำกับภาษี', desc: 'ออกใบแจ้งหนี้จากออเดอร์ที่ปิดการขาย/จัดส่งแล้ว ติดตามสถานะการชำระเงิน' },
+    payments: { title: '💵 รับ-จ่ายเงิน',              desc: 'บันทึกรายการรับเงินจากลูกค้า (ผูกกับใบแจ้งหนี้) และรายจ่ายทั่วไป' },
+    arap:     { title: '🔁 กระทบยอดลูกหนี้/เจ้าหนี้',   desc: 'สรุปยอดค้างชำระของลูกค้า (AR) ที่ยังไม่ได้รับชำระ และรายการค้างจ่าย (AP)' },
+    reports:  { title: '📊 รายงานทางการเงิน',           desc: 'สรุปยอดขาย ยอดรับชำระ ยอดค้างรับ และรายจ่าย แยกตามช่วงเวลา' },
   };
 
   const key = (location.hash || '#invoices').replace('#', '');
   const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.invoices).title);
-  renderSection(key);
   window.addEventListener('hashchange', () => location.reload());
 
-  function renderSection(k) {
-    const s = SECTIONS[k] || SECTIONS.invoices;
+  const RENDERERS = { invoices: renderInvoices, payments: renderPayments, arap: renderArAp, reports: renderReports };
+  (RENDERERS[key] || renderInvoices)();
+
+  // ---------- Helpers ----------
+  function fmtMoney(n) { return Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function fmtDate(d) {
+    if (!d) return '-';
+    try { return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }); }
+    catch { return d; }
+  }
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  async function nextDocNumber(counterId, prefix) {
+    const ref = doc(db, 'counters', counterId);
+    const next = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(ref);
+      const cur = snap.exists() ? (snap.data().value || 0) : 0;
+      const updated = cur + 1;
+      tx.set(ref, { value: updated }, { merge: true });
+      return updated;
+    });
+    return prefix + String(next).padStart(6, '0');
+  }
+  function paidBadge(status) {
+    const map = {
+      unpaid:   '<span class="badge badge-pending">ยังไม่ชำระ</span>',
+      partial:  '<span class="badge badge-progress">ชำระบางส่วน</span>',
+      paid:     '<span class="badge badge-done">ชำระครบแล้ว</span>',
+      overdue:  '<span class="badge badge-cancel">เกินกำหนด</span>',
+    };
+    return map[status] || `<span class="badge">${escapeHtml(status)}</span>`;
+  }
+
+  // =========================================================
+  // 🧾 INVOICES
+  // =========================================================
+  let _ordersCache = [];
+  let _invoicesCache = [];
+
+  async function renderInvoices() {
     main.innerHTML = `
       <div class="card">
-        <p>${s.desc}</p>
-        <div style="background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.88rem;color:#8a6400;">
-          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b> — รวมถึงการเชื่อมต่อกับโปรแกรมบัญชีภายนอกที่คุณใช้งานอยู่
-          (ระบุชื่อโปรแกรมเพื่อออกแบบจุดเชื่อมต่อให้ตรงกับ API/รูปแบบไฟล์ของโปรแกรมนั้น)
+        <p>${SECTIONS.invoices.desc}</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">📋 ออเดอร์ที่ยังไม่ออกใบแจ้งหนี้</h3>
+        <div id="ar-pending-orders">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">🧾 ใบแจ้งหนี้ทั้งหมด</h3>
+        <div style="margin-bottom:10px;">
+          <select id="inv-filter" class="field" style="display:inline-block;width:auto;padding:8px 12px;border:1px solid #ddd;border-radius:8px;">
+            <option value="">ทุกสถานะ</option>
+            <option value="unpaid">ยังไม่ชำระ</option>
+            <option value="partial">ชำระบางส่วน</option>
+            <option value="paid">ชำระครบแล้ว</option>
+          </select>
         </div>
+        <div id="inv-list">⏳ กำลังโหลด...</div>
       </div>
     `;
+    document.getElementById('inv-filter').addEventListener('change', renderInvoiceList);
+    await loadOrdersAndInvoices();
+  }
+
+  async function loadOrdersAndInvoices() {
+    try {
+      const [ordersSnap, invSnap] = await Promise.all([
+        getDocs(query(collection(db, 'orders'), orderBy('createdAtServer', 'desc'), limit(300))),
+        getDocs(query(collection(db, 'invoices'), orderBy('issuedAtServer', 'desc'), limit(300))),
+      ]);
+      _ordersCache = ordersSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      _invoicesCache = invSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) {
+      console.warn('load orders/invoices error', e);
+      _ordersCache = []; _invoicesCache = [];
+    }
+    renderPendingOrders();
+    renderInvoiceList();
+  }
+
+  function renderPendingOrders() {
+    const box = document.getElementById('ar-pending-orders');
+    if (!box) return;
+    const invoicedOrderIds = new Set(_invoicesCache.map(i => i.orderId));
+    const candidates = _ordersCache.filter(o =>
+      !invoicedOrderIds.has(o.id) &&
+      (o.warehouseStage === 'จัดส่งแล้ว' || o.warehouseStage === 'พร้อมจัดส่ง' || o.status === 'เสร็จสิ้น')
+    );
+    if (!candidates.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ไม่มีออเดอร์ที่รอออกใบแจ้งหนี้ —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>เลขออเดอร์</th><th>ลูกค้า</th><th>สถานะคลัง</th><th>ยอดรวม</th><th></th></tr></thead>
+        <tbody>
+          ${candidates.map(o => `
+            <tr>
+              <td>${escapeHtml(o.id)}</td>
+              <td>${escapeHtml(o.customer?.name || '-')}</td>
+              <td>${statusBadge ? statusBadge(o.warehouseStage) : escapeHtml(o.warehouseStage || '-')}</td>
+              <td>${fmtMoney(o.subtotal)}</td>
+              <td><button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem;" onclick="window.__issueInvoice('${o._id}')">ออกใบแจ้งหนี้</button></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderInvoiceList() {
+    const box = document.getElementById('inv-list');
+    if (!box) return;
+    const filter = document.getElementById('inv-filter')?.value || '';
+    const list = filter ? _invoicesCache.filter(i => i.payStatus === filter) : _invoicesCache;
+    if (!list.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีใบแจ้งหนี้ —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>เลขที่ใบแจ้งหนี้</th><th>เลขออเดอร์</th><th>ลูกค้า</th><th>วันที่ออก</th><th>ยอดรวม</th><th>ชำระแล้ว</th><th>คงเหลือ</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody>
+          ${list.map(inv => {
+            const paid = Number(inv.paidAmount || 0);
+            const remaining = Math.max(0, Number(inv.total || 0) - paid);
+            return `
+            <tr>
+              <td>${escapeHtml(inv.invoiceNo)}</td>
+              <td>${escapeHtml(inv.orderId)}</td>
+              <td>${escapeHtml(inv.customerName || '-')}</td>
+              <td>${fmtDate(inv.issuedAt)}</td>
+              <td>${fmtMoney(inv.total)}</td>
+              <td>${fmtMoney(paid)}</td>
+              <td>${fmtMoney(remaining)}</td>
+              <td>${paidBadge(inv.payStatus)}</td>
+              <td>${remaining > 0 ? `<button class="btn btn-outline" style="padding:6px 12px;font-size:0.78rem;" onclick="window.__goRecordPayment('${inv._id}')">บันทึกรับชำระ</button>` : ''}</td>
+            </tr>
+          `}).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  window.__issueInvoice = async function (orderDocId) {
+    const order = _ordersCache.find(o => o._id === orderDocId);
+    if (!order) return;
+    if (!confirm(`ออกใบแจ้งหนี้สำหรับออเดอร์ ${order.id} ยอด ${fmtMoney(order.subtotal)} บาท ใช่หรือไม่?`)) return;
+    try {
+      const invoiceNo = await nextDocNumber('invoiceCounter', 'INV-');
+      const total = Number(order.subtotal || 0);
+      const deposit = Number(order.payment?.deposit || 0);
+      await addDoc(collection(db, 'invoices'), {
+        invoiceNo,
+        orderId: order.id,
+        orderDocId: order._id,
+        customerName: order.customer?.name || '-',
+        customerPhone: order.customer?.phone || '',
+        total,
+        paidAmount: deposit,
+        payStatus: deposit >= total && total > 0 ? 'paid' : (deposit > 0 ? 'partial' : 'unpaid'),
+        issuedAt: new Date().toISOString(),
+        issuedAtServer: serverTimestamp(),
+        createdBy: profile.uid,
+        createdByName: profile.name || profile.email || '',
+      });
+      // ถ้ามีเงินมัดจำอยู่แล้ว บันทึกเป็นรายการรับเงินอัตโนมัติ
+      if (deposit > 0) {
+        await addDoc(collection(db, 'payments'), {
+          type: 'receipt',
+          invoiceNo, orderId: order.id,
+          amount: deposit,
+          method: order.payment?.depositMethod || '-',
+          note: 'เงินมัดจำตอนสั่งซื้อ (บันทึกอัตโนมัติเมื่อออกใบแจ้งหนี้)',
+          date: new Date().toISOString(),
+          dateServer: serverTimestamp(),
+          createdBy: profile.uid,
+        });
+      }
+      alert(`ออกใบแจ้งหนี้เลขที่ ${invoiceNo} เรียบร้อยแล้ว`);
+      await loadOrdersAndInvoices();
+    } catch (e) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาด: ' + (e.message || e));
+    }
+  };
+
+  window.__goRecordPayment = function (invoiceDocId) {
+    sessionStorage.setItem('acct_focus_invoice', invoiceDocId);
+    location.href = 'dashboard-accounting.html#payments';
+  };
+
+  // =========================================================
+  // 💵 PAYMENTS
+  // =========================================================
+  let _paymentsCache = [];
+
+  async function renderPayments() {
+    main.innerHTML = `
+      <div class="card">
+        <p>${SECTIONS.payments.desc}</p>
+        <form id="pay-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;">
+          <div class="field" style="margin:0;">
+            <label>ประเภทรายการ</label>
+            <select id="p-type">
+              <option value="receipt">รับเงิน (จากลูกค้า)</option>
+              <option value="expense">รายจ่าย</option>
+            </select>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>เลขที่ใบแจ้งหนี้ (ถ้ามี)</label>
+            <select id="p-invoice"><option value="">— ไม่ผูกใบแจ้งหนี้ —</option></select>
+          </div>
+          <div class="field" style="margin:0;">
+            <label>จำนวนเงิน (บาท)</label>
+            <input type="number" id="p-amount" min="0" step="0.01" placeholder="0.00" />
+          </div>
+          <div class="field" style="margin:0;">
+            <label>ช่องทาง/วิธีการ</label>
+            <input type="text" id="p-method" placeholder="เงินสด / โอน / บัตรเครดิต ฯลฯ" />
+          </div>
+          <div class="field" style="margin:0;">
+            <label>วันที่</label>
+            <input type="date" id="p-date" />
+          </div>
+          <div class="field" style="margin:0;grid-column:1/-1;">
+            <label>หมายเหตุ</label>
+            <input type="text" id="p-note" placeholder="รายละเอียดเพิ่มเติม" />
+          </div>
+          <div>
+            <button type="submit" class="btn btn-primary">＋ บันทึกรายการ</button>
+          </div>
+        </form>
+        <div id="pay-msg" class="msg"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">📜 ประวัติรายการรับ-จ่ายเงิน</h3>
+        <div id="pay-list">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+    const dEl = document.getElementById('p-date');
+    if (dEl) dEl.value = new Date().toISOString().slice(0, 10);
+
+    await loadInvoicesForSelect();
+    await loadPayments();
+
+    const focusInvoice = sessionStorage.getItem('acct_focus_invoice');
+    if (focusInvoice) {
+      sessionStorage.removeItem('acct_focus_invoice');
+      const inv = _invoicesCache.find(i => i._id === focusInvoice);
+      if (inv) {
+        document.getElementById('p-type').value = 'receipt';
+        const sel = document.getElementById('p-invoice');
+        if (sel) sel.value = inv._id;
+        const remaining = Math.max(0, Number(inv.total || 0) - Number(inv.paidAmount || 0));
+        document.getElementById('p-amount').value = remaining.toFixed(2);
+      }
+    }
+
+    document.getElementById('pay-form').addEventListener('submit', savePayment);
+  }
+
+  async function loadInvoicesForSelect() {
+    if (!_invoicesCache.length) {
+      try {
+        const snap = await getDocs(query(collection(db, 'invoices'), orderBy('issuedAtServer', 'desc'), limit(300)));
+        _invoicesCache = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      } catch (e) { _invoicesCache = []; }
+    }
+    const sel = document.getElementById('p-invoice');
+    if (!sel) return;
+    const unpaidOrPartial = _invoicesCache.filter(i => i.payStatus !== 'paid');
+    sel.innerHTML = `<option value="">— ไม่ผูกใบแจ้งหนี้ —</option>` +
+      unpaidOrPartial.map(i => {
+        const remaining = Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0));
+        return `<option value="${i._id}">${escapeHtml(i.invoiceNo)} — ${escapeHtml(i.customerName)} (ค้าง ${fmtMoney(remaining)} บาท)</option>`;
+      }).join('');
+  }
+
+  async function savePayment(ev) {
+    ev.preventDefault();
+    const msg = document.getElementById('pay-msg');
+    const type = document.getElementById('p-type').value;
+    const invoiceDocId = document.getElementById('p-invoice').value;
+    const amount = parseFloat(document.getElementById('p-amount').value) || 0;
+    const method = document.getElementById('p-method').value.trim();
+    const date = document.getElementById('p-date').value || new Date().toISOString().slice(0, 10);
+    const note = document.getElementById('p-note').value.trim();
+
+    if (amount <= 0) { msg.textContent = 'กรุณาระบุจำนวนเงินให้ถูกต้อง'; msg.className = 'msg error'; return; }
+
+    const btn = document.querySelector('#pay-form button[type="submit"]');
+    if (btn) btn.disabled = true;
+    try {
+      const inv = invoiceDocId ? _invoicesCache.find(i => i._id === invoiceDocId) : null;
+      await addDoc(collection(db, 'payments'), {
+        type,
+        invoiceDocId: inv?._id || null,
+        invoiceNo: inv?.invoiceNo || null,
+        orderId: inv?.orderId || null,
+        amount, method: method || '-', note,
+        date, dateServer: serverTimestamp(),
+        createdBy: profile.uid,
+        createdByName: profile.name || profile.email || '',
+      });
+
+      // ถ้าผูกกับใบแจ้งหนี้และเป็นรายการรับเงิน → อัปเดตยอดชำระของใบแจ้งหนี้
+      if (inv && type === 'receipt') {
+        const invRef = doc(db, 'invoices', inv._id);
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(invRef);
+          if (!snap.exists()) return;
+          const data = snap.data();
+          const newPaid = Number(data.paidAmount || 0) + amount;
+          const total = Number(data.total || 0);
+          const status = newPaid >= total ? 'paid' : (newPaid > 0 ? 'partial' : 'unpaid');
+          tx.update(invRef, { paidAmount: newPaid, payStatus: status });
+        });
+      }
+
+      msg.textContent = '✅ บันทึกรายการเรียบร้อยแล้ว';
+      msg.className = 'msg ok';
+      document.getElementById('pay-form').reset();
+      const dEl = document.getElementById('p-date');
+      if (dEl) dEl.value = new Date().toISOString().slice(0, 10);
+      _invoicesCache = []; // force refresh
+      await loadInvoicesForSelect();
+      await loadPayments();
+    } catch (e) {
+      console.error(e);
+      msg.textContent = 'เกิดข้อผิดพลาด: ' + (e.message || e);
+      msg.className = 'msg error';
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function loadPayments() {
+    const box = document.getElementById('pay-list');
+    if (!box) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'payments'), orderBy('dateServer', 'desc'), limit(200)));
+      _paymentsCache = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    } catch (e) { _paymentsCache = []; }
+
+    if (!_paymentsCache.length) {
+      box.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีรายการ —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>วันที่</th><th>ประเภท</th><th>เลขที่ใบแจ้งหนี้/ออเดอร์</th><th>จำนวนเงิน</th><th>ช่องทาง</th><th>หมายเหตุ</th></tr></thead>
+        <tbody>
+          ${_paymentsCache.map(p => `
+            <tr>
+              <td>${fmtDate(p.date)}</td>
+              <td>${p.type === 'receipt' ? '<span class="badge badge-done">รับเงิน</span>' : '<span class="badge badge-cancel">รายจ่าย</span>'}</td>
+              <td>${escapeHtml(p.invoiceNo || p.orderId || '-')}</td>
+              <td>${fmtMoney(p.amount)}</td>
+              <td>${escapeHtml(p.method || '-')}</td>
+              <td>${escapeHtml(p.note || '-')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  // =========================================================
+  // 🔁 AR / AP
+  // =========================================================
+  async function renderArAp() {
+    main.innerHTML = `
+      <div class="card"><p>${SECTIONS.arap.desc}</p></div>
+      <div class="grid-cards">
+        <div class="card stat-card"><div class="num" id="ar-total">-</div><div class="label">ยอดลูกหนี้คงค้าง (AR)</div></div>
+        <div class="card stat-card"><div class="num" id="ar-count">-</div><div class="label">ใบแจ้งหนี้ที่ยังไม่ปิด</div></div>
+        <div class="card stat-card"><div class="num" id="ar-overdue">-</div><div class="label">เกินกำหนดชำระ (>30 วัน)</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">📋 รายการลูกหนี้คงค้าง (Accounts Receivable)</h3>
+        <div id="ar-list">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">🏭 เจ้าหนี้/รายจ่ายค้างจ่าย (Accounts Payable)</h3>
+        <p style="color:#888;font-size:0.85rem;">
+          📝 หมายเหตุ: ระบบยังไม่มีโมดูลใบสั่งซื้อ (PO) จากซัพพลายเออร์ ดังนั้นยอดเจ้าหนี้ในขณะนี้
+          คำนวณจากรายการ "รายจ่าย" ที่บันทึกในเมนู 💵 รับ-จ่ายเงิน เป็นข้อมูลอ้างอิงเบื้องต้นเท่านั้น
+          (หากต้องการ AP เต็มรูปแบบ แนะนำให้เพิ่มโมดูล "ใบสั่งซื้อ" ในเฟสถัดไป)
+        </p>
+        <div id="ap-list">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+    try {
+      const [invSnap, paySnap] = await Promise.all([
+        getDocs(query(collection(db, 'invoices'), orderBy('issuedAtServer', 'desc'), limit(300))),
+        getDocs(query(collection(db, 'payments'), orderBy('dateServer', 'desc'), limit(300))),
+      ]);
+      const invoices = invSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      const payments = paySnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+
+      const unpaid = invoices.filter(i => i.payStatus !== 'paid');
+      const now = Date.now();
+      const overdue = unpaid.filter(i => {
+        const issued = new Date(i.issuedAt).getTime();
+        return isFinite(issued) && (now - issued) > 30 * 24 * 60 * 60 * 1000;
+      });
+      const totalAR = unpaid.reduce((s, i) => s + Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0)), 0);
+
+      document.getElementById('ar-total').textContent = fmtMoney(totalAR) + ' ฿';
+      document.getElementById('ar-count').textContent = unpaid.length;
+      document.getElementById('ar-overdue').textContent = overdue.length;
+
+      const arBox = document.getElementById('ar-list');
+      arBox.innerHTML = unpaid.length ? `
+        <table>
+          <thead><tr><th>เลขที่ใบแจ้งหนี้</th><th>ลูกค้า</th><th>วันที่ออก</th><th>ยอดรวม</th><th>ค้างชำระ</th><th>สถานะ</th></tr></thead>
+          <tbody>
+            ${unpaid.map(i => {
+              const remaining = Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0));
+              const issued = new Date(i.issuedAt).getTime();
+              const isOver = isFinite(issued) && (now - issued) > 30 * 24 * 60 * 60 * 1000;
+              return `<tr>
+                <td>${escapeHtml(i.invoiceNo)}</td>
+                <td>${escapeHtml(i.customerName)}</td>
+                <td>${fmtDate(i.issuedAt)}</td>
+                <td>${fmtMoney(i.total)}</td>
+                <td>${fmtMoney(remaining)}</td>
+                <td>${isOver ? paidBadge('overdue') : paidBadge(i.payStatus)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      ` : `<p style="color:#888;font-size:0.88rem;">— ไม่มีลูกหนี้คงค้าง 🎉 —</p>`;
+
+      const expenses = payments.filter(p => p.type === 'expense');
+      const apBox = document.getElementById('ap-list');
+      const totalExpense = expenses.reduce((s, p) => s + Number(p.amount || 0), 0);
+      apBox.innerHTML = expenses.length ? `
+        <p style="font-size:0.85rem;color:#555;">รวมรายจ่ายที่บันทึกไว้: <b>${fmtMoney(totalExpense)} บาท</b> (${expenses.length} รายการ)</p>
+        <table>
+          <thead><tr><th>วันที่</th><th>จำนวนเงิน</th><th>ช่องทาง</th><th>หมายเหตุ</th></tr></thead>
+          <tbody>
+            ${expenses.slice(0, 50).map(p => `
+              <tr><td>${fmtDate(p.date)}</td><td>${fmtMoney(p.amount)}</td><td>${escapeHtml(p.method || '-')}</td><td>${escapeHtml(p.note || '-')}</td></tr>
+            `).join('')}
+          </tbody>
+        </table>
+      ` : `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีรายการรายจ่ายที่บันทึกไว้ —</p>`;
+    } catch (e) {
+      console.error(e);
+      document.getElementById('ar-list').innerHTML = `<p style="color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(e.message || e)}</p>`;
+    }
+  }
+
+  // =========================================================
+  // 📊 REPORTS
+  // =========================================================
+  async function renderReports() {
+    main.innerHTML = `
+      <div class="card"><p>${SECTIONS.reports.desc}</p></div>
+      <div class="grid-cards">
+        <div class="card stat-card"><div class="num" id="rep-sales">-</div><div class="label">ยอดขายรวม (จากใบแจ้งหนี้)</div></div>
+        <div class="card stat-card"><div class="num" id="rep-received">-</div><div class="label">รับชำระแล้ว</div></div>
+        <div class="card stat-card"><div class="num" id="rep-outstanding">-</div><div class="label">ค้างรับ (AR)</div></div>
+        <div class="card stat-card"><div class="num" id="rep-expense">-</div><div class="label">รายจ่ายรวม</div></div>
+        <div class="card stat-card"><div class="num" id="rep-net">-</div><div class="label">กระแสเงินสดสุทธิ</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">📅 สรุปยอดรายเดือน</h3>
+        <div id="rep-monthly">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+    try {
+      const [invSnap, paySnap] = await Promise.all([
+        getDocs(query(collection(db, 'invoices'), orderBy('issuedAtServer', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'payments'), orderBy('dateServer', 'desc'), limit(500))),
+      ]);
+      const invoices = invSnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      const payments = paySnap.docs.map(d => ({ _id: d.id, ...d.data() }));
+
+      const totalSales = invoices.reduce((s, i) => s + Number(i.total || 0), 0);
+      const received = payments.filter(p => p.type === 'receipt').reduce((s, p) => s + Number(p.amount || 0), 0);
+      const expense = payments.filter(p => p.type === 'expense').reduce((s, p) => s + Number(p.amount || 0), 0);
+      const outstanding = invoices.reduce((s, i) => s + Math.max(0, Number(i.total || 0) - Number(i.paidAmount || 0)), 0);
+
+      document.getElementById('rep-sales').textContent = fmtMoney(totalSales) + ' ฿';
+      document.getElementById('rep-received').textContent = fmtMoney(received) + ' ฿';
+      document.getElementById('rep-outstanding').textContent = fmtMoney(outstanding) + ' ฿';
+      document.getElementById('rep-expense').textContent = fmtMoney(expense) + ' ฿';
+      const net = received - expense;
+      const netEl = document.getElementById('rep-net');
+      netEl.textContent = (net >= 0 ? '+' : '') + fmtMoney(net) + ' ฿';
+      netEl.style.color = net >= 0 ? '#1a8a3a' : '#d23';
+
+      // สรุปรายเดือน — รวมยอดขาย (จากใบแจ้งหนี้) และรับ/จ่าย (จากรายการชำระ) แยกตามเดือน
+      const months = {};
+      const monthKey = (iso) => {
+        const d = new Date(iso);
+        if (!isFinite(d.getTime())) return null;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      };
+      invoices.forEach(i => {
+        const k = monthKey(i.issuedAt); if (!k) return;
+        months[k] = months[k] || { sales: 0, received: 0, expense: 0 };
+        months[k].sales += Number(i.total || 0);
+      });
+      payments.forEach(p => {
+        const k = monthKey(p.date); if (!k) return;
+        months[k] = months[k] || { sales: 0, received: 0, expense: 0 };
+        if (p.type === 'receipt') months[k].received += Number(p.amount || 0);
+        else months[k].expense += Number(p.amount || 0);
+      });
+      const sortedMonths = Object.keys(months).sort().reverse();
+      const monthlyBox = document.getElementById('rep-monthly');
+      monthlyBox.innerHTML = sortedMonths.length ? `
+        <table>
+          <thead><tr><th>เดือน</th><th>ยอดขาย (ออกใบแจ้งหนี้)</th><th>รับชำระ</th><th>รายจ่าย</th><th>กระแสเงินสดสุทธิ</th></tr></thead>
+          <tbody>
+            ${sortedMonths.map(k => {
+              const m = months[k];
+              const netM = m.received - m.expense;
+              const [y, mo] = k.split('-');
+              const label = new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
+              return `<tr>
+                <td>${escapeHtml(label)}</td>
+                <td>${fmtMoney(m.sales)}</td>
+                <td>${fmtMoney(m.received)}</td>
+                <td>${fmtMoney(m.expense)}</td>
+                <td style="color:${netM >= 0 ? '#1a8a3a' : '#d23'};font-weight:600;">${netM >= 0 ? '+' : ''}${fmtMoney(netM)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      ` : `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีข้อมูลเพียงพอสำหรับสรุปรายเดือน —</p>`;
+    } catch (e) {
+      console.error(e);
+      document.getElementById('rep-monthly').innerHTML = `<p style="color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${escapeHtml(e.message || e)}</p>`;
+    }
   }
 </script>
 </html>
