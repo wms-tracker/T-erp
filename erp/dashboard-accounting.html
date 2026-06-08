@@ -41,6 +41,47 @@
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+
+  // ---------- กราฟเส้นแนวโน้มรายเดือน (SVG, ไม่พึ่งไลบรารีภายนอก) ----------
+  function svgLineChart(labels, series, opts = {}) {
+    const w = opts.width || 680, h = opts.height || 280;
+    const padL = 70, padB = 56, padT = 24, padR = 24;
+    const innerW = w - padL - padR, innerH = h - padT - padB;
+    const allVals = series.flatMap(s => s.values.map(Number));
+    const max = Math.max(1, ...allVals);
+    const min = Math.min(0, ...allVals);
+    const range = (max - min) || 1;
+    const n = Math.max(1, labels.length);
+    const stepX = n > 1 ? innerW / (n - 1) : 0;
+    const xOf = i => padL + i * stepX;
+    const yOf = v => padT + innerH - ((v - min) / range) * innerH;
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(f => {
+      const y = padT + innerH * (1 - f);
+      const val = min + range * f;
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(w - padR).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eef0f6" stroke-width="1"/>
+              <text x="${(padL - 10).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#999">${fmtMoney(val)}</text>`;
+    }).join('');
+    const lines = series.map(s => {
+      const pts = s.values.map((v, i) => `${xOf(i).toFixed(1)},${yOf(Number(v)).toFixed(1)}`).join(' ');
+      const dots = s.values.map((v, i) => `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(Number(v)).toFixed(1)}" r="3.5" fill="${s.color}"><title>${escapeHtml(s.name)} • ${escapeHtml(labels[i])}: ${fmtMoney(v)}</title></circle>`).join('');
+      return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>${dots}`;
+    }).join('');
+    const xLabels = labels.map((lab, i) => `<text x="${xOf(i).toFixed(1)}" y="${(padT + innerH + 20).toFixed(1)}" text-anchor="middle" font-size="10" fill="#555">${escapeHtml(lab)}</text>`).join('');
+    const legend = series.map(s => `
+      <span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:0.8rem;color:#444;">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${s.color};"></span>${escapeHtml(s.name)}
+      </span>`).join('');
+    return `
+      <div style="overflow-x:auto;">
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">
+          ${grid}
+          ${lines}
+          ${xLabels}
+        </svg>
+      </div>
+      <div style="margin-top:6px;">${legend}</div>`;
+  }
+
   async function nextDocNumber(counterId, prefix) {
     const ref = doc(db, 'counters', counterId);
     const next = await runTransaction(db, async (tx) => {
@@ -499,6 +540,10 @@
         <div class="card stat-card"><div class="num" id="rep-net">-</div><div class="label">กระแสเงินสดสุทธิ</div></div>
       </div>
       <div class="card">
+        <h3 style="margin-top:0;">📈 แนวโน้มยอดขาย / รับชำระ / รายจ่าย รายเดือน</h3>
+        <div id="rep-trendchart">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
         <h3 style="margin-top:0;">📅 สรุปยอดรายเดือน</h3>
         <div id="rep-monthly">⏳ กำลังโหลด...</div>
       </div>
@@ -544,6 +589,24 @@
         else months[k].expense += Number(p.amount || 0);
       });
       const sortedMonths = Object.keys(months).sort().reverse();
+
+      // กราฟแนวโน้มรายเดือน (เรียงจากเก่าไปใหม่)
+      const ascMonths = [...sortedMonths].reverse();
+      const trendBox = document.getElementById('rep-trendchart');
+      if (ascMonths.length) {
+        const monthLabels = ascMonths.map(k => {
+          const [y, mo] = k.split('-');
+          return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('th-TH', { year: '2-digit', month: 'short' });
+        });
+        trendBox.innerHTML = svgLineChart(monthLabels, [
+          { name: 'ยอดขาย', color: '#1a73e8', values: ascMonths.map(k => months[k].sales) },
+          { name: 'รับชำระแล้ว', color: '#1a8a3a', values: ascMonths.map(k => months[k].received) },
+          { name: 'รายจ่าย', color: '#d23', values: ascMonths.map(k => months[k].expense) },
+        ]);
+      } else {
+        trendBox.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีข้อมูลเพียงพอสำหรับสร้างกราฟ —</p>`;
+      }
+
       const monthlyBox = document.getElementById('rep-monthly');
       monthlyBox.innerHTML = sortedMonths.length ? `
         <table>

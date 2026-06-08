@@ -40,6 +40,81 @@
   function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   }
+  // ---------- เครื่องมือสร้างกราฟแบบ SVG (ไม่พึ่งไลบรารีภายนอก) ----------
+  function svgBarChart(items, opts = {}) {
+    const w = opts.width || 640, h = opts.height || 260;
+    const padL = 50, padB = 76, padT = 26, padR = 20;
+    const innerW = w - padL - padR, innerH = h - padT - padB;
+    const max = Math.max(1, ...items.map(i => Number(i.value) || 0));
+    const n = Math.max(1, items.length);
+    const barW = innerW / n;
+    const color = opts.color || '#1a73e8';
+    const valueFmt = opts.valueFmt || fmtMoney;
+    const bars = items.map((it, idx) => {
+      const val = Number(it.value) || 0;
+      const bh = (val / max) * innerH;
+      const x = padL + idx * barW + barW * 0.18;
+      const bw = barW * 0.64;
+      const y = padT + (innerH - bh);
+      const cx = x + bw / 2;
+      const shortLabel = String(it.label || '').length > 12 ? String(it.label).slice(0, 11) + '…' : (it.label || '');
+      return `
+        <g>
+          <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(bh,1).toFixed(1)}" rx="5" fill="${color}">
+            <title>${escapeHtml(it.label)}: ${valueFmt(val)}</title>
+          </rect>
+          <text x="${cx.toFixed(1)}" y="${(y - 7).toFixed(1)}" text-anchor="middle" font-size="11" fill="#1a2540" font-weight="700">${valueFmt(val)}</text>
+          <text x="${cx.toFixed(1)}" y="${(padT + innerH + 18).toFixed(1)}" text-anchor="end" font-size="11" fill="#555" transform="rotate(-32 ${cx.toFixed(1)} ${(padT + innerH + 18).toFixed(1)})">${escapeHtml(shortLabel)}<title>${escapeHtml(it.label)}</title></text>
+        </g>`;
+    }).join('');
+    return `
+      <div style="overflow-x:auto;">
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">
+          <line x1="${padL}" y1="${(padT + innerH).toFixed(1)}" x2="${(w - padR).toFixed(1)}" y2="${(padT + innerH).toFixed(1)}" stroke="#dde2ee" stroke-width="1"/>
+          ${bars}
+        </svg>
+      </div>`;
+  }
+
+  function svgLineChart(labels, series, opts = {}) {
+    const w = opts.width || 680, h = opts.height || 280;
+    const padL = 70, padB = 56, padT = 24, padR = 24;
+    const innerW = w - padL - padR, innerH = h - padT - padB;
+    const allVals = series.flatMap(s => s.values.map(Number));
+    const max = Math.max(1, ...allVals);
+    const min = Math.min(0, ...allVals);
+    const range = (max - min) || 1;
+    const n = Math.max(1, labels.length);
+    const stepX = n > 1 ? innerW / (n - 1) : 0;
+    const xOf = i => padL + i * stepX;
+    const yOf = v => padT + innerH - ((v - min) / range) * innerH;
+    const grid = [0, 0.25, 0.5, 0.75, 1].map(f => {
+      const y = padT + innerH * (1 - f);
+      const val = min + range * f;
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(w - padR).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eef0f6" stroke-width="1"/>
+              <text x="${(padL - 10).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#999">${fmtMoney(val)}</text>`;
+    }).join('');
+    const lines = series.map(s => {
+      const pts = s.values.map((v, i) => `${xOf(i).toFixed(1)},${yOf(Number(v)).toFixed(1)}`).join(' ');
+      const dots = s.values.map((v, i) => `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(Number(v)).toFixed(1)}" r="3.5" fill="${s.color}"><title>${escapeHtml(s.name)} • ${escapeHtml(labels[i])}: ${fmtMoney(v)}</title></circle>`).join('');
+      return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round"/>${dots}`;
+    }).join('');
+    const xLabels = labels.map((lab, i) => `<text x="${xOf(i).toFixed(1)}" y="${(padT + innerH + 20).toFixed(1)}" text-anchor="middle" font-size="10" fill="#555">${escapeHtml(lab)}</text>`).join('');
+    const legend = series.map(s => `
+      <span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px;font-size:0.8rem;color:#444;">
+        <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${s.color};"></span>${escapeHtml(s.name)}
+      </span>`).join('');
+    return `
+      <div style="overflow-x:auto;">
+        <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">
+          ${grid}
+          ${lines}
+          ${xLabels}
+        </svg>
+      </div>
+      <div style="margin-top:6px;">${legend}</div>`;
+  }
+
   const ORDER_CLS = { 'รอดำเนินการ': 'badge-pending', 'เสร็จสิ้น': 'badge-done', 'ยกเลิก': 'badge-cancel' };
   function orderStatusBadge(status) {
     return `<span class="badge ${ORDER_CLS[status] || 'badge-pending'}">${escapeHtml(status || '-')}</span>`;
@@ -83,6 +158,7 @@
 
       <div class="card">
         <h3 style="margin-top:0;">🏆 ยอดขายแยกตามพนักงานขาย (Top 10)</h3>
+        <div id="ov-saleschart" style="margin-bottom:14px;"></div>
         <div id="ov-bysales">⏳ กำลังโหลด...</div>
       </div>
 
@@ -147,6 +223,10 @@
       bySales[name].total += Number(o.subtotal || 0);
     });
     const topSales = Object.entries(bySales).sort((a, b) => b[1].total - a[1].total).slice(0, 10);
+    const chartBox = document.getElementById('ov-saleschart');
+    chartBox.innerHTML = topSales.length
+      ? svgBarChart(topSales.map(([name, d]) => ({ label: name, value: d.total })), { color: '#1a73e8' })
+      : '';
     document.getElementById('ov-bysales').innerHTML = topSales.length ? `
       <table>
         <thead><tr><th>พนักงานขาย</th><th>จำนวนออเดอร์</th><th>ยอดขายรวม (บาท)</th></tr></thead>
@@ -259,6 +339,10 @@
         <div class="card stat-card"><div class="num" id="fv-net">-</div><div class="label">กระแสเงินสดสุทธิ</div></div>
       </div>
       <div class="card">
+        <h3 style="margin-top:0;">📈 แนวโน้มยอดขาย / รับชำระ / รายจ่าย รายเดือน</h3>
+        <div id="fv-trendchart">⏳ กำลังโหลด...</div>
+      </div>
+      <div class="card">
         <h3 style="margin-top:0;">📅 สรุปยอดรายเดือน</h3>
         <div id="fv-monthly">⏳ กำลังโหลด...</div>
       </div>
@@ -305,6 +389,24 @@
       else months[k].expense += Number(p.amount || 0);
     });
     const sortedMonths = Object.keys(months).sort().reverse();
+
+    // กราฟแนวโน้มรายเดือน (เรียงจากเก่าไปใหม่)
+    const ascMonths = [...sortedMonths].reverse();
+    const trendBox = document.getElementById('fv-trendchart');
+    if (ascMonths.length) {
+      const monthLabels = ascMonths.map(k => {
+        const [y, mo] = k.split('-');
+        return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString('th-TH', { year: '2-digit', month: 'short' });
+      });
+      trendBox.innerHTML = svgLineChart(monthLabels, [
+        { name: 'ยอดขาย', color: '#1a73e8', values: ascMonths.map(k => months[k].sales) },
+        { name: 'รับชำระแล้ว', color: '#1a8a3a', values: ascMonths.map(k => months[k].received) },
+        { name: 'รายจ่าย', color: '#d23', values: ascMonths.map(k => months[k].expense) },
+      ]);
+    } else {
+      trendBox.innerHTML = `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีข้อมูลเพียงพอ —</p>`;
+    }
+
     document.getElementById('fv-monthly').innerHTML = sortedMonths.length ? `
       <table>
         <thead><tr><th>เดือน</th><th>ยอดขาย</th><th>รับชำระ</th><th>รายจ่าย</th><th>กระแสเงินสดสุทธิ</th></tr></thead>
