@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>แอดมิน — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+  import { requireRole, db } from "./js/auth.js";
+  import { renderShell } from "./js/shell.js";
+  import {
+    collection, getDocs, doc, setDoc, updateDoc, query, orderBy, limit
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const profile = await requireRole(['admin']);
+
+  const SECTIONS = {
+    orders:    { title: '📋 ออเดอร์ทั้งหมด',          desc: 'ดูและติดตามสถานะออเดอร์ของทุกฝ่ายขาย ประสานงานกับคลังสินค้า', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
+    documents: { title: '📑 เอกสารขาย/ขนส่ง',         desc: 'จัดทำและจัดเก็บเอกสารประกอบการขายและการขนส่ง', phase: 'เฟส 2' },
+    routing:   { title: '🗺 จัดรูทขนส่ง / คัตออฟ',      desc: 'จัดกลุ่มออเดอร์ตามเส้นทางขนส่งและเวลาคัตออฟประจำวัน ส่งสรุปยอดให้ฝ่ายที่เกี่ยวข้อง', phase: 'เฟส 2' },
+    users:     { title: '👥 จัดการผู้ใช้งาน & สิทธิ์', desc: 'เพิ่ม/ลบ/แก้ไขบัญชีผู้ใช้งาน กำหนดแผนกและสิทธิ์การเข้าถึง (RBAC)', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
+    reports:   { title: '📊 รายงานประจำวัน',          desc: 'สรุปยอดขาย สถานะคลัง และภาพรวมการดำเนินงานประจำวันของทุกแผนก', phase: 'เฟส 4' },
+  };
+
+  const key = (location.hash || '#users').replace('#', '');
+  const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.users).title);
+
+  if (key === 'users') renderUserManagement();
+  else if (key === 'orders') renderAllOrders();
+  else renderPlaceholder(key);
+
+  window.addEventListener('hashchange', () => location.reload());
+
+  function renderPlaceholder(k) {
+    const s = SECTIONS[k] || SECTIONS.users;
+    main.innerHTML = `
+      <div class="card">
+        <p>${s.desc}</p>
+        <div style="background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.88rem;color:#8a6400;">
+          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b>
+        </div>
+      </div>
+    `;
+  }
+
+  // ---------- ออเดอร์ทั้งหมด (ทุกฝ่ายขาย — เฟส 1) ----------
+  const ORDER_CLS = { 'รอดำเนินการ': 'badge-pending', 'เสร็จสิ้น': 'badge-done', 'ยกเลิก': 'badge-cancel' };
+  function fmtNum(n) { return Number(n || 0).toLocaleString('th-TH'); }
+
+  async function renderAllOrders() {
+    main.innerHTML = `
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <p style="margin:0;">รายการออเดอร์ล่าสุดจากทุกฝ่ายขาย (ดึงจาก Firestore แบบเรียลไทม์)</p>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="order-filter">
+              <option value="">ทุกสถานะ</option>
+              <option value="รอดำเนินการ">รอดำเนินการ</option>
+              <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+              <option value="ยกเลิก">ยกเลิก</option>
+            </select>
+            <button class="btn btn-outline" id="btn-refresh-orders">🔄 รีเฟรช</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <table>
+          <thead>
+            <tr><th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>พนักงานขาย</th><th>ยอดรวม</th><th>วันที่</th><th>สถานะ</th></tr>
+          </thead>
+          <tbody id="orders-rows"><tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('btn-refresh-orders').addEventListener('click', loadAllOrders);
+    document.getElementById('order-filter').addEventListener('change', () => renderOrderRows());
+    await loadAllOrders();
+  }
+
+  let _allOrdersCache = [];
+  async function loadAllOrders() {
+    const tbody = document.getElementById('orders-rows');
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
+    try {
+      let snap;
+      try {
+        snap = await getDocs(query(collection(db, 'orders'), orderBy('createdAtServer', 'desc'), limit(300)));
+      } catch (e) {
+        // เผื่อเอกสารเก่าบางรายการไม่มี createdAtServer (orderBy อาจพลาด) — fallback โหลดทั้งหมด
+        snap = await getDocs(collection(db, 'orders'));
+      }
+      _allOrdersCache = [];
+      snap.forEach(d => _allOrdersCache.push({ _id: d.id, ...d.data() }));
+      // เรียงสำรองด้วย id ออเดอร์ (เผื่อ fallback ไม่มี server timestamp)
+      _allOrdersCache.sort((a, b) => (b.id || '').localeCompare(a.id || ''));
+      renderOrderRows();
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
+  }
+
+  function renderOrderRows() {
+    const tbody = document.getElementById('orders-rows');
+    const filter = document.getElementById('order-filter').value;
+    const list = filter ? _allOrdersCache.filter(o => o.status === filter) : _allOrdersCache;
+    if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">ยังไม่มีออเดอร์ในระบบ</td></tr>`; return; }
+    tbody.innerHTML = list.map(o => `
+      <tr>
+        <td><strong>${o.id || o._id}</strong></td>
+        <td>${o.customer?.name || '-'}</td>
+        <td>${o.channel || '-'}</td>
+        <td>${o.createdByName || o.salesperson || '-'}</td>
+        <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
+        <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || o.createdAt || '-'}</td>
+        <td><span class="badge ${ORDER_CLS[o.status] || ''}">${o.status || '-'}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  // ---------- จัดการผู้ใช้งาน & สิทธิ์ (ใช้งานได้จริง — เฟส 1) ----------
+  async function renderUserManagement() {
+    main.innerHTML = `
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">เพิ่มผู้ใช้งานใหม่ (กำหนดสิทธิ์)</h2>
+        <p style="font-size:0.82rem;color:#888;line-height:1.6;">
+          ⚠️ หน้านี้จัดการ "ระดับสิทธิ์ในระบบ" (Firestore <code>users/&lt;uid&gt;</code>) เท่านั้น<br/>
+          การสร้าง<b>บัญชีเข้าสู่ระบบ (อีเมล/รหัสผ่าน)</b> จริงๆ ต้องสร้างผ่าน Firebase Authentication Console
+          (Authentication → Users → Add user) แล้วคัดลอก <b>UID</b> มากรอกที่นี่ เพื่อผูก role ให้ตรงกับบัญชีนั้น
+        </p>
+        <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+          <div class="field"><label>UID (จาก Firebase Auth)</label><input id="u-uid" placeholder="เช่น aB12cD34..." /></div>
+          <div class="field"><label>ชื่อพนักงาน</label><input id="u-name" placeholder="ชื่อ-นามสกุล" /></div>
+          <div class="field"><label>อีเมล</label><input id="u-email" placeholder="name@company.com" /></div>
+          <div class="field"><label>แผนก/สิทธิ์ (Role)</label>
+            <select id="u-role">
+              <option value="sales">ฝ่ายขาย (sales)</option>
+              <option value="warehouse">คลังสินค้า (warehouse)</option>
+              <option value="accounting">บัญชี (accounting)</option>
+              <option value="admin">แอดมิน (admin)</option>
+              <option value="manager">ผู้บริหาร (manager)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-add-user" style="width:auto;">+ บันทึกสิทธิ์ผู้ใช้งาน</button>
+        <p class="msg" id="user-msg"></p>
+      </div>
+      <div class="card">
+        <h2 style="margin-top:0;font-size:1.05rem;">รายชื่อผู้ใช้งานในระบบ</h2>
+        <table>
+          <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>แผนก/สิทธิ์</th><th>สถานะ</th><th>การจัดการ</th></tr></thead>
+          <tbody id="user-rows"><tr><td colspan="5" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        </table>
+      </div>
+    `;
+    document.getElementById('btn-add-user').addEventListener('click', addUser);
+    await loadUsers();
+  }
+
+  async function addUser() {
+    const uid = document.getElementById('u-uid').value.trim();
+    const name = document.getElementById('u-name').value.trim();
+    const email = document.getElementById('u-email').value.trim();
+    const role = document.getElementById('u-role').value;
+    const msg = document.getElementById('user-msg');
+    msg.className = 'msg';
+    if (!uid || !name || !email) { msg.textContent = 'กรุณากรอกข้อมูลให้ครบ (UID, ชื่อ, อีเมล)'; msg.classList.add('error'); return; }
+    try {
+      await setDoc(doc(db, 'users', uid), {
+        name, email, role, department: roleLabel(role), active: true, createdAt: new Date().toISOString()
+      });
+      msg.textContent = `เพิ่มสิทธิ์ให้ ${name} (${role}) สำเร็จแล้ว`;
+      msg.classList.add('ok');
+      ['u-uid','u-name','u-email'].forEach(id => document.getElementById(id).value = '');
+      await loadUsers();
+    } catch (err) {
+      msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+      msg.classList.add('error');
+    }
+  }
+
+  async function loadUsers() {
+    const tbody = document.getElementById('user-rows');
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      if (snap.empty) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#999;">ยังไม่มีผู้ใช้งานในระบบ</td></tr>`; return; }
+      const rows = [];
+      snap.forEach(d => rows.push({ uid: d.id, ...d.data() }));
+      tbody.innerHTML = rows.map(u => `
+        <tr>
+          <td>${u.name || '-'}</td>
+          <td>${u.email || '-'}</td>
+          <td>${roleLabel(u.role)}</td>
+          <td>${u.active ? '<span class="badge badge-done">ใช้งานได้</span>' : '<span class="badge badge-cancel">ระงับ</span>'}</td>
+          <td><button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)">${u.active ? 'ระงับสิทธิ์' : 'เปิดใช้งาน'}</button></td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+    }
+  }
+
+  function roleLabel(role) {
+    return { sales:'ฝ่ายขาย', warehouse:'คลังสินค้า', accounting:'บัญชี', admin:'แอดมิน', manager:'ผู้บริหาร' }[role] || role;
+  }
+
+  // ใช้ window. เพราะ inline onclick ใน template string เรียกผ่าน global scope
+  window.toggleActive = async function (btn) {
+    const uid = btn.dataset.uid;
+    const nextActive = btn.dataset.active !== 'true';
+    try {
+      await updateDoc(doc(db, 'users', uid), { active: nextActive });
+      await loadUsers();
+    } catch (err) { alert('อัปเดตไม่สำเร็จ: ' + err.message); }
+  };
+</script>
+</html>

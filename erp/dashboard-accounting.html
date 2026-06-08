@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>บัญชี — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+  import { requireRole } from "./js/auth.js";
+  import { renderShell } from "./js/shell.js";
+
+  const profile = await requireRole(['accounting']);
+
+  const SECTIONS = {
+    invoices: { title: '🧾 ใบแจ้งหนี้ / ใบกำกับภาษี', desc: 'ออกใบแจ้งหนี้และใบกำกับภาษีจากออเดอร์ที่ปิดการขายแล้ว พร้อมเลขอ้างอิง E-TAX', phase: 'เฟส 3' },
+    payments: { title: '💵 รับ-จ่ายเงิน',              desc: 'บันทึกรายการรับเงินจากลูกค้าและรายจ่ายต่างๆ ผูกกับออเดอร์/ใบแจ้งหนี้', phase: 'เฟส 3' },
+    arap:     { title: '🔁 กระทบยอดลูกหนี้/เจ้าหนี้',   desc: 'ตรวจสอบยอดค้างชำระของลูกค้า (AR) และยอดที่ต้องจ่ายให้ผู้ขาย/ซัพพลายเออร์ (AP)', phase: 'เฟส 3' },
+    reports:  { title: '📊 รายงานทางการเงิน',           desc: 'สรุปยอดขาย ต้นทุน กำไร และกระแสเงินสด รายวัน/รายเดือน พร้อม export', phase: 'เฟส 3' },
+  };
+
+  const key = (location.hash || '#invoices').replace('#', '');
+  const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.invoices).title);
+  renderSection(key);
+  window.addEventListener('hashchange', () => location.reload());
+
+  function renderSection(k) {
+    const s = SECTIONS[k] || SECTIONS.invoices;
+    main.innerHTML = `
+      <div class="card">
+        <p>${s.desc}</p>
+        <div style="background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.88rem;color:#8a6400;">
+          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b> — รวมถึงการเชื่อมต่อกับโปรแกรมบัญชีภายนอกที่คุณใช้งานอยู่
+          (ระบุชื่อโปรแกรมเพื่อออกแบบจุดเชื่อมต่อให้ตรงกับ API/รูปแบบไฟล์ของโปรแกรมนั้น)
+        </div>
+      </div>
+    `;
+  }
+</script>
+</html>

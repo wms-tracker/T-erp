@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>คลังสินค้า — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+  import { requireRole } from "./js/auth.js";
+  import { renderShell } from "./js/shell.js";
+
+  const profile = await requireRole(['warehouse']);
+
+  const SECTIONS = {
+    inbound:    { title: '📥 รับสินค้าเข้า (Inbound)',        desc: 'บันทึกสินค้าที่รับเข้าคลังจากผู้ผลิต/ซัพพลายเออร์ พร้อมจำนวนและเลขอ้างอิงใบส่งของ', phase: 'เฟส 2' },
+    putaway:    { title: '🗄 จัดเก็บเข้าตำแหน่ง (Put Away)',  desc: 'กำหนด/ปรับตำแหน่งจัดเก็บสินค้าในคลัง (location) เพื่อให้ค้นหาและหยิบสินค้าได้รวดเร็ว', phase: 'เฟส 2' },
+    stock:      { title: '📦 จัดการสต๊อกสินค้า',              desc: 'ดูจำนวนคงเหลือ/จอง/พร้อมขายของแต่ละ SKU พร้อมแจ้งเตือนเมื่อสินค้าใกล้หมด (reorder point)', phase: 'เฟส 2' },
+    picking:    { title: '🛒 หยิบสินค้า (Picking)',           desc: 'รายการสินค้าที่ต้องหยิบตามออเดอร์ที่รอจัดส่ง พร้อมยืนยันด้วยการสแกนบาร์โค้ด', phase: 'เฟส 2' },
+    packing:    { title: '📦 แพ็คสินค้า (Packing)',           desc: 'ยืนยันรายการที่แพ็คเสร็จ ผูกกับเลขออเดอร์ และเตรียมส่งมอบให้ฝ่ายขนส่ง', phase: 'เฟส 2' },
+    qc:         { title: '✅ ตรวจสอบสินค้า (QC)',             desc: 'ตรวจสอบคุณภาพ/ความถูกต้องของสินค้าก่อนแพ็คหรือก่อนจัดส่ง บันทึกผลผ่าน/ไม่ผ่าน', phase: 'เฟส 2' },
+    outbound:   { title: '🚚 จัดส่งสินค้า (Outbound)',        desc: 'บันทึกการนำสินค้าออกจากคลังเพื่อจัดส่ง พร้อมเลข tracking และผู้ขนส่ง', phase: 'เฟส 2' },
+    cyclecount: { title: '🔢 ตรวจนับสต๊อก (Cycle Count)',     desc: 'ตรวจนับสต๊อกตามรอบ เปรียบเทียบกับยอดในระบบ และบันทึกผลต่างเพื่อปรับปรุงยอด', phase: 'เฟส 2' },
+  };
+
+  const key = (location.hash || '#inbound').replace('#', '');
+  const main = renderShell(profile, key, (SECTIONS[key] || SECTIONS.inbound).title);
+  renderSection(key);
+
+  window.addEventListener('hashchange', () => {
+    const k = (location.hash || '#inbound').replace('#', '');
+    location.reload(); // โหลดใหม่เพื่อ highlight เมนูที่ active ให้ถูกต้อง
+  });
+
+  function renderSection(k) {
+    const s = SECTIONS[k] || SECTIONS.inbound;
+    main.innerHTML = `
+      <div class="card">
+        <p>${s.desc}</p>
+        <div style="background:#fff8e8;border:1px solid #ffe6a8;border-radius:10px;padding:14px 18px;font-size:0.88rem;color:#8a6400;">
+          🚧 โมดูลนี้จะถูกพัฒนาใน <b>${s.phase}</b> (ตามแผน Roadmap ที่วางไว้) —
+          ตอนนี้เป็นโครงหน้า + เมนูที่เชื่อมต่อระบบสิทธิ์ (RBAC) ไว้แล้ว พร้อมต่อยอด
+        </div>
+      </div>
+    `;
+  }
+</script>
+</html>

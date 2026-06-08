@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ฝ่ายขาย — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+  import { requireRole, db } from "./js/auth.js";
+  import { renderShell, statusBadge } from "./js/shell.js";
+  import {
+    collection, query, where, orderBy, limit, getDocs
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const profile = await requireRole(['sales']);
+  const main = renderShell(profile, 'orders', '📋 ออเดอร์ของฉัน');
+
+  main.innerHTML = `
+    <div class="grid-cards" style="margin-bottom:20px;">
+      <div class="card stat-card"><div class="num" id="stat-total">–</div><div class="label">ออเดอร์ทั้งหมด (30 วันล่าสุด)</div></div>
+      <div class="card stat-card"><div class="num" id="stat-pending">–</div><div class="label">รอดำเนินการ</div></div>
+      <div class="card stat-card"><div class="num" id="stat-shipping">–</div><div class="label">กำลังจัดส่ง</div></div>
+      <div class="card stat-card"><div class="num" id="stat-done">–</div><div class="label">เสร็จสิ้น</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h2 style="margin:0;font-size:1.05rem;">ออเดอร์ล่าสุดของฉัน</h2>
+        <a class="btn btn-primary" href="../index.html" target="_blank">+ ลงออเดอร์ใหม่</a>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Order ID</th><th>วันที่</th><th>ลูกค้า</th><th>ยอดรวม</th><th>กำหนดส่ง</th><th>สถานะ</th>
+        </tr></thead>
+        <tbody id="order-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลดข้อมูล...</td></tr></tbody>
+      </table>
+      <p style="font-size:0.8rem;color:#999;margin-top:14px;">
+        * หน้านี้อ่านข้อมูลจาก Firestore collection <code>orders</code> โดยกรองเฉพาะออเดอร์ที่ <code>createdBy</code> ตรงกับบัญชีของคุณ<br/>
+        * การ "ลงออเดอร์ใหม่" ยังคงใช้แอปลงออเดอร์เดิม — ขั้นตอนถัดไปคือเชื่อมแอปนั้นให้บันทึกเข้า Firestore โดยตรงแทน localStorage
+      </p>
+    </div>
+  `;
+
+  await loadOrders();
+
+  async function loadOrders() {
+    const tbody = document.getElementById('order-rows');
+    try {
+      const q = query(
+        collection(db, 'orders'),
+        where('createdBy', '==', profile.uid),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">ยังไม่มีออเดอร์ — ลองกด "+ ลงออเดอร์ใหม่"</td></tr>`;
+        setStats([]);
+        return;
+      }
+      const orders = [];
+      snap.forEach(d => orders.push({ id: d.id, ...d.data() }));
+      tbody.innerHTML = orders.map(o => `
+        <tr>
+          <td><b>${o.id}</b></td>
+          <td>${o.orderDate || '-'}</td>
+          <td>${(o.customer && o.customer.name) || '-'}</td>
+          <td>${formatNumber(o.subtotal)}</td>
+          <td>${(o.shipping && o.shipping.shipDate) || '-'}</td>
+          <td>${statusBadge(o.status || 'รอดำเนินการ')}</td>
+        </tr>
+      `).join('');
+      setStats(orders);
+    } catch (err) {
+      console.error(err);
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">
+        โหลดข้อมูลไม่สำเร็จ: ${err.message}<br/>
+        <span style="color:#999;font-size:0.8rem;">(ตรวจสอบว่าได้สร้าง Firestore index สำหรับ where(createdBy) + orderBy(createdAt) แล้ว — Firebase จะแสดงลิงก์สร้าง index อัตโนมัติใน console เมื่อ query ล้มเหลวครั้งแรก)</span>
+      </td></tr>`;
+    }
+  }
+
+  function setStats(orders) {
+    document.getElementById('stat-total').textContent = orders.length;
+    document.getElementById('stat-pending').textContent = orders.filter(o => o.status === 'รอดำเนินการ').length;
+    document.getElementById('stat-shipping').textContent = orders.filter(o => ['กำลังแพ็ค','จัดส่งแล้ว'].includes(o.status)).length;
+    document.getElementById('stat-done').textContent = orders.filter(o => o.status === 'เสร็จสิ้น').length;
+  }
+  function formatNumber(n) { return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }); }
+</script>
+</html>

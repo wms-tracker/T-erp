@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>เข้าสู่ระบบ — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body>
+<div class="center-screen">
+  <div class="auth-card">
+    <h1>🏢 เข้าสู่ระบบ ERP</h1>
+    <p class="sub">ระบบจัดการคำสั่งซื้อ คลังสินค้า บัญชี และผู้ดูแลระบบ</p>
+
+    <div class="field">
+      <label>อีเมลพนักงาน</label>
+      <input id="email" type="email" placeholder="name@company.com" autocomplete="username" />
+    </div>
+    <div class="field">
+      <label>รหัสผ่าน</label>
+      <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="btn btn-primary" id="btn-login">เข้าสู่ระบบ</button>
+    <p class="msg" id="msg"></p>
+    <p class="msg" style="color:#aaa;">บัญชีผู้ใช้ถูกสร้างและกำหนดสิทธิ์โดยผู้ดูแลระบบ (Admin) เท่านั้น<br/>หากยังไม่มีบัญชี กรุณาติดต่อแอดมิน</p>
+  </div>
+</div>
+
+<script type="module">
+  import { login, ROLE_HOME } from "./js/auth.js";
+
+  const params = new URLSearchParams(location.search);
+  const msgEl = document.getElementById('msg');
+  if (params.get('msg')) { msgEl.textContent = params.get('msg'); msgEl.classList.add('error'); }
+
+  async function doLogin() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    msgEl.textContent = ''; msgEl.className = 'msg';
+    if (!email || !password) { msgEl.textContent = 'กรุณากรอกอีเมลและรหัสผ่าน'; msgEl.classList.add('error'); return; }
+    try {
+      const profile = await login(email, password);
+      msgEl.textContent = `ยินดีต้อนรับ ${profile.name || profile.email} (${profile.role})`;
+      msgEl.classList.add('ok');
+      const home = ROLE_HOME[profile.role] || 'login.html';
+      setTimeout(() => location.href = home, 600);
+    } catch (err) {
+      msgEl.textContent = friendlyError(err);
+      msgEl.classList.add('error');
+    }
+  }
+
+  function friendlyError(err) {
+    const code = err && err.code;
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found')
+      return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    if (code === 'auth/too-many-requests')
+      return 'พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง';
+    return err.message || 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+  }
+
+  document.getElementById('btn-login').addEventListener('click', doLogin);
+  document.getElementById('password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+</script>
+</body>
+</html>
