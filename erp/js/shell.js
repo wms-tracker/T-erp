@@ -70,9 +70,9 @@ export function renderShell(profile, activeKey, title) {
     `<a href="${item.href}" class="${item.key === activeKey ? 'active' : ''}">${item.label}</a>`
   ).join('');
   const viewingAsBadge = (profile.role === 'admin' && navKey !== 'admin')
-    ? `<div style="background:#fff3cd;color:#7a5b00;font-size:0.72rem;padding:5px 10px;border-radius:6px;margin:6px 0;text-align:center;">
-         👁 แอดมินกำลังดูแผนก: ${ROLE_LABEL[navKey] || navKey}<br/>
-         <a href="dashboard-admin.html" style="display:inline-block;margin-top:4px;background:#7a5b00;color:#fff;padding:3px 10px;border-radius:5px;text-decoration:none;font-weight:600;">⬅ กลับเมนูหลักแอดมิน</a>
+    ? `<div style="background:linear-gradient(135deg,#fff3cd,#ffe9a8);color:#7a5b00;font-size:0.74rem;padding:10px 12px;border-radius:12px;margin:6px 0 14px;text-align:center;box-shadow:0 3px 10px rgba(180,140,0,0.18);">
+         <div style="font-weight:700;letter-spacing:0.2px;">👁 กำลังดูแผนก: ${ROLE_LABEL[navKey] || navKey}</div>
+         <a href="dashboard-admin.html" style="display:inline-flex;align-items:center;gap:5px;justify-content:center;margin-top:8px;background:#7a5b00;color:#fff;padding:6px 14px;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.74rem;transition:filter .15s;" onmouseover="this.style.filter='brightness(1.15)'" onmouseout="this.style.filter='none'">⬅ กลับเมนูหลักแอดมิน</a>
        </div>`
     : '';
 
