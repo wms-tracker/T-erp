@@ -306,7 +306,7 @@ tr:last-child td { border-bottom: none; }
 
       <div class="form-actions">
         <button class="btn btn-outline" onclick="openReceiptModal()">🖨 พิมพ์ตัวอย่างใบออเดอร์</button>
-        <button class="btn btn-success" onclick="confirmOrder()">✔ บันทึกออเดอร์</button>
+        <button class="btn btn-success" id="btn-confirm-order" onclick="confirmOrder()">✔ บันทึกออเดอร์</button>
       </div>
     </div>
 
@@ -839,10 +839,29 @@ function gatherOrderData(idForRecord) {
 }
 
 // ============ SAVE ORDER ============
-function confirmOrder() {
+async function confirmOrder() {
   if (!orderItems.length || itemsTotal() <= 0) { toast('กรุณาเพิ่มรายการสินค้าและราคาให้ถูกต้อง'); return; }
   if (!val('f-name')) { toast('กรุณากรอกชื่อลูกค้า'); return; }
-  const id = nextOrderId();
+
+  const btn = document.getElementById('btn-confirm-order');
+  if (btn) btn.disabled = true;
+
+  // ออกเลขออเดอร์จากตัวนับกลางบน Firestore ก่อน เพื่อไม่ให้เลขซ้ำกันระหว่างผู้ใช้/เครื่องต่างๆ
+  // (ถ้าเชื่อมต่อไม่ได้ เช่น ออฟไลน์ จะสำรองด้วยเลขเครื่อง+รหัสกันชน เพื่อไม่ให้ชนกันเอง)
+  let id;
+  try {
+    if (window.getNextOrderIdFromFirestore) {
+      id = await window.getNextOrderIdFromFirestore();
+    } else {
+      throw new Error('no-firestore-counter');
+    }
+  } catch (err) {
+    console.warn('ออกเลขออเดอร์จากระบบกลางไม่สำเร็จ ใช้เลขสำรองแทน:', err);
+    id = nextOrderId() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+  }
+
+  if (btn) btn.disabled = false;
+
   const order = gatherOrderData(id);
   orders.unshift(order);
   saveOrders();
@@ -1064,7 +1083,7 @@ initForm();
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import {
-    getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc
+    getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc, runTransaction
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { firebaseConfig } from "./erp/js/firebase-config.js";
 
@@ -1097,6 +1116,20 @@ initForm();
 
     loadMyOrdersFromFirestore();
   });
+
+  // ออกเลขออเดอร์แบบ "กลาง" ที่ไม่ซ้ำกันไม่ว่าใคร/เครื่องไหนจะกดบันทึกพร้อมกัน
+  // ใช้ Firestore transaction กับเอกสารตัวนับกลาง counters/orderCounter (atomic increment)
+  window.getNextOrderIdFromFirestore = async function () {
+    const counterRef = doc(db, 'counters', 'orderCounter');
+    const next = await runTransaction(db, async (tx) => {
+      const snap = await tx.get(counterRef);
+      const current = snap.exists() ? (snap.data().value || 0) : 0;
+      const updated = current + 1;
+      tx.set(counterRef, { value: updated }, { merge: true });
+      return updated;
+    });
+    return 'ORD-' + String(next).padStart(6, '0');
+  };
 
   // เรียกจาก confirmOrder() ในสคริปต์หลัก เพื่อบันทึกออเดอร์เข้า Firestore กลาง
   window.pushOrderToFirestore = async function (order) {
