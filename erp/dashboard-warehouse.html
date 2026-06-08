@@ -301,6 +301,12 @@
       tbody.innerHTML = list.map(o => {
         const itemsTxt = (o.items || []).map(it => `${it.name || it.model || it.sku || ''} ×${it.qty}`).join(', ');
         let actionsHtml = `<button class="btn btn-success" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__advanceOrder('${o._id}','${stageKey}')">${flow.btnLabel}</button>`;
+        if (stageKey === 'picking') {
+          actionsHtml = `
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printPickList('${o._id}')">🖨 ใบ Pick List</button>
+            <button class="btn btn-primary" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__openScanPick('${o._id}')">📷 สแกนหยิบสินค้า</button>
+          ` + actionsHtml;
+        }
         if (flow.rejectTo) {
           actionsHtml += ` <button class="btn btn-danger" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__rejectOrder('${o._id}','${stageKey}')">${flow.rejectLabel}</button>`;
         }
@@ -319,6 +325,195 @@
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
     }
   }
+
+  // ===================================================================
+  // 🖨 ใบ Pick List — สรุปรายการที่ต้องหยิบ พร้อมตำแหน่งจัดเก็บ (location) สำหรับพิมพ์ถือเดิน
+  // ===================================================================
+  function escPL(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  async function lookupProduct(sku) {
+    if (!sku) return null;
+    const cached = _productsCache.find(p => p.sku === sku || p._id === sku);
+    if (cached) return cached;
+    try {
+      const snap = await getDoc(doc(db, 'products', sku));
+      return snap.exists() ? { _id: snap.id, ...snap.data() } : null;
+    } catch (e) { return null; }
+  }
+
+  window.__printPickList = async function (orderDocId) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+    const items = order.items || [];
+    const rows = [];
+    for (const it of items) {
+      const sku = it.sku || it.model || '';
+      const p = await lookupProduct(sku);
+      rows.push({
+        sku: sku || '-',
+        name: it.name || it.model || p?.name || '-',
+        location: p?.location || '— ไม่ระบุตำแหน่ง —',
+        qty: it.qty ?? '-',
+      });
+    }
+    // เรียงตามตำแหน่งจัดเก็บ เพื่อให้เดินหยิบเป็นเส้นทางเดียว ไม่ย้อนไปมา
+    rows.sort((a, b) => String(a.location).localeCompare(String(b.location)));
+
+    const html = `
+      <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
+      <title>ใบ Pick List — ${escPL(order.id)}</title>
+      <style>
+        body { font-family:'Segoe UI','Sarabun',Tahoma,sans-serif; padding:26px; color:#222; }
+        h1 { font-size:18px; margin:0 0 4px; }
+        .sub { color:#888; font-size:13px; margin-bottom:16px; }
+        table { width:100%; border-collapse:collapse; font-size:14px; }
+        th, td { border:1px solid #ddd; padding:8px 10px; text-align:left; }
+        th { background:#f4f6fa; }
+        .qty { text-align:center; font-weight:700; font-size:16px; }
+        .loc { font-weight:700; color:#1a73e8; }
+        @media print { .no-print { display:none; } }
+      </style></head>
+      <body>
+        <div class="no-print" style="text-align:right;margin-bottom:10px;">
+          <button onclick="window.print()" style="padding:8px 18px;border:none;background:#1a73e8;color:#fff;border-radius:8px;cursor:pointer;">🖨 พิมพ์ใบ Pick List</button>
+        </div>
+        <h1>📋 ใบ Pick List — เลขออเดอร์ ${escPL(order.id)}</h1>
+        <div class="sub">ลูกค้า: ${escPL(order.customer?.name || '-')} &nbsp;|&nbsp; วันที่สั่ง: ${escPL(order.orderDate || '-')} &nbsp;|&nbsp; พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+        <table>
+          <thead><tr><th style="width:36px;">☐</th><th>ตำแหน่งจัดเก็บ</th><th>SKU</th><th>ชื่อสินค้า</th><th style="width:80px;">จำนวน</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td style="text-align:center;font-size:18px;">☐</td>
+                <td class="loc">${escPL(r.location)}</td>
+                <td>${escPL(r.sku)}</td>
+                <td>${escPL(r.name)}</td>
+                <td class="qty">${escPL(r.qty)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="margin-top:24px;font-size:13px;">ผู้หยิบสินค้า: ____________________ &nbsp;&nbsp;&nbsp; เวลาเริ่ม: __________ &nbsp;&nbsp;&nbsp; เวลาเสร็จ: __________</p>
+      </body></html>
+    `;
+    const w = window.open('', '_blank');
+    if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    else alert('เบราว์เซอร์บล็อกป๊อปอัป กรุณาอนุญาตป๊อปอัปสำหรับเว็บไซต์นี้');
+  };
+
+  // ===================================================================
+  // 📷 สแกนหยิบสินค้า — ใช้เครื่องสแกนบาร์โค้ด (USB/Bluetooth ทำงานเป็นคีย์บอร์ด)
+  // หรือพิมพ์ SKU เองทีละตัว ระบบจะนับจำนวนที่สแกนเทียบกับยอดที่ต้องหยิบ
+  // เมื่อครบทุกรายการ จะส่งต่อไปขั้นตอนแพ็คให้อัตโนมัติ (เรียก __advanceOrder เดิม)
+  // ===================================================================
+  let _scanState = null;
+
+  window.__openScanPick = async function (orderDocId) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+    const need = {};
+    (order.items || []).forEach(it => {
+      const sku = (it.sku || it.model || '').trim();
+      if (!sku) return;
+      need[sku] = (need[sku] || 0) + (Number(it.qty) || 0);
+    });
+    _scanState = { orderDocId, order, need, scanned: {} };
+    Object.keys(need).forEach(sku => { _scanState.scanned[sku] = 0; });
+
+    const overlay = document.createElement('div');
+    overlay.id = 'scan-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:560px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <h3 style="margin:0;">📷 สแกนหยิบสินค้า — ${escPL(order.id)}</h3>
+          <button onclick="window.__closeScanPick()" style="border:none;background:none;font-size:1.3rem;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <p style="font-size:0.82rem;color:#888;margin:0 0 14px;">ยิงบาร์โค้ด (เครื่องสแกนจะพิมพ์รหัสแล้วกด Enter ให้อัตโนมัติ) หรือพิมพ์ SKU แล้วกด Enter ทีละชิ้น ระบบจะนับให้อัตโนมัติ</p>
+        <input id="scan-input" type="text" autocomplete="off" placeholder="🔦 สแกนหรือพิมพ์ SKU แล้วกด Enter..." style="width:100%;padding:12px 14px;font-size:1.05rem;border:2px solid #1a73e8;border-radius:10px;margin-bottom:14px;" />
+        <div id="scan-progress"></div>
+        <div id="scan-msg" class="msg"></div>
+        <div style="text-align:right;margin-top:10px;">
+          <button class="btn btn-success" id="scan-confirm-btn" disabled onclick="window.__confirmScanPick()">✔ หยิบครบแล้ว ส่งต่อแพ็ค</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    renderScanProgress();
+    const input = document.getElementById('scan-input');
+    input.focus();
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        handleScanCode(input.value.trim());
+        input.value = '';
+      }
+    });
+  };
+
+  window.__closeScanPick = function () {
+    const overlay = document.getElementById('scan-overlay');
+    if (overlay) overlay.remove();
+    _scanState = null;
+  };
+
+  function handleScanCode(code) {
+    if (!_scanState || !code) return;
+    const { need, scanned } = _scanState;
+    const msg = document.getElementById('scan-msg');
+    // จับคู่กับ SKU ที่ต้องการแบบตรงตัว หรือ "ลงท้ายด้วย" (เผื่อบาร์โค้ดมี prefix/checksum ต่อท้าย)
+    let matchedSku = Object.keys(need).find(sku => sku === code)
+      || Object.keys(need).find(sku => code.endsWith(sku) || sku.endsWith(code));
+    if (!matchedSku) {
+      msg.textContent = `❌ ไม่พบสินค้า SKU "${code}" ในออเดอร์นี้`;
+      msg.className = 'msg error';
+      return;
+    }
+    if (scanned[matchedSku] >= need[matchedSku]) {
+      msg.textContent = `⚠️ สแกน "${matchedSku}" ครบจำนวนแล้ว (${need[matchedSku]} ชิ้น)`;
+      msg.className = 'msg error';
+      return;
+    }
+    scanned[matchedSku]++;
+    msg.textContent = `✅ สแกน "${matchedSku}" แล้ว (${scanned[matchedSku]}/${need[matchedSku]})`;
+    msg.className = 'msg ok';
+    renderScanProgress();
+  }
+
+  function renderScanProgress() {
+    if (!_scanState) return;
+    const { need, scanned } = _scanState;
+    const box = document.getElementById('scan-progress');
+    const allDone = Object.keys(need).every(sku => scanned[sku] >= need[sku]);
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>SKU</th><th>ต้องหยิบ</th><th>สแกนแล้ว</th><th>สถานะ</th></tr></thead>
+        <tbody>
+          ${Object.keys(need).map(sku => {
+            const ok = scanned[sku] >= need[sku];
+            return `<tr>
+              <td>${escPL(sku)}</td>
+              <td style="text-align:center;">${need[sku]}</td>
+              <td style="text-align:center;font-weight:700;color:${ok ? '#1a8a3a' : '#b8740a'};">${scanned[sku]}</td>
+              <td>${ok ? '<span class="badge badge-done">ครบแล้ว ✓</span>' : '<span class="badge badge-pending">ยังไม่ครบ</span>'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    const btn = document.getElementById('scan-confirm-btn');
+    if (btn) btn.disabled = !allDone;
+  }
+
+  window.__confirmScanPick = async function () {
+    if (!_scanState) return;
+    const { orderDocId } = _scanState;
+    window.__closeScanPick();
+    await window.__advanceOrder(orderDocId, 'picking');
+  };
 
   // เดินหน้าออเดอร์ไปขั้นตอนถัดไป (และถ้าเป็นขั้น picking ครั้งแรก จะตัด/จองสต๊อกให้อัตโนมัติ)
   window.__advanceOrder = async function (orderDocId, stageKey) {
