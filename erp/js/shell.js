@@ -24,7 +24,6 @@ const NAV = {
     { key: "putaway",   label: "🗄 จัดเก็บเข้าตำแหน่ง (Put Away)", href: "dashboard-warehouse.html#putaway" },
     { key: "stock",     label: "📦 จัดการสต๊อกสินค้า",            href: "dashboard-warehouse.html#stock" },
     { key: "picking",   label: "🛒 หยิบสินค้า (Picking)",          href: "dashboard-warehouse.html#picking" },
-    { key: "packing",   label: "📦 แพ็คสินค้า (Packing)",          href: "dashboard-warehouse.html#packing" },
     { key: "qc",        label: "✅ ตรวจสอบสินค้า (QC)",            href: "dashboard-warehouse.html#qc" },
     { key: "outbound",  label: "🚚 จัดส่งสินค้า (Outbound)",       href: "dashboard-warehouse.html#outbound" },
     { key: "cyclecount",label: "🔢 ตรวจนับสต๊อก (Cycle Count)",    href: "dashboard-warehouse.html#cyclecount" },
