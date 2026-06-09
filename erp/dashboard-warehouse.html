@@ -268,6 +268,15 @@
     outbound:{ from: 'พร้อมจัดส่ง',   to: 'จัดส่งแล้ว',    btnLabel: '🚚 บันทึกการจัดส่ง', emptyMsg: 'ไม่มีออเดอร์ที่พร้อมจัดส่งในขณะนี้', needsTracking: true },
   };
 
+  // ลำดับขั้นตอน — ใช้เปรียบเทียบว่า tracking ผ่านขั้นไหนแล้วบ้าง
+  const STAGE_ORDER = ['รอหยิบสินค้า','กำลังแพ็ค','รอตรวจสอบ QC','พร้อมจัดส่ง','จัดส่งแล้ว'];
+  function stageIdx(s) { const i = STAGE_ORDER.indexOf(s); return i === -1 ? 0 : i; }
+  // คำนวณ warehouseStage ระดับออเดอร์ = stage ที่ต่ำสุดในบรรดา trackings ทั้งหมด
+  function minTrackingStage(trackings) {
+    if (!trackings || !trackings.length) return null;
+    return trackings.reduce((min, t) => stageIdx(t.stage) < stageIdx(min) ? t.stage : min, trackings[0].stage);
+  }
+
   async function renderPipeline(stageTitle, stageKey) {
     const flow = STAGE_FLOW[stageKey];
     main.innerHTML = `
@@ -298,8 +307,49 @@
       snap.forEach(d => list.push({ _id: d.id, ...d.data() }));
       list.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
       if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`; return; }
-      tbody.innerHTML = list.map(o => {
+
+      // สร้างแถวสำหรับแต่ละออเดอร์ — QC และ Outbound แตกแถวต่อ tracking (ถ้ามี)
+      const rowsHtml = list.map(o => {
         const itemsTxt = (o.items || []).map(it => `${it.name || it.model || it.sku || ''} ×${it.qty}`).join(', ');
+        const hasTrackings = o.trackings && o.trackings.length > 0;
+
+        // QC และ Outbound: ถ้ามี trackings → แตกแถวต่อ tracking ที่อยู่ใน stage นั้น
+        if ((stageKey === 'qc' || stageKey === 'outbound') && hasTrackings) {
+          const activeTrackings = o.trackings.filter(t => t.stage === flow.from);
+          if (!activeTrackings.length) return ''; // tracking ทุกตัวผ่านขั้นนี้ไปแล้ว
+
+          return activeTrackings.map((trk, ti) => {
+            const trkKey = escPL(trk.trackingNo).replace(/'/g, "\\'");
+            let actionsHtml = `<button class="btn btn-success" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__advanceTracking('${o._id}','${trkKey}','${stageKey}')">${flow.btnLabel}</button>`;
+            if (stageKey === 'qc') {
+              actionsHtml = `<button class="btn btn-outline" style="font-size:0.78rem;padding:5px 8px;" onclick="window.__printQcSheet('${o._id}')">🖨 QC</button> ` + actionsHtml;
+              actionsHtml += ` <button class="btn btn-danger" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__rejectTracking('${o._id}','${trkKey}','${stageKey}')">${flow.rejectLabel}</button>`;
+            }
+            if (stageKey === 'outbound') {
+              actionsHtml = `<button class="btn btn-outline" style="font-size:0.78rem;padding:5px 8px;" onclick="window.__printShippingLabel('${o._id}')">🖨 ใบปะหน้า</button> ` + actionsHtml;
+            }
+            // หัวแถวออเดอร์ (แสดงครั้งแรกเท่านั้น)
+            const orderCell = ti === 0
+              ? `<td rowspan="${activeTrackings.length}" style="vertical-align:top;border-right:2px solid #e2e8f0;">
+                  <strong>${escPL(o.id || o._id)}</strong><br>
+                  <span style="font-size:0.78rem;color:#888;">${escPL(o.customer?.name || '-')}</span><br>
+                  <span style="font-size:0.75rem;color:#aaa;">฿${fmtNum(o.subtotal)} · ${escPL(o.orderDate || '-')}</span><br>
+                  <span style="font-size:0.75rem;color:#1a73e8;">${activeTrackings.length}/${o.trackings.length} กล่องรอ QC</span>
+                 </td>`
+              : '';
+            return `
+              <tr style="background:${ti % 2 === 0 ? '#f8faff' : '#fff'};">
+                ${orderCell}
+                <td colspan="2" style="font-size:0.82rem;">
+                  <span style="font-weight:700;color:#1a2540;">📦 ${escPL(trk.trackingNo)}</span><br>
+                  <span style="color:#888;font-size:0.77rem;">${escPL(trk.carrier || 'ไม่ระบุสายส่ง')}</span>
+                </td>
+                <td colspan="2">${actionsHtml}</td>
+              </tr>`;
+          }).join('');
+        }
+
+        // Picking / Packing / หรือ QC/Outbound ที่ยังไม่มี tracking → แถวปกติระดับออเดอร์
         let actionsHtml = `<button class="btn btn-success" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__advanceOrder('${o._id}','${stageKey}')">${flow.btnLabel}</button>`;
         if (stageKey === 'picking') {
           actionsHtml = `
@@ -307,32 +357,44 @@
             <button class="btn btn-primary" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__openScanPick('${o._id}')">📷 สแกนหยิบสินค้า</button>
           ` + actionsHtml;
         } else if (stageKey === 'packing') {
+          const trkCount = hasTrackings ? o.trackings.length : 0;
+          const trkBadge = trkCount
+            ? `<span style="background:#e8f5e9;color:#1a8a3a;font-size:0.72rem;padding:2px 7px;border-radius:6px;font-weight:600;">📦 ${trkCount} tracking</span>`
+            : `<span style="background:#fff3cd;color:#7a5b00;font-size:0.72rem;padding:2px 7px;border-radius:6px;">ยังไม่มี tracking</span>`;
           actionsHtml = `
-            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printPackingSlip('${o._id}')">🖨 ใบเช็คแพ็ค</button>
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printPackingSlip('${o._id}')">🖨 ใบแพ็ค</button>
+            <button class="btn btn-primary" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__assignTracking('${o._id}')">📦 กำหนด Tracking</button>
           ` + actionsHtml;
+          return `
+            <tr>
+              <td><strong>${escPL(o.id || o._id)}</strong><br>${trkBadge}</td>
+              <td>${escPL(o.customer?.name || '-')}</td>
+              <td style="font-size:0.82rem;max-width:220px;">${escPL(itemsTxt || '-')}</td>
+              <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
+              <td style="white-space:nowrap;font-size:0.8rem;">${escPL(o.orderDate || '-')}</td>
+              <td style="white-space:nowrap;">${actionsHtml}</td>
+            </tr>`;
         } else if (stageKey === 'qc') {
-          actionsHtml = `
-            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printQcSheet('${o._id}')">🖨 ใบตรวจสอบ QC</button>
-          ` + actionsHtml;
+          actionsHtml = `<button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printQcSheet('${o._id}')">🖨 ใบ QC</button> ` + actionsHtml;
+          actionsHtml += ` <button class="btn btn-danger" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__rejectOrder('${o._id}','${stageKey}')">${flow.rejectLabel}</button>`;
         } else if (stageKey === 'outbound') {
-          actionsHtml = `
-            <button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printShippingLabel('${o._id}')">🖨 ใบปะหน้า/Tracking</button>
-          ` + actionsHtml;
+          actionsHtml = `<button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printShippingLabel('${o._id}')">🖨 ใบปะหน้า</button> ` + actionsHtml;
         }
-        if (flow.rejectTo) {
+        if (flow.rejectTo && stageKey !== 'qc') {
           actionsHtml += ` <button class="btn btn-danger" style="font-size:0.8rem;padding:6px 12px;" onclick="window.__rejectOrder('${o._id}','${stageKey}')">${flow.rejectLabel}</button>`;
         }
         return `
           <tr>
-            <td><strong>${o.id || o._id}</strong></td>
-            <td>${o.customer?.name || '-'}</td>
-            <td style="font-size:0.82rem;max-width:260px;">${itemsTxt || '-'}</td>
+            <td><strong>${escPL(o.id || o._id)}</strong></td>
+            <td>${escPL(o.customer?.name || '-')}</td>
+            <td style="font-size:0.82rem;max-width:260px;">${escPL(itemsTxt || '-')}</td>
             <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
-            <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || '-'}</td>
-            <td>${actionsHtml}</td>
-          </tr>
-        `;
+            <td style="white-space:nowrap;font-size:0.8rem;">${escPL(o.orderDate || '-')}</td>
+            <td style="white-space:nowrap;">${actionsHtml}</td>
+          </tr>`;
       }).join('');
+
+      tbody.innerHTML = rowsHtml || `<tr><td colspan="6" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`;
     } catch (err) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
     }
@@ -703,6 +765,162 @@
     await window.__advanceOrder(orderDocId, 'picking');
   };
 
+  // ===================================================================
+  // 📦 กำหนดเลข Tracking (แบ่งออเดอร์เป็นหลายกล่อง/หลาย tracking)
+  // ===================================================================
+  let _editingTrackings = [];
+  let _editingOrderDocId = null;
+
+  window.__assignTracking = async function (orderDocId) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+    _editingTrackings = (order.trackings || []).map(t => ({ ...t }));
+    _editingOrderDocId = orderDocId;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tracking-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:600px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h3 style="margin:0;">📦 กำหนดเลข Tracking — ${escPL(order.id || orderDocId)}</h3>
+          <button onclick="window.__closeTrackingModal()" style="border:none;background:none;font-size:1.3rem;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <p style="font-size:0.82rem;color:#888;margin:0 0 14px;">เพิ่มเลข Tracking จากสายส่ง — ออเดอร์จะถูกแบ่งเป็นหลายกล่อง สามารถ QC และจัดส่งทีละกล่องได้ โดยออเดอร์จะสมบูรณ์เมื่อทุกกล่องผ่านครบ</p>
+        <div id="tracking-list"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap;">
+          <input id="trk-carrier" placeholder="สายส่ง เช่น Best, FLASH, Kerry" style="flex:1;min-width:120px;padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:0.9rem;" />
+          <input id="trk-no" placeholder="เลข Tracking" style="flex:2;min-width:160px;padding:8px 10px;border:1px solid #ccc;border-radius:8px;font-size:0.9rem;" />
+          <button class="btn btn-primary" onclick="window.__addTrackingRow()" style="white-space:nowrap;">+ เพิ่ม</button>
+        </div>
+        <div style="text-align:right;margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-outline" onclick="window.__closeTrackingModal()">ยกเลิก</button>
+          <button class="btn btn-success" onclick="window.__saveTrackings()">💾 บันทึก Tracking ทั้งหมด</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    renderTrackingModalList();
+    document.getElementById('trk-no')?.addEventListener('keydown', e => { if (e.key === 'Enter') window.__addTrackingRow(); });
+  };
+
+  function renderTrackingModalList() {
+    const box = document.getElementById('tracking-list');
+    if (!box) return;
+    if (!_editingTrackings.length) {
+      box.innerHTML = `<p style="color:#aaa;font-size:0.85rem;text-align:center;padding:12px 0;border:1px dashed #ddd;border-radius:8px;">— ยังไม่มี Tracking ที่กำหนด —</p>`;
+      return;
+    }
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>#</th><th>สายส่ง</th><th>เลข Tracking</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody>
+          ${_editingTrackings.map((t, i) => `
+            <tr>
+              <td style="color:#aaa;">${i + 1}</td>
+              <td>${escPL(t.carrier || '-')}</td>
+              <td style="font-weight:700;font-family:monospace;">${escPL(t.trackingNo)}</td>
+              <td><span class="badge badge-progress" style="font-size:0.72rem;">${escPL(t.stage || 'กำลังแพ็ค')}</span></td>
+              <td><button onclick="window.__removeTrackingRow(${i})" style="background:none;border:none;color:#d23;cursor:pointer;font-size:1.1rem;" title="ลบ">✕</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  window.__addTrackingRow = function () {
+    const carrier = (document.getElementById('trk-carrier')?.value || '').trim();
+    const trackingNo = (document.getElementById('trk-no')?.value || '').trim();
+    if (!trackingNo) { alert('กรุณาระบุเลข Tracking'); return; }
+    if (_editingTrackings.find(t => t.trackingNo === trackingNo)) { alert('เลข Tracking นี้มีอยู่แล้ว'); return; }
+    _editingTrackings.push({ carrier, trackingNo, stage: 'กำลังแพ็ค' });
+    if (document.getElementById('trk-no')) document.getElementById('trk-no').value = '';
+    renderTrackingModalList();
+    document.getElementById('trk-no')?.focus();
+  };
+
+  window.__removeTrackingRow = function (idx) {
+    _editingTrackings.splice(idx, 1);
+    renderTrackingModalList();
+  };
+
+  window.__closeTrackingModal = function () {
+    document.getElementById('tracking-overlay')?.remove();
+    _editingTrackings = [];
+    _editingOrderDocId = null;
+  };
+
+  window.__saveTrackings = async function () {
+    if (!_editingOrderDocId) return;
+    if (!_editingTrackings.length && !confirm('ยังไม่มี Tracking — ออเดอร์จะถูกดำเนินการทั้งออเดอร์แทน ยืนยัน?')) return;
+    try {
+      const updateData = { trackings: _editingTrackings, updatedAt: serverTimestamp() };
+      // ถ้า trackings มีค่า ให้ชัดเจนว่า warehouseStage = min stage ของ trackings
+      if (_editingTrackings.length) {
+        updateData.warehouseStage = minTrackingStage(_editingTrackings) || 'กำลังแพ็ค';
+      }
+      await updateDoc(doc(db, 'orders', _editingOrderDocId), updateData);
+      toast(`บันทึก ${_editingTrackings.length} Tracking เรียบร้อยแล้ว ✔`);
+      window.__closeTrackingModal();
+      await loadPipeline('packing');
+    } catch (e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  };
+
+  // ===================================================================
+  // 🔀 เดินหน้า/ตีกลับ ทีละ Tracking (สำหรับ QC และ Outbound)
+  // ===================================================================
+  window.__advanceTracking = async function (orderDocId, trackingNo, stageKey) {
+    const flow = STAGE_FLOW[stageKey];
+    try {
+      const orderRef = doc(db, 'orders', orderDocId);
+      const snap = await getDoc(orderRef);
+      if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+      const order = snap.data();
+
+      // อัปเดต stage ของ tracking ที่เลือก
+      const trackings = (order.trackings || []).map(t =>
+        t.trackingNo === trackingNo ? { ...t, stage: flow.to } : t
+      );
+
+      // warehouseStage ของออเดอร์ = stage ต่ำสุดในบรรดา trackings ทั้งหมด
+      const newOrderStage = minTrackingStage(trackings) || flow.to;
+      const updateData = { trackings, warehouseStage: newOrderStage, updatedAt: serverTimestamp() };
+      if (newOrderStage === 'จัดส่งแล้ว') { updateData.status = 'เสร็จสิ้น'; }
+
+      // Outbound: ถามเลข tracking ของกล่องนี้ถ้ายังไม่มี
+      if (stageKey === 'outbound') {
+        const trk = (order.trackings || []).find(t => t.trackingNo === trackingNo);
+        if (!trk?.carrier && !trk?.trackingNo) {
+          const info = prompt('กรอกสายส่ง / เลข Tracking (ถ้ามี):') || '';
+          trackings.find(t => t.trackingNo === trackingNo).carrier = info;
+        }
+      }
+
+      await updateDoc(orderRef, updateData);
+
+      const passedAll = newOrderStage === flow.to;
+      toast(`${passedAll ? '🎉 ทุกกล่องผ่าน' : ''} Tracking ${trackingNo} → "${flow.to}" ✔`);
+      await loadPipeline(stageKey);
+    } catch (err) { alert('ดำเนินการไม่สำเร็จ: ' + err.message); }
+  };
+
+  window.__rejectTracking = async function (orderDocId, trackingNo, stageKey) {
+    const flow = STAGE_FLOW[stageKey];
+    if (!flow.rejectTo) return;
+    if (!confirm(`ยืนยันตีกลับ Tracking ${trackingNo} ไปแพ็คใหม่?`)) return;
+    try {
+      const orderRef = doc(db, 'orders', orderDocId);
+      const snap = await getDoc(orderRef);
+      const order = snap.data();
+      const trackings = (order.trackings || []).map(t =>
+        t.trackingNo === trackingNo ? { ...t, stage: flow.rejectTo } : t
+      );
+      const newOrderStage = minTrackingStage(trackings) || flow.rejectTo;
+      await updateDoc(orderRef, { trackings, warehouseStage: newOrderStage, updatedAt: serverTimestamp() });
+      toast(`ตีกลับ Tracking ${trackingNo} → "${flow.rejectTo}" แล้ว`);
+      await loadPipeline(stageKey);
+    } catch (err) { alert('ดำเนินการไม่สำเร็จ: ' + err.message); }
+  };
+
   // เดินหน้าออเดอร์ไปขั้นตอนถัดไป (และถ้าเป็นขั้น picking ครั้งแรก จะตัด/จองสต๊อกให้อัตโนมัติ)
   window.__advanceOrder = async function (orderDocId, stageKey) {
     const flow = STAGE_FLOW[stageKey];
@@ -737,11 +955,23 @@
         }
       }
 
+      // Packing: ถ้ามี trackings → เลื่อนทุก tracking จาก 'กำลังแพ็ค' → 'รอตรวจสอบ QC' พร้อมกัน
+      const snapForTracking = await getDoc(orderRef);
+      const orderDataForTracking = snapForTracking.data();
+      const existingTrackings = orderDataForTracking.trackings || [];
+      let updatedTrackings = existingTrackings;
+      if (stageKey === 'packing' && existingTrackings.length) {
+        updatedTrackings = existingTrackings.map(t =>
+          t.stage === 'กำลังแพ็ค' ? { ...t, stage: 'รอตรวจสอบ QC' } : t
+        );
+      }
+
       const updateData = { warehouseStage: flow.to, updatedAt: serverTimestamp() };
+      if (updatedTrackings.length) updateData.trackings = updatedTrackings;
       if (flow.to === 'จัดส่งแล้ว') updateData.status = 'เสร็จสิ้น';
       else if (flow.to === 'พร้อมจัดส่ง') updateData.status = 'กำลังแพ็ค';
 
-      if (flow.needsTracking) {
+      if (flow.needsTracking && !existingTrackings.length) {
         const tracking = prompt('กรอกชื่อผู้ขนส่งและเลข Tracking (ไม่บังคับ — กด OK เพื่อบันทึก)') || '';
         updateData['shipping.trackingInfo'] = tracking;
       }
