@@ -566,9 +566,9 @@
       <div class="card">
         <table>
           <thead>
-            <tr><th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>พนักงานขาย</th><th>ยอดรวม</th><th>วันที่</th><th>สถานะ</th></tr>
+            <tr><th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>พนักงานขาย</th><th>ยอดรวม</th><th>วันที่</th><th>สถานะ</th><th>สถานะคลัง</th><th>การดำเนินการ</th></tr>
           </thead>
-          <tbody id="orders-rows"><tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+          <tbody id="orders-rows"><tr><td colspan="9" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
     `;
@@ -656,19 +656,71 @@
     const tbody = document.getElementById('orders-rows');
     const filter = document.getElementById('order-filter').value;
     const list = filter ? _allOrdersCache.filter(o => o.status === filter) : _allOrdersCache;
-    if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">ยังไม่มีออเดอร์ในระบบ</td></tr>`; return; }
-    tbody.innerHTML = list.map(o => `
-      <tr>
-        <td><strong>${o.id || o._id}</strong></td>
-        <td>${o.customer?.name || '-'}</td>
-        <td>${o.channel || '-'}</td>
-        <td>${o.createdByName || o.salesperson || '-'}</td>
-        <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
-        <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || o.createdAt || '-'}</td>
-        <td><span class="badge ${ORDER_CLS[o.status] || ''}">${o.status || '-'}</span></td>
-      </tr>
-    `).join('');
+    if (!list.length) { tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#999;">ยังไม่มีออเดอร์ในระบบ</td></tr>`; return; }
+
+    const WH_STAGE_CLS = {
+      'รอหยิบสินค้า': 'badge-pending', 'กำลังแพ็ค': 'badge-progress',
+      'รอตรวจสอบ QC': 'badge-progress', 'พร้อมจัดส่ง': 'badge-progress', 'จัดส่งแล้ว': 'badge-done',
+    };
+    tbody.innerHTML = list.map(o => {
+      const ws = o.warehouseStage || '';
+      const canSendWarehouse = o.status === 'รอดำเนินการ' && !ws;
+      const canCancel = o.status === 'รอดำเนินการ';
+      const actionBtn = canSendWarehouse
+        ? `<button class="btn btn-primary" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__sendToWarehouse('${o._id}')">📦 ส่งคลัง</button>`
+        : '';
+      const cancelBtn = canCancel
+        ? `<button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__cancelOrder('${o._id}')">✕ ยกเลิก</button>`
+        : '';
+      return `
+        <tr>
+          <td><strong>${o.id || o._id}</strong></td>
+          <td>${o.customer?.name || '-'}</td>
+          <td>${o.channel || '-'}</td>
+          <td>${o.createdByName || o.salesperson || '-'}</td>
+          <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
+          <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || o.createdAt || '-'}</td>
+          <td><span class="badge ${ORDER_CLS[o.status] || ''}">${o.status || '-'}</span></td>
+          <td>${ws ? `<span class="badge ${WH_STAGE_CLS[ws] || 'badge-pending'}" style="font-size:0.75rem;">${ws}</span>` : '<span style="color:#aaa;font-size:0.8rem;">—</span>'}</td>
+          <td style="white-space:nowrap;">${actionBtn} ${cancelBtn}</td>
+        </tr>`;
+    }).join('');
   }
+
+  // ส่งออเดอร์ไปคลัง (ตั้ง warehouseStage = 'รอหยิบสินค้า')
+  window.__sendToWarehouse = async function (orderDocId) {
+    if (!confirm('ยืนยันส่งออเดอร์นี้ไปยังคลังสินค้าเพื่อเริ่มหยิบสินค้า?')) return;
+    try {
+      await updateDoc(doc(db, 'orders', orderDocId), {
+        warehouseStage: 'รอหยิบสินค้า',
+        updatedAt: serverTimestamp(),
+      });
+      // อัปเดต cache ทันที แทนที่จะโหลดใหม่ทั้งหมด
+      const idx = _allOrdersCache.findIndex(o => o._id === orderDocId);
+      if (idx >= 0) _allOrdersCache[idx].warehouseStage = 'รอหยิบสินค้า';
+      renderOrderRows();
+      // toast
+      const t = document.createElement('div');
+      t.textContent = '📦 ส่งออเดอร์ไปคลังเรียบร้อยแล้ว — ขึ้น Picking Queue แล้ว ✔';
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a73e8;color:#fff;padding:10px 22px;border-radius:10px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,.18);z-index:9999;';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    } catch (err) { alert('ดำเนินการไม่สำเร็จ: ' + err.message); }
+  };
+
+  // ยกเลิกออเดอร์
+  window.__cancelOrder = async function (orderDocId) {
+    if (!confirm('ยืนยันยกเลิกออเดอร์นี้?')) return;
+    try {
+      await updateDoc(doc(db, 'orders', orderDocId), {
+        status: 'ยกเลิก',
+        updatedAt: serverTimestamp(),
+      });
+      const idx = _allOrdersCache.findIndex(o => o._id === orderDocId);
+      if (idx >= 0) _allOrdersCache[idx].status = 'ยกเลิก';
+      renderOrderRows();
+    } catch (err) { alert('ดำเนินการไม่สำเร็จ: ' + err.message); }
+  };
 
   // ---------- จัดการผู้ใช้งาน & สิทธิ์ (ใช้งานได้จริง — เฟส 1) ----------
   async function renderUserManagement() {
