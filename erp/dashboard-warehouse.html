@@ -335,7 +335,7 @@
             const trkKey = escPL(trk.trackingNo).replace(/'/g, "\\'");
             let actionsHtml = `<button class="btn btn-success" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__advanceTracking('${o._id}','${trkKey}','${stageKey}')">${flow.btnLabel}</button>`;
             if (stageKey === 'qc') {
-              actionsHtml = `<button class="btn btn-outline" style="font-size:0.78rem;padding:5px 8px;" onclick="window.__printQcSheet('${o._id}')">🖨 QC</button> ` + actionsHtml;
+              actionsHtml = `<button class="btn btn-primary" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__openScanQC('${o._id}','${trkKey}')">📷 สแกน QC</button> ` + actionsHtml;
               actionsHtml += ` <button class="btn btn-danger" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__rejectTracking('${o._id}','${trkKey}','${stageKey}')">${flow.rejectLabel}</button>`;
             }
             if (stageKey === 'outbound') {
@@ -776,6 +776,215 @@
     const { orderDocId } = _scanState;
     window.__closeScanPick();
     await window.__advanceOrder(orderDocId, 'picking');
+  };
+
+  // ===================================================================
+  // ✅ สแกน QC — ยิงบาร์โค้ด SKU เพื่อตรวจสอบสินค้าก่อนจัดส่ง
+  // ===================================================================
+  let _qcScanState = null;
+
+  window.__openScanQC = async function (orderDocId, trackingNo) {
+    const snap = await getDoc(doc(db, 'orders', orderDocId));
+    if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: snap.id, ...snap.data() };
+
+    // ถ้ายังไม่รู้ tracking → แสดง Step 1: สแกน tracking/order ก่อน
+    if (!trackingNo) {
+      _showQcStep1(order);
+      return;
+    }
+
+    _startQcScan(order, trackingNo);
+  };
+
+  function _showQcStep1(order) {
+    const overlay = document.createElement('div');
+    overlay.id = 'qc-scan-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:12px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:480px;width:100%;padding:20px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <h3 style="margin:0;font-size:1.05rem;">✅ QC — สแกน Tracking</h3>
+          <button onclick="window.__closeQcScan()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;padding:4px 8px;">✕</button>
+        </div>
+        <p style="font-size:0.83rem;color:#777;margin:0 0 12px;">ยิงเลข Tracking หรือ Order ID เพื่อเริ่ม QC</p>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <input id="qc-step1-input" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            placeholder="🔦 สแกน / พิมพ์ Tracking หรือ Order ID..."
+            style="flex:1;padding:13px 14px;font-size:1rem;border:2px solid #1a73e8;border-radius:10px;" />
+          <button onclick="window.__submitQcStep1()" style="padding:0 16px;background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">➔</button>
+        </div>
+        <div id="qc-step1-msg" style="font-size:0.86rem;color:#c00;min-height:18px;margin-bottom:8px;"></div>
+        <div style="margin-top:4px;">
+          <p style="font-size:0.82rem;color:#888;margin:0 0 6px;">หรือเลือก Tracking โดยตรง:</p>
+          ${(order.trackings || []).filter(t => t.stage === 'รอตรวจสอบ QC').map(t =>
+            `<button class="btn btn-outline" style="margin:3px 4px;font-size:0.85rem;padding:10px 14px;touch-action:manipulation;"
+              onclick="window.__closeQcScan(); window.__openScanQC('${escPL(order._id)}','${escPL(t.trackingNo).replace(/'/g,"\\'")}')">
+              📦 ${escPL(t.trackingNo)} (${escPL(t.carrier || '—')})
+            </button>`
+          ).join('')}
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    const inp = document.getElementById('qc-step1-input');
+    inp.focus();
+
+    function _doStep1() {
+      const val = inp.value.trim();
+      if (!val) return;
+      const msg = document.getElementById('qc-step1-msg');
+      const matched = (order.trackings || []).find(t =>
+        t.trackingNo === val || t.trackingNo.includes(val) || val.includes(t.trackingNo)
+      );
+      if (matched) {
+        window.__closeQcScan();
+        window.__openScanQC(order._id, matched.trackingNo);
+      } else if (val === order.id || val === order._id) {
+        const qcTrackings = (order.trackings || []).filter(t => t.stage === 'รอตรวจสอบ QC');
+        if (qcTrackings.length === 1) {
+          window.__closeQcScan();
+          window.__openScanQC(order._id, qcTrackings[0].trackingNo);
+        } else {
+          msg.textContent = '⚠️ ออเดอร์นี้มีหลาย Tracking กรุณาสแกนเลข Tracking โดยตรง';
+        }
+      } else {
+        msg.textContent = `❌ ไม่พบ Tracking "${val}" ในออเดอร์นี้`;
+      }
+    }
+
+    window.__submitQcStep1 = _doStep1;
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); _doStep1(); } });
+  }
+
+  function _startQcScan(order, trackingNo) {
+    const need = {};
+    (order.items || []).forEach(it => {
+      const sku = (it.sku || it.model || '').trim();
+      if (!sku) return;
+      need[sku] = (need[sku] || 0) + (Number(it.qty) || 0);
+    });
+    _qcScanState = { orderDocId: order._id, order, trackingNo, need, scanned: {} };
+    Object.keys(need).forEach(sku => { _qcScanState.scanned[sku] = 0; });
+
+    const overlay = document.createElement('div');
+    overlay.id = 'qc-scan-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:12px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:95dvh;overflow:auto;padding:18px 20px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+          <h3 style="margin:0;font-size:1.05rem;">✅ ตรวจสอบ QC — ${escPL(order.id || order._id)}</h3>
+          <button onclick="window.__closeQcScan()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;padding:4px 8px;">✕</button>
+        </div>
+        <div style="font-size:0.82rem;color:#555;margin-bottom:10px;">📦 Tracking: <b>${escPL(trackingNo)}</b></div>
+        <p style="font-size:0.81rem;color:#888;margin:0 0 10px;">ยิงบาร์โค้ดทีละชิ้น — ครบทุกรายการ ระบบผ่าน QC อัตโนมัติ</p>
+
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input id="qc-scan-input" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            placeholder="🔦 สแกน SKU / บาร์โค้ด..."
+            style="flex:1;padding:13px 14px;font-size:1rem;border:2px solid #22c55e;border-radius:10px;" />
+          <button onclick="window.__submitQcCode()" style="padding:0 16px;background:#22c55e;color:#fff;border:none;border-radius:10px;font-size:1.2rem;cursor:pointer;touch-action:manipulation;">➔</button>
+        </div>
+
+        <div id="qc-scan-progress"></div>
+        <div id="qc-scan-msg" class="msg" style="min-height:20px;margin-top:8px;"></div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn btn-danger" style="touch-action:manipulation;"
+            onclick="window.__rejectTracking('${escPL(order._id)}','${escPL(trackingNo).replace(/'/g,"\\'")}','qc'); window.__closeQcScan();">
+            ✘ ไม่ผ่าน ตีกลับหยิบใหม่
+          </button>
+          <button class="btn btn-success" id="qc-confirm-btn" disabled style="touch-action:manipulation;" onclick="window.__confirmQcScan()">
+            ✔ ผ่าน QC ยิงส่ง
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    _renderQcProgress();
+    const inp = document.getElementById('qc-scan-input');
+    inp.focus();
+
+    function _doScan() {
+      const val = inp.value.trim();
+      if (!val) return;
+      _handleQcCode(val);
+      inp.value = '';
+      inp.focus();
+    }
+
+    window.__submitQcCode = _doScan;
+    inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); _doScan(); } });
+    // รองรับ PDA ที่บางรุ่น trigger ด้วย 'change' แทน 'keydown'
+    inp.addEventListener('change', () => { if (inp.value.trim()) { _doScan(); } });
+  }
+
+  function _handleQcCode(code) {
+    if (!_qcScanState || !code) return;
+    const { need, scanned } = _qcScanState;
+    const msg = document.getElementById('qc-scan-msg');
+    let matchedSku = Object.keys(need).find(sku => sku === code)
+      || Object.keys(need).find(sku => code.endsWith(sku) || sku.endsWith(code));
+    if (!matchedSku) {
+      msg.textContent = `❌ ไม่พบสินค้า SKU "${code}" ในออเดอร์นี้`;
+      msg.className = 'msg error';
+      return;
+    }
+    if (scanned[matchedSku] >= need[matchedSku]) {
+      msg.textContent = `⚠️ สแกน "${matchedSku}" ครบจำนวนแล้ว (${need[matchedSku]} ชิ้น)`;
+      msg.className = 'msg error';
+      return;
+    }
+    scanned[matchedSku]++;
+    msg.textContent = `✅ สแกน "${matchedSku}" แล้ว (${scanned[matchedSku]}/${need[matchedSku]})`;
+    msg.className = 'msg ok';
+    _renderQcProgress();
+  }
+
+  function _renderQcProgress() {
+    if (!_qcScanState) return;
+    const { need, scanned } = _qcScanState;
+    const box = document.getElementById('qc-scan-progress');
+    if (!box) return;
+    const allDone = Object.keys(need).every(sku => scanned[sku] >= need[sku]);
+    box.innerHTML = `
+      <table>
+        <thead><tr><th>SKU</th><th>ต้องตรวจ</th><th>สแกนแล้ว</th><th>สถานะ</th></tr></thead>
+        <tbody>
+          ${Object.keys(need).map(sku => {
+            const ok = scanned[sku] >= need[sku];
+            return `<tr>
+              <td>${escPL(sku)}</td>
+              <td style="text-align:center;">${need[sku]}</td>
+              <td style="text-align:center;font-weight:700;color:${ok ? '#1a8a3a' : '#b8740a'};">${scanned[sku]}</td>
+              <td>${ok ? '<span class="badge badge-done">ครบแล้ว ✓</span>' : '<span class="badge badge-pending">ยังไม่ครบ</span>'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    `;
+    const btn = document.getElementById('qc-confirm-btn');
+    if (btn) btn.disabled = !allDone;
+
+    // ครบทุก SKU → ผ่าน QC อัตโนมัติ ไม่ต้องกดปุ่ม
+    if (allDone) {
+      const msg = document.getElementById('qc-scan-msg');
+      if (msg) { msg.textContent = '🎉 ครบทุกรายการ! กำลังผ่าน QC อัตโนมัติ...'; msg.className = 'msg ok'; }
+      setTimeout(() => window.__confirmQcScan(), 900);
+    }
+  }
+
+  window.__confirmQcScan = async function () {
+    if (!_qcScanState) return;
+    const { orderDocId, trackingNo } = _qcScanState;
+    window.__closeQcScan();
+    await window.__advanceTracking(orderDocId, trackingNo, 'qc');
+  };
+
+  window.__closeQcScan = function () {
+    const overlay = document.getElementById('qc-scan-overlay');
+    if (overlay) overlay.remove();
+    _qcScanState = null;
   };
 
   // ===================================================================
