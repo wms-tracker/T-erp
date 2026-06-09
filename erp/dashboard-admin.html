@@ -31,6 +31,7 @@
   else if (key === 'orders') renderAllOrders();
   else if (key === 'documents') renderDocuments();
   else if (key === 'routing') renderRouting();
+  else if (key === 'reports') renderDailyReport();
   else renderPlaceholder(key);
 
   window.addEventListener('hashchange', () => location.reload());
@@ -817,5 +818,154 @@
       await loadUsers();
     } catch (err) { alert('อัปเดตไม่สำเร็จ: ' + err.message); }
   };
+
+  // =========================================================
+  // 📊 รายงานประจำวัน
+  // =========================================================
+  async function renderDailyReport() {
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+    const todayISO = today.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    main.innerHTML = `
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h3 style="margin:0;font-size:1rem;">📅 ${todayStr}</h3>
+          <p style="margin:4px 0 0;font-size:0.82rem;color:#888;">ข้อมูล ณ เวลาที่โหลดหน้า — กด 🔄 รีเฟรชเพื่ออัปเดต</p>
+        </div>
+        <button class="btn btn-outline" onclick="location.reload()">🔄 รีเฟรช</button>
+      </div>
+
+      <!-- การ์ดสรุป -->
+      <div class="grid-cards">
+        <div class="card stat-card"><div class="num" id="dr-orders-today">-</div><div class="label">ออเดอร์ใหม่วันนี้</div></div>
+        <div class="card stat-card"><div class="num" id="dr-sales-today">-</div><div class="label">ยอดขายวันนี้ (฿)</div></div>
+        <div class="card stat-card"><div class="num" id="dr-pending-wh">-</div><div class="label">ออเดอร์ค้างในคลัง</div></div>
+        <div class="card stat-card"><div class="num" id="dr-qc-today">-</div><div class="label">รอ QC</div></div>
+        <div class="card stat-card"><div class="num" id="dr-ready-ship">-</div><div class="label">พร้อมจัดส่ง</div></div>
+        <div class="card stat-card"><div class="num" id="dr-shipped-today">-</div><div class="label">จัดส่งแล้ววันนี้</div></div>
+      </div>
+
+      <!-- ออเดอร์วันนี้ -->
+      <div class="card">
+        <h3 style="margin-top:0;">🆕 ออเดอร์ที่สร้างวันนี้</h3>
+        <div id="dr-new-orders">⏳ กำลังโหลด...</div>
+      </div>
+
+      <!-- สถานะคลัง -->
+      <div class="card">
+        <h3 style="margin-top:0;">🏭 สถานะคลังสินค้า (Pipeline)</h3>
+        <div id="dr-pipeline">⏳ กำลังโหลด...</div>
+      </div>
+
+      <!-- ออเดอร์ค้าง (นานกว่า 1 วัน) -->
+      <div class="card">
+        <h3 style="margin-top:0;">⚠️ ออเดอร์ค้างในคลัง (ค้างนาน)</h3>
+        <div id="dr-overdue">⏳ กำลังโหลด...</div>
+      </div>
+    `;
+
+    try {
+      // โหลดข้อมูลทั้งหมดพร้อมกัน
+      const [ordersSnap, paymentsSnap] = await Promise.all([
+        getDocs(query(collection(db, 'orders'), orderBy('createdAtServer', 'desc'), limit(500))),
+        getDocs(query(collection(db, 'payments'), orderBy('dateServer', 'desc'), limit(200))),
+      ]);
+
+      const orders = [];
+      ordersSnap.forEach(d => orders.push({ _id: d.id, ...d.data() }));
+      const payments = [];
+      paymentsSnap.forEach(d => payments.push({ _id: d.id, ...d.data() }));
+
+      // กรองออเดอร์วันนี้
+      const ordersToday = orders.filter(o => {
+        const d = o.orderDate || o.createdAt || '';
+        return d && d.slice(0, 10) === todayISO;
+      });
+      const salesToday = ordersToday.reduce((s, o) => s + Number(o.subtotal || 0), 0);
+
+      // สถานะคลัง
+      const WH_STAGES = ['รอหยิบสินค้า', 'รอตรวจสอบ QC', 'พร้อมจัดส่ง', 'จัดส่งแล้ว'];
+      const stageCounts = {};
+      WH_STAGES.forEach(s => stageCounts[s] = 0);
+      let shippedToday = 0;
+      orders.forEach(o => {
+        if (o.warehouseStage && stageCounts.hasOwnProperty(o.warehouseStage)) stageCounts[o.warehouseStage]++;
+        if (o.warehouseStage === 'จัดส่งแล้ว') {
+          const d = o.updatedAt?.toDate?.()?.toISOString?.()?.slice(0,10) || '';
+          if (d === todayISO) shippedToday++;
+        }
+      });
+      const pendingWH = orders.filter(o => o.warehouseStage && o.warehouseStage !== 'จัดส่งแล้ว').length;
+
+      // ใส่การ์ดสรุป
+      document.getElementById('dr-orders-today').textContent = ordersToday.length;
+      document.getElementById('dr-sales-today').textContent = salesToday.toLocaleString('th-TH', { minimumFractionDigits: 0 });
+      document.getElementById('dr-pending-wh').textContent = pendingWH;
+      document.getElementById('dr-qc-today').textContent = stageCounts['รอตรวจสอบ QC'];
+      document.getElementById('dr-ready-ship').textContent = stageCounts['พร้อมจัดส่ง'];
+      document.getElementById('dr-shipped-today').textContent = shippedToday;
+
+      // ออเดอร์ใหม่วันนี้
+      const newBox = document.getElementById('dr-new-orders');
+      newBox.innerHTML = ordersToday.length ? `
+        <table>
+          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>พนักงานขาย</th><th>ยอดรวม</th><th>ช่องทาง</th><th>สถานะ</th></tr></thead>
+          <tbody>
+            ${ordersToday.map(o => `
+              <tr>
+                <td><strong>${escDoc(o.id || o._id)}</strong></td>
+                <td>${escDoc(o.customer?.name || '-')}</td>
+                <td>${escDoc(o.salesperson || o.createdByName || '-')}</td>
+                <td>฿${Number(o.subtotal||0).toLocaleString('th-TH')}</td>
+                <td>${escDoc(o.channel || '-')}</td>
+                <td><span class="badge ${o.status==='เสร็จสิ้น'?'badge-done':o.status==='ยกเลิก'?'badge-cancel':'badge-pending'}">${escDoc(o.status||'-')}</span></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>` : `<p style="color:#888;font-size:0.88rem;">— ยังไม่มีออเดอร์ใหม่วันนี้ —</p>`;
+
+      // Pipeline bar
+      const maxStage = Math.max(1, ...WH_STAGES.map(s => stageCounts[s]));
+      const STAGE_ICONS = { 'รอหยิบสินค้า':'🛒', 'รอตรวจสอบ QC':'✅', 'พร้อมจัดส่ง':'📦', 'จัดส่งแล้ว':'🚚' };
+      const STAGE_COLORS = { 'รอหยิบสินค้า':'#f59e0b', 'รอตรวจสอบ QC':'#6366f1', 'พร้อมจัดส่ง':'#1a73e8', 'จัดส่งแล้ว':'#1a8a3a' };
+      document.getElementById('dr-pipeline').innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${WH_STAGES.map(s => `
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:160px;font-size:0.85rem;color:#555;">${STAGE_ICONS[s]} ${s}</div>
+              <div style="flex:1;background:#eef1f7;border-radius:8px;overflow:hidden;height:26px;">
+                <div style="height:100%;width:${(stageCounts[s]/maxStage*100).toFixed(1)}%;background:${STAGE_COLORS[s]};border-radius:8px;transition:width .4s;"></div>
+              </div>
+              <div style="width:36px;text-align:right;font-weight:700;color:#1a2540;">${stageCounts[s]}</div>
+            </div>`).join('')}
+        </div>`;
+
+      // ออเดอร์ค้าง (warehouseStage ไม่ใช่จัดส่งแล้ว และ orderDate != วันนี้)
+      const overdue = orders.filter(o =>
+        o.warehouseStage && o.warehouseStage !== 'จัดส่งแล้ว' &&
+        o.orderDate && o.orderDate.slice(0,10) < todayISO
+      ).sort((a, b) => (a.orderDate||'').localeCompare(b.orderDate||''));
+
+      document.getElementById('dr-overdue').innerHTML = overdue.length ? `
+        <table>
+          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>วันที่สั่ง</th><th>ค้างกี่วัน</th><th>สถานะคลัง</th></tr></thead>
+          <tbody>
+            ${overdue.map(o => {
+              const days = Math.floor((today - new Date(o.orderDate)) / 86400000);
+              return `<tr style="${days >= 3 ? 'background:#fff5f5;' : ''}">
+                <td><strong>${escDoc(o.id || o._id)}</strong></td>
+                <td>${escDoc(o.customer?.name || '-')}</td>
+                <td>${escDoc(o.orderDate||'-')}</td>
+                <td style="font-weight:700;color:${days>=3?'#d23':days>=1?'#b8740a':'#1a8a3a'};">${days} วัน</td>
+                <td><span class="badge badge-progress" style="font-size:0.75rem;">${escDoc(o.warehouseStage||'-')}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>` : `<p style="color:#1a8a3a;font-size:0.88rem;">✅ ไม่มีออเดอร์ค้างข้ามวัน ทุกรายการอยู่ในสถานะปกติ</p>`;
+
+    } catch (err) {
+      main.innerHTML += `<div class="card" style="border-left:4px solid #d23;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`;
+    }
+  }
 </script>
 </html>
