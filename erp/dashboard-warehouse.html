@@ -41,7 +41,24 @@
     cyclecount: renderCycleCount,
     putaway: renderStock, // ใช้หน้าเดียวกับสต๊อก (แก้ location ได้ตรงนั้น)
   };
-  (RENDERERS[key] || renderPlaceholder)(key);
+  try {
+    const fn = RENDERERS[key] || renderPlaceholder;
+    const result = fn(key);
+    if (result && typeof result.catch === 'function') {
+      result.catch(err => {
+        main.innerHTML = `<div class="card" style="border-left:4px solid #d23;">
+          <h3 style="color:#d23;margin-top:0;">⚠️ เกิดข้อผิดพลาด</h3>
+          <pre style="background:#fff5f5;padding:12px;border-radius:8px;font-size:0.8rem;overflow:auto;">${err?.message || err}</pre>
+          <p style="font-size:0.82rem;color:#888;">กด 🔄 รีเฟรชหน้าเพื่อลองใหม่ หรือแจ้งข้อความนี้ให้ผู้ดูแลระบบ</p>
+        </div>`;
+      });
+    }
+  } catch (err) {
+    main.innerHTML = `<div class="card" style="border-left:4px solid #d23;">
+      <h3 style="color:#d23;margin-top:0;">⚠️ เกิดข้อผิดพลาด</h3>
+      <pre style="background:#fff5f5;padding:12px;border-radius:8px;font-size:0.8rem;overflow:auto;">${err?.message || err}</pre>
+    </div>`;
+  }
 
   window.addEventListener('hashchange', () => location.reload());
 
