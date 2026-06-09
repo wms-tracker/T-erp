@@ -33,10 +33,10 @@
 
   // ต้องประกาศก่อน RENDERERS เพราะ renderPipeline อ้างถึงตอน call-time
   const STAGE_FLOW = {
-    picking: { from: 'รอหยิบสินค้า',  to: 'กำลังแพ็ค',     btnLabel: '✔ หยิบครบแล้ว ส่งต่อแพ็ค', emptyMsg: 'ไม่มีออเดอร์ที่รอหยิบสินค้าในขณะนี้' },
+    picking: { from: 'รอหยิบสินค้า',  to: 'รอตรวจสอบ QC',  btnLabel: '✔ หยิบครบแล้ว ส่ง QC', emptyMsg: 'ไม่มีออเดอร์ที่รอหยิบสินค้าในขณะนี้' },
     packing: { from: 'กำลังแพ็ค',     to: 'รอตรวจสอบ QC',  btnLabel: '✔ แพ็คเสร็จแล้ว ส่งตรวจ QC', emptyMsg: 'ไม่มีออเดอร์ที่รอแพ็คในขณะนี้' },
-    qc:      { from: 'รอตรวจสอบ QC', to: 'พร้อมจัดส่ง',   btnLabel: '✔ ผ่าน QC พร้อมจัดส่ง', rejectTo: 'กำลังแพ็ค', rejectLabel: '✘ ไม่ผ่าน ตีกลับไปแพ็คใหม่', emptyMsg: 'ไม่มีออเดอร์ที่รอตรวจ QC ในขณะนี้' },
-    outbound:{ from: 'พร้อมจัดส่ง',   to: 'จัดส่งแล้ว',    btnLabel: '🚚 บันทึกการจัดส่ง', emptyMsg: 'ไม่มีออเดอร์ที่พร้อมจัดส่งในขณะนี้', needsTracking: true },
+    qc:      { from: 'รอตรวจสอบ QC', to: 'พร้อมจัดส่ง',   btnLabel: '✔ ผ่าน QC ยิงส่ง', rejectTo: 'รอหยิบสินค้า', rejectLabel: '✘ ไม่ผ่าน ตีกลับหยิบใหม่', emptyMsg: 'ไม่มีออเดอร์ที่รอตรวจ QC ในขณะนี้' },
+    outbound:{ from: 'พร้อมจัดส่ง',   to: 'จัดส่งแล้ว',    btnLabel: '🚚 ยิงส่ง / บันทึกการจัดส่ง', emptyMsg: 'ไม่มีออเดอร์ที่พร้อมจัดส่งในขณะนี้', needsTracking: true },
   };
   const STAGE_ORDER = ['รอหยิบสินค้า','กำลังแพ็ค','รอตรวจสอบ QC','พร้อมจัดส่ง','จัดส่งแล้ว'];
   function stageIdx(s) { const i = STAGE_ORDER.indexOf(s); return i === -1 ? 0 : i; }
