@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ติดตามสถานะจัดส่ง — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole, db } from "./js/auth.js";
+import { renderShell, statusBadge } from "./js/shell.js";
+import {
+  collection, query, where, limit, getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const profile = await requireRole(['sales']);
+const main = renderShell(profile, 'shipping', '🚚 ติดตามสถานะจัดส่ง');
+
+main.innerHTML = `
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input id="search-inp" type="text" placeholder="🔍 ค้นหา Order ID / Tracking / ลูกค้า..."
+        style="flex:1;min-width:200px;padding:9px 13px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+      <select id="filter-status" style="padding:9px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;">
+        <option value="">— ทุกสถานะคลัง —</option>
+        <option value="รอหยิบสินค้า">รอหยิบสินค้า</option>
+        <option value="รอตรวจสอบ QC">รอตรวจสอบ QC</option>
+        <option value="พร้อมจัดส่ง">พร้อมจัดส่ง</option>
+        <option value="จัดส่งแล้ว">จัดส่งแล้ว</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin:0 0 14px;font-size:1.05rem;">รายการออเดอร์ที่จัดส่ง</h2>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr>
+          <th>Order ID</th>
+          <th>ลูกค้า</th>
+          <th>สายส่ง</th>
+          <th>Tracking Number</th>
+          <th>กำหนดส่ง</th>
+          <th>สถานะออเดอร์</th>
+          <th>สถานะคลัง</th>
+        </tr></thead>
+        <tbody id="ship-rows">
+          <tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+`;
+
+let _all = [];
+
+// filter
+['search-inp','filter-status'].forEach(id => {
+  document.getElementById(id).addEventListener('input', applyFilter);
+});
+
+function applyFilter() {
+  const q  = document.getElementById('search-inp').value.toLowerCase();
+  const st = document.getElementById('filter-status').value;
+  const filtered = _all.filter(o => {
+    const matchText = !q ||
+      (o.id||'').toLowerCase().includes(q) ||
+      (o.customer?.name||'').toLowerCase().includes(q) ||
+      (o.trackings||[]).some(t => (t.trackingNo||'').toLowerCase().includes(q)) ||
+      (o.shipping?.trackingInfo||'').toLowerCase().includes(q);
+    const matchStatus = !st || o.warehouseStage === st;
+    return matchText && matchStatus;
+  });
+  renderRows(filtered);
+}
+
+await loadData();
+
+async function loadData() {
+  const tbody = document.getElementById('ship-rows');
+  try {
+    const q = query(
+      collection(db, 'orders'),
+      where('createdBy', '==', profile.uid),
+      limit(200)
+    );
+    const snap = await getDocs(q);
+    _all = [];
+    snap.forEach(d => _all.push({ _id: d.id, ...d.data() }));
+    // แสดงเฉพาะออเดอร์ที่เข้าคลังแล้ว
+    _all = _all.filter(o => !!o.warehouseStage);
+    _all.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+    renderRows(_all);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดไม่สำเร็จ: ${err.message}</td></tr>`;
+  }
+}
+
+function renderRows(orders) {
+  const tbody = document.getElementById('ship-rows');
+  if (!orders.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">ยังไม่มีออเดอร์ที่ส่งเข้าคลัง</td></tr>`;
+    return;
+  }
+
+  const stageBadge = s => {
+    const map = {
+      'รอหยิบสินค้า':   { bg:'#fef3c7', color:'#92400e' },
+      'รอตรวจสอบ QC':  { bg:'#dbeafe', color:'#1e40af' },
+      'พร้อมจัดส่ง':   { bg:'#d1fae5', color:'#065f46' },
+      'จัดส่งแล้ว':    { bg:'#e0e7ff', color:'#3730a3' },
+    };
+    const c = map[s] || { bg:'#f0f0f0', color:'#555' };
+    return `<span style="background:${c.bg};color:${c.color};padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">${s || '–'}</span>`;
+  };
+
+  tbody.innerHTML = orders.map(o => {
+    // รวบรวม tracking numbers
+    const trackings = o.trackings?.length
+      ? o.trackings.map(t => `<div style="font-family:monospace;font-size:0.82rem;">
+          ${t.carrier ? `<span style="color:#888;font-size:0.75rem;">${t.carrier}</span> ` : ''}
+          ${t.trackingNo}
+          <span style="font-size:0.72rem;margin-left:4px;color:${t.stage==='จัดส่งแล้ว'?'#1a8a3a':'#888'};">(${t.stage||'–'})</span>
+        </div>`).join('')
+      : (o.shipping?.trackingInfo
+          ? `<span style="font-family:monospace;font-size:0.82rem;">${o.shipping.trackingInfo}</span>`
+          : '<span style="color:#bbb;">–</span>');
+
+    return `<tr>
+      <td><b style="font-family:monospace;">${o.id || o._id}</b></td>
+      <td>${o.customer?.name || '–'}</td>
+      <td style="font-size:0.84rem;">${o.shipping?.carrier || '–'}</td>
+      <td>${trackings}</td>
+      <td style="font-size:0.84rem;">${o.shipping?.shipDate || '–'}</td>
+      <td>${statusBadge(o.status || 'รอดำเนินการ')}</td>
+      <td>${stageBadge(o.warehouseStage)}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</html>

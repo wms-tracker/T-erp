@@ -8,85 +8,579 @@
 </head>
 <body></body>
 <script type="module">
-  import { requireRole, db } from "./js/auth.js";
-  import { renderShell, statusBadge } from "./js/shell.js";
-  import {
-    collection, query, where, orderBy, limit, getDocs
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { requireRole, db } from "./js/auth.js";
+import { renderShell, statusBadge } from "./js/shell.js";
+import {
+  collection, query, where, limit,
+  getDocs, addDoc, doc, getDoc, updateDoc,
+  serverTimestamp, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-  const profile = await requireRole(['sales']);
-  const main = renderShell(profile, 'orders', '📋 ออเดอร์ของฉัน');
+const profile = await requireRole(['sales']);
+const main = renderShell(profile, 'orders', '📋 ออเดอร์ของฉัน');
 
-  main.innerHTML = `
-    <div class="grid-cards" style="margin-bottom:20px;">
-      <div class="card stat-card"><div class="num" id="stat-total">–</div><div class="label">ออเดอร์ทั้งหมด (30 วันล่าสุด)</div></div>
+// ============================================================
+// SHELL
+// ============================================================
+main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div class="grid-cards" style="flex:1;min-width:0;">
+      <div class="card stat-card"><div class="num" id="stat-total">–</div><div class="label">ออเดอร์ทั้งหมด (30 วัน)</div></div>
       <div class="card stat-card"><div class="num" id="stat-pending">–</div><div class="label">รอดำเนินการ</div></div>
       <div class="card stat-card"><div class="num" id="stat-shipping">–</div><div class="label">กำลังจัดส่ง</div></div>
       <div class="card stat-card"><div class="num" id="stat-done">–</div><div class="label">เสร็จสิ้น</div></div>
     </div>
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <h2 style="margin:0;font-size:1.05rem;">ออเดอร์ล่าสุดของฉัน</h2>
-        <a class="btn btn-primary" href="../index.html" target="_blank">+ ลงออเดอร์ใหม่</a>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;font-size:1.05rem;">ออเดอร์ล่าสุดของฉัน</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="search-order" type="text" placeholder="🔍 ค้นหา Order ID / ลูกค้า..."
+          style="padding:7px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.86rem;width:220px;font-family:inherit;" />
+        <button class="btn btn-primary" onclick="window.__openNewOrder()">+ ลงออเดอร์ใหม่</button>
       </div>
+    </div>
+    <div style="overflow-x:auto;">
       <table>
         <thead><tr>
-          <th>Order ID</th><th>วันที่</th><th>ลูกค้า</th><th>ยอดรวม</th><th>กำหนดส่ง</th><th>สถานะ</th>
+          <th>Order ID</th><th>วันที่</th><th>ลูกค้า</th><th>ช่องทาง</th>
+          <th style="text-align:right;">ยอดรวม</th><th>กำหนดส่ง</th><th>สถานะ</th><th>สถานะคลัง</th>
         </tr></thead>
-        <tbody id="order-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลดข้อมูล...</td></tr></tbody>
+        <tbody id="order-rows"><tr><td colspan="8" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
       </table>
-      <p style="font-size:0.8rem;color:#999;margin-top:14px;">
-        * หน้านี้อ่านข้อมูลจาก Firestore collection <code>orders</code> โดยกรองเฉพาะออเดอร์ที่ <code>createdBy</code> ตรงกับบัญชีของคุณ<br/>
-        * การ "ลงออเดอร์ใหม่" ยังคงใช้แอปลงออเดอร์เดิม — ขั้นตอนถัดไปคือเชื่อมแอปนั้นให้บันทึกเข้า Firestore โดยตรงแทน localStorage
-      </p>
+    </div>
+  </div>
+`;
+
+// search filter
+let _allOrders = [];
+document.getElementById('search-order').addEventListener('input', function () {
+  const q = this.value.toLowerCase();
+  const filtered = _allOrders.filter(o =>
+    (o.id || '').toLowerCase().includes(q) ||
+    (o.customer?.name || '').toLowerCase().includes(q) ||
+    (o.channel || '').toLowerCase().includes(q)
+  );
+  renderTable(filtered);
+});
+
+await loadOrders();
+
+// ============================================================
+// LOAD ORDERS
+// ============================================================
+async function loadOrders() {
+  const tbody = document.getElementById('order-rows');
+  try {
+    const q = query(
+      collection(db, 'orders'),
+      where('createdBy', '==', profile.uid),
+      limit(200)
+    );
+    const snap = await getDocs(q);
+    _allOrders = [];
+    snap.forEach(d => _allOrders.push({ _id: d.id, ...d.data() }));
+    // sort client-side — ไม่ต้องสร้าง Firestore composite index
+    _allOrders.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+    renderTable(_allOrders);
+    setStats(_allOrders);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#d23;">
+      โหลดไม่สำเร็จ: ${err.message}
+    </td></tr>`;
+  }
+}
+
+function renderTable(orders) {
+  const tbody = document.getElementById('order-rows');
+  if (!orders.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#999;">ยังไม่มีออเดอร์</td></tr>`;
+    return;
+  }
+  const wsBadge = s => {
+    if (!s) return '<span style="color:#bbb;font-size:0.78rem;">—</span>';
+    const map = {
+      'รอหยิบสินค้า': '#fef3c7',  'กำลังหยิบ': '#fef3c7',
+      'รอตรวจสอบ QC': '#dbeafe',  'พร้อมจัดส่ง': '#d1fae5',
+      'จัดส่งแล้ว': '#e0e7ff',
+    };
+    return `<span style="background:${map[s]||'#f0f0f0'};padding:2px 8px;border-radius:12px;font-size:0.76rem;">${s}</span>`;
+  };
+  tbody.innerHTML = orders.map(o => `
+    <tr style="cursor:pointer;" onclick="window.__viewOrder('${o._id}')">
+      <td><b style="font-family:monospace;">${o.id || o._id}</b></td>
+      <td>${o.orderDate || '–'}</td>
+      <td>${o.customer?.name || '–'}</td>
+      <td style="font-size:0.82rem;">${o.channel || '–'}</td>
+      <td style="text-align:right;">${fmt(o.grandTotal ?? o.subtotal)}</td>
+      <td>${o.shipping?.shipDate || '–'}</td>
+      <td>${statusBadge(o.status || 'รอดำเนินการ')}</td>
+      <td>${wsBadge(o.warehouseStage)}</td>
+    </tr>
+  `).join('');
+}
+
+function setStats(orders) {
+  document.getElementById('stat-total').textContent    = orders.length;
+  document.getElementById('stat-pending').textContent  = orders.filter(o => o.status === 'รอดำเนินการ').length;
+  document.getElementById('stat-shipping').textContent = orders.filter(o => ['กำลังแพ็ค','จัดส่งแล้ว'].includes(o.status)).length;
+  document.getElementById('stat-done').textContent     = orders.filter(o => o.status === 'เสร็จสิ้น').length;
+}
+
+// ============================================================
+// VIEW ORDER DETAIL
+// ============================================================
+window.__viewOrder = async function (docId) {
+  const snap = await getDoc(doc(db, 'orders', docId));
+  if (!snap.exists()) return;
+  const o = { _id: snap.id, ...snap.data() };
+  const ov = document.createElement('div');
+  ov.id = 'order-detail-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px;';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:16px;max-width:620px;width:100%;max-height:92dvh;overflow:auto;padding:22px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h3 style="margin:0;">📋 ${o.id || docId}</h3>
+        <button onclick="document.getElementById('order-detail-overlay').remove()"
+          style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 20px;font-size:0.86rem;margin-bottom:14px;">
+        <div><b>ลูกค้า:</b> ${o.customer?.name || '–'}</div>
+        <div><b>โทร:</b> ${o.customer?.phone || '–'}</div>
+        <div><b>ช่องทาง:</b> ${o.channel || '–'}</div>
+        <div><b>วันที่:</b> ${o.orderDate || '–'}</div>
+        <div><b>กำหนดส่ง:</b> ${o.shipping?.shipDate || '–'}</div>
+        <div><b>สายส่ง:</b> ${o.shipping?.carrier || '–'}</div>
+        <div style="grid-column:1/-1;"><b>ที่อยู่:</b> ${o.customer?.address || '–'}</div>
+        ${o.note ? `<div style="grid-column:1/-1;"><b>หมายเหตุ:</b> ${o.note}</div>` : ''}
+      </div>
+      <table style="margin-bottom:12px;">
+        <thead><tr><th>SKU</th><th>ชื่อสินค้า</th><th style="text-align:center;">จำนวน</th><th style="text-align:right;">ราคา/ชิ้น</th><th style="text-align:right;">รวม</th></tr></thead>
+        <tbody>
+          ${(o.items || []).map(it => `
+            <tr>
+              <td class="mono" style="font-size:0.82rem;">${it.sku || it.model || '–'}</td>
+              <td>${it.name || it.productName || '–'}</td>
+              <td style="text-align:center;">${it.qty}</td>
+              <td style="text-align:right;">${fmt(it.price ?? it.unitPrice)}</td>
+              <td style="text-align:right;">${fmt((it.price ?? it.unitPrice ?? 0) * (it.qty || 1))}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="text-align:right;font-size:0.9rem;">
+        <div>ยอดรวม: <b>${fmt(o.subtotal)}</b></div>
+        ${o.discountTotal ? `<div>ส่วนลด: <span style="color:#d23;">-${fmt(o.discountTotal)}</span></div>` : ''}
+        ${o.shippingFee ? `<div>ค่าส่ง: ${fmt(o.shippingFee)}</div>` : ''}
+        <div style="font-size:1rem;font-weight:700;color:#1a237e;margin-top:4px;">ยอดสุทธิ: ${fmt(o.grandTotal ?? o.subtotal)}</div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        ${o.status === 'รอดำเนินการ' ? `<button class="btn btn-danger" onclick="window.__cancelOrder('${docId}')">ยกเลิกออเดอร์</button>` : ''}
+        <button class="btn btn-outline" onclick="document.getElementById('order-detail-overlay').remove()">ปิด</button>
+      </div>
     </div>
   `;
+  document.body.appendChild(ov);
+};
 
+window.__cancelOrder = async function (docId) {
+  if (!confirm('ยืนยันยกเลิกออเดอร์นี้?')) return;
+  await updateDoc(doc(db, 'orders', docId), { status: 'ยกเลิก', updatedAt: serverTimestamp() });
+  document.getElementById('order-detail-overlay')?.remove();
+  toast('ยกเลิกออเดอร์แล้ว');
   await loadOrders();
+};
 
-  async function loadOrders() {
-    const tbody = document.getElementById('order-rows');
+// ============================================================
+// NEW ORDER — STATE
+// ============================================================
+let _orderItems = [];   // [{ sku, name, qty, price, stock }]
+let _products   = [];   // product list from Firestore (lazy loaded)
+
+window.__openNewOrder = async function () {
+  _orderItems = [];
+  // preload products
+  if (!_products.length) {
     try {
-      const q = query(
-        collection(db, 'orders'),
-        where('createdBy', '==', profile.uid),
-        orderBy('createdAt', 'desc'),
-        limit(50)
-      );
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">ยังไม่มีออเดอร์ — ลองกด "+ ลงออเดอร์ใหม่"</td></tr>`;
-        setStats([]);
-        return;
-      }
-      const orders = [];
-      snap.forEach(d => orders.push({ id: d.id, ...d.data() }));
-      tbody.innerHTML = orders.map(o => `
-        <tr>
-          <td><b>${o.id}</b></td>
-          <td>${o.orderDate || '-'}</td>
-          <td>${(o.customer && o.customer.name) || '-'}</td>
-          <td>${formatNumber(o.subtotal)}</td>
-          <td>${(o.shipping && o.shipping.shipDate) || '-'}</td>
-          <td>${statusBadge(o.status || 'รอดำเนินการ')}</td>
-        </tr>
-      `).join('');
-      setStats(orders);
-    } catch (err) {
-      console.error(err);
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">
-        โหลดข้อมูลไม่สำเร็จ: ${err.message}<br/>
-        <span style="color:#999;font-size:0.8rem;">(ตรวจสอบว่าได้สร้าง Firestore index สำหรับ where(createdBy) + orderBy(createdAt) แล้ว — Firebase จะแสดงลิงก์สร้าง index อัตโนมัติใน console เมื่อ query ล้มเหลวครั้งแรก)</span>
-      </td></tr>`;
-    }
+      const snap = await getDocs(collection(db, 'products'));
+      _products = [];
+      snap.forEach(d => _products.push({ id: d.id, ...d.data() }));
+    } catch (e) { console.warn('โหลดสินค้าไม่สำเร็จ', e); }
   }
 
-  function setStats(orders) {
-    document.getElementById('stat-total').textContent = orders.length;
-    document.getElementById('stat-pending').textContent = orders.filter(o => o.status === 'รอดำเนินการ').length;
-    document.getElementById('stat-shipping').textContent = orders.filter(o => ['กำลังแพ็ค','จัดส่งแล้ว'].includes(o.status)).length;
-    document.getElementById('stat-done').textContent = orders.filter(o => o.status === 'เสร็จสิ้น').length;
+  const today = new Date().toISOString().slice(0,10);
+  const ov = document.createElement('div');
+  ov.id = 'new-order-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.6);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px;';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:16px;max-width:700px;width:100%;max-height:96dvh;overflow:auto;padding:22px 24px;box-sizing:border-box;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="margin:0;color:#1a237e;">+ ลงออเดอร์ใหม่</h3>
+        <button onclick="window.__closeNewOrder()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+      </div>
+
+      <!-- ข้อมูลลูกค้า -->
+      <div style="background:#f8f9ff;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:0.88rem;color:#1a237e;margin-bottom:10px;">👤 ข้อมูลลูกค้า</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:0.8rem;color:#555;">ชื่อลูกค้า *</label>
+            <input id="no-cname" type="text" placeholder="ชื่อลูกค้า"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;" />
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;">เบอร์โทร</label>
+            <input id="no-cphone" type="tel" placeholder="08x-xxx-xxxx"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;" />
+          </div>
+          <div style="grid-column:1/-1;">
+            <label style="font-size:0.8rem;color:#555;">ที่อยู่จัดส่ง</label>
+            <textarea id="no-caddr" rows="2" placeholder="บ้านเลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;resize:vertical;"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- ข้อมูลออเดอร์ -->
+      <div style="background:#f8f9ff;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:0.88rem;color:#1a237e;margin-bottom:10px;">📦 ข้อมูลออเดอร์</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:0.8rem;color:#555;">ช่องทาง</label>
+            <select id="no-channel" style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;">
+              <option>LINE</option><option>Facebook</option><option>Shopee</option>
+              <option>Lazada</option><option>TikTok Shop</option><option>โทรศัพท์</option>
+              <option>หน้าร้าน</option><option>อื่นๆ</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;">วันที่ออเดอร์</label>
+            <input id="no-date" type="date" value="${today}"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;" />
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;">กำหนดส่ง</label>
+            <input id="no-shipdate" type="date"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;" />
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;">สายส่ง</label>
+            <select id="no-carrier" style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;">
+              <option value="">— ยังไม่กำหนด —</option>
+              <option>Kerry</option><option>Flash</option><option>J&T</option>
+              <option>SPX</option><option>DHL</option><option>ไปรษณีย์ไทย</option>
+              <option>Ninja Van</option><option>Best Express</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;">ค่าจัดส่ง (บาท)</label>
+            <input id="no-shipfee" type="number" min="0" value="0" placeholder="0"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;"
+              oninput="window.__recalc()" />
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;">หมายเหตุ</label>
+            <input id="no-note" type="text" placeholder="หมายเหตุเพิ่มเติม"
+              style="width:100%;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;margin-top:3px;" />
+          </div>
+        </div>
+      </div>
+
+      <!-- เพิ่มสินค้า -->
+      <div style="background:#f8f9ff;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+        <div style="font-weight:700;font-size:0.88rem;color:#1a237e;margin-bottom:10px;">🛒 รายการสินค้า</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+          <div style="position:relative;flex:1;min-width:160px;">
+            <input id="no-sku" type="text" placeholder="พิมพ์ SKU หรือชื่อสินค้า..."
+              autocomplete="off"
+              style="width:100%;padding:9px 11px;border:1.5px solid #1a73e8;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+            <div id="no-sku-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #c5c8d6;border-radius:8px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 16px rgba(0,0,0,0.1);margin-top:2px;"></div>
+          </div>
+          <input id="no-qty" type="number" min="1" value="1" placeholder="จำนวน"
+            style="width:80px;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+          <input id="no-price" type="number" min="0" value="" placeholder="ราคา/ชิ้น"
+            style="width:110px;padding:9px 11px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+          <button class="btn btn-primary" onclick="window.__addItem()" style="white-space:nowrap;">+ เพิ่ม</button>
+        </div>
+        <div id="no-item-list">
+          <p style="color:#bbb;font-size:0.84rem;text-align:center;">ยังไม่มีรายการสินค้า</p>
+        </div>
+      </div>
+
+      <!-- สรุปยอด -->
+      <div style="background:#f0f4ff;border-radius:12px;padding:14px 16px;margin-bottom:16px;text-align:right;font-size:0.9rem;">
+        <div>ยอดสินค้า: <b id="no-subtotal">฿0.00</b></div>
+        <div>ค่าจัดส่ง: <span id="no-shipfee-display">฿0.00</span></div>
+        <div style="font-size:1.1rem;font-weight:700;color:#1a237e;margin-top:4px;">ยอดสุทธิ: <span id="no-grand">฿0.00</span></div>
+      </div>
+
+      <div id="no-err" style="color:#c00;font-size:0.85rem;min-height:18px;margin-bottom:8px;"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn btn-outline" onclick="window.__closeNewOrder()">ยกเลิก</button>
+        <button class="btn btn-success" onclick="window.__saveOrder()">💾 บันทึกออเดอร์</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(ov);
+  _renderItemList();
+  _setupSkuSearch();
+  document.getElementById('no-cname').focus();
+};
+
+window.__closeNewOrder = function () {
+  document.getElementById('new-order-overlay')?.remove();
+};
+
+// ============================================================
+// SKU SEARCH DROPDOWN
+// ============================================================
+function _setupSkuSearch() {
+  const inp = document.getElementById('no-sku');
+  const dd  = document.getElementById('no-sku-dropdown');
+  let _selected = null;
+
+  inp.addEventListener('input', function () {
+    _selected = null;
+    const q = this.value.toLowerCase().trim();
+    if (!q) { dd.style.display = 'none'; return; }
+    const matches = _products.filter(p =>
+      (p.id || '').toLowerCase().includes(q) ||
+      (p.name || p.productName || '').toLowerCase().includes(q)
+    ).slice(0, 12);
+    if (!matches.length) { dd.style.display = 'none'; return; }
+    dd.style.display = 'block';
+    dd.innerHTML = matches.map(p => {
+      const stock = (p.stockQty || 0) - (p.reservedQty || 0);
+      const stockColor = stock <= 0 ? '#d23' : stock < 5 ? '#f59e0b' : '#1a8a3a';
+      return `<div data-sku="${p.id}" style="padding:9px 12px;cursor:pointer;font-size:0.86rem;display:flex;justify-content:space-between;align-items:center;gap:8px;"
+          onmouseover="this.style.background='#f0f3ff'" onmouseout="this.style.background=''"
+          onclick="window.__selectSku('${p.id}','${(p.name || p.productName || p.id).replace(/'/g,"\\'")}',${p.salePrice || p.price || 0},${stock})">
+        <span><b style="font-family:monospace;">${p.id}</b> — ${p.name || p.productName || ''}</span>
+        <span style="color:${stockColor};font-size:0.78rem;white-space:nowrap;">สต๊อก ${stock}</span>
+      </div>`;
+    }).join('');
+  });
+
+  document.addEventListener('click', function (ev) {
+    if (!dd.contains(ev.target) && ev.target !== inp) dd.style.display = 'none';
+  }, { capture: true });
+
+  window.__selectSku = function (sku, name, price, stock) {
+    inp.value = `${sku} — ${name}`;
+    inp.dataset.sku  = sku;
+    inp.dataset.name = name;
+    inp.dataset.stock = stock;
+    dd.style.display = 'none';
+    const priceInp = document.getElementById('no-price');
+    if (!priceInp.value) priceInp.value = price || '';
+    document.getElementById('no-qty').focus();
+  };
+
+  inp.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); window.__addItem(); }
+  });
+}
+
+// ============================================================
+// ITEM MANAGEMENT
+// ============================================================
+window.__addItem = function () {
+  const skuInp   = document.getElementById('no-sku');
+  const qtyInp   = document.getElementById('no-qty');
+  const priceInp = document.getElementById('no-price');
+  const err      = document.getElementById('no-err');
+
+  const sku   = (skuInp.dataset.sku || skuInp.value.trim()).split(' ')[0];
+  const name  = skuInp.dataset.name || sku;
+  const qty   = parseInt(qtyInp.value) || 0;
+  const price = parseFloat(priceInp.value) || 0;
+  const stock = parseInt(skuInp.dataset.stock ?? 9999);
+
+  if (!sku)   { err.textContent = '⚠️ กรุณาเลือกสินค้าก่อน'; return; }
+  if (qty < 1){ err.textContent = '⚠️ จำนวนต้องมากกว่า 0'; return; }
+  if (price < 0){ err.textContent = '⚠️ ราคาไม่ถูกต้อง'; return; }
+  if (stock < qty){ err.textContent = `⚠️ สต๊อก ${sku} เหลือ ${stock} ชิ้น (ต้องการ ${qty})`; return; }
+  err.textContent = '';
+
+  // ถ้า SKU ซ้ำ → เพิ่มจำนวน
+  const existing = _orderItems.find(it => it.sku === sku);
+  if (existing) {
+    existing.qty   += qty;
+    existing.price  = price; // อัปเดตราคาล่าสุด
+  } else {
+    _orderItems.push({ sku, name, qty, price, stock });
   }
-  function formatNumber(n) { return (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }); }
+
+  // reset
+  skuInp.value = ''; skuInp.dataset.sku = ''; skuInp.dataset.name = ''; skuInp.dataset.stock = '';
+  qtyInp.value = '1'; priceInp.value = '';
+  _renderItemList();
+  skuInp.focus();
+};
+
+window.__removeItem = function (idx) {
+  _orderItems.splice(idx, 1);
+  _renderItemList();
+};
+
+window.__itemQtyChange = function (idx, val) {
+  _orderItems[idx].qty = Math.max(1, parseInt(val) || 1);
+  _renderItemList();
+};
+
+window.__itemPriceChange = function (idx, val) {
+  _orderItems[idx].price = Math.max(0, parseFloat(val) || 0);
+  _renderItemList();
+};
+
+function _renderItemList() {
+  const box = document.getElementById('no-item-list');
+  if (!_orderItems.length) {
+    box.innerHTML = `<p style="color:#bbb;font-size:0.84rem;text-align:center;margin:4px 0;">ยังไม่มีรายการสินค้า</p>`;
+    __recalc(); return;
+  }
+  box.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>SKU</th><th>ชื่อสินค้า</th>
+        <th style="text-align:center;">จำนวน</th>
+        <th style="text-align:right;">ราคา/ชิ้น</th>
+        <th style="text-align:right;">รวม</th>
+        <th></th>
+      </tr></thead>
+      <tbody>
+        ${_orderItems.map((it, i) => `
+          <tr>
+            <td class="mono" style="font-size:0.82rem;">${it.sku}</td>
+            <td style="font-size:0.85rem;">${it.name}</td>
+            <td style="text-align:center;">
+              <input type="number" min="1" max="${it.stock}" value="${it.qty}"
+                style="width:60px;padding:4px 6px;border:1.5px solid #c5c8d6;border-radius:6px;text-align:center;font-family:inherit;"
+                oninput="window.__itemQtyChange(${i},this.value)" />
+            </td>
+            <td style="text-align:right;">
+              <input type="number" min="0" value="${it.price}"
+                style="width:90px;padding:4px 6px;border:1.5px solid #c5c8d6;border-radius:6px;text-align:right;font-family:inherit;"
+                oninput="window.__itemPriceChange(${i},this.value)" />
+            </td>
+            <td style="text-align:right;font-weight:600;">${fmt(it.price * it.qty)}</td>
+            <td style="text-align:center;">
+              <button onclick="window.__removeItem(${i})"
+                style="border:none;background:none;color:#d23;cursor:pointer;font-size:1rem;padding:2px 6px;">✕</button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  __recalc();
+}
+
+window.__recalc = function () {
+  const subtotal  = _orderItems.reduce((s, it) => s + it.price * it.qty, 0);
+  const shipfee   = parseFloat(document.getElementById('no-shipfee')?.value) || 0;
+  const grand     = subtotal + shipfee;
+  const el = id => document.getElementById(id);
+  if (el('no-subtotal'))       el('no-subtotal').textContent       = `฿${subtotal.toLocaleString('th-TH',{minimumFractionDigits:2})}`;
+  if (el('no-shipfee-display'))el('no-shipfee-display').textContent= `฿${shipfee.toLocaleString('th-TH',{minimumFractionDigits:2})}`;
+  if (el('no-grand'))          el('no-grand').textContent          = `฿${grand.toLocaleString('th-TH',{minimumFractionDigits:2})}`;
+};
+// alias
+function __recalc() { window.__recalc(); }
+
+// ============================================================
+// SAVE ORDER
+// ============================================================
+window.__saveOrder = async function () {
+  const err = document.getElementById('no-err');
+  const cname = document.getElementById('no-cname').value.trim();
+  if (!cname) { err.textContent = '⚠️ กรุณากรอกชื่อลูกค้า'; return; }
+  if (!_orderItems.length) { err.textContent = '⚠️ กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ'; return; }
+  err.textContent = '';
+
+  const subtotal  = _orderItems.reduce((s, it) => s + it.price * it.qty, 0);
+  const shipfee   = parseFloat(document.getElementById('no-shipfee').value) || 0;
+  const grandTotal = subtotal + shipfee;
+
+  // Auto-generate Order ID: SO-YYYYMMDD-XXXX
+  const d     = new Date();
+  const pad   = n => String(n).padStart(2,'0');
+  const dateStr = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+  const rand  = Math.random().toString(36).slice(2,6).toUpperCase();
+  const orderId = `SO-${dateStr}-${rand}`;
+
+  const orderData = {
+    id:           orderId,
+    orderDate:    document.getElementById('no-date').value,
+    channel:      document.getElementById('no-channel').value,
+    customer: {
+      name:    cname,
+      phone:   document.getElementById('no-cphone').value.trim(),
+      address: document.getElementById('no-caddr').value.trim(),
+    },
+    shipping: {
+      carrier:  document.getElementById('no-carrier').value,
+      shipDate: document.getElementById('no-shipdate').value,
+    },
+    shippingFee: shipfee,
+    note:        document.getElementById('no-note').value.trim(),
+    items:       _orderItems.map(it => ({
+      sku: it.sku, name: it.name,
+      qty: it.qty, price: it.price,
+      lineTotal: it.price * it.qty,
+    })),
+    subtotal,
+    grandTotal,
+    status:      'รอดำเนินการ',
+    createdBy:   profile.uid,
+    createdByName: profile.name || profile.email,
+    salesperson: profile.name || profile.email,
+    createdAt:   serverTimestamp(),
+    updatedAt:   serverTimestamp(),
+  };
+
+  // reserve stock
+  try {
+    for (const it of _orderItems) {
+      const pRef = doc(db, 'products', it.sku);
+      await runTransaction(db, async (tx) => {
+        const pSnap = await tx.get(pRef);
+        if (!pSnap.exists()) return;
+        const p = pSnap.data();
+        tx.update(pRef, {
+          reservedQty: (p.reservedQty || 0) + it.qty,
+        });
+      });
+    }
+  } catch (e) { console.warn('จองสต๊อกไม่สำเร็จ (ข้ามได้)', e); }
+
+  const saveBtn = document.querySelector('#new-order-overlay .btn-success');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...'; }
+
+  try {
+    await addDoc(collection(db, 'orders'), orderData);
+    window.__closeNewOrder();
+    toast(`✅ บันทึกออเดอร์ ${orderId} สำเร็จ`);
+    await loadOrders();
+  } catch (e) {
+    err.textContent = 'บันทึกไม่สำเร็จ: ' + e.message;
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '💾 บันทึกออเดอร์'; }
+  }
+};
+
+// ============================================================
+// UTILS
+// ============================================================
+function fmt(n) {
+  return '฿' + (parseFloat(n) || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 });
+}
+
+function toast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1a8a3a;color:#fff;padding:11px 18px;border-radius:10px;font-size:0.9rem;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.18);';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
 </script>
 </html>
