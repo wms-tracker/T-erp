@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ตรวจสอบสต๊อก — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole, db } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  collection, getDocs, query, orderBy
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const profile = await requireRole(['sales']);
+const main = renderShell(profile, 'stock', '📦 ตรวจสอบสต๊อกสินค้า');
+
+main.innerHTML = `
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <input id="search-inp" type="text" placeholder="🔍 ค้นหา SKU หรือชื่อสินค้า..."
+        style="flex:1;min-width:200px;padding:9px 13px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+      <select id="filter-stock" style="padding:9px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;">
+        <option value="">— ทุกสถานะสต๊อก —</option>
+        <option value="available">มีสต๊อก</option>
+        <option value="low">ใกล้หมด (น้อยกว่า 5)</option>
+        <option value="out">หมดสต๊อก</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+      <h2 style="margin:0;font-size:1.05rem;">รายการสินค้า <span id="count-label" style="font-size:0.85rem;color:#888;font-weight:400;"></span></h2>
+      <div style="font-size:0.82rem;color:#999;">* ดูได้อย่างเดียว — ไม่สามารถแก้ไขสต๊อกได้</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr>
+          <th>SKU</th>
+          <th>ชื่อสินค้า</th>
+          <th style="text-align:center;">สต๊อกทั้งหมด</th>
+          <th style="text-align:center;">จองแล้ว</th>
+          <th style="text-align:center;">พร้อมขาย</th>
+          <th style="text-align:right;">ราคาขาย</th>
+          <th style="text-align:center;">สถานะ</th>
+        </tr></thead>
+        <tbody id="stock-rows">
+          <tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+`;
+
+let _all = [];
+
+['search-inp','filter-stock'].forEach(id => {
+  document.getElementById(id).addEventListener('input', applyFilter);
+});
+
+function applyFilter() {
+  const q  = document.getElementById('search-inp').value.toLowerCase();
+  const fs = document.getElementById('filter-stock').value;
+  const filtered = _all.filter(p => {
+    const avail = (p.stockQty || 0) - (p.reservedQty || 0);
+    const matchText = !q ||
+      (p.id || '').toLowerCase().includes(q) ||
+      (p.name || p.productName || '').toLowerCase().includes(q);
+    const matchStock = !fs ||
+      (fs === 'available' && avail > 0) ||
+      (fs === 'low'       && avail > 0 && avail < 5) ||
+      (fs === 'out'       && avail <= 0);
+    return matchText && matchStock;
+  });
+  renderRows(filtered);
+}
+
+await loadStock();
+
+async function loadStock() {
+  const tbody = document.getElementById('stock-rows');
+  try {
+    const snap = await getDocs(collection(db, 'products'));
+    _all = [];
+    snap.forEach(d => _all.push({ id: d.id, ...d.data() }));
+    _all.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
+    renderRows(_all);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดไม่สำเร็จ: ${err.message}</td></tr>`;
+  }
+}
+
+function renderRows(products) {
+  const tbody = document.getElementById('stock-rows');
+  document.getElementById('count-label').textContent = `(${products.length} รายการ)`;
+
+  if (!products.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">ไม่พบสินค้า</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = products.map(p => {
+    const stock  = p.stockQty   || 0;
+    const rsvd   = p.reservedQty|| 0;
+    const avail  = stock - rsvd;
+    const price  = p.salePrice  || p.price || 0;
+
+    let badge, rowStyle = '';
+    if (avail <= 0) {
+      badge = `<span style="background:#fee2e2;color:#991b1b;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">หมดสต๊อก</span>`;
+      rowStyle = 'opacity:0.6;';
+    } else if (avail < 5) {
+      badge = `<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">ใกล้หมด</span>`;
+    } else {
+      badge = `<span style="background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">มีสต๊อก</span>`;
+    }
+
+    return `<tr style="${rowStyle}">
+      <td class="mono" style="font-weight:600;">${p.id}</td>
+      <td>${p.name || p.productName || '–'}</td>
+      <td style="text-align:center;">${stock}</td>
+      <td style="text-align:center;color:#f59e0b;">${rsvd}</td>
+      <td style="text-align:center;font-weight:700;color:${avail<=0?'#d23':avail<5?'#d97706':'#1a8a3a'};">${avail}</td>
+      <td style="text-align:right;">${price ? '฿' + price.toLocaleString('th-TH') : '–'}</td>
+      <td style="text-align:center;">${badge}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</html>
