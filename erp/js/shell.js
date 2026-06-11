@@ -43,9 +43,9 @@ const NAV = {
       { key: 'reports',    label: 'รายงานประจำวัน',                   href: 'dashboard-admin.html#reports' },
     ]},
     { groupKey: 'goto', icon: '🔗', label: 'แผนกอื่น', items: [
-      { key: 'go-warehouse',  label: 'ดูแดชบอร์ดคลังสินค้า',          href: 'dashboard-warehouse.html#stock' },
-      { key: 'go-accounting', label: 'ดูแดชบอร์ดบัญชี',              href: 'dashboard-accounting.html#invoices' },
-      { key: 'go-sales',      label: 'ดูแดชบอร์ดฝ่ายขาย',            href: 'dashboard-sales.html#orders' },
+      { key: 'go-warehouse',  label: 'คลังสินค้า',                    href: 'dashboard-warehouse.html#stock' },
+      { key: 'go-accounting', label: 'บัญชี',                        href: 'dashboard-accounting.html#invoices' },
+      { key: 'go-sales',      label: 'ฝ่ายขาย',                      href: 'dashboard-sales.html#orders' },
     ]},
   ],
   sales: [
