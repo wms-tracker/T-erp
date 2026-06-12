@@ -18,6 +18,8 @@
   const profile = await requireRole(['warehouse']);
 
   const SECTIONS = {
+    'manifest-create': { title: '🆕 สร้างกำกับสินค้า' },
+    'manifest':        { title: '📂 จัดการกำกับสินค้า' },
     inbound:    { title: '📥 รับสินค้าเข้า (Inbound)',        desc: 'บันทึกสินค้าที่รับเข้าคลังจากผู้ผลิต/ซัพพลายเออร์ พร้อมจำนวนและหมายเหตุอ้างอิง — ระบบจะอัปเดตยอดคงเหลือให้อัตโนมัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
     putaway:    { title: '🗄 จัดเก็บเข้าตำแหน่ง (Put Away)',  desc: 'กำหนด/ปรับตำแหน่งจัดเก็บสินค้าในคลัง (location) — แก้ไขได้จากหน้า "จัดการสต๊อกสินค้า" โดยตรง (ระบุช่องตำแหน่งต่อ SKU)', phase: 'เฟส 2 — รวมไว้ในหน้าจัดการสต๊อก 👇' },
     stock:      { title: '📦 จัดการสต๊อกสินค้า',              desc: 'ดูจำนวนคงเหลือ/จอง/พร้อมขายของแต่ละ SKU พร้อมแจ้งเตือนเมื่อสินค้าใกล้หมด (reorder point) และแก้ไขตำแหน่งจัดเก็บ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
@@ -46,6 +48,8 @@
   }
 
   const RENDERERS = {
+    'manifest-create': renderManifestCreate,
+    'manifest':        renderManifestList,
     stock: renderStock,
     inbound: renderInbound,
     picking: renderPipeline.bind(null, 'รอหยิบสินค้า', 'picking'),
@@ -1323,5 +1327,490 @@
       tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
     }
   }
+
+  // ===================================================================
+  // 📋 กำกับสินค้า (Manifest / Wave Picking)
+  // ===================================================================
+  const MF_STATUS = {
+    draft:      { label: 'รอส่งหยิบ',     bg: '#e8eaf6', color: '#3949ab' },
+    picking:    { label: 'กำลังหยิบ',     bg: '#fff3e0', color: '#e65100' },
+    qc:         { label: 'รอตรวจ QC',     bg: '#e0f2f1', color: '#00695c' },
+    ready:      { label: 'พร้อมจัดส่ง',   bg: '#d1fae5', color: '#065f46' },
+    dispatched: { label: 'จัดส่งแล้ว',    bg: '#ede7f6', color: '#4527a0' },
+    cancelled:  { label: 'ยกเลิก',        bg: '#fce4ec', color: '#880e4f' },
+  };
+  function mfBadge(s) {
+    const st = MF_STATUS[s] || MF_STATUS.draft;
+    return `<span style="background:${st.bg};color:${st.color};padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">${st.label}</span>`;
+  }
+  function escMF(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function genMfId() {
+    const d = new Date(), p = n => String(n).padStart(2,'0');
+    return `MF-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+  }
+
+  // ----------------------------------------------------------------
+  // สร้างกำกับสินค้าใหม่
+  // ----------------------------------------------------------------
+  async function renderManifestCreate() {
+    main.innerHTML = `<div class="card"><p style="color:#999;text-align:center;">กำลังโหลดออเดอร์รอหยิบ...</p></div>`;
+    // โหลดออเดอร์ที่รอหยิบ
+    let orders = [];
+    try {
+      const snap = await getDocs(query(
+        collection(db,'orders'),
+        where('warehouseStage','==','รอหยิบสินค้า'),
+        limit(300)
+      ));
+      snap.forEach(d => orders.push({ _id: d.id, ...d.data() }));
+      orders.sort((a,b) => (a.shipping?.shipDate||'').localeCompare(b.shipping?.shipDate||''));
+    } catch(e) { main.innerHTML = `<div class="card" style="color:#d23;">โหลดไม่สำเร็จ: ${e.message}</div>`; return; }
+
+    // carriers ที่มี
+    const carriers = [...new Set(orders.map(o => o.shipping?.carrier || 'ไม่ระบุ'))].sort();
+
+    main.innerHTML = `
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+          <div>
+            <label style="font-size:0.8rem;color:#555;display:block;margin-bottom:4px;">จัดกลุ่มโดย</label>
+            <select id="mf-group-by" style="padding:8px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;"
+              onchange="window.__mfGroupChange()">
+              <option value="carrier">สายส่ง (Carrier)</option>
+              <option value="shipdate">วันกำหนดส่ง</option>
+              <option value="channel">ช่องทางขาย</option>
+              <option value="manual">เลือกเอง (Manual)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#555;display:block;margin-bottom:4px;">ชื่อกำกับ (ไม่บังคับ)</label>
+            <input id="mf-name" type="text" placeholder="เช่น รอบเช้า Kerry 10:00"
+              style="padding:8px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;width:220px;" />
+          </div>
+          <div style="margin-left:auto;">
+            <span style="font-size:0.85rem;color:#888;">ออเดอร์รอหยิบ: <b style="color:#1a237e;">${orders.length}</b> รายการ</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="mf-groups-wrap"></div>
+
+      <div style="background:#fff;border-radius:12px;padding:14px 18px;margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;box-shadow:0 2px 8px rgba(60,80,160,0.07);">
+        <div style="font-size:0.9rem;">
+          เลือกแล้ว: <b id="mf-selected-count" style="color:#1a237e;">0</b> ออเดอร์
+          &nbsp;|&nbsp; รายการสินค้ารวม: <b id="mf-selected-items" style="color:#1a237e;">0</b> รายการ
+        </div>
+        <button class="btn btn-primary" style="font-size:0.95rem;padding:10px 22px;" onclick="window.__createManifest()">
+          📋 สร้างกำกับสินค้า
+        </button>
+      </div>
+    `;
+
+    // state
+    window._mfOrders   = orders;
+    window._mfSelected = new Set();
+
+    window.__mfGroupChange = function() { _renderMfGroups(); };
+    window.__mfToggle = function(orderId) {
+      if (window._mfSelected.has(orderId)) window._mfSelected.delete(orderId);
+      else window._mfSelected.add(orderId);
+      _updateMfCount();
+      // sync checkbox UI
+      const cb = document.getElementById(`mf-cb-${orderId}`);
+      if (cb) cb.checked = window._mfSelected.has(orderId);
+    };
+    window.__mfSelectGroup = function(ids, checked) {
+      ids.forEach(id => checked ? window._mfSelected.add(id) : window._mfSelected.delete(id));
+      _updateMfCount();
+      ids.forEach(id => {
+        const cb = document.getElementById(`mf-cb-${id}`);
+        if (cb) cb.checked = checked;
+      });
+    };
+
+    _renderMfGroups();
+  }
+
+  function _renderMfGroups() {
+    const groupBy = document.getElementById('mf-group-by')?.value || 'carrier';
+    const orders  = window._mfOrders || [];
+    const wrap    = document.getElementById('mf-groups-wrap');
+    if (!wrap) return;
+
+    // สร้าง group map
+    const groups = {};
+    orders.forEach(o => {
+      let gkey = 'ไม่ระบุ';
+      if (groupBy === 'carrier')   gkey = o.shipping?.carrier || 'ไม่ระบุสายส่ง';
+      if (groupBy === 'shipdate')  gkey = o.shipping?.shipDate || 'ไม่ระบุวัน';
+      if (groupBy === 'channel')   gkey = o.channel || 'ไม่ระบุช่องทาง';
+      if (groupBy === 'manual')    gkey = 'เลือกออเดอร์';
+      if (!groups[gkey]) groups[gkey] = [];
+      groups[gkey].push(o);
+    });
+
+    if (!Object.keys(groups).length) {
+      wrap.innerHTML = `<div class="card" style="text-align:center;color:#999;">ไม่มีออเดอร์รอหยิบ</div>`;
+      return;
+    }
+
+    wrap.innerHTML = Object.entries(groups).map(([gname, gorders]) => {
+      const ids = gorders.map(o => o._id);
+      const idsJson = JSON.stringify(ids).replace(/"/g,'&quot;');
+      return `
+        <div class="card" style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <div style="font-weight:700;font-size:0.95rem;color:#1a237e;">
+              ${groupBy === 'carrier' ? '🚚' : groupBy === 'shipdate' ? '📅' : groupBy === 'channel' ? '📱' : '📦'}
+              ${escMF(gname)}
+              <span style="font-weight:400;font-size:0.82rem;color:#888;margin-left:6px;">(${gorders.length} ออเดอร์)</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline" style="font-size:0.8rem;padding:5px 12px;"
+                onclick="window.__mfSelectGroup(${idsJson}, true)">เลือกทั้งกลุ่ม</button>
+              <button class="btn btn-outline" style="font-size:0.8rem;padding:5px 12px;"
+                onclick="window.__mfSelectGroup(${idsJson}, false)">ยกเลิกทั้งกลุ่ม</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr>
+                <th style="width:36px;"><input type="checkbox" onchange="window.__mfSelectGroup(${idsJson}, this.checked)" title="เลือกทั้งกลุ่ม" /></th>
+                <th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>สายส่ง</th>
+                <th style="text-align:center;">จำนวน SKU</th><th>กำหนดส่ง</th>
+              </tr></thead>
+              <tbody>
+                ${gorders.map(o => {
+                  const isChecked = (window._mfSelected||new Set()).has(o._id);
+                  return `<tr style="cursor:pointer;" onclick="window.__mfToggle('${o._id}')">
+                    <td onclick="event.stopPropagation()">
+                      <input type="checkbox" id="mf-cb-${o._id}" ${isChecked?'checked':''} onchange="window.__mfToggle('${o._id}')" />
+                    </td>
+                    <td><b style="font-family:monospace;">${escMF(o.id||o._id)}</b></td>
+                    <td>${escMF(o.customer?.name||'–')}</td>
+                    <td style="font-size:0.82rem;">${escMF(o.channel||'–')}</td>
+                    <td style="font-size:0.82rem;">${escMF(o.shipping?.carrier||'–')}</td>
+                    <td style="text-align:center;">${(o.items||[]).length}</td>
+                    <td style="font-size:0.82rem;">${escMF(o.shipping?.shipDate||'–')}</td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    _updateMfCount();
+  }
+
+  function _updateMfCount() {
+    const sel   = window._mfSelected || new Set();
+    const orders = window._mfOrders  || [];
+    let items = 0;
+    orders.filter(o => sel.has(o._id)).forEach(o => { items += (o.items||[]).length; });
+    const ce = document.getElementById('mf-selected-count');
+    const ie = document.getElementById('mf-selected-items');
+    if (ce) ce.textContent = sel.size;
+    if (ie) ie.textContent = items;
+  }
+
+  window.__createManifest = async function() {
+    const sel = window._mfSelected || new Set();
+    if (!sel.size) { alert('⚠️ กรุณาเลือกออเดอร์อย่างน้อย 1 รายการ'); return; }
+    const orders  = (window._mfOrders||[]).filter(o => sel.has(o._id));
+    const name    = document.getElementById('mf-name')?.value.trim() || '';
+    const groupBy = document.getElementById('mf-group-by')?.value || 'carrier';
+    const mfId    = genMfId();
+
+    // รวม carriers
+    const carriers = [...new Set(orders.map(o => o.shipping?.carrier||'').filter(Boolean))];
+    const totalItems = orders.reduce((s,o) => s + (o.items||[]).length, 0);
+
+    try {
+      const btn = document.querySelector('button[onclick="window.__createManifest()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'กำลังสร้าง...'; }
+
+      // สร้าง manifest document
+      await addDoc(collection(db,'manifests'), {
+        manifestId:  mfId,
+        name:        name || `กำกับ ${mfId}`,
+        groupBy,
+        carriers,
+        orderIds:    [...sel],
+        totalOrders: sel.size,
+        totalItems,
+        status:      'draft',
+        createdBy:   profile.uid,
+        createdByName: profile.name || profile.email,
+        createdAt:   serverTimestamp(),
+        updatedAt:   serverTimestamp(),
+      });
+
+      // อัปเดตออเดอร์ทุกใบให้รู้ว่าอยู่ใน manifest ไหน
+      for (const o of orders) {
+        await updateDoc(doc(db,'orders',o._id), {
+          manifestId: mfId,
+          updatedAt:  serverTimestamp(),
+        });
+      }
+
+      toast(`✅ สร้างกำกับสินค้า ${mfId} สำเร็จ (${sel.size} ออเดอร์)`);
+      // ไปหน้าจัดการ
+      location.hash = 'manifest';
+      location.reload();
+    } catch(e) {
+      alert('สร้างไม่สำเร็จ: ' + e.message);
+      const btn = document.querySelector('button[onclick="window.__createManifest()"]');
+      if (btn) { btn.disabled = false; btn.textContent = '📋 สร้างกำกับสินค้า'; }
+    }
+  };
+
+  // ----------------------------------------------------------------
+  // จัดการกำกับสินค้า (Manifest List)
+  // ----------------------------------------------------------------
+  async function renderManifestList() {
+    main.innerHTML = `<div class="card"><p style="color:#999;text-align:center;">กำลังโหลด...</p></div>`;
+    try {
+      const snap = await getDocs(query(collection(db,'manifests'), orderBy('createdAt','desc'), limit(100)));
+      const mfs = [];
+      snap.forEach(d => mfs.push({ _id: d.id, ...d.data() }));
+      _renderMfList(mfs);
+    } catch(e) {
+      // ถ้า index ยังไม่มี → sort client-side
+      try {
+        const snap = await getDocs(collection(db,'manifests'));
+        const mfs = [];
+        snap.forEach(d => mfs.push({ _id: d.id, ...d.data() }));
+        mfs.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+        _renderMfList(mfs);
+      } catch(e2) {
+        main.innerHTML = `<div class="card" style="color:#d23;">โหลดไม่สำเร็จ: ${e2.message}</div>`;
+      }
+    }
+  }
+
+  function _renderMfList(mfs) {
+    // summary cards
+    const byStatus = s => mfs.filter(m => m.status === s).length;
+    main.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+        ${[['draft','รอส่งหยิบ','#e8eaf6','#3949ab'],['picking','กำลังหยิบ','#fff3e0','#e65100'],
+           ['qc','รอ QC','#e0f2f1','#00695c'],['ready','พร้อมส่ง','#d1fae5','#065f46'],
+           ['dispatched','จัดส่งแล้ว','#ede7f6','#4527a0']].map(([s,l,bg,cl]) => `
+          <div class="card stat-card" style="background:${bg};border:none;">
+            <div class="num" style="color:${cl};">${byStatus(s)}</div>
+            <div class="label" style="color:${cl};">${l}</div>
+          </div>`).join('')}
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+          <h2 style="margin:0;font-size:1.05rem;">รายการกำกับสินค้าทั้งหมด</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="mfl-filter" style="padding:7px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.86rem;font-family:inherit;"
+              onchange="window.__filterMfList(this.value)">
+              <option value="">— ทุกสถานะ —</option>
+              <option value="draft">รอส่งหยิบ</option>
+              <option value="picking">กำลังหยิบ</option>
+              <option value="qc">รอ QC</option>
+              <option value="ready">พร้อมจัดส่ง</option>
+              <option value="dispatched">จัดส่งแล้ว</option>
+            </select>
+            <a href="dashboard-warehouse.html#manifest-create" class="btn btn-primary" style="font-size:0.88rem;">+ สร้างกำกับใหม่</a>
+          </div>
+        </div>
+        <div id="mfl-body">
+          ${_buildMfRows(mfs)}
+        </div>
+      </div>
+    `;
+
+    window._allMfs = mfs;
+    window.__filterMfList = function(s) {
+      const filtered = s ? mfs.filter(m => m.status === s) : mfs;
+      document.getElementById('mfl-body').innerHTML = _buildMfRows(filtered);
+    };
+  }
+
+  function _buildMfRows(mfs) {
+    if (!mfs.length) return `<p style="text-align:center;color:#999;padding:20px 0;">ยังไม่มีกำกับสินค้า</p>`;
+    return `<div style="display:grid;gap:10px;">
+      ${mfs.map(m => {
+        const dt = m.createdAt?.seconds ? new Date(m.createdAt.seconds*1000).toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '–';
+        const carriers = (m.carriers||[]).join(', ') || '–';
+        return `
+          <div style="background:#f8f9ff;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border:1.5px solid #e0e3ef;cursor:pointer;"
+            onclick="window.__viewManifest('${m._id}')">
+            <div style="flex:1;min-width:180px;">
+              <div style="font-weight:700;font-family:monospace;font-size:0.95rem;color:#1a237e;">${escMF(m.manifestId||m._id.slice(-8))}</div>
+              <div style="font-size:0.84rem;color:#555;margin-top:2px;">${escMF(m.name||'')}</div>
+              <div style="font-size:0.78rem;color:#888;margin-top:3px;">🚚 ${escMF(carriers)} &nbsp;|&nbsp; 📅 ${dt}</div>
+            </div>
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+              <div style="text-align:center;">
+                <div style="font-size:1.1rem;font-weight:700;color:#1a237e;">${m.totalOrders||0}</div>
+                <div style="font-size:0.72rem;color:#888;">ออเดอร์</div>
+              </div>
+              <div style="text-align:center;">
+                <div style="font-size:1.1rem;font-weight:700;color:#555;">${m.totalItems||0}</div>
+                <div style="font-size:0.72rem;color:#888;">รายการ</div>
+              </div>
+              <div>${mfBadge(m.status||'draft')}</div>
+              ${m.status === 'draft' ? `
+                <button class="btn btn-primary" style="font-size:0.82rem;padding:6px 12px;"
+                  onclick="event.stopPropagation();window.__startPicking('${m._id}')">
+                  🛒 ส่งหยิบ
+                </button>` : ''}
+              ${m.status === 'picking' ? `
+                <button class="btn btn-success" style="font-size:0.82rem;padding:6px 12px;"
+                  onclick="event.stopPropagation();window.__mfDonePicking('${m._id}')">
+                  ✔ หยิบครบ → QC
+                </button>` : ''}
+              <button class="btn btn-outline" style="font-size:0.8rem;padding:5px 10px;"
+                onclick="event.stopPropagation();window.__viewManifest('${m._id}')">
+                รายละเอียด
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>`;
+  }
+
+  // ---- ดู detail manifest ----
+  window.__viewManifest = async function(docId) {
+    const snap = await getDoc(doc(db,'manifests',docId));
+    if (!snap.exists()) return;
+    const m = { _id: snap.id, ...snap.data() };
+    const dt = m.createdAt?.seconds ? new Date(m.createdAt.seconds*1000).toLocaleDateString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '–';
+
+    // โหลดออเดอร์ใน manifest
+    let orders = [];
+    if (m.orderIds?.length) {
+      for (const oid of m.orderIds) {
+        try {
+          const os = await getDoc(doc(db,'orders',oid));
+          if (os.exists()) orders.push({ _id: os.id, ...os.data() });
+        } catch(e) {}
+      }
+    }
+
+    const ov = document.createElement('div');
+    ov.id = 'mf-detail-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px;';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:680px;width:100%;max-height:93dvh;overflow:auto;padding:22px 24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div>
+            <h3 style="margin:0;font-family:monospace;">${escMF(m.manifestId||m._id.slice(-8))}</h3>
+            <div style="font-size:0.84rem;color:#888;margin-top:2px;">${escMF(m.name||'')} &nbsp;|&nbsp; สร้างเมื่อ ${dt}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            ${mfBadge(m.status||'draft')}
+            <button onclick="document.getElementById('mf-detail-overlay').remove()"
+              style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;font-size:0.86rem;">
+          <div><b>จัดกลุ่มโดย:</b> ${escMF(m.groupBy||'–')}</div>
+          <div><b>สายส่ง:</b> ${escMF((m.carriers||[]).join(', ')||'–')}</div>
+          <div><b>สร้างโดย:</b> ${escMF(m.createdByName||'–')}</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+          <div class="card" style="text-align:center;padding:10px;border:1px solid #e0e3ef;">
+            <div style="font-size:1.3rem;font-weight:700;color:#1a237e;">${m.totalOrders||0}</div>
+            <div style="font-size:0.78rem;color:#888;">ออเดอร์ทั้งหมด</div>
+          </div>
+          <div class="card" style="text-align:center;padding:10px;border:1px solid #e0e3ef;">
+            <div style="font-size:1.3rem;font-weight:700;color:#555;">${m.totalItems||0}</div>
+            <div style="font-size:0.78rem;color:#888;">รายการสินค้า</div>
+          </div>
+          <div class="card" style="text-align:center;padding:10px;border:1px solid #e0e3ef;">
+            <div style="font-size:1.3rem;font-weight:700;color:#00695c;">${orders.filter(o=>o.warehouseStage==='รอตรวจสอบ QC'||o.warehouseStage==='พร้อมจัดส่ง'||o.warehouseStage==='จัดส่งแล้ว').length}</div>
+            <div style="font-size:0.78rem;color:#888;">หยิบแล้ว</div>
+          </div>
+        </div>
+
+        <h4 style="margin:0 0 8px;font-size:0.9rem;color:#333;">รายการออเดอร์ในกำกับนี้</h4>
+        <table style="margin-bottom:14px;">
+          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>สายส่ง</th><th style="text-align:center;">SKU</th><th>สถานะคลัง</th></tr></thead>
+          <tbody>
+            ${orders.map(o => `<tr>
+              <td class="mono" style="font-size:0.82rem;">${escMF(o.id||o._id)}</td>
+              <td>${escMF(o.customer?.name||'–')}</td>
+              <td style="font-size:0.82rem;">${escMF(o.shipping?.carrier||'–')}</td>
+              <td style="text-align:center;">${(o.items||[]).length}</td>
+              <td><span style="font-size:0.78rem;">${escMF(o.warehouseStage||'–')}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          ${m.status==='draft' ? `<button class="btn btn-primary" onclick="window.__startPicking('${m._id}');document.getElementById('mf-detail-overlay').remove()">🛒 ส่งหยิบ</button>` : ''}
+          ${m.status==='picking' ? `<button class="btn btn-success" onclick="window.__mfDonePicking('${m._id}');document.getElementById('mf-detail-overlay').remove()">✔ หยิบครบ → QC</button>` : ''}
+          ${['draft','picking'].includes(m.status||'draft') ? `<button class="btn btn-danger" onclick="window.__cancelManifest('${m._id}')">ยกเลิกกำกับ</button>` : ''}
+          <button class="btn btn-outline" onclick="document.getElementById('mf-detail-overlay').remove()">ปิด</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+  };
+
+  // ---- เปลี่ยนสถานะ Manifest ----
+  window.__startPicking = async function(docId) {
+    if (!confirm('ยืนยันส่งออเดอร์ทั้งหมดในกำกับนี้เข้าคิวหยิบสินค้า?')) return;
+    try {
+      await updateDoc(doc(db,'manifests',docId), { status:'picking', updatedAt: serverTimestamp() });
+      toast('✅ ส่งเข้าคิวหยิบสินค้าแล้ว');
+      renderManifestList();
+    } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  window.__mfDonePicking = async function(docId) {
+    if (!confirm('ยืนยันหยิบสินค้าครบทุกออเดอร์ในกำกับนี้แล้ว — ส่งเข้า QC?')) return;
+    try {
+      // อัปเดต manifest status
+      await updateDoc(doc(db,'manifests',docId), { status:'qc', updatedAt: serverTimestamp() });
+      // อัปเดตออเดอร์ทุกใบในกำกับ → รอตรวจสอบ QC
+      const mSnap = await getDoc(doc(db,'manifests',docId));
+      const orderIds = mSnap.data()?.orderIds || [];
+      for (const oid of orderIds) {
+        try {
+          const os = await getDoc(doc(db,'orders',oid));
+          if (!os.exists()) continue;
+          const o = os.data();
+          // อัปเดต trackings ถ้ามี
+          let updateData = { warehouseStage: 'รอตรวจสอบ QC', updatedAt: serverTimestamp() };
+          if (o.trackings?.length) {
+            updateData.trackings = o.trackings.map(t =>
+              t.stage === 'รอหยิบสินค้า' ? { ...t, stage: 'รอตรวจสอบ QC' } : t
+            );
+          }
+          await updateDoc(doc(db,'orders',oid), updateData);
+        } catch(e) { console.warn('อัปเดตออเดอร์ไม่สำเร็จ', oid, e); }
+      }
+      toast('✅ ส่งทุกออเดอร์เข้าตรวจ QC แล้ว');
+      renderManifestList();
+    } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  window.__cancelManifest = async function(docId) {
+    if (!confirm('ยืนยันยกเลิกกำกับสินค้านี้? ออเดอร์จะกลับไปรอหยิบตามปกติ')) return;
+    try {
+      await updateDoc(doc(db,'manifests',docId), { status:'cancelled', updatedAt: serverTimestamp() });
+      // ล้าง manifestId ออกจากออเดอร์
+      const mSnap = await getDoc(doc(db,'manifests',docId));
+      for (const oid of (mSnap.data()?.orderIds||[])) {
+        try { await updateDoc(doc(db,'orders',oid), { manifestId: null, updatedAt: serverTimestamp() }); } catch(e) {}
+      }
+      document.getElementById('mf-detail-overlay')?.remove();
+      toast('ยกเลิกกำกับแล้ว');
+      renderManifestList();
+    } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
 </script>
 </html>
