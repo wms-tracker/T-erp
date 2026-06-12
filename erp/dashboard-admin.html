@@ -11,7 +11,7 @@
   import { requireRole, db } from "./js/auth.js";
   import { renderShell } from "./js/shell.js";
   import {
-    collection, getDocs, addDoc, doc, setDoc, updateDoc, query, orderBy, limit, runTransaction, serverTimestamp
+    collection, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit, runTransaction, serverTimestamp, where
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const profile = await requireRole(['admin']);
@@ -20,6 +20,7 @@
     orders:    { title: '📋 ออเดอร์ทั้งหมด',          desc: 'ดูและติดตามสถานะออเดอร์ของทุกฝ่ายขาย ประสานงานกับคลังสินค้า', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
     documents: { title: '📑 เอกสารขาย/ขนส่ง',         desc: 'จัดทำและจัดเก็บเอกสารประกอบการขายและการขนส่ง (ใบส่งของ/ใบกำกับสินค้า, ใบปะหน้าพัสดุ, ใบสรุปแพ็คสินค้า) พร้อมพิมพ์และบันทึกประวัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
     routing:   { title: '🗺 จัดรูทขนส่ง / คัตออฟ',      desc: 'จัดกลุ่มออเดอร์ที่รอจัดส่งตามผู้ขนส่ง/เส้นทาง กำหนดเวลาคัตออฟประจำวัน และปิดรอบเพื่อส่งสรุปยอดให้ฝ่ายที่เกี่ยวข้อง', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
+    po:        { title: '🛒 ใบสั่งซื้อ (PO)',           desc: 'สร้างและติดตามใบสั่งซื้อจากซัพพลายเออร์ บันทึกการรับสินค้า และอัปเดตสต็อกเมื่อได้รับครบ' },
     users:     { title: '👥 จัดการผู้ใช้งาน & สิทธิ์', desc: 'เพิ่ม/ลบ/แก้ไขบัญชีผู้ใช้งาน กำหนดแผนกและสิทธิ์การเข้าถึง (RBAC)', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
     reports:   { title: '📊 รายงานประจำวัน',          desc: 'สรุปยอดขาย สถานะคลัง และภาพรวมการดำเนินงานประจำวันของทุกแผนก', phase: 'เฟส 4' },
   };
@@ -32,6 +33,7 @@
   else if (key === 'documents') renderDocuments();
   else if (key === 'routing') renderRouting();
   else if (key === 'reports') renderDailyReport();
+  else if (key === 'po') renderPO();
   else renderPlaceholder(key);
 
   window.addEventListener('hashchange', () => location.reload());
@@ -966,6 +968,375 @@
     } catch (err) {
       main.innerHTML += `<div class="card" style="border-left:4px solid #d23;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`;
     }
+  }
+
+  // ===================================================================
+  // 🛒 PO — ใบสั่งซื้อจากซัพพลายเออร์
+  // ===================================================================
+  const PO_STATUS = {
+    pending:  { label: 'รอรับสินค้า',   cls: 'badge-pending' },
+    partial:  { label: 'รับบางส่วน',    cls: 'badge-progress' },
+    received: { label: 'รับครบแล้ว ✓',  cls: 'badge-done' },
+    cancelled:{ label: 'ยกเลิก',        cls: 'badge-cancel' },
+  };
+
+  function escPO(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function fmtPO(n) { return Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:0,maximumFractionDigits:2}); }
+  function todayISO8() { return new Date().toISOString().slice(0,10); }
+
+  async function renderPO() {
+    main.innerHTML = `<div class="card" style="text-align:center;color:#888;">⏳ กำลังโหลด...</div>`;
+    try {
+      const snap = await getDocs(query(collection(db,'purchaseOrders'), orderBy('createdAtServer','desc'), limit(200)));
+      const pos = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      _renderPOList(pos);
+    } catch(e) {
+      main.innerHTML = `<div class="card" style="color:#d23;">โหลดไม่สำเร็จ: ${e.message}</div>`;
+    }
+  }
+
+  function _renderPOList(pos) {
+    const summary = { pending:0, partial:0, received:0 };
+    pos.forEach(p => { if (summary[p.status] !== undefined) summary[p.status]++; });
+
+    main.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+        <div class="card" style="flex:1;min-width:130px;padding:14px 16px;">
+          <div style="font-size:0.78rem;color:#888;margin-bottom:4px;">รอรับสินค้า</div>
+          <div style="font-size:1.6rem;font-weight:700;color:#7a5b00;">${summary.pending}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:130px;padding:14px 16px;">
+          <div style="font-size:0.78rem;color:#888;margin-bottom:4px;">รับบางส่วน</div>
+          <div style="font-size:1.6rem;font-weight:700;color:#004085;">${summary.partial}</div>
+        </div>
+        <div class="card" style="flex:1;min-width:130px;padding:14px 16px;">
+          <div style="font-size:0.78rem;color:#888;margin-bottom:4px;">รับครบแล้ว</div>
+          <div style="font-size:1.6rem;font-weight:700;color:#155724;">${summary.received}</div>
+        </div>
+        <div style="display:flex;align-items:center;">
+          <button class="btn btn-primary" onclick="window.__openNewPO()">➕ สร้าง PO ใหม่</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:14px 18px;border-bottom:1px solid #eef0f6;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <span style="font-weight:700;font-size:0.95rem;">ใบสั่งซื้อทั้งหมด</span>
+          <input id="po-search" type="text" placeholder="🔍 ค้นหา PO / ซัพพลายเออร์..." style="padding:7px 12px;border:1.5px solid #dde;border-radius:8px;font-size:0.84rem;width:220px;"
+            oninput="window.__filterPO(this.value)">
+        </div>
+        <div style="overflow-x:auto;">
+          <table id="po-table">
+            <thead><tr>
+              <th>เลขที่ PO</th><th>ซัพพลายเออร์</th><th>วันที่สั่ง</th>
+              <th>วันที่คาด</th><th style="text-align:right;">มูลค่า (฿)</th>
+              <th>สถานะ</th><th>จัดการ</th>
+            </tr></thead>
+            <tbody id="po-body">
+              ${_buildPORows(pos)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    window.__allPOs = pos;
+  }
+
+  function _buildPORows(pos) {
+    if (!pos.length) return `<tr><td colspan="7" style="text-align:center;padding:24px;color:#aaa;">ยังไม่มีใบสั่งซื้อ</td></tr>`;
+    return pos.map(po => {
+      const st = PO_STATUS[po.status] || PO_STATUS.pending;
+      const total = (po.items||[]).reduce((s,it) => s + (Number(it.unitPrice||0)*Number(it.qty||0)), 0);
+      return `<tr>
+        <td><b>${escPO(po.poNumber||po._id.slice(-6))}</b></td>
+        <td>${escPO(po.supplier||'-')}</td>
+        <td style="font-size:0.82rem;color:#666;">${escPO(po.orderDate||'-')}</td>
+        <td style="font-size:0.82rem;color:#666;">${escPO(po.expectedDate||'-')}</td>
+        <td style="text-align:right;font-weight:600;">${fmtPO(total)}</td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td style="white-space:nowrap;">
+          ${po.status !== 'received' && po.status !== 'cancelled' ? `
+            <button class="btn btn-success" style="font-size:0.78rem;padding:5px 9px;margin-right:4px;"
+              data-id="${po._id}" onclick="window.__openReceivePO(this.dataset.id)">📥 รับสินค้า</button>
+          ` : ''}
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:5px 9px;"
+            data-id="${po._id}" onclick="window.__viewPO(this.dataset.id)">🔍 ดู</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  window.__filterPO = function(q) {
+    const filtered = (window.__allPOs||[]).filter(po =>
+      !q || (po.poNumber||'').toLowerCase().includes(q.toLowerCase()) ||
+      (po.supplier||'').toLowerCase().includes(q.toLowerCase())
+    );
+    document.getElementById('po-body').innerHTML = _buildPORows(filtered);
+  };
+
+  // ─── สร้าง PO ใหม่ ───────────────────────────────────────────────
+  window.__openNewPO = function() {
+    const ov = document.createElement('div');
+    ov.id = 'po-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px;';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:600px;width:100%;max-height:92dvh;overflow:auto;padding:22px 24px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="margin:0;font-size:1.05rem;">🛒 สร้างใบสั่งซื้อ (PO) ใหม่</h3>
+          <button onclick="document.getElementById('po-modal').remove()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><label style="font-size:0.82rem;color:#555;">เลขที่ PO</label><br>
+            <input id="po-num" type="text" placeholder="PO-2026-001" style="width:100%;padding:8px 10px;border:1.5px solid #dde;border-radius:8px;margin-top:4px;font-size:0.9rem;"></div>
+          <div><label style="font-size:0.82rem;color:#555;">ซัพพลายเออร์</label><br>
+            <input id="po-sup" type="text" placeholder="ชื่อบริษัท / ร้านค้า" style="width:100%;padding:8px 10px;border:1.5px solid #dde;border-radius:8px;margin-top:4px;font-size:0.9rem;"></div>
+          <div><label style="font-size:0.82rem;color:#555;">วันที่สั่งซื้อ</label><br>
+            <input id="po-date" type="date" value="${todayISO8()}" style="width:100%;padding:8px 10px;border:1.5px solid #dde;border-radius:8px;margin-top:4px;font-size:0.9rem;"></div>
+          <div><label style="font-size:0.82rem;color:#555;">วันที่คาดว่าจะได้รับ</label><br>
+            <input id="po-exp" type="date" style="width:100%;padding:8px 10px;border:1.5px solid #dde;border-radius:8px;margin-top:4px;font-size:0.9rem;"></div>
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <label style="font-size:0.86rem;font-weight:600;">รายการสินค้า</label>
+            <button class="btn btn-outline" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__addPOItemRow()">➕ เพิ่มรายการ</button>
+          </div>
+          <table style="font-size:0.84rem;">
+            <thead><tr><th>SKU / ชื่อสินค้า</th><th style="width:90px;">จำนวน</th><th style="width:110px;">ราคา/หน่วย</th><th style="width:36px;"></th></tr></thead>
+            <tbody id="po-items-body">
+              <tr id="po-item-row-0">
+                <td><input data-field="name" type="text" placeholder="ชื่อสินค้า / SKU" style="width:100%;padding:6px 8px;border:1px solid #dde;border-radius:6px;font-size:0.84rem;"></td>
+                <td><input data-field="qty" type="number" min="1" value="1" style="width:100%;padding:6px 8px;border:1px solid #dde;border-radius:6px;font-size:0.84rem;text-align:right;"></td>
+                <td><input data-field="unitPrice" type="number" min="0" value="0" style="width:100%;padding:6px 8px;border:1px solid #dde;border-radius:6px;font-size:0.84rem;text-align:right;"></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.82rem;color:#555;">หมายเหตุ</label><br>
+          <textarea id="po-note" placeholder="หมายเหตุ..." rows="2" style="width:100%;padding:8px 10px;border:1.5px solid #dde;border-radius:8px;margin-top:4px;font-size:0.9rem;resize:vertical;"></textarea>
+        </div>
+        <div id="po-new-msg" class="msg" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-outline" onclick="document.getElementById('po-modal').remove()">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="window.__savePO()">💾 บันทึก PO</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    window.__poItemCount = 1;
+  };
+
+  window.__addPOItemRow = function() {
+    const i = window.__poItemCount++;
+    const tr = document.createElement('tr');
+    tr.id = `po-item-row-${i}`;
+    tr.innerHTML = `
+      <td><input data-field="name" type="text" placeholder="ชื่อสินค้า / SKU" style="width:100%;padding:6px 8px;border:1px solid #dde;border-radius:6px;font-size:0.84rem;"></td>
+      <td><input data-field="qty" type="number" min="1" value="1" style="width:100%;padding:6px 8px;border:1px solid #dde;border-radius:6px;font-size:0.84rem;text-align:right;"></td>
+      <td><input data-field="unitPrice" type="number" min="0" value="0" style="width:100%;padding:6px 8px;border:1px solid #dde;border-radius:6px;font-size:0.84rem;text-align:right;"></td>
+      <td><button onclick="this.closest('tr').remove()" style="border:none;background:none;color:#d23;cursor:pointer;font-size:1rem;padding:4px;">✕</button></td>
+    `;
+    document.getElementById('po-items-body').appendChild(tr);
+  };
+
+  window.__savePO = async function() {
+    const poNumber = document.getElementById('po-num').value.trim();
+    const supplier = document.getElementById('po-sup').value.trim();
+    const orderDate = document.getElementById('po-date').value;
+    const expectedDate = document.getElementById('po-exp').value;
+    const note = document.getElementById('po-note').value.trim();
+    const msg = document.getElementById('po-new-msg');
+
+    if (!supplier) { msg.textContent = '⚠️ กรุณากรอกชื่อซัพพลายเออร์'; msg.className='msg error'; return; }
+
+    const rows = document.querySelectorAll('#po-items-body tr');
+    const items = [];
+    for (const row of rows) {
+      const name = row.querySelector('[data-field="name"]')?.value.trim();
+      const qty = Number(row.querySelector('[data-field="qty"]')?.value || 0);
+      const unitPrice = Number(row.querySelector('[data-field="unitPrice"]')?.value || 0);
+      if (!name) continue;
+      if (qty <= 0) { msg.textContent = `⚠️ "${name}" จำนวนต้องมากกว่า 0`; msg.className='msg error'; return; }
+      items.push({ name, qty, unitPrice, receivedQty: 0 });
+    }
+    if (!items.length) { msg.textContent = '⚠️ กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ'; msg.className='msg error'; return; }
+
+    msg.textContent = '⏳ กำลังบันทึก...'; msg.className='msg';
+    try {
+      await addDoc(collection(db,'purchaseOrders'), {
+        poNumber: poNumber || `PO-${Date.now().toString(36).toUpperCase()}`,
+        supplier, orderDate, expectedDate, note, items,
+        status: 'pending',
+        createdBy: profile.name || profile.email,
+        createdAtServer: serverTimestamp(),
+      });
+      document.getElementById('po-modal').remove();
+      _showToast('สร้าง PO สำเร็จ');
+      renderPO();
+    } catch(e) {
+      msg.textContent = `❌ บันทึกไม่สำเร็จ: ${e.message}`; msg.className='msg error';
+    }
+  };
+
+  // ─── รับสินค้าเข้า ────────────────────────────────────────────────
+  window.__openReceivePO = async function(poId) {
+    const snap = await getDoc(doc(db,'purchaseOrders',poId));
+    if (!snap.exists()) { alert('ไม่พบ PO'); return; }
+    const po = { _id: snap.id, ...snap.data() };
+
+    const ov = document.createElement('div');
+    ov.id = 'po-recv-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px;';
+
+    const itemRows = (po.items||[]).map((it,i) => {
+      const remaining = it.qty - (it.receivedQty||0);
+      return `<tr>
+        <td>${escPO(it.name)}</td>
+        <td style="text-align:center;">${it.qty}</td>
+        <td style="text-align:center;color:#1a8a3a;">${it.receivedQty||0}</td>
+        <td style="text-align:center;color:${remaining>0?'#b8740a':'#1a8a3a'};font-weight:600;">${remaining}</td>
+        <td><input type="number" id="recv-qty-${i}" min="0" max="${remaining}" value="${remaining}"
+          style="width:80px;padding:6px 8px;border:1.5px solid ${remaining>0?'#1a73e8':'#ccc'};border-radius:6px;font-size:0.9rem;text-align:right;"
+          ${remaining<=0?'disabled':''}></td>
+      </tr>`;
+    }).join('');
+
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:620px;width:100%;max-height:92dvh;overflow:auto;padding:22px 24px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <h3 style="margin:0;font-size:1.05rem;">📥 รับสินค้าเข้า — ${escPO(po.poNumber||po._id.slice(-6))}</h3>
+          <button onclick="document.getElementById('po-recv-modal').remove()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div style="font-size:0.82rem;color:#666;margin-bottom:16px;">ซัพพลายเออร์: <b>${escPO(po.supplier||'-')}</b></div>
+        <table style="font-size:0.84rem;margin-bottom:14px;">
+          <thead><tr><th>สินค้า</th><th style="text-align:center;">สั่ง</th><th style="text-align:center;">รับแล้ว</th><th style="text-align:center;">คงเหลือ</th><th style="text-align:center;">รับครั้งนี้</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <div style="margin-bottom:12px;">
+          <label style="font-size:0.82rem;color:#555;">หมายเหตุการรับสินค้า</label><br>
+          <input id="recv-note" type="text" placeholder="หมายเหตุ..." style="width:100%;padding:8px 10px;border:1.5px solid #dde;border-radius:8px;margin-top:4px;font-size:0.9rem;">
+        </div>
+        <div id="po-recv-msg" class="msg" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="document.getElementById('po-recv-modal').remove()">ยกเลิก</button>
+          <button class="btn btn-success" onclick="window.__confirmReceivePO('${poId}')">✔ ยืนยันรับสินค้า</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+    window.__currentReceivePO = po;
+  };
+
+  window.__confirmReceivePO = async function(poId) {
+    const po = window.__currentReceivePO;
+    if (!po) return;
+    const msg = document.getElementById('po-recv-msg');
+    const note = document.getElementById('recv-note')?.value.trim() || '';
+
+    const updatedItems = (po.items||[]).map((it,i) => {
+      const inp = document.getElementById(`recv-qty-${i}`);
+      const recvNow = Math.min(Number(inp?.value||0), it.qty - (it.receivedQty||0));
+      return { ...it, receivedQty: (it.receivedQty||0) + Math.max(0, recvNow) };
+    });
+
+    const allReceived = updatedItems.every(it => it.receivedQty >= it.qty);
+    const anyReceived = updatedItems.some(it => it.receivedQty > 0);
+    const newStatus = allReceived ? 'received' : (anyReceived ? 'partial' : 'pending');
+
+    msg.textContent = '⏳ กำลังบันทึก...'; msg.className='msg';
+    try {
+      await updateDoc(doc(db,'purchaseOrders',poId), {
+        items: updatedItems,
+        status: newStatus,
+        ...(note ? { receiveNote: note } : {}),
+        ...(allReceived ? { receivedAt: todayISO8() } : {}),
+        lastReceivedAtServer: serverTimestamp(),
+      });
+      document.getElementById('po-recv-modal').remove();
+      _showToast(allReceived ? '✅ รับสินค้าครบแล้ว!' : '📥 บันทึกการรับสินค้าสำเร็จ');
+      renderPO();
+    } catch(e) {
+      msg.textContent = `❌ บันทึกไม่สำเร็จ: ${e.message}`; msg.className='msg error';
+    }
+  };
+
+  // ─── ดูรายละเอียด PO ─────────────────────────────────────────────
+  window.__viewPO = async function(poId) {
+    const snap = await getDoc(doc(db,'purchaseOrders',poId));
+    if (!snap.exists()) { alert('ไม่พบ PO'); return; }
+    const po = { _id: snap.id, ...snap.data() };
+    const st = PO_STATUS[po.status] || PO_STATUS.pending;
+    const total = (po.items||[]).reduce((s,it) => s + (Number(it.unitPrice||0)*Number(it.qty||0)), 0);
+
+    const ov = document.createElement('div');
+    ov.id = 'po-view-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,28,50,0.55);z-index:999;display:flex;align-items:center;justify-content:center;padding:14px;';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:620px;width:100%;max-height:92dvh;overflow:auto;padding:22px 24px;box-sizing:border-box;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <h3 style="margin:0;font-size:1.05rem;">🔍 ${escPO(po.poNumber||po._id.slice(-6))}</h3>
+          <button onclick="document.getElementById('po-view-modal').remove()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:0.84rem;color:#555;margin-bottom:16px;">
+          <span>ซัพพลายเออร์: <b style="color:#222;">${escPO(po.supplier||'-')}</b></span>
+          <span>สั่งวันที่: <b style="color:#222;">${escPO(po.orderDate||'-')}</b></span>
+          <span>คาดรับ: <b style="color:#222;">${escPO(po.expectedDate||'-')}</b></span>
+          ${po.receivedAt ? `<span>รับครบวันที่: <b style="color:#1a8a3a;">${escPO(po.receivedAt)}</b></span>` : ''}
+          <span>สถานะ: <span class="badge ${st.cls}">${st.label}</span></span>
+        </div>
+        <table style="font-size:0.84rem;margin-bottom:14px;">
+          <thead><tr><th>สินค้า</th><th style="text-align:center;">สั่ง</th><th style="text-align:right;">ราคา/หน่วย</th><th style="text-align:right;">มูลค่า</th><th style="text-align:center;">รับแล้ว</th><th style="text-align:center;">คงเหลือ</th></tr></thead>
+          <tbody>
+            ${(po.items||[]).map(it => {
+              const rem = it.qty-(it.receivedQty||0);
+              return `<tr>
+                <td>${escPO(it.name)}</td>
+                <td style="text-align:center;">${it.qty}</td>
+                <td style="text-align:right;">${fmtPO(it.unitPrice)}</td>
+                <td style="text-align:right;font-weight:600;">${fmtPO(it.qty*Number(it.unitPrice||0))}</td>
+                <td style="text-align:center;color:#1a8a3a;">${it.receivedQty||0}</td>
+                <td style="text-align:center;color:${rem>0?'#b8740a':'#1a8a3a'};font-weight:600;">${rem}</td>
+              </tr>`;
+            }).join('')}
+            <tr style="background:#f8f9ff;">
+              <td colspan="3" style="font-weight:700;text-align:right;">รวมมูลค่า</td>
+              <td style="text-align:right;font-weight:700;color:#1a237e;">฿${fmtPO(total)}</td>
+              <td colspan="2"></td>
+            </tr>
+          </tbody>
+        </table>
+        ${po.note ? `<div style="font-size:0.83rem;color:#666;">หมายเหตุ: ${escPO(po.note)}</div>` : ''}
+        ${po.receiveNote ? `<div style="font-size:0.83rem;color:#666;margin-top:4px;">หมายเหตุรับสินค้า: ${escPO(po.receiveNote)}</div>` : ''}
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
+          ${po.status !== 'received' && po.status !== 'cancelled' ? `
+            <button class="btn btn-success" data-id="${po._id}"
+              onclick="document.getElementById('po-view-modal').remove(); window.__openReceivePO('${po._id}')">
+              📥 รับสินค้า
+            </button>` : ''}
+          ${po.status !== 'received' ? `
+            <button class="btn btn-outline" style="color:#d23;border-color:#d23;"
+              onclick="window.__cancelPO('${po._id}')">ยกเลิก PO</button>` : ''}
+          <button class="btn btn-outline" onclick="document.getElementById('po-view-modal').remove()">ปิด</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+  };
+
+  window.__cancelPO = async function(poId) {
+    if (!confirm('ยืนยันยกเลิก PO นี้?')) return;
+    await updateDoc(doc(db,'purchaseOrders',poId), { status: 'cancelled' });
+    document.getElementById('po-view-modal')?.remove();
+    _showToast('ยกเลิก PO แล้ว');
+    renderPO();
+  };
+
+  function _showToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a73e8;color:#fff;padding:10px 22px;border-radius:10px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,.18);z-index:9999;pointer-events:none;';
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2800);
   }
 </script>
 </html>

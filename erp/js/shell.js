@@ -36,6 +36,9 @@ const NAV = {
       { key: 'documents',  label: 'เอกสารขาย / ขนส่ง',               href: 'dashboard-admin.html#documents' },
       { key: 'routing',    label: 'จัดรูทขนส่ง / คัตออฟ',             href: 'dashboard-admin.html#routing' },
     ]},
+    { groupKey: 'purchase', icon: '🛒', label: 'จัดซื้อ', items: [
+      { key: 'po',         label: 'ใบสั่งซื้อ (PO)',                  href: 'dashboard-admin.html#po' },
+    ]},
     { groupKey: 'team', icon: '👥', label: 'ทีม', items: [
       { key: 'users',      label: 'จัดการผู้ใช้งาน & สิทธิ์',         href: 'dashboard-admin.html#users' },
     ]},
