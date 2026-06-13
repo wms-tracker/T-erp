@@ -28,10 +28,15 @@ const NAV = {
       { key: 'stock',      label: 'จัดการสต๊อกสินค้า',                href: 'dashboard-warehouse.html#stock' },
       { key: 'cyclecount', label: 'ตรวจนับสต๊อก (Cycle Count)',       href: 'dashboard-warehouse.html#cyclecount' },
     ]},
+    { groupKey: 'picking-mgmt', icon: '🗂', label: 'กลุ่มหยิบ', items: [
+      { key: 'picking-strategy', label: '⚙️ กลยุทธ์จัดกลุ่ม',        href: 'dashboard-warehouse.html#picking-strategy' },
+      { key: 'picking-groups',   label: '📋 กลุ่มงานหยิบ (PG)',       href: 'dashboard-warehouse.html#picking-groups' },
+    ]},
     { groupKey: 'pipeline', icon: '🔄', label: 'ออเดอร์', items: [
-      { key: 'picking',    label: '🛒 หยิบสินค้า (Picking)',           href: 'dashboard-warehouse.html#picking' },
-      { key: 'qc',         label: '✅ ตรวจสอบ QC',                    href: 'dashboard-warehouse.html#qc' },
-      { key: 'outbound',   label: '🚚 จัดส่งสินค้า (Outbound)',        href: 'dashboard-warehouse.html#outbound' },
+      { key: 'picking',           label: '🛒 หยิบสินค้า (Picking)',           href: 'dashboard-warehouse.html#picking' },
+      { key: 'verification',      label: '🔍 ตรวจสอบสินค้า',                  href: 'dashboard-warehouse.html#verification' },
+      { key: 'verification-scan', label: '📱 สแกน PDA Mode',                  href: 'dashboard-warehouse.html#verification-scan' },
+      { key: 'outbound',          label: '🚚 จัดส่งสินค้า (Outbound)',         href: 'dashboard-warehouse.html#outbound' },
     ]},
   ],
   admin: [

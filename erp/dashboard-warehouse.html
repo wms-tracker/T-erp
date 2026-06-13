@@ -20,6 +20,8 @@
   const SECTIONS = {
     'manifest-create':   { title: '🆕 สร้างกำกับสินค้า' },
     'manifest':          { title: '📂 จัดการกำกับสินค้า' },
+    'picking-strategy':  { title: '⚙️ กลยุทธ์จัดกลุ่มออเดอร์' },
+    'picking-groups':    { title: '🗂 กลุ่มงานหยิบสินค้า (Picking Groups)' },
     'verification':      { title: '🔍 ตรวจสอบสินค้า (Verification Dashboard)' },
     'verification-scan': { title: '📱 สแกน QC — PDA Mode' },
     inbound:    { title: '📥 รับสินค้าเข้า (Inbound)',        desc: 'บันทึกสินค้าที่รับเข้าคลังจากผู้ผลิต/ซัพพลายเออร์ พร้อมจำนวนและหมายเหตุอ้างอิง — ระบบจะอัปเดตยอดคงเหลือให้อัตโนมัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
@@ -52,6 +54,8 @@
   const RENDERERS = {
     'manifest-create':   renderManifestCreate,
     'manifest':          renderManifestList,
+    'picking-strategy':  renderPickingStrategy,
+    'picking-groups':    renderPickingGroups,
     'verification':      renderVerificationDashboard,
     'verification-scan': renderVerificationScan,
     stock: renderStock,
@@ -2446,7 +2450,6 @@
     if (!confirm('ยืนยันยกเลิกกำกับสินค้านี้? ออเดอร์จะกลับไปรอหยิบตามปกติ')) return;
     try {
       await updateDoc(doc(db,'manifests',docId), { status:'cancelled', updatedAt: serverTimestamp() });
-      // ล้าง manifestId ออกจากออเดอร์
       const mSnap = await getDoc(doc(db,'manifests',docId));
       for (const oid of (mSnap.data()?.orderIds||[])) {
         try { await updateDoc(doc(db,'orders',oid), { manifestId: null, updatedAt: serverTimestamp() }); } catch(e) {}
@@ -2455,6 +2458,658 @@
       toast('ยกเลิกกำกับแล้ว');
       renderManifestList();
     } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  // ===================================================================
+  // ⚙️ PICKING STRATEGY MANAGER
+  // ===================================================================
+  const REGION_MAP = {
+    'กรุงเทพมหานคร':'กรุงเทพฯ',
+    'นนทบุรี':'ปริมณฑล','ปทุมธานี':'ปริมณฑล','สมุทรปราการ':'ปริมณฑล','สมุทรสาคร':'ปริมณฑล','นครปฐม':'ปริมณฑล',
+    'เชียงใหม่':'ภาคเหนือ','เชียงราย':'ภาคเหนือ','ลำปาง':'ภาคเหนือ','ลำพูน':'ภาคเหนือ',
+    'แม่ฮ่องสอน':'ภาคเหนือ','แพร่':'ภาคเหนือ','น่าน':'ภาคเหนือ','พะเยา':'ภาคเหนือ','อุตรดิตถ์':'ภาคเหนือ',
+    'พิษณุโลก':'ภาคกลาง','พิจิตร':'ภาคกลาง','เพชรบูรณ์':'ภาคกลาง','นครสวรรค์':'ภาคกลาง',
+    'อุทัยธานี':'ภาคกลาง','กำแพงเพชร':'ภาคกลาง','ตาก':'ภาคกลาง','สุโขทัย':'ภาคกลาง',
+    'พระนครศรีอยุธยา':'ภาคกลาง','สระบุรี':'ภาคกลาง','ลพบุรี':'ภาคกลาง','สิงห์บุรี':'ภาคกลาง',
+    'ชัยนาท':'ภาคกลาง','อ่างทอง':'ภาคกลาง','สมุทรสงคราม':'ภาคกลาง','เพชรบุรี':'ภาคกลาง',
+    'ราชบุรี':'ภาคกลาง','กาญจนบุรี':'ภาคกลาง','สุพรรณบุรี':'ภาคกลาง','ประจวบคีรีขันธ์':'ภาคกลาง',
+    'สุราษฎร์ธานี':'ภาคใต้','ภูเก็ต':'ภาคใต้','นครศรีธรรมราช':'ภาคใต้','กระบี่':'ภาคใต้',
+    'พังงา':'ภาคใต้','ระนอง':'ภาคใต้','ชุมพร':'ภาคใต้','สงขลา':'ภาคใต้',
+    'สตูล':'ภาคใต้','ตรัง':'ภาคใต้','พัทลุง':'ภาคใต้','ปัตตานี':'ภาคใต้','ยะลา':'ภาคใต้','นราธิวาส':'ภาคใต้',
+    'ชลบุรี':'ภาคตะวันออก','ระยอง':'ภาคตะวันออก','จันทบุรี':'ภาคตะวันออก','ตราด':'ภาคตะวันออก',
+    'ฉะเชิงเทรา':'ภาคตะวันออก','ปราจีนบุรี':'ภาคตะวันออก','สระแก้ว':'ภาคตะวันออก','นครนายก':'ภาคตะวันออก',
+    'นครราชสีมา':'ภาคตะวันออกเฉียงเหนือ','บุรีรัมย์':'ภาคตะวันออกเฉียงเหนือ',
+    'สุรินทร์':'ภาคตะวันออกเฉียงเหนือ','ศรีสะเกษ':'ภาคตะวันออกเฉียงเหนือ',
+    'อุบลราชธานี':'ภาคตะวันออกเฉียงเหนือ','ยโสธร':'ภาคตะวันออกเฉียงเหนือ',
+    'ชัยภูมิ':'ภาคตะวันออกเฉียงเหนือ','อำนาจเจริญ':'ภาคตะวันออกเฉียงเหนือ',
+    'ขอนแก่น':'ภาคตะวันออกเฉียงเหนือ','อุดรธานี':'ภาคตะวันออกเฉียงเหนือ',
+    'หนองคาย':'ภาคตะวันออกเฉียงเหนือ','เลย':'ภาคตะวันออกเฉียงเหนือ',
+    'สกลนคร':'ภาคตะวันออกเฉียงเหนือ','นครพนม':'ภาคตะวันออกเฉียงเหนือ',
+    'มุกดาหาร':'ภาคตะวันออกเฉียงเหนือ','กาฬสินธุ์':'ภาคตะวันออกเฉียงเหนือ',
+    'มหาสารคาม':'ภาคตะวันออกเฉียงเหนือ','ร้อยเอ็ด':'ภาคตะวันออกเฉียงเหนือ',
+    'หนองบัวลำภู':'ภาคตะวันออกเฉียงเหนือ','บึงกาฬ':'ภาคตะวันออกเฉียงเหนือ',
+  };
+  function getRegion(province) { return REGION_MAP[province] || 'อื่นๆ'; }
+
+  function matchesStrategy(order, conditions) {
+    if (!conditions || !conditions.length) return false;
+    return conditions.every(c => {
+      switch(c.field) {
+        case 'carrier': return (order.shipping?.carrier||'') === c.value;
+        case 'channel': return (order.channel||'') === c.value;
+        case 'region':  return getRegion(order.customer?.province) === c.value;
+        case 'skuType': {
+          const skus = new Set((order.items||[]).map(i => i.sku||i.model));
+          return c.value === 'single' ? skus.size <= 1 : skus.size > 1;
+        }
+        default: return true;
+      }
+    });
+  }
+
+  async function getNextPgId() {
+    const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+    const counterRef = doc(db,'counters','pgCounter');
+    const next = await runTransaction(db, async tx => {
+      const snap = await tx.get(counterRef);
+      const curr = snap.exists() ? snap.data() : {};
+      const count = curr.date === today ? (curr.value||0)+1 : 1;
+      tx.set(counterRef, { date: today, value: count });
+      return count;
+    });
+    return `PG-${today}-${String(next).padStart(3,'0')}`;
+  }
+
+  function condLabel(c) {
+    const fLabels = { carrier:'ขนส่ง', channel:'ช่องทาง', region:'พื้นที่', skuType:'ประเภท SKU' };
+    const vLabels = { single:'1 SKU', multi:'หลาย SKU' };
+    return `${fLabels[c.field]||c.field}: ${vLabels[c.value]||c.value}`;
+  }
+
+  const COND_VALUES = {
+    carrier: ['Best Express','Flash Express','Kerry','DHL','ไปรษณีย์ไทย (Thailand Post)','J&T Express','Ninja Van','อื่นๆ'],
+    channel: ['Facebook','Line','Instagram','Shopee','Lazada','TikTok','หน้าร้าน','อื่นๆ'],
+    region:  ['กรุงเทพฯ','ปริมณฑล','ภาคเหนือ','ภาคกลาง','ภาคใต้','ภาคตะวันออก','ภาคตะวันออกเฉียงเหนือ','อื่นๆ'],
+    skuType: ['single','multi'],
+  };
+
+  function condRowHTML(c, i) {
+    const FIELDS = [{v:'carrier',l:'ขนส่ง'},{v:'channel',l:'ช่องทาง'},{v:'region',l:'พื้นที่'},{v:'skuType',l:'ประเภท SKU'}];
+    const fieldSel = FIELDS.map(f=>`<option value="${f.v}" ${c.field===f.v?'selected':''}>${f.l}</option>`).join('');
+    const vals = COND_VALUES[c.field] || COND_VALUES.carrier;
+    const valSel = vals.map(v=>`<option value="${v}" ${c.value===v?'selected':''}>${v==='single'?'1 SKU':v==='multi'?'หลาย SKU':v}</option>`).join('');
+    return `<div class="cond-row" id="cond-${i}" style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+      <select class="cond-field" style="flex:1;padding:7px 8px;border:1.5px solid #dde;border-radius:7px;font-size:0.85rem;font-family:inherit;"
+        onchange="window.__updateCondVals(this,${i})">${fieldSel}</select>
+      <select class="cond-value" style="flex:1;padding:7px 8px;border:1.5px solid #dde;border-radius:7px;font-size:0.85rem;font-family:inherit;">${valSel}</select>
+      <button onclick="document.getElementById('cond-${i}').remove()"
+        style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:0.85rem;">✕</button>
+    </div>`;
+  }
+
+  window.__updateCondVals = function(sel, i) {
+    const row = document.getElementById(`cond-${i}`);
+    const valSel = row?.querySelector('.cond-value');
+    if (!valSel) return;
+    const vals = COND_VALUES[sel.value] || COND_VALUES.carrier;
+    valSel.innerHTML = vals.map(v=>`<option value="${v}">${v==='single'?'1 SKU':v==='multi'?'หลาย SKU':v}</option>`).join('');
+  };
+
+  async function renderPickingStrategy() {
+    main.innerHTML = `<div class="card"><p style="color:#999;text-align:center;padding:20px;">กำลังโหลด...</p></div>`;
+    let strategies = [];
+    try {
+      const snap = await getDocs(query(collection(db,'pickingStrategies'), where('deleted','!=',true)));
+      snap.forEach(d => strategies.push({_id:d.id,...d.data()}));
+      strategies = strategies.filter(s => !s.deleted).sort((a,b) => (a.priority||99)-(b.priority||99));
+    } catch(e) { /* index might not exist yet — load all */ }
+
+    if (!strategies.length) {
+      try {
+        const snap2 = await getDocs(collection(db,'pickingStrategies'));
+        snap2.forEach(d => { const data = d.data(); if (!data.deleted) strategies.push({_id:d.id,...data}); });
+        strategies.sort((a,b) => (a.priority||99)-(b.priority||99));
+      } catch(e2) {}
+    }
+
+    main.innerHTML = `
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div>
+            <h2 style="margin:0;font-size:1.05rem;">⚙️ กลยุทธ์จัดกลุ่มออเดอร์ (${strategies.length} กลยุทธ์)</h2>
+            <p style="font-size:0.82rem;color:#888;margin:4px 0 0;">ระบบจับคู่ออเดอร์กับกลยุทธ์ตามลำดับความสำคัญ แล้วสร้าง Picking Group อัตโนมัติ</p>
+          </div>
+          <button class="btn btn-primary" onclick="window.__openStrategyForm()">+ สร้างกลยุทธ์ใหม่</button>
+        </div>
+      </div>
+
+      ${strategies.length ? `
+      <div class="card">
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th style="width:50px;text-align:center;">ลำดับ</th>
+              <th>ชื่อกลยุทธ์</th>
+              <th>เงื่อนไข</th>
+              <th style="text-align:center;">สูงสุด/กลุ่ม</th>
+              <th style="text-align:center;width:80px;">สถานะ</th>
+              <th style="width:140px;"></th>
+            </tr></thead>
+            <tbody>
+              ${strategies.map((s,i) => `<tr>
+                <td style="text-align:center;">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
+                    ${i>0?`<button onclick="window.__strategyMove('${s._id}','up')" style="background:none;border:none;cursor:pointer;padding:0;font-size:0.85rem;line-height:1.2;color:#888;">▲</button>`:'<span style="font-size:0.85rem;color:transparent;">▲</span>'}
+                    <span style="font-weight:700;color:#1a73e8;font-size:0.95rem;">${s.priority||i+1}</span>
+                    ${i<strategies.length-1?`<button onclick="window.__strategyMove('${s._id}','down')" style="background:none;border:none;cursor:pointer;padding:0;font-size:0.85rem;line-height:1.2;color:#888;">▼</button>`:'<span style="font-size:0.85rem;color:transparent;">▼</span>'}
+                  </div>
+                </td>
+                <td><b style="font-size:0.92rem;">${escV(s.name||'–')}</b></td>
+                <td style="font-size:0.82rem;">
+                  ${(s.conditions||[]).map(c=>`<span style="background:#e8f0fe;color:#1a73e8;padding:2px 8px;border-radius:10px;margin:2px;display:inline-block;font-size:0.77rem;">${condLabel(c)}</span>`).join('')}
+                  ${!(s.conditions||[]).length?'<span style="color:#ccc;font-size:0.8rem;">ไม่มีเงื่อนไข (จับทุก order)</span>':''}
+                </td>
+                <td style="text-align:center;">${s.maxOrders||50}</td>
+                <td style="text-align:center;">
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;justify-content:center;">
+                    <input type="checkbox" ${s.active?'checked':''} onchange="window.__toggleStrategy('${s._id}',this.checked)" />
+                    <span style="font-size:0.78rem;color:${s.active?'#065f46':'#999'};">${s.active?'เปิด':'ปิด'}</span>
+                  </label>
+                </td>
+                <td style="text-align:right;white-space:nowrap;">
+                  <button class="btn btn-outline" style="font-size:0.78rem;padding:4px 10px;" onclick="window.__openStrategyForm('${s._id}')">✏️ แก้ไข</button>
+                  <button style="font-size:0.78rem;padding:4px 10px;background:#fee2e2;color:#991b1b;border:none;border-radius:7px;cursor:pointer;margin-left:4px;" onclick="window.__deleteStrategy('${s._id}')">ลบ</button>
+                </td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>` : `
+      <div class="card" style="text-align:center;padding:36px;color:#aaa;">
+        <div style="font-size:2.5rem;margin-bottom:10px;">⚙️</div>
+        <p style="margin:0 0 8px;font-size:0.95rem;color:#666;">ยังไม่มีกลยุทธ์</p>
+        <p style="margin:0;font-size:0.83rem;">กด "สร้างกลยุทธ์ใหม่" เพื่อกำหนดเงื่อนไขการจัดกลุ่มออเดอร์</p>
+      </div>`}
+    `;
+
+    // --- Strategy Form Modal ---
+    let _condCount = 0;
+    window.__openStrategyForm = async function(docId) {
+      let existing = null;
+      if (docId) {
+        try { const s = await getDoc(doc(db,'pickingStrategies',docId)); if (s.exists()) existing = {_id:s.id,...s.data()}; } catch(e) {}
+      }
+      const conditions = existing?.conditions || [];
+      _condCount = conditions.length;
+
+      const overlay = document.createElement('div');
+      overlay.id = 'strategy-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto;';
+      overlay.innerHTML = `
+        <div style="background:#fff;border-radius:14px;padding:24px;max-width:540px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.22);">
+          <h3 style="margin:0 0 18px;font-size:1rem;">${docId?'✏️ แก้ไข':'➕ สร้าง'}กลยุทธ์จัดกลุ่ม</h3>
+          <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;margin-bottom:14px;">
+            <div class="field"><label>ชื่อกลยุทธ์ *</label>
+              <input id="s-name" value="${escV(existing?.name||'')}" placeholder="เช่น BEST-XL-BKK" style="width:100%;padding:9px 11px;border:1.5px solid #dde;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+            </div>
+            <div class="field"><label>สูงสุดต่อกลุ่ม</label>
+              <input id="s-max" type="number" min="1" max="500" value="${existing?.maxOrders||50}" style="width:100%;padding:9px 11px;border:1.5px solid #dde;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+            </div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <label style="font-size:0.82rem;font-weight:600;color:#555;">เงื่อนไข (ต้องครบทุกข้อ)</label>
+              <button onclick="window.__addCondRow()" style="background:#e8f0fe;color:#1a73e8;border:none;border-radius:6px;padding:5px 12px;font-size:0.8rem;cursor:pointer;font-family:inherit;">+ เพิ่มเงื่อนไข</button>
+            </div>
+            <div id="cond-rows">
+              ${conditions.map((c,i) => condRowHTML(c,i)).join('')}
+              ${!conditions.length?'<p id="cond-empty" style="color:#bbb;font-size:0.82rem;margin:0;padding:8px 0;">ไม่มีเงื่อนไข — กลยุทธ์นี้จะจับทุกออเดอร์ที่ยังไม่ถูกจัดกลุ่ม</p>':''}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;padding-top:10px;border-top:1px solid #eee;">
+            <button onclick="document.getElementById('strategy-overlay').remove()" class="btn btn-outline">ยกเลิก</button>
+            <button onclick="window.__saveStrategy('${docId||''}')" class="btn btn-primary">💾 บันทึก</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      window.__addCondRow = function() {
+        const emptyMsg = document.getElementById('cond-empty');
+        if (emptyMsg) emptyMsg.remove();
+        const rows = document.getElementById('cond-rows');
+        const div = document.createElement('div');
+        div.innerHTML = condRowHTML({field:'carrier',value:'Best Express'}, _condCount);
+        rows.appendChild(div.firstElementChild);
+        _condCount++;
+      };
+    };
+
+    window.__saveStrategy = async function(docId) {
+      const name = document.getElementById('s-name')?.value.trim();
+      if (!name) { alert('กรุณาระบุชื่อกลยุทธ์'); return; }
+      const maxOrders = parseInt(document.getElementById('s-max')?.value)||50;
+      const conditions = [];
+      document.querySelectorAll('.cond-row').forEach(row => {
+        const field = row.querySelector('.cond-field')?.value;
+        const value = row.querySelector('.cond-value')?.value;
+        if (field && value) conditions.push({field, value});
+      });
+      const data = { name, conditions, maxOrders, active: true, updatedAt: serverTimestamp() };
+      try {
+        if (!docId) {
+          const allSnap = await getDocs(collection(db,'pickingStrategies'));
+          data.priority = allSnap.size + 1;
+          data.createdAt = serverTimestamp();
+          data.createdBy = profile.uid;
+          await addDoc(collection(db,'pickingStrategies'), data);
+        } else {
+          await updateDoc(doc(db,'pickingStrategies',docId), data);
+        }
+        document.getElementById('strategy-overlay')?.remove();
+        toast('บันทึกกลยุทธ์แล้ว ✔');
+        renderPickingStrategy();
+      } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+    };
+
+    window.__toggleStrategy = async function(docId, active) {
+      try {
+        await updateDoc(doc(db,'pickingStrategies',docId), { active, updatedAt: serverTimestamp() });
+        toast(active ? '✅ เปิดใช้งานกลยุทธ์แล้ว' : 'ปิดใช้งานกลยุทธ์แล้ว');
+      } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+    };
+
+    window.__deleteStrategy = async function(docId) {
+      if (!confirm('ลบกลยุทธ์นี้?')) return;
+      try {
+        await updateDoc(doc(db,'pickingStrategies',docId), { deleted: true, updatedAt: serverTimestamp() });
+        toast('ลบกลยุทธ์แล้ว');
+        renderPickingStrategy();
+      } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+    };
+
+    window.__strategyMove = async function(docId, dir) {
+      try {
+        const allSnap = await getDocs(collection(db,'pickingStrategies'));
+        const all = [];
+        allSnap.forEach(d => { if (!d.data().deleted) all.push({_id:d.id,...d.data()}); });
+        all.sort((a,b) => (a.priority||99)-(b.priority||99));
+        const idx = all.findIndex(s => s._id === docId);
+        const swapIdx = dir === 'up' ? idx-1 : idx+1;
+        if (swapIdx < 0 || swapIdx >= all.length) return;
+        const p1 = all[idx].priority||idx+1;
+        const p2 = all[swapIdx].priority||swapIdx+1;
+        await updateDoc(doc(db,'pickingStrategies',all[idx]._id), { priority: p2 });
+        await updateDoc(doc(db,'pickingStrategies',all[swapIdx]._id), { priority: p1 });
+        renderPickingStrategy();
+      } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+    };
+  }
+
+  // ===================================================================
+  // 🗂 PICKING GROUPS DASHBOARD
+  // ===================================================================
+  function pgStatusBadge(s) {
+    const map = {
+      pending:   { bg:'#fef3c7', color:'#92400e', label:'รอดำเนินการ' },
+      assigned:  { bg:'#ede9fe', color:'#5b21b6', label:'มอบหมายแล้ว' },
+      picking:   { bg:'#dbeafe', color:'#1e40af', label:'กำลังหยิบ' },
+      completed: { bg:'#d1fae5', color:'#065f46', label:'เสร็จแล้ว' },
+      cancelled: { bg:'#f3f4f6', color:'#6b7280', label:'ยกเลิก' },
+    };
+    const c = map[s] || { bg:'#f0f0f0', color:'#555', label: s||'–' };
+    return `<span style="background:${c.bg};color:${c.color};padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:600;">${c.label}</span>`;
+  }
+
+  async function renderPickingGroups() {
+    main.innerHTML = `<div class="card"><p style="color:#999;text-align:center;padding:20px;">กำลังโหลด...</p></div>`;
+    try {
+      // load groups and ungrouped orders in parallel
+      const [pgSnap, orderSnap] = await Promise.all([
+        getDocs(query(collection(db,'pickingGroups'), limit(200))),
+        getDocs(query(collection(db,'orders'), where('warehouseStage','==','รอหยิบสินค้า'))),
+      ]);
+
+      let groups = [];
+      pgSnap.forEach(d => groups.push({_id:d.id,...d.data()}));
+      groups.sort((a,b) => (b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+
+      let ungrouped = [];
+      orderSnap.forEach(d => { const data = d.data(); if (!data.pickingGroupId) ungrouped.push({_id:d.id,...data}); });
+
+      const total     = groups.length;
+      const pending   = groups.filter(g => g.status==='pending').length;
+      const assigned  = groups.filter(g => g.status==='assigned').length;
+      const picking   = groups.filter(g => g.status==='picking').length;
+      const completed = groups.filter(g => g.status==='completed').length;
+
+      main.innerHTML = `
+        <!-- KPI -->
+        <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:14px;">
+          ${[
+            ['🗂','ทั้งหมด',total,'#1a73e8'],
+            ['⏳','รอดำเนินการ',pending,'#d97706'],
+            ['👤','มอบหมายแล้ว',assigned,'#7c3aed'],
+            ['🔄','กำลังหยิบ',picking,'#0891b2'],
+            ['✅','เสร็จแล้ว',completed,'#065f46'],
+            ['🆕','ยังไม่จัดกลุ่ม',ungrouped.length,'#b91c1c'],
+          ].map(([icon,label,val,color])=>`
+            <div class="card" style="text-align:center;padding:14px 8px;">
+              <div style="font-size:1.4rem;">${icon}</div>
+              <div style="font-size:1.7rem;font-weight:700;color:${color};">${val}</div>
+              <div style="font-size:0.76rem;color:#888;">${label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Action bar -->
+        <div class="card" style="margin-bottom:14px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-primary" id="btn-autogroup" onclick="window.__autoGroup()">
+              🤖 Auto-Group (${ungrouped.length} ออเดอร์รอ)
+            </button>
+            <button class="btn btn-outline" onclick="renderPickingGroups()">🔄 รีเฟรช</button>
+            <select id="pg-filter-status" onchange="window.__pgFilter()"
+              style="padding:8px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.88rem;font-family:inherit;">
+              <option value="">— ทุกสถานะ —</option>
+              <option value="pending">รอดำเนินการ</option>
+              <option value="assigned">มอบหมายแล้ว</option>
+              <option value="picking">กำลังหยิบ</option>
+              <option value="completed">เสร็จแล้ว</option>
+              <option value="cancelled">ยกเลิก</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Groups Table -->
+        <div class="card">
+          <div style="overflow-x:auto;">
+            <table>
+              <thead><tr>
+                <th>PG ID</th>
+                <th>กลยุทธ์</th>
+                <th style="text-align:center;">ออเดอร์</th>
+                <th>ขนส่ง</th>
+                <th>ผู้หยิบ</th>
+                <th>สถานะ</th>
+                <th style="font-size:0.8rem;color:#888;">วันที่</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="pg-rows">${renderPgRows(groups)}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      window._pgAll = groups;
+      window.__pgFilter = function() {
+        const st = document.getElementById('pg-filter-status')?.value||'';
+        document.getElementById('pg-rows').innerHTML = renderPgRows(st ? window._pgAll.filter(g=>g.status===st) : window._pgAll);
+      };
+
+    } catch(err) {
+      main.innerHTML = `<div class="card" style="color:#d23;">โหลดไม่สำเร็จ: ${err.message}</div>`;
+    }
+  }
+
+  function renderPgRows(groups) {
+    if (!groups.length) return `<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ยังไม่มีกลุ่มงาน</td></tr>`;
+    return groups.map(g => {
+      const d = g.createdAt?.seconds ? new Date(g.createdAt.seconds*1000).toLocaleDateString('th-TH',{day:'2-digit',month:'short'}) : '–';
+      return `<tr>
+        <td class="mono" style="font-weight:700;font-size:0.84rem;">${escV(g.pgId||g._id)}</td>
+        <td style="font-size:0.82rem;">${escV(g.strategyName||'Manual')}</td>
+        <td style="text-align:center;font-weight:600;">${g.orderCount||0}</td>
+        <td style="font-size:0.82rem;">${escV(g.carrier||'–')}</td>
+        <td style="font-size:0.82rem;">${escV(g.assignedToName||'–')}</td>
+        <td>${pgStatusBadge(g.status)}</td>
+        <td style="font-size:0.8rem;color:#888;">${d}</td>
+        <td style="white-space:nowrap;text-align:right;">
+          ${g.status==='pending'   ? `<button class="btn btn-outline" style="font-size:0.78rem;padding:4px 8px;" onclick="window.__openAssignPicker('${g._id}')">👤 มอบหมาย</button>` : ''}
+          ${g.status==='assigned'  ? `<button class="btn btn-primary" style="font-size:0.78rem;padding:4px 8px;" onclick="window.__startPG('${g._id}')">▶ เริ่มหยิบ</button>` : ''}
+          ${g.status==='picking'   ? `<button class="btn btn-success" style="font-size:0.78rem;padding:4px 8px;" onclick="window.__completePG('${g._id}')">✔ เสร็จแล้ว</button>` : ''}
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:4px 8px;margin-left:3px;" onclick="window.__printPickingList('${g._id}')">🖨 ใบหยิบ</button>
+          <button class="btn btn-outline" style="font-size:0.78rem;padding:4px 8px;margin-left:3px;" onclick="window.__printLabels('${g._id}')">🏷 ใบปะหน้า</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // --- Auto-Grouping Engine ---
+  window.__autoGroup = async function() {
+    const btn = document.getElementById('btn-autogroup');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ กำลังจัดกลุ่ม...'; }
+    try {
+      // 1. Load active strategies
+      let strategies = [];
+      try {
+        const snap = await getDocs(query(collection(db,'pickingStrategies'), where('active','==',true)));
+        snap.forEach(d => strategies.push({_id:d.id,...d.data()}));
+      } catch(e) {
+        const snap = await getDocs(collection(db,'pickingStrategies'));
+        snap.forEach(d => { const data = d.data(); if (data.active && !data.deleted) strategies.push({_id:d.id,...data}); });
+      }
+      strategies = strategies.filter(s => !s.deleted).sort((a,b) => (a.priority||99)-(b.priority||99));
+      if (!strategies.length) { toast('⚠ ไม่มีกลยุทธ์ที่เปิดใช้งาน — กรุณาสร้างกลยุทธ์ก่อน'); if(btn){btn.disabled=false;btn.textContent='🤖 Auto-Group';} return; }
+
+      // 2. Load ungrouped orders
+      const orderSnap = await getDocs(query(collection(db,'orders'), where('warehouseStage','==','รอหยิบสินค้า')));
+      const orders = [];
+      orderSnap.forEach(d => { const data = d.data(); if (!data.pickingGroupId) orders.push({_id:d.id,...data}); });
+      if (!orders.length) { toast('ไม่มีออเดอร์ที่รอจัดกลุ่ม'); if(btn){btn.disabled=false;btn.textContent='🤖 Auto-Group';} return; }
+
+      // 3. Match orders to strategies
+      const assigned = new Set();
+      const groupMap = {};
+      for (const strategy of strategies) {
+        for (const order of orders) {
+          if (assigned.has(order._id)) continue;
+          if (matchesStrategy(order, strategy.conditions)) {
+            if (!groupMap[strategy._id]) groupMap[strategy._id] = [];
+            groupMap[strategy._id].push(order);
+            assigned.add(order._id);
+          }
+        }
+      }
+
+      // 4. Create PG documents
+      let created = 0;
+      for (const [stratId, groupOrders] of Object.entries(groupMap)) {
+        const strategy = strategies.find(s => s._id === stratId);
+        const maxOrders = strategy?.maxOrders || 50;
+        for (let i = 0; i < groupOrders.length; i += maxOrders) {
+          const chunk = groupOrders.slice(i, i + maxOrders);
+          const pgId = await getNextPgId();
+          const pgRef = await addDoc(collection(db,'pickingGroups'), {
+            pgId, strategyId: stratId,
+            strategyName: strategy?.name||'–',
+            orderIds: chunk.map(o=>o._id),
+            orderDisplayIds: chunk.map(o=>o.id||o._id),
+            orderCount: chunk.length,
+            carrier: chunk[0]?.shipping?.carrier||'–',
+            status: 'pending',
+            createdAt: serverTimestamp(),
+            createdBy: profile.uid,
+            createdByName: profile.name||profile.email||'–',
+          });
+          for (const order of chunk) {
+            try { await updateDoc(doc(db,'orders',order._id), { pickingGroupId: pgRef.id, pickingGroupPgId: pgId, updatedAt: serverTimestamp() }); } catch(e) {}
+          }
+          created++;
+        }
+      }
+      toast(`✅ สร้าง ${created} กลุ่มงานหยิบ จาก ${assigned.size} ออเดอร์`);
+      renderPickingGroups();
+    } catch(err) {
+      alert('Auto-group ไม่สำเร็จ: '+err.message);
+      if (btn) { btn.disabled=false; btn.textContent='🤖 Auto-Group'; }
+    }
+  };
+
+  // --- Picker Assignment ---
+  window.__openAssignPicker = async function(pgDocId) {
+    let users = [];
+    try {
+      const snap = await getDocs(query(collection(db,'users'), where('role','==','warehouse')));
+      snap.forEach(d => users.push({_id:d.id,...d.data()}));
+    } catch(e) {}
+
+    const overlay = document.createElement('div');
+    overlay.id = 'assign-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:24px;max-width:400px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.22);">
+        <h3 style="margin:0 0 16px;font-size:1rem;">👤 มอบหมายงานหยิบสินค้า</h3>
+        <div class="field">
+          <label>เลือกผู้หยิบสินค้า</label>
+          <select id="picker-sel" style="width:100%;padding:9px 12px;border:1.5px solid #dde;border-radius:8px;font-size:0.9rem;font-family:inherit;">
+            <option value="">— เลือก —</option>
+            ${users.map(u=>`<option value="${u._id}" data-name="${escV(u.name||u.email)}">${escV(u.name||u.email)}</option>`).join('')}
+          </select>
+        </div>
+        ${!users.length?'<p style="font-size:0.82rem;color:#f59e0b;margin-top:6px;">⚠ ไม่พบพนักงานคลัง — สามารถพิมพ์ชื่อด้านล่าง</p>':''}
+        <div class="field" style="margin-top:10px;">
+          <label>หรือพิมพ์ชื่อผู้หยิบ</label>
+          <input id="picker-name-inp" placeholder="ชื่อผู้หยิบสินค้า" style="width:100%;padding:9px 12px;border:1.5px solid #dde;border-radius:8px;font-size:0.9rem;font-family:inherit;" />
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;">
+          <button onclick="document.getElementById('assign-overlay').remove()" class="btn btn-outline">ยกเลิก</button>
+          <button onclick="window.__confirmAssign('${pgDocId}')" class="btn btn-primary">✔ มอบหมาย</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+  };
+
+  window.__confirmAssign = async function(pgDocId) {
+    const sel = document.getElementById('picker-sel');
+    const uid = sel?.value;
+    const nameFromSel = sel?.options[sel.selectedIndex]?.dataset.name;
+    const nameFromInp = document.getElementById('picker-name-inp')?.value.trim();
+    const name = nameFromInp || nameFromSel || '';
+    if (!name) { alert('กรุณาเลือกหรือพิมพ์ชื่อผู้หยิบ'); return; }
+    try {
+      await updateDoc(doc(db,'pickingGroups',pgDocId), {
+        status:'assigned', assignedTo: uid||null, assignedToName: name,
+        assignedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      document.getElementById('assign-overlay')?.remove();
+      toast('มอบหมายงานแล้ว ✔');
+      renderPickingGroups();
+    } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  window.__startPG = async function(pgDocId) {
+    try {
+      await updateDoc(doc(db,'pickingGroups',pgDocId), { status:'picking', startedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      toast('เริ่มหยิบสินค้าแล้ว');
+      renderPickingGroups();
+    } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  window.__completePG = async function(pgDocId) {
+    if (!confirm('ยืนยันว่าหยิบสินค้าครบแล้ว?\nออเดอร์ทั้งหมดจะเข้าสู่ขั้นตอน QC ตรวจสอบ')) return;
+    try {
+      const snap = await getDoc(doc(db,'pickingGroups',pgDocId));
+      const pg = snap.data();
+      await updateDoc(doc(db,'pickingGroups',pgDocId), { status:'completed', completedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      for (const oid of (pg.orderIds||[])) {
+        try { await updateDoc(doc(db,'orders',oid), { warehouseStage:'รอตรวจสอบ QC', updatedAt: serverTimestamp() }); } catch(e) {}
+      }
+      toast('✅ เสร็จสิ้น — ออเดอร์เข้า QC แล้ว');
+      renderPickingGroups();
+    } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  // --- Print Picking List ---
+  window.__printPickingList = async function(pgDocId) {
+    try {
+      const pgSnap = await getDoc(doc(db,'pickingGroups',pgDocId));
+      if (!pgSnap.exists()) { alert('ไม่พบข้อมูลกลุ่ม'); return; }
+      const pg = pgSnap.data();
+      const orders = [];
+      for (const oid of (pg.orderIds||[])) {
+        try { const s = await getDoc(doc(db,'orders',oid)); if(s.exists()) orders.push({_id:s.id,...s.data()}); } catch(e) {}
+      }
+      const totalItems = orders.reduce((s,o)=>s+(o.items||[]).reduce((ss,it)=>ss+(Number(it.qty)||0),0),0);
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>ใบหยิบสินค้า ${escV(pg.pgId)}</title>
+        <style>
+          body{font-family:'TH Sarabun New',Sarabun,sans-serif;font-size:11pt;margin:10mm;}
+          h2{margin:0;font-size:15pt;} .sub{font-size:9.5pt;color:#555;margin:2px 0;}
+          table{width:100%;border-collapse:collapse;margin-top:12px;}
+          th{background:#f0f0f0;border:1px solid #bbb;padding:5px 8px;text-align:left;font-size:10pt;}
+          td{border:1px solid #ddd;padding:5px 8px;font-size:10pt;vertical-align:top;}
+          .mono{font-family:monospace;} .footer{margin-top:16px;border-top:1px solid #ccc;padding-top:8px;font-size:9pt;color:#888;}
+          @media print{body{margin:8mm;}}
+        </style></head><body>
+        <div style="border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:4px;">
+          <h2>📋 ใบหยิบสินค้า (Picking List)</h2>
+          <p class="sub">PG: <b>${escV(pg.pgId)}</b> | กลยุทธ์: ${escV(pg.strategyName||'–')} | ขนส่ง: ${escV(pg.carrier||'–')}</p>
+          <p class="sub">วันที่พิมพ์: ${new Date().toLocaleString('th-TH')} | ผู้หยิบ: ${escV(pg.assignedToName||'ยังไม่มอบหมาย')}</p>
+        </div>
+        <table>
+          <thead><tr><th style="width:22%">Order ID</th><th style="width:20%">ลูกค้า</th><th>รายการสินค้า</th><th style="width:16%">ขนส่ง</th></tr></thead>
+          <tbody>
+            ${orders.map((o,idx)=>`<tr style="${idx%2?'background:#fafafa':''}">
+              <td class="mono"><b>${escV(o.id||o._id)}</b></td>
+              <td>${escV(o.customer?.name||'–')}<br><span style="font-size:9pt;color:#888;">${escV(o.customer?.phone||'')}</span></td>
+              <td>${(o.items||[]).map(it=>`<div style="margin-bottom:3px;"><b>${escV(it.model||it.sku||'–')}</b> × <b>${it.qty}</b>${it.sku?` <span style="font-family:monospace;font-size:9pt;color:#888;">[${escV(it.sku)}]</span>`:''}</div>`).join('')}</td>
+              <td style="font-size:9.5pt;">${escV(o.shipping?.carrier||'–')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="footer">รวม <b>${orders.length}</b> ออเดอร์ | <b>${totalItems}</b> ชิ้น | ลายเซ็นผู้หยิบ: ________________________</div>
+        <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
+      </body></html>`;
+      const win = window.open('','_blank');
+      if (win) { win.document.write(html); win.document.close(); }
+    } catch(e) { alert('พิมพ์ไม่สำเร็จ: '+e.message); }
+  };
+
+  // --- Print Shipping Labels ---
+  window.__printLabels = async function(pgDocId) {
+    try {
+      const pgSnap = await getDoc(doc(db,'pickingGroups',pgDocId));
+      if (!pgSnap.exists()) { alert('ไม่พบข้อมูลกลุ่ม'); return; }
+      const pg = pgSnap.data();
+      const orders = [];
+      for (const oid of (pg.orderIds||[])) {
+        try { const s = await getDoc(doc(db,'orders',oid)); if(s.exists()) orders.push({_id:s.id,...s.data()}); } catch(e) {}
+      }
+      const labelBlocks = orders.map(o => {
+        const addr = [o.customer?.addressDetail, o.customer?.district, o.customer?.province, o.customer?.zipcode].filter(Boolean).join(' ');
+        const trackings = o.trackings||[];
+        const trackingStr = trackings.map(t=>t.trackingNo).filter(Boolean).join(', ') || o.shipping?.trackingInfo || '';
+        return `<div class="label">
+          <div class="lcarrier">${escV(o.shipping?.carrier||'–')}</div>
+          <div class="ltracking">${trackingStr || '<span style="color:#bbb;font-size:10pt;">ยังไม่มี Tracking</span>'}</div>
+          <div class="lname">ถึง: ${escV(o.customer?.name||'–')}</div>
+          <div class="laddr">${escV(addr)}</div>
+          <div class="lphone">📞 ${escV(o.customer?.phone||'–')}</div>
+          <div class="lorder">Order: ${escV(o.id||o._id)} | ${(o.items||[]).map(it=>`${escV(it.model||it.sku||'?')} ×${it.qty}`).join(', ')}</div>
+        </div>`;
+      }).join('');
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>ใบปะหน้า ${escV(pg.pgId)}</title>
+        <style>
+          body{font-family:'TH Sarabun New',Sarabun,sans-serif;margin:5mm;}
+          .label{border:2px solid #000;border-radius:4px;padding:10px 12px;margin:4mm;width:85mm;display:inline-block;vertical-align:top;page-break-inside:avoid;}
+          .lcarrier{font-size:12pt;font-weight:bold;color:#1a73e8;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:4px;}
+          .ltracking{font-family:monospace;font-size:14pt;font-weight:bold;margin:4px 0;}
+          .lname{font-size:12pt;font-weight:bold;margin-top:6px;}
+          .laddr{font-size:10pt;color:#333;line-height:1.45;margin-top:2px;}
+          .lphone{font-size:10pt;color:#555;margin-top:2px;}
+          .lorder{font-size:8.5pt;color:#888;margin-top:5px;border-top:1px dashed #ddd;padding-top:4px;}
+          .header{font-size:9pt;color:#888;margin-bottom:6px;border-bottom:1px solid #ddd;padding-bottom:4px;}
+          @media print{body{margin:4mm;}}
+        </style></head><body>
+        <div class="header">ใบปะหน้า | ${escV(pg.pgId)} | ${orders.length} ออเดอร์ | พิมพ์: ${new Date().toLocaleString('th-TH')}</div>
+        ${labelBlocks}
+        <script>window.onload=()=>{window.print();window.onafterprint=()=>window.close();}<\/script>
+      </body></html>`;
+      const win = window.open('','_blank');
+      if (win) { win.document.write(html); win.document.close(); }
+    } catch(e) { alert('พิมพ์ไม่สำเร็จ: '+e.message); }
   };
 
 </script>
