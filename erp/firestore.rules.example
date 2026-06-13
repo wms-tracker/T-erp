@@ -37,9 +37,44 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ----- counters: ตัวนับเลขเอกสารกลาง (กันเลขซ้ำ) เช่น orderCounter, invoiceCounter -----
+    // ----- counters: ตัวนับเลขเอกสารกลาง (orderCounter, pgCounter, invoiceCounter ...) -----
     match /counters/{id} {
-      allow read, write: if isSignedIn() && isActive() && (hasRole('sales') || hasRole('accounting') || isAdmin());
+      allow read, write: if isSignedIn() && isActive();
+    }
+
+    // ----- manifests: กำกับสินค้า (Manifest/Wave) -----
+    match /manifests/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if hasRole('warehouse') || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ----- pickingStrategies: กลยุทธ์จัดกลุ่ม -----
+    match /pickingStrategies/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if hasRole('warehouse') || isAdmin();
+    }
+
+    // ----- pickingGroups: กลุ่มงานหยิบสินค้า (PG-YYYYMMDD-XXX) -----
+    match /pickingGroups/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create: if hasRole('warehouse') || isAdmin();
+      allow update: if hasRole('warehouse') || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ----- verificationLogs: บันทึกการสแกน QC ทุก event -----
+    match /verificationLogs/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create: if hasRole('warehouse') || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // ----- purchaseOrders: ใบสั่งซื้อ (PO) -----
+    match /purchaseOrders/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // ----- payments: รายการรับ-จ่ายเงิน — บัญชี/แอดมินบันทึกและแก้ไขได้ -----
