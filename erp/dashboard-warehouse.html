@@ -18,8 +18,10 @@
   const profile = await requireRole(['warehouse']);
 
   const SECTIONS = {
-    'manifest-create': { title: '🆕 สร้างกำกับสินค้า' },
-    'manifest':        { title: '📂 จัดการกำกับสินค้า' },
+    'manifest-create':   { title: '🆕 สร้างกำกับสินค้า' },
+    'manifest':          { title: '📂 จัดการกำกับสินค้า' },
+    'verification':      { title: '🔍 ตรวจสอบสินค้า (Verification Dashboard)' },
+    'verification-scan': { title: '📱 สแกน QC — PDA Mode' },
     inbound:    { title: '📥 รับสินค้าเข้า (Inbound)',        desc: 'บันทึกสินค้าที่รับเข้าคลังจากผู้ผลิต/ซัพพลายเออร์ พร้อมจำนวนและหมายเหตุอ้างอิง — ระบบจะอัปเดตยอดคงเหลือให้อัตโนมัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
     putaway:    { title: '🗄 จัดเก็บเข้าตำแหน่ง (Put Away)',  desc: 'กำหนด/ปรับตำแหน่งจัดเก็บสินค้าในคลัง (location) — แก้ไขได้จากหน้า "จัดการสต๊อกสินค้า" โดยตรง (ระบุช่องตำแหน่งต่อ SKU)', phase: 'เฟส 2 — รวมไว้ในหน้าจัดการสต๊อก 👇' },
     stock:      { title: '📦 จัดการสต๊อกสินค้า',              desc: 'ดูจำนวนคงเหลือ/จอง/พร้อมขายของแต่ละ SKU พร้อมแจ้งเตือนเมื่อสินค้าใกล้หมด (reorder point) และแก้ไขตำแหน่งจัดเก็บ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
@@ -48,8 +50,10 @@
   }
 
   const RENDERERS = {
-    'manifest-create': renderManifestCreate,
-    'manifest':        renderManifestList,
+    'manifest-create':   renderManifestCreate,
+    'manifest':          renderManifestList,
+    'verification':      renderVerificationDashboard,
+    'verification-scan': renderVerificationScan,
     stock: renderStock,
     inbound: renderInbound,
     picking: renderPipeline.bind(null, 'รอหยิบสินค้า', 'picking'),
@@ -1327,6 +1331,647 @@
       tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
     }
   }
+
+  // ===================================================================
+  // 🔍 VERIFICATION SYSTEM — Tracking-Based, Multi-PDA
+  // ===================================================================
+  const VFY_STATUS = {
+    waiting:     { label: 'รอตรวจ',        bg: '#e8eaf6', color: '#3949ab' },
+    in_progress: { label: 'กำลังตรวจ',     bg: '#fff8e1', color: '#f57f17' },
+    verified:    { label: 'ผ่านแล้ว ✓',    bg: '#d1fae5', color: '#065f46' },
+    exception:   { label: 'พบปัญหา ⚠',    bg: '#fce4ec', color: '#880e4f' },
+    cancelled:   { label: 'ยกเลิก',        bg: '#f5f5f5', color: '#888'    },
+  };
+  const EXC_TYPES = ['SKU Missing','SKU Excess','Wrong Item','Damaged Item','Other'];
+  const LOCK_TIMEOUT_MS = 30 * 60 * 1000; // 30 นาที
+
+  function vfyBadge(s) {
+    const st = VFY_STATUS[s || 'waiting'];
+    return `<span style="background:${st.bg};color:${st.color};padding:3px 10px;border-radius:12px;font-size:0.77rem;font-weight:600;white-space:nowrap;">${st.label}</span>`;
+  }
+  function escV(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function deviceId() {
+    let id = localStorage.getItem('vfy_device_id');
+    if (!id) { id = 'DEV-' + Math.random().toString(36).slice(2,8).toUpperCase(); localStorage.setItem('vfy_device_id', id); }
+    return id;
+  }
+
+  // คำนวณ Order Verification Status จาก trackings
+  function calcOrderVfyStatus(trackings) {
+    if (!trackings?.length) return 'waiting';
+    const statuses = trackings.map(t => t.verifyStatus || 'waiting');
+    if (statuses.every(s => s === 'verified'))                          return 'completed';
+    if (statuses.every(s => s === 'waiting'))                           return 'waiting';
+    if (statuses.some(s => s === 'exception'))                          return 'exception';
+    if (statuses.some(s => s === 'verified' || s === 'in_progress'))    return 'partial_verified';
+    return 'waiting';
+  }
+
+  // ----------------------------------------------------------------
+  // PC DASHBOARD
+  // ----------------------------------------------------------------
+  async function renderVerificationDashboard() {
+    main.innerHTML = `<div class="card"><p style="text-align:center;color:#999;">กำลังโหลดข้อมูล...</p></div>`;
+    let allRows = []; // { order, tracking }
+
+    try {
+      // โหลดออเดอร์ที่อยู่ในขั้น QC
+      const snap = await getDocs(query(
+        collection(db,'orders'),
+        where('warehouseStage','==','รอตรวจสอบ QC'),
+        limit(300)
+      ));
+      snap.forEach(d => {
+        const o = { _id: d.id, ...d.data() };
+        const trackings = o.trackings?.length ? o.trackings : [];
+        if (!trackings.length) {
+          // order ไม่มี tracking → สร้าง pseudo-tracking จาก order
+          allRows.push({ order: o, tracking: { trackingNo: o._id, carrier: o.shipping?.carrier || '–', verifyStatus: 'waiting', _pseudo: true } });
+        } else {
+          trackings.forEach(t => allRows.push({ order: o, tracking: t }));
+        }
+      });
+      allRows.sort((a,b) => (a.order.shipping?.shipDate||'').localeCompare(b.order.shipping?.shipDate||''));
+    } catch(e) {
+      main.innerHTML = `<div class="card" style="color:#d23;">โหลดไม่สำเร็จ: ${e.message}</div>`; return;
+    }
+
+    // KPI
+    const total       = allRows.length;
+    const verified    = allRows.filter(r => r.tracking.verifyStatus === 'verified').length;
+    const inProgress  = allRows.filter(r => r.tracking.verifyStatus === 'in_progress').length;
+    const exception   = allRows.filter(r => r.tracking.verifyStatus === 'exception').length;
+    const waiting     = total - verified - inProgress - exception;
+    const accuracy    = total ? ((verified / total) * 100).toFixed(1) : '–';
+    const excRate     = total ? ((exception / total) * 100).toFixed(1) : '–';
+
+    main.innerHTML = `
+      <!-- KPI Cards -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px;">
+        ${[
+          ['📦','Tracking ทั้งหมด', total,       '#1a237e','#e8eaf6'],
+          ['✅','ผ่านแล้ว',          verified,    '#065f46','#d1fae5'],
+          ['⏳','รอตรวจ',            waiting,     '#92400e','#fef3c7'],
+          ['🔄','กำลังตรวจ',         inProgress,  '#f57f17','#fff8e1'],
+          ['⚠️','พบปัญหา',          exception,   '#880e4f','#fce4ec'],
+        ].map(([ic,lb,val,cl,bg]) => `
+          <div class="card" style="background:${bg};border:none;padding:12px 14px;text-align:center;">
+            <div style="font-size:1.5rem;font-weight:700;color:${cl};">${val}</div>
+            <div style="font-size:0.74rem;color:${cl};">${ic} ${lb}</div>
+          </div>`).join('')}
+        <div class="card" style="background:#f0f4ff;border:none;padding:12px 14px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:#1a237e;">${accuracy}%</div>
+          <div style="font-size:0.74rem;color:#1a237e;">🎯 Accuracy</div>
+        </div>
+        <div class="card" style="background:#fff0f0;border:none;padding:12px 14px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:#b91c1c;">${excRate}%</div>
+          <div style="font-size:0.74rem;color:#b91c1c;">⚠️ Exception Rate</div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="card" style="margin-bottom:12px;padding:12px 16px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="vfy-search" type="text" placeholder="🔍 ค้นหา Order / Tracking..."
+            style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.88rem;font-family:inherit;" />
+          <select id="vfy-filter" style="padding:8px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.88rem;font-family:inherit;">
+            <option value="">— ทุกสถานะ —</option>
+            <option value="waiting">รอตรวจ</option>
+            <option value="in_progress">กำลังตรวจ</option>
+            <option value="verified">ผ่านแล้ว</option>
+            <option value="exception">พบปัญหา</option>
+          </select>
+          <select id="vfy-carrier" style="padding:8px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.88rem;font-family:inherit;">
+            <option value="">— ทุกสายส่ง —</option>
+            ${[...new Set(allRows.map(r => r.tracking.carrier||'–'))].sort().map(c => `<option>${escV(c)}</option>`).join('')}
+          </select>
+          <a href="dashboard-warehouse.html#verification-scan" class="btn btn-primary" style="white-space:nowrap;">📱 PDA Mode</a>
+          <button class="btn btn-outline" onclick="renderVerificationDashboard()" style="white-space:nowrap;">🔄 รีเฟรช</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="overflow-x:auto;">
+          <table id="vfy-table">
+            <thead><tr style="background:#f4f6ff;">
+              <th>Order ID</th><th>Tracking Number</th><th>สายส่ง</th><th>ลูกค้า</th>
+              <th style="text-align:center;">SKU</th><th style="text-align:center;">ตรวจแล้ว</th>
+              <th>สถานะ</th><th>ตรวจโดย</th><th>เวลา</th><th>Action</th>
+            </tr></thead>
+            <tbody id="vfy-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    window._vfyAllRows = allRows;
+
+    function applyFilter() {
+      const q  = document.getElementById('vfy-search')?.value.toLowerCase() || '';
+      const st = document.getElementById('vfy-filter')?.value || '';
+      const ca = document.getElementById('vfy-carrier')?.value || '';
+      const filtered = allRows.filter(r => {
+        const matchQ  = !q  || (r.order.id||r.order._id).toLowerCase().includes(q)
+                             || (r.tracking.trackingNo||'').toLowerCase().includes(q)
+                             || (r.order.customer?.name||'').toLowerCase().includes(q);
+        const matchSt = !st || r.tracking.verifyStatus === st || (!r.tracking.verifyStatus && st === 'waiting');
+        const matchCa = !ca || r.tracking.carrier === ca;
+        return matchQ && matchSt && matchCa;
+      });
+      _renderVfyTable(filtered);
+    }
+
+    ['vfy-search','vfy-filter','vfy-carrier'].forEach(id =>
+      document.getElementById(id)?.addEventListener('input', applyFilter)
+    );
+    applyFilter();
+  }
+
+  function _renderVfyTable(rows) {
+    const tbody = document.getElementById('vfy-tbody');
+    if (!tbody) return;
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#999;padding:20px;">ไม่พบ Tracking ที่ตรงเงื่อนไข</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(({ order: o, tracking: t }) => {
+      const status    = t.verifyStatus || 'waiting';
+      const items     = o.items || [];
+      const scanned   = (t.verifyItems || []).filter(i => i.scannedQty >= i.requiredQty).length;
+      const vfyTime   = t.verifyAt?.seconds ? new Date(t.verifyAt.seconds*1000).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}) : '–';
+      // lock check
+      const isLocked  = t.lockedBy && t.lockedBy !== profile.uid
+                        && (Date.now() - (t.lockedAt?.seconds||0)*1000 < LOCK_TIMEOUT_MS);
+      const lockMsg   = isLocked ? `<span style="font-size:0.75rem;color:#f57f17;">🔒 ${escV(t.lockedByName||'คนอื่น')}</span>` : '';
+
+      let actionBtn = '';
+      if (status === 'waiting' && !isLocked)
+        actionBtn = `<button class="btn btn-primary" style="font-size:0.78rem;padding:5px 10px;white-space:nowrap;"
+          onclick="window.__startVfyScan('${o._id}','${escV(t.trackingNo)}')">▶ เริ่มตรวจ</button>`;
+      else if (status === 'in_progress' && (t.lockedBy === profile.uid || !isLocked))
+        actionBtn = `<button class="btn btn-warning" style="font-size:0.78rem;padding:5px 10px;white-space:nowrap;"
+          onclick="window.__startVfyScan('${o._id}','${escV(t.trackingNo)}')">▶ ต่อตรวจ</button>`;
+      else if (status === 'exception')
+        actionBtn = `<button class="btn btn-outline" style="font-size:0.78rem;padding:5px 10px;"
+          onclick="window.__viewVfyDetail('${o._id}','${escV(t.trackingNo)}')">รายละเอียด</button>`;
+
+      return `<tr style="${status==='verified'?'opacity:.7':''}">
+        <td class="mono" style="font-size:0.82rem;">${escV(o.id||o._id)}</td>
+        <td class="mono" style="font-size:0.82rem;">${escV(t.trackingNo||'–')}${lockMsg}</td>
+        <td style="font-size:0.82rem;">${escV(t.carrier||'–')}</td>
+        <td style="font-size:0.83rem;">${escV(o.customer?.name||'–')}</td>
+        <td style="text-align:center;">${items.length}</td>
+        <td style="text-align:center;font-weight:600;color:${scanned===items.length&&items.length?'#065f46':'#555'};">${scanned}/${items.length}</td>
+        <td>${vfyBadge(status)}</td>
+        <td style="font-size:0.8rem;">${escV(t.verifyByName||'–')}</td>
+        <td style="font-size:0.8rem;">${vfyTime}</td>
+        <td>${actionBtn}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ----------------------------------------------------------------
+  // PDA SCAN MODE — fullscreen
+  // ----------------------------------------------------------------
+  async function renderVerificationScan() {
+    main.innerHTML = `
+      <div style="max-width:520px;margin:0 auto;">
+        <div class="card" style="text-align:center;padding:24px;">
+          <div style="font-size:2rem;margin-bottom:8px;">📱</div>
+          <h3 style="margin:0 0 8px;color:#1a237e;">PDA Scan Mode</h3>
+          <p style="font-size:0.86rem;color:#888;margin:0 0 16px;">สแกนหรือพิมพ์ Tracking Number เพื่อเริ่มตรวจสอบ</p>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <input id="pda-tracking-inp" type="text" inputmode="text" autocomplete="off"
+              autocorrect="off" autocapitalize="off" spellcheck="false"
+              placeholder="🔦 สแกน Tracking Number..."
+              style="flex:1;padding:14px 16px;font-size:1.05rem;border:2px solid #1a73e8;border-radius:10px;font-family:inherit;" />
+            <button onclick="window.__pdaSubmitTracking()"
+              style="padding:0 18px;background:#1a73e8;color:#fff;border:none;border-radius:10px;font-size:1.2rem;cursor:pointer;touch-action:manipulation;">➔</button>
+          </div>
+          <div id="pda-err" style="color:#d23;font-size:0.86rem;min-height:18px;"></div>
+          <div id="pda-recent" style="margin-top:16px;"></div>
+        </div>
+      </div>
+    `;
+
+    // โหลด trackings ที่ยัง in_progress ของ user นี้ (เพื่อให้กลับมาต่อได้)
+    try {
+      const snap = await getDocs(query(collection(db,'orders'), where('warehouseStage','==','รอตรวจสอบ QC'), limit(100)));
+      const mine = [];
+      snap.forEach(d => {
+        const o = { _id: d.id, ...d.data() };
+        (o.trackings||[]).forEach(t => {
+          if (t.lockedBy === profile.uid || t.verifyStatus === 'in_progress' && t.verifyBy === profile.uid)
+            mine.push({ order: o, tracking: t });
+        });
+      });
+      if (mine.length) {
+        document.getElementById('pda-recent').innerHTML = `
+          <div style="text-align:left;">
+            <p style="font-size:0.82rem;color:#888;margin:0 0 6px;">งานค้างจากก่อนหน้า:</p>
+            ${mine.map(({ order: o, tracking: t }) => `
+              <button class="btn btn-outline" style="width:100%;text-align:left;margin-bottom:6px;padding:10px 14px;"
+                onclick="window.__startVfyScan('${o._id}','${escV(t.trackingNo)}')">
+                <span class="mono" style="font-size:0.88rem;">${escV(t.trackingNo)}</span>
+                <span style="color:#888;font-size:0.78rem;float:right;">${escV(o.id||o._id)}</span>
+              </button>`).join('')}
+          </div>`;
+      }
+    } catch(e) {}
+
+    const inp = document.getElementById('pda-tracking-inp');
+    inp.focus();
+
+    window.__pdaSubmitTracking = async function() {
+      const val = inp.value.trim();
+      if (!val) return;
+      const errEl = document.getElementById('pda-err');
+      errEl.textContent = 'กำลังค้นหา...';
+      // ค้นหา tracking จาก orders
+      try {
+        const snap = await getDocs(query(collection(db,'orders'), where('warehouseStage','==','รอตรวจสอบ QC'), limit(200)));
+        let found = null;
+        snap.forEach(d => {
+          if (found) return;
+          const o = { _id: d.id, ...d.data() };
+          const t = (o.trackings||[]).find(t => t.trackingNo === val || t.trackingNo.includes(val));
+          if (t) found = { orderId: o._id, trackingNo: t.trackingNo };
+          // ยังลอง match กับ order id
+          if (!found && (o.id === val || o._id === val)) {
+            const qt = (o.trackings||[])[0];
+            if (qt) found = { orderId: o._id, trackingNo: qt.trackingNo };
+            else found = { orderId: o._id, trackingNo: o._id, _pseudo: true };
+          }
+        });
+        if (!found) { errEl.textContent = `❌ ไม่พบ Tracking "${val}" ในคิว QC`; return; }
+        errEl.textContent = '';
+        inp.value = '';
+        window.__startVfyScan(found.orderId, found.trackingNo);
+      } catch(e) { errEl.textContent = 'ค้นหาไม่สำเร็จ: ' + e.message; }
+    };
+    inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); window.__pdaSubmitTracking(); } });
+    inp.addEventListener('change', () => { if (inp.value.trim()) window.__pdaSubmitTracking(); });
+  }
+
+  // ----------------------------------------------------------------
+  // SCAN MODAL — ใช้ร่วมกันทั้ง PC และ PDA
+  // ----------------------------------------------------------------
+  let _vfyState = null;
+
+  window.__startVfyScan = async function(orderId, trackingNo) {
+    const oSnap = await getDoc(doc(db,'orders',orderId));
+    if (!oSnap.exists()) { alert('ไม่พบออเดอร์'); return; }
+    const order = { _id: oSnap.id, ...oSnap.data() };
+    const trkIdx = (order.trackings||[]).findIndex(t => t.trackingNo === trackingNo);
+    const trk    = trkIdx >= 0 ? order.trackings[trkIdx] : null;
+
+    // Lock check
+    if (trk?.lockedBy && trk.lockedBy !== profile.uid) {
+      const elapsed = Date.now() - (trk.lockedAt?.seconds||0)*1000;
+      if (elapsed < LOCK_TIMEOUT_MS) {
+        if (!confirm(`⚠️ Tracking นี้กำลังถูกตรวจโดย ${trk.lockedByName||'คนอื่น'} อยู่\nต้องการยึดงานมาตรวจต่อไหม?`)) return;
+      }
+    }
+
+    // Lock tracking
+    const updatedTrackings = (order.trackings||[]).map((t, i) =>
+      i === trkIdx ? { ...t,
+        verifyStatus: 'in_progress',
+        lockedBy: profile.uid,
+        lockedByName: profile.name || profile.email,
+        lockedAt: { seconds: Math.floor(Date.now()/1000) },
+        deviceId: deviceId(),
+        verifyBy: profile.uid,
+        verifyByName: profile.name || profile.email,
+      } : t
+    );
+    try {
+      await updateDoc(doc(db,'orders',orderId), {
+        trackings: updatedTrackings,
+        updatedAt: serverTimestamp(),
+      });
+    } catch(e) { alert('ล็อค Tracking ไม่สำเร็จ: '+e.message); return; }
+
+    // สร้าง verifyItems จาก order.items (ถ้ายังไม่มี)
+    const existing = trk?.verifyItems || [];
+    const verifyItems = (order.items||[]).map(it => {
+      const ex = existing.find(e => e.sku === (it.sku||it.model));
+      return {
+        sku:         it.sku || it.model || '',
+        name:        it.name || it.productName || '',
+        requiredQty: Number(it.qty) || 0,
+        scannedQty:  ex?.scannedQty || 0,
+        result:      ex?.result || 'pending',
+      };
+    });
+
+    _vfyState = { orderId, trackingNo, order, trkIdx, verifyItems, exceptionMode: false };
+    _renderVfyScanModal();
+  };
+
+  function _renderVfyScanModal() {
+    document.getElementById('vfy-scan-overlay')?.remove();
+    const { order, trackingNo, verifyItems } = _vfyState;
+    const doneCount = verifyItems.filter(i => i.scannedQty >= i.requiredQty).length;
+    const allDone   = doneCount === verifyItems.length && verifyItems.length > 0;
+    const pct       = verifyItems.length ? Math.round((doneCount/verifyItems.length)*100) : 0;
+
+    const ov = document.createElement('div');
+    ov.id = 'vfy-scan-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(10,20,40,0.7);z-index:999;display:flex;align-items:center;justify-content:center;padding:12px;';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:95dvh;overflow:auto;display:flex;flex-direction:column;">
+        <!-- Header -->
+        <div style="padding:16px 20px 0;flex-shrink:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:#1a237e;">✅ ตรวจสอบ Tracking</div>
+              <div class="mono" style="font-size:0.88rem;color:#555;margin-top:2px;">${escV(trackingNo)}</div>
+              <div style="font-size:0.78rem;color:#888;">Order: ${escV(order.id||order._id)} &nbsp;|&nbsp; ${escV(order.customer?.name||'–')}</div>
+            </div>
+            <button onclick="window.__closeVfyScan()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;padding:0 0 0 12px;">✕</button>
+          </div>
+          <!-- Progress Bar -->
+          <div style="margin:10px 0 4px;">
+            <div style="display:flex;justify-content:space-between;font-size:0.8rem;color:#555;margin-bottom:4px;">
+              <span>ตรวจแล้ว ${doneCount}/${verifyItems.length} รายการ</span>
+              <span style="font-weight:700;color:${allDone?'#065f46':'#1a237e'};">${pct}%</span>
+            </div>
+            <div style="background:#e8eaf6;border-radius:8px;height:10px;overflow:hidden;">
+              <div style="width:${pct}%;background:${allDone?'#22c55e':'#1a73e8'};height:100%;border-radius:8px;transition:width .3s;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scan Input -->
+        <div style="padding:12px 20px;flex-shrink:0;">
+          <div style="display:flex;gap:8px;">
+            <input id="vfy-sku-inp" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+              placeholder="🔦 สแกน SKU / บาร์โค้ด..."
+              style="flex:1;padding:13px 14px;font-size:1rem;border:2px solid ${allDone?'#22c55e':'#1a73e8'};border-radius:10px;font-family:inherit;" />
+            <button onclick="window.__vfySubmitSku()"
+              style="padding:0 16px;background:${allDone?'#22c55e':'#1a73e8'};color:#fff;border:none;border-radius:10px;font-size:1.2rem;cursor:pointer;touch-action:manipulation;">➔</button>
+          </div>
+          <div id="vfy-scan-msg" style="font-size:0.85rem;min-height:18px;margin-top:6px;padding:2px 4px;"></div>
+        </div>
+
+        <!-- Items Table -->
+        <div style="padding:0 20px;flex:1;overflow-y:auto;">
+          <table style="font-size:0.84rem;">
+            <thead><tr>
+              <th>SKU</th><th>ชื่อสินค้า</th>
+              <th style="text-align:center;">ต้องตรวจ</th>
+              <th style="text-align:center;">สแกนแล้ว</th>
+              <th style="text-align:center;">สถานะ</th>
+            </tr></thead>
+            <tbody>
+              ${verifyItems.map((it,i) => {
+                const ok = it.scannedQty >= it.requiredQty;
+                const over = it.scannedQty > it.requiredQty;
+                return `<tr id="vfy-row-${i}" style="${ok?'background:#f0fdf4':''}">
+                  <td class="mono" style="font-size:0.8rem;">${escV(it.sku)}</td>
+                  <td>${escV(it.name)}</td>
+                  <td style="text-align:center;">${it.requiredQty}</td>
+                  <td style="text-align:center;font-weight:700;color:${ok?'#065f46':over?'#d97706':'#1a237e'};">${it.scannedQty}</td>
+                  <td style="text-align:center;">${ok
+                    ? '<span style="color:#065f46;font-size:1rem;">✓</span>'
+                    : `<span style="font-size:0.76rem;color:#888;">${it.requiredQty - it.scannedQty} เหลือ</span>`}
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer Actions -->
+        <div style="padding:14px 20px;flex-shrink:0;display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;border-top:1px solid #eef0f6;margin-top:8px;">
+          <button class="btn btn-danger" style="touch-action:manipulation;" onclick="window.__openException()">
+            ⚠️ พบปัญหา
+          </button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-outline" onclick="window.__closeVfyScan()">ปิด</button>
+            <button class="btn btn-success" id="vfy-complete-btn" style="touch-action:manipulation;"
+              ${allDone ? '' : 'disabled'} onclick="window.__completeVerification()">
+              ✔ ผ่าน — ยืนยัน
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ov);
+
+    const inp = document.getElementById('vfy-sku-inp');
+    if (inp) {
+      inp.focus();
+      inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); window.__vfySubmitSku(); } });
+      inp.addEventListener('change', () => { if (inp.value.trim()) window.__vfySubmitSku(); });
+    }
+
+    // Auto-complete ถ้าครบแล้ว
+    if (allDone && !_vfyState.autoCompleted) {
+      _vfyState.autoCompleted = true;
+      const msg = document.getElementById('vfy-scan-msg');
+      if (msg) { msg.textContent = '🎉 ครบทุกรายการ! กำลังบันทึก...'; msg.style.color = '#065f46'; }
+      setTimeout(() => window.__completeVerification(), 800);
+    }
+  }
+
+  window.__vfySubmitSku = function() {
+    if (!_vfyState) return;
+    const inp = document.getElementById('vfy-sku-inp');
+    const code = inp?.value.trim() || '';
+    if (!code) return;
+    if (inp) inp.value = '';
+
+    const { verifyItems } = _vfyState;
+    const msg = document.getElementById('vfy-scan-msg');
+
+    // จับคู่ SKU
+    let idx = verifyItems.findIndex(i => i.sku === code);
+    if (idx < 0) idx = verifyItems.findIndex(i => code.endsWith(i.sku) || i.sku.endsWith(code));
+    if (idx < 0) {
+      if (msg) { msg.textContent = `❌ ไม่พบ SKU "${code}" ในรายการ`; msg.style.color = '#d23'; }
+      return;
+    }
+
+    const it = verifyItems[idx];
+    if (it.scannedQty >= it.requiredQty) {
+      if (msg) { msg.textContent = `⚠️ "${it.sku}" ครบแล้ว (${it.requiredQty} ชิ้น)`; msg.style.color = '#d97706'; }
+      return;
+    }
+
+    it.scannedQty++;
+    if (msg) { msg.textContent = `✅ "${it.sku}" (${it.scannedQty}/${it.requiredQty})`; msg.style.color = '#065f46'; }
+
+    // บันทึก log
+    addDoc(collection(db,'verificationLogs'), {
+      orderId: _vfyState.orderId, trackingNo: _vfyState.trackingNo,
+      sku: it.sku, action: 'scan_item', qty: 1,
+      user: profile.uid, userName: profile.name||profile.email,
+      device: deviceId(), timestamp: serverTimestamp(),
+    }).catch(() => {});
+
+    // Save progress ทุก 3 scans หรือเมื่อ SKU นั้นครบ
+    if (it.scannedQty === it.requiredQty || it.scannedQty % 3 === 0) _saveVfyProgress();
+
+    _renderVfyScanModal(); // re-render
+  };
+
+  async function _saveVfyProgress() {
+    if (!_vfyState) return;
+    const { orderId, trkIdx, verifyItems } = _vfyState;
+    try {
+      const oSnap = await getDoc(doc(db,'orders',orderId));
+      if (!oSnap.exists()) return;
+      const trackings = oSnap.data().trackings || [];
+      if (trkIdx >= 0 && trkIdx < trackings.length) {
+        trackings[trkIdx] = { ...trackings[trkIdx], verifyItems };
+        await updateDoc(doc(db,'orders',orderId), { trackings, updatedAt: serverTimestamp() });
+      }
+    } catch(e) { console.warn('save progress failed', e); }
+  }
+
+  window.__completeVerification = async function() {
+    if (!_vfyState) return;
+    const { orderId, trackingNo, trkIdx, verifyItems } = _vfyState;
+    try {
+      const oSnap = await getDoc(doc(db,'orders',orderId));
+      if (!oSnap.exists()) return;
+      const order = oSnap.data();
+      const trackings = (order.trackings || []).map((t, i) =>
+        i === trkIdx ? {
+          ...t,
+          verifyStatus:   'verified',
+          verifyItems,
+          verifiedAt:     { seconds: Math.floor(Date.now()/1000) },
+          verifiedBy:     profile.uid,
+          verifiedByName: profile.name || profile.email,
+          deviceId:       deviceId(),
+          lockedBy:       null,
+          lockedAt:       null,
+          // advance warehouse stage
+          stage: 'พร้อมจัดส่ง',
+        } : t
+      );
+
+      // คำนวณ order-level status
+      const allVerified = trackings.every(t => t.verifyStatus === 'verified');
+      const someVerified = trackings.some(t => t.verifyStatus === 'verified');
+      const newWHStage   = allVerified ? 'พร้อมจัดส่ง' : minTrackingStage(trackings) || order.warehouseStage;
+      const vStatus      = allVerified ? 'completed' : someVerified ? 'partial_verified' : 'waiting';
+
+      await updateDoc(doc(db,'orders',orderId), {
+        trackings,
+        warehouseStage:      newWHStage,
+        verificationStatus:  vStatus,
+        ...(allVerified ? { status: 'กำลังแพ็ค' } : {}),
+        updatedAt:           serverTimestamp(),
+      });
+
+      // log
+      await addDoc(collection(db,'verificationLogs'), {
+        orderId, trackingNo, sku: '–', action: 'complete',
+        user: profile.uid, userName: profile.name||profile.email,
+        device: deviceId(), timestamp: serverTimestamp(),
+      }).catch(() => {});
+
+      window.__closeVfyScan();
+      toast(allVerified
+        ? `✅ ออเดอร์ ${order.id||orderId} ผ่าน QC ครบทุก Tracking → พร้อมจัดส่ง!`
+        : `✅ Tracking ${trackingNo} ผ่าน QC แล้ว (ออเดอร์ยังมี Tracking อื่นรออยู่)`);
+
+      // refresh
+      const curKey = (location.hash||'#verification').replace('#','');
+      if (curKey === 'verification') renderVerificationDashboard();
+      if (curKey === 'verification-scan') renderVerificationScan();
+
+    } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  };
+
+  // ---- Exception ----
+  window.__openException = function() {
+    if (!_vfyState) return;
+    const ex = document.createElement('div');
+    ex.id = 'vfy-exc-overlay';
+    ex.style.cssText = 'position:fixed;inset:0;background:rgba(10,20,40,0.7);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ex.innerHTML = `
+      <div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:22px 24px;">
+        <h3 style="margin:0 0 14px;color:#880e4f;">⚠️ รายงานปัญหา</h3>
+        <div style="margin-bottom:10px;">
+          <label style="font-size:0.82rem;color:#555;display:block;margin-bottom:4px;">ประเภทปัญหา *</label>
+          <select id="exc-type" style="width:100%;padding:9px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;">
+            ${EXC_TYPES.map(t => `<option>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="font-size:0.82rem;color:#555;display:block;margin-bottom:4px;">รายละเอียด</label>
+          <textarea id="exc-note" rows="3" placeholder="อธิบายปัญหาที่พบ..."
+            style="width:100%;padding:9px 12px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.9rem;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-outline" onclick="document.getElementById('vfy-exc-overlay').remove()">ยกเลิก</button>
+          <button class="btn btn-danger" onclick="window.__saveException()">⚠️ บันทึกปัญหา</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(ex);
+  };
+
+  window.__saveException = async function() {
+    if (!_vfyState) return;
+    const { orderId, trackingNo, trkIdx, verifyItems } = _vfyState;
+    const excType = document.getElementById('exc-type')?.value || 'Other';
+    const excNote = document.getElementById('exc-note')?.value.trim() || '';
+    try {
+      const oSnap = await getDoc(doc(db,'orders',orderId));
+      if (!oSnap.exists()) return;
+      const trackings = (oSnap.data().trackings || []).map((t, i) =>
+        i === trkIdx ? {
+          ...t,
+          verifyStatus:   'exception',
+          exceptionType:  excType,
+          exceptionNote:  excNote,
+          verifyItems,
+          verifyBy:       profile.uid,
+          verifyByName:   profile.name||profile.email,
+          deviceId:       deviceId(),
+          lockedBy:       null,
+        } : t
+      );
+      const vStatus = 'exception';
+      await updateDoc(doc(db,'orders',orderId), {
+        trackings,
+        verificationStatus: vStatus,
+        updatedAt: serverTimestamp(),
+      });
+      await addDoc(collection(db,'verificationLogs'), {
+        orderId, trackingNo, sku: '–', action: 'exception',
+        excType, excNote,
+        user: profile.uid, userName: profile.name||profile.email,
+        device: deviceId(), timestamp: serverTimestamp(),
+      }).catch(() => {});
+      document.getElementById('vfy-exc-overlay')?.remove();
+      window.__closeVfyScan();
+      toast(`⚠️ บันทึกปัญหา "${excType}" สำหรับ Tracking ${trackingNo} แล้ว`);
+      const curKey = (location.hash||'#verification').replace('#','');
+      if (curKey === 'verification') renderVerificationDashboard();
+    } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+  };
+
+  window.__closeVfyScan = function() {
+    document.getElementById('vfy-scan-overlay')?.remove();
+    _vfyState = null;
+  };
+
+  window.__viewVfyDetail = async function(orderId, trackingNo) {
+    const oSnap = await getDoc(doc(db,'orders',orderId));
+    if (!oSnap.exists()) return;
+    const o = { _id: oSnap.id, ...oSnap.data() };
+    const t = (o.trackings||[]).find(t => t.trackingNo === trackingNo);
+    if (!t) return;
+    alert(`Tracking: ${t.trackingNo}\nสถานะ: ${t.verifyStatus}\nปัญหา: ${t.exceptionType||'–'}\nหมายเหตุ: ${t.exceptionNote||'–'}\nตรวจโดย: ${t.verifyByName||'–'}`);
+  };
 
   // ===================================================================
   // 📋 กำกับสินค้า (Manifest / Wave Picking)
