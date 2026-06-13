@@ -1555,6 +1555,14 @@
           </div>
           <div id="pda-err" style="color:#d23;font-size:0.86rem;min-height:18px;"></div>
           <div id="pda-recent" style="margin-top:16px;"></div>
+
+          <div style="margin-top:20px;padding:12px 14px;background:#f0f4ff;border-radius:10px;text-align:left;">
+            <div style="font-size:0.75rem;color:#888;margin-bottom:4px;">🔗 ลิงก์สำหรับ PDA / มือถือ (กด copy หรือ bookmark)</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <code id="pda-url-text" style="flex:1;font-size:0.72rem;color:#1a237e;word-break:break-all;background:#e8f0fe;padding:6px 10px;border-radius:7px;user-select:all;">https://wms-tracker.github.io/T-erp/erp/dashboard-warehouse.html#verification-scan</code>
+              <button onclick="window.__copyPdaUrl()" style="background:#1a73e8;color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:0.8rem;cursor:pointer;white-space:nowrap;touch-action:manipulation;">📋 Copy</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -1586,6 +1594,15 @@
 
     const inp = document.getElementById('pda-tracking-inp');
     inp.focus();
+
+    window.__copyPdaUrl = function() {
+      const url = 'https://wms-tracker.github.io/T-erp/erp/dashboard-warehouse.html#verification-scan';
+      navigator.clipboard?.writeText(url).then(() => toast('คัดลอก URL แล้ว ✔')).catch(() => {
+        const el = document.getElementById('pda-url-text');
+        if (el) { const r = document.createRange(); r.selectNode(el); window.getSelection().removeAllRanges(); window.getSelection().addRange(r); }
+        toast('เลือกข้อความแล้ว — กด Copy');
+      });
+    };
 
     window.__pdaSubmitTracking = async function() {
       const val = inp.value.trim();
