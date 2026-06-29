@@ -2974,16 +2974,16 @@ function doGet(e) {
         // Tracking: ใช้ orderId แทนถ้ายังไม่มี tracking number
         const trackingNo = gv(row,'trackingNo') || orderId;
 
-        // SKU: ดึงจากฟิลด์ sku (map จากคอลัมน์ แบรนด์)
-        const sku = gv(row,'sku') || gv(row,'brand');
-        const qty = Number(gv(row,'qty'))||0;
-        if (!sku || qty <= 0) {
-          errorLog.push(`orderId:${orderId} — ไม่มี SKU หรือ จำนวน`);
-          continue;
-        }
+        const sku     = gv(row,'sku') || gv(row,'brand');
+        const qty     = Number(gv(row,'qty'))||0;
+        const giftSku = gv(row,'freeGiftSku');
+        const giftQty = Number(gv(row,'freeGiftQty'))||0;
+
+        // ต้องมีอย่างน้อย 1 SKU (แบรนด์ หรือ ของแถม)
+        if (!sku && !giftSku) continue;
 
         if (!orderMap[orderId]) {
-          const carrier = carrierMap[row.__sheet]||gv(row,'carrier')||row.__sheet||'–';
+          const carrier = carrierMap[row.__sheet]||row.__carrier||gv(row,'carrier')||row.__sheet||'–';
           orderMap[orderId] = {
             id: orderId, source:'sheets', sourceSheet: row.__sheet,
             customer:{ name:gv(row,'customer'), phone:gv(row,'phone'), addressDetail:gv(row,'address'),
@@ -2998,20 +2998,21 @@ function doGet(e) {
         const carrier = carrierMap[row.__sheet]||o.shipping.carrier;
         if (!o.trackings[trackingNo]) o.trackings[trackingNo] = { trackingNo, carrier, stage:'รอหยิบสินค้า', items:[] };
 
-        // สินค้าหลัก
-        o.trackings[trackingNo].items.push({
-          sku, productName: gv(row,'productName')||sku,
-          brand: gv(row,'brand')||sku, spu: gv(row,'spu'),
-          qty, model: gv(row,'productName')||sku, price:0, type:'main'
-        });
+        // สินค้าหลัก (ถ้ามีแบรนด์)
+        if (sku && qty > 0) {
+          o.trackings[trackingNo].items.push({
+            sku, productName: gv(row,'productName')||sku,
+            brand: sku, spu: gv(row,'spu'),
+            qty, model: gv(row,'productName')||sku, price:0, type:'main'
+          });
+        }
 
-        // ของแถม — เพิ่มเป็น line item ที่ 2
-        const giftSku = gv(row,'freeGiftSku');
+        // ของแถม — ถ้าแบรนด์ว่าง ใช้ qty จากจำนวน, ถ้าแบรนด์มีค่าแล้ว ใช้ freeGiftQty (default 1)
         if (giftSku) {
-          const giftQty = Number(gv(row,'freeGiftQty'))||1;
+          const resolvedGiftQty = giftQty > 0 ? giftQty : (!sku ? (qty||1) : 1);
           o.trackings[trackingNo].items.push({
             sku: giftSku, productName: giftSku,
-            brand: giftSku, qty: giftQty,
+            brand: giftSku, qty: resolvedGiftQty,
             model: giftSku, price:0, type:'gift'
           });
         }
