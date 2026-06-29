@@ -318,12 +318,13 @@
       <div class="card" style="overflow-x:auto;">
         <table style="table-layout:fixed;width:100%;">
           <colgroup>
-            <col style="width:120px;" />   <!-- Order ID -->
-            <col />                         <!-- รายการสินค้า (flex) -->
-            <col style="width:90px;" />    <!-- ยอดรวม -->
-            <col style="width:100px;" />   <!-- วันจัดส่ง -->
-            <col style="width:130px;" />   <!-- ลูกค้า -->
-            <col style="width:220px;" />   <!-- การดำเนินการ -->
+            <col style="width:110px;" />
+            <col />
+            <col style="width:80px;" />
+            <col style="width:95px;" />
+            <col style="width:115px;" />
+            <col style="width:85px;" />
+            <col style="width:215px;" />
           </colgroup>
           <thead><tr>
             <th>Order ID</th>
@@ -331,9 +332,10 @@
             <th style="text-align:right;">ยอดรวม</th>
             <th style="font-size:0.82rem;">วันจัดส่ง</th>
             <th style="font-size:0.82rem;">ลูกค้า</th>
+            <th style="font-size:0.82rem;">ขนส่ง</th>
             <th style="font-size:0.82rem;text-align:center;">การดำเนินการ</th>
           </tr></thead>
-          <tbody id="pipeline-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+          <tbody id="pipeline-rows"><tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
     `;
@@ -344,13 +346,13 @@
   async function loadPipeline(stageKey) {
     const flow = STAGE_FLOW[stageKey];
     const tbody = document.getElementById('pipeline-rows');
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
     try {
       const snap = await getDocs(query(collection(db, 'orders'), where('warehouseStage', '==', flow.from)));
       const list = [];
       snap.forEach(d => list.push({ _id: d.id, ...d.data() }));
       list.sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-      if (!list.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`; return; }
+      if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`; return; }
 
       // สร้างแถวสำหรับแต่ละออเดอร์ — QC และ Outbound แตกแถวต่อ tracking (ถ้ามี)
       const rowsHtml = list.map(o => {
@@ -425,6 +427,7 @@
               <td style="text-align:right;font-weight:700;">฿${fmtNum(o.subtotal)}</td>
               <td style="font-size:0.82rem;color:#555;">${fmtShip}</td>
               <td style="font-size:0.82rem;">${escPL(o.customer?.name || '–')}</td>
+              <td style="font-size:0.78rem;color:#1a73e8;font-weight:600;">${escPL(o.shipping?.carrier || '–')}</td>
               <td style="text-align:center;">${actionsHtml}</td>
             </tr>`;
         } else if (stageKey === 'qc') {
@@ -443,13 +446,14 @@
             <td style="text-align:right;font-weight:700;">฿${fmtNum(o.subtotal)}</td>
             <td style="font-size:0.82rem;color:#555;">${fmtShip}</td>
             <td style="font-size:0.82rem;">${escPL(o.customer?.name || '–')}</td>
+            <td style="font-size:0.78rem;color:#1a73e8;font-weight:600;">${escPL(o.shipping?.carrier || '–')}</td>
             <td style="text-align:center;">${actionsHtml}</td>
           </tr>`;
       }).join('');
 
-      tbody.innerHTML = rowsHtml || `<tr><td colspan="6" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`;
+      tbody.innerHTML = rowsHtml || `<tr><td colspan="7" style="text-align:center;color:#999;">${flow.emptyMsg}</td></tr>`;
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
     }
   }
 
@@ -3061,6 +3065,7 @@ function doGet(e) {
         if (!o.trackings[trackingNo]) o.trackings[trackingNo] = { trackingNo, carrier, stage:'รอหยิบสินค้า', items:[] };
 
         // สินค้าหลัก (ถ้ามีแบรนด์)
+        if (sku && qty <= 0) qty = 1; // fallback: มี SKU แต่ qty ว่าง → ใส่ 1
         if (sku && qty > 0) {
           o.trackings[trackingNo].items.push({
             sku, productName: gv(row,'productName')||sku,
