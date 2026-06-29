@@ -3009,10 +3009,9 @@ function doGet(e) {
 
       const selectedSheets = [...document.querySelectorAll('.sheet-chk:checked')].map(c=>c.value);
       const fromDate = document.getElementById('import-from-date')?.value || '';
-      // limit: ถ้าเลือกวันที่ = 1000 แถว, ถ้าไม่เลือก = 200 แถว (ป้องกัน timeout)
-      const rowLimit = fromDate ? 1000 : 200;
-      let fetchUrl = cfg.webAppUrl + `?limit=${rowLimit}`;
-      if (fromDate) fetchUrl += `&from=${fromDate}`;
+      // ถ้าเลือกวันที่ → ไม่จำกัด row (อ่านทั้งหมดแล้ว filter วันที่ใน script)
+      // ถ้าไม่เลือกวันที่ → จำกัด 200 แถวล่าสุดต่อ sheet เพื่อป้องกัน timeout
+      let fetchUrl = cfg.webAppUrl + (fromDate ? `?from=${fromDate}` : '?limit=200');
       const json = await _gsJsonp(fetchUrl);
       if (!json.ok) throw new Error(json.error||'Apps Script ตอบกลับผิดพลาด');
 
