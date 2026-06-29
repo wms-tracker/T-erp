@@ -478,8 +478,9 @@
   function fmtOrderDate(d) {
     if (!d) return '–';
     const parsed = new Date(d);
-    if (!isNaN(parsed)) return parsed.toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'});
-    return String(d).slice(0,10);
+    if (!isNaN(parsed)) return parsed.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+    // fallback: แสดงตามที่มาจาก sheet เลย
+    return String(d).replace('T',' ').slice(0,10);
   }
 
   window.__printPickList = async function (orderDocId) {
