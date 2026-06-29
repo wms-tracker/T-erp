@@ -445,6 +445,19 @@
     } catch (e) { return null; }
   }
 
+  // ดึงเฉพาะรหัสในวงเล็บสุดท้าย เช่น "Lunio Chair (LEG001)" → "LEG001"
+  function extractCode(text) {
+    const m = String(text||'').match(/\(([^()]+)\)\s*$/);
+    return m ? m[1].trim() : String(text||'');
+  }
+  // format date — ถ้าเป็น full Date string ให้แสดงแค่ วัน/เดือน/ปี
+  function fmtOrderDate(d) {
+    if (!d) return '–';
+    const parsed = new Date(d);
+    if (!isNaN(parsed)) return parsed.toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'});
+    return String(d).slice(0,10);
+  }
+
   window.__printPickList = async function (orderDocId) {
     const snap = await getDoc(doc(db, 'orders', orderDocId));
     if (!snap.exists()) { alert('ไม่พบออเดอร์'); return; }
@@ -452,53 +465,77 @@
     const items = order.items || [];
     const rows = [];
     for (const it of items) {
-      const sku = it.sku || it.model || '';
-      const p = await lookupProduct(sku);
+      const rawSku = it.sku || it.model || '';
+      const p = await lookupProduct(rawSku);
       rows.push({
-        sku: sku || '-',
-        name: it.name || it.model || p?.name || '-',
-        location: p?.location || '— ไม่ระบุตำแหน่ง —',
-        qty: it.qty ?? '-',
+        skuCode:  extractCode(rawSku),          // เฉพาะรหัสในวงเล็บสุดท้าย
+        name:     it.name || it.model || p?.name || rawSku || '–',
+        location: p?.location || '–',
+        qty:      it.qty ?? '–',
+        type:     it.type || 'main',
       });
     }
-    // เรียงตามตำแหน่งจัดเก็บ เพื่อให้เดินหยิบเป็นเส้นทางเดียว ไม่ย้อนไปมา
     rows.sort((a, b) => String(a.location).localeCompare(String(b.location)));
 
     const html = `
       <!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
       <title>ใบ Pick List — ${escPL(order.id)}</title>
       <style>
-        body { font-family:'Segoe UI','Sarabun',Tahoma,sans-serif; padding:26px; color:#222; }
-        h1 { font-size:18px; margin:0 0 4px; }
-        .sub { color:#888; font-size:13px; margin-bottom:16px; }
-        table { width:100%; border-collapse:collapse; font-size:14px; }
-        th, td { border:1px solid #ddd; padding:8px 10px; text-align:left; }
-        th { background:#f4f6fa; }
-        .qty { text-align:center; font-weight:700; font-size:16px; }
-        .loc { font-weight:700; color:#1a73e8; }
-        @media print { .no-print { display:none; } }
+        * { box-sizing:border-box; }
+        body { font-family:'TH Sarabun New',Sarabun,'Segoe UI',sans-serif; padding:20px 24px; color:#111; font-size:14pt; }
+        h1 { font-size:17pt; margin:0 0 3px; }
+        .meta { font-size:10pt; color:#555; margin-bottom:12px; border-bottom:1px solid #ccc; padding-bottom:6px; }
+        .meta b { color:#111; }
+        table { width:100%; border-collapse:collapse; margin-top:8px; }
+        th { background:#1a73e8; color:#fff; padding:7px 10px; text-align:left; font-size:11pt; font-weight:600; }
+        td { padding:9px 10px; text-align:left; vertical-align:middle; font-size:11pt; border-bottom:1px solid #ddd; }
+        tr:nth-child(even) td { background:#f7f9ff; }
+        .skuCode { font-family:monospace; font-weight:700; color:#1a73e8; font-size:12pt; white-space:nowrap; }
+        .loc { font-weight:700; color:#e65100; white-space:nowrap; }
+        .qty { text-align:center; font-weight:800; font-size:15pt; width:60px; }
+        .gift { color:#888; font-size:10pt; font-style:italic; }
+        .no-print { display:block; }
+        @media print {
+          .no-print { display:none !important; }
+          body { padding:10mm 12mm; }
+          tr { page-break-inside:avoid; }
+        }
       </style></head>
       <body>
         <div class="no-print" style="text-align:right;margin-bottom:10px;">
-          <button onclick="window.print()" style="padding:8px 18px;border:none;background:#1a73e8;color:#fff;border-radius:8px;cursor:pointer;">🖨 พิมพ์ใบ Pick List</button>
+          <button onclick="window.print()" style="padding:7px 18px;border:none;background:#1a73e8;color:#fff;border-radius:8px;cursor:pointer;font-size:13pt;">🖨 พิมพ์</button>
         </div>
-        <h1>📋 ใบ Pick List — เลขออเดอร์ ${escPL(order.id)}</h1>
-        <div class="sub">ลูกค้า: ${escPL(order.customer?.name || '-')} &nbsp;|&nbsp; วันที่สั่ง: ${escPL(order.orderDate || '-')} &nbsp;|&nbsp; พิมพ์เมื่อ: ${new Date().toLocaleString('th-TH')}</div>
+        <h1>📋 ใบ Pick List &nbsp;<span style="font-weight:400;font-size:14pt;">เลขออเดอร์ ${escPL(order.id||order._id)}</span></h1>
+        <div class="meta">
+          ลูกค้า: <b>${escPL(order.customer?.name||'–')}</b>
+          &nbsp;|&nbsp; วันที่สั่ง: <b>${escPL(fmtOrderDate(order.orderDate))}</b>
+          &nbsp;|&nbsp; ขนส่ง: <b>${escPL(order.shipping?.carrier||'–')}</b>
+          &nbsp;|&nbsp; พิมพ์: ${new Date().toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'})}
+        </div>
         <table>
-          <thead><tr><th style="width:36px;">☐</th><th>ตำแหน่งจัดเก็บ</th><th>SKU</th><th>ชื่อสินค้า</th><th style="width:80px;">จำนวน</th></tr></thead>
+          <thead><tr>
+            <th style="width:36px;text-align:center;">✓</th>
+            <th style="width:18%;">ตำแหน่ง</th>
+            <th style="width:18%;">รหัสสินค้า</th>
+            <th>ชื่อสินค้า</th>
+            <th style="width:60px;text-align:center;">จำนวน</th>
+          </tr></thead>
           <tbody>
             ${rows.map(r => `
               <tr>
-                <td style="text-align:center;font-size:18px;">☐</td>
+                <td style="text-align:center;font-size:15pt;">☐</td>
                 <td class="loc">${escPL(r.location)}</td>
-                <td>${escPL(r.sku)}</td>
-                <td>${escPL(r.name)}</td>
-                <td class="qty">${escPL(r.qty)}</td>
-              </tr>
-            `).join('')}
+                <td class="skuCode">${escPL(r.skuCode)}</td>
+                <td>${escPL(r.name)}${r.type==='gift'?'<span class="gift"> (ของแถม)</span>':''}</td>
+                <td class="qty">${escPL(String(r.qty))}</td>
+              </tr>`).join('')}
           </tbody>
         </table>
-        <p style="margin-top:24px;font-size:13px;">ผู้หยิบสินค้า: ____________________ &nbsp;&nbsp;&nbsp; เวลาเริ่ม: __________ &nbsp;&nbsp;&nbsp; เวลาเสร็จ: __________</p>
+        <div style="margin-top:20px;font-size:11pt;color:#555;display:flex;gap:40px;">
+          <span>ผู้หยิบสินค้า: ____________________________</span>
+          <span>เวลาเริ่ม: __________</span>
+          <span>เวลาเสร็จ: __________</span>
+        </div>
       </body></html>
     `;
     const w = window.open('', '_blank');
