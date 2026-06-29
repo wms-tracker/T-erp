@@ -2823,10 +2823,9 @@ function doGet(e) {
       if (!url) { msg.textContent='⚠ ใส่ URL ก่อน'; msg.style.color='#d97706'; return; }
       msg.textContent='🔌 กำลังทดสอบ...'; msg.style.color='#888';
       try {
-        const res = await fetch(url);
-        const json = await res.json();
+        const json = await _gsJsonp(url + '?headersOnly=1');
         if (json.ok) {
-          msg.textContent=`✅ สำเร็จ — พบ ${json.rows?.length||0} แถว`; msg.style.color='#065f46';
+          msg.textContent=`✅ สำเร็จ — พบ ${json.count||0} แถว`; msg.style.color='#065f46';
         } else {
           msg.textContent=`⚠ Script error: ${json.error}`; msg.style.color='#d97706';
         }
@@ -2837,8 +2836,7 @@ function doGet(e) {
       const url = document.getElementById('cfg-url')?.value.trim();
       if (!url) { alert('ใส่ Apps Script URL ก่อน'); return; }
       try {
-        const res  = await fetch(url + '?headersOnly=1');
-        const json = await res.json();
+        const json = await _gsJsonp(url + '?headersOnly=1');
         if (!json.ok) { alert('Script error: ' + (json.error||'unknown')); return; }
 
         // รวม headers จากทุก sheet
@@ -2905,6 +2903,20 @@ function doGet(e) {
   // ----------------------------------------------------------------
   // Core Import Engine
   // ----------------------------------------------------------------
+  // JSONP helper — bypasses CORS for Google Apps Script
+  function _gsJsonp(url) {
+    return new Promise((resolve, reject) => {
+      const cb = '_cb' + Date.now() + Math.random().toString(36).slice(2);
+      const el = document.createElement('script');
+      const t = setTimeout(() => { cleanup(); reject(new Error('Timeout 30s')); }, 30000);
+      window[cb] = d => { cleanup(); resolve(d); };
+      el.onerror = () => { cleanup(); reject(new Error('Script load failed')); };
+      el.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+      document.head.appendChild(el);
+      function cleanup() { clearTimeout(t); delete window[cb]; el.parentNode?.removeChild(el); }
+    });
+  }
+
   window.__importNow = async function() {
     const btn = document.getElementById('btn-import-now');
     const progDiv  = document.getElementById('import-progress');
@@ -2932,9 +2944,7 @@ function doGet(e) {
       const selectedSheets = [...document.querySelectorAll('.sheet-chk:checked')].map(c=>c.value);
       const fromDate = document.getElementById('import-from-date')?.value || '';
       const fetchUrl = cfg.webAppUrl + (fromDate ? `?from=${fromDate}` : '');
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const json = await res.json();
+      const json = await _gsJsonp(fetchUrl);
       if (!json.ok) throw new Error(json.error||'Apps Script ตอบกลับผิดพลาด');
 
       // carrier map from settings
