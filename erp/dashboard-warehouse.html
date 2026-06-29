@@ -2570,14 +2570,24 @@
         </div>
 
         <div style="margin-bottom:10px;">
-          <div style="font-size:0.82rem;font-weight:600;color:#555;margin-bottom:6px;">เลือก Sheet:</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            ${sheets.map(s=>`
-              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.85rem;">
-                <input type="checkbox" class="sheet-chk" value="${escV(s.sheetName)}" checked />
-                ${escV(s.sheetName)}
-                <span style="color:#888;font-size:0.78rem;">(${escV(s.carrier)})</span>
-              </label>`).join('')}
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <div style="font-size:0.82rem;font-weight:600;color:#555;margin-bottom:6px;">เลือก Sheet:</div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                ${sheets.map(s=>`
+                  <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.85rem;">
+                    <input type="checkbox" class="sheet-chk" value="${escV(s.sheetName)}" checked />
+                    ${escV(s.sheetName)}
+                    <span style="color:#888;font-size:0.78rem;">(${escV(s.carrier)})</span>
+                  </label>`).join('')}
+              </div>
+            </div>
+            <div>
+              <div style="font-size:0.82rem;font-weight:600;color:#555;margin-bottom:6px;">นำเข้าตั้งแต่วันที่:</div>
+              <input type="date" id="import-from-date"
+                style="padding:7px 10px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.85rem;font-family:inherit;" />
+              <span style="font-size:0.78rem;color:#888;margin-left:4px;">(เว้นว่าง = ทั้งหมด)</span>
+            </div>
           </div>
         </div>
 
@@ -2920,7 +2930,9 @@ function doGet(e) {
       setProg(10,'กำลังดึงข้อมูลจาก Google Sheets...');
 
       const selectedSheets = [...document.querySelectorAll('.sheet-chk:checked')].map(c=>c.value);
-      const res = await fetch(cfg.webAppUrl);
+      const fromDate = document.getElementById('import-from-date')?.value || '';
+      const fetchUrl = cfg.webAppUrl + (fromDate ? `?from=${fromDate}` : '');
+      const res = await fetch(fetchUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
       const json = await res.json();
       if (!json.ok) throw new Error(json.error||'Apps Script ตอบกลับผิดพลาด');
