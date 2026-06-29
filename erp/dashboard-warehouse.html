@@ -2485,24 +2485,26 @@
   // 📊 GOOGLE SHEETS IMPORT SYSTEM
   // ===================================================================
   const IMPORT_FIELDS = [
-    { key:'orderId',      label:'Order ID',        required:true  },
-    { key:'trackingNo',   label:'Tracking Number', required:true  },
-    { key:'consign',      label:'Consign',         required:false },
-    { key:'sku',          label:'SKU',             required:true  },
-    { key:'spu',          label:'SPU',             required:false },
-    { key:'productName',  label:'Product Name',    required:false },
-    { key:'brand',        label:'Brand',           required:false },
-    { key:'qty',          label:'Quantity',        required:true  },
-    { key:'customer',     label:'Customer Name',   required:false },
-    { key:'phone',        label:'Phone',           required:false },
-    { key:'address',      label:'Address',         required:false },
-    { key:'province',     label:'Province',        required:false },
-    { key:'district',     label:'District',        required:false },
-    { key:'subDistrict',  label:'Sub District',    required:false },
-    { key:'zipcode',      label:'Zipcode',         required:false },
-    { key:'orderDate',    label:'Order Date',      required:false },
-    { key:'deliveryDate', label:'Delivery Date',   required:false },
-    { key:'remark',       label:'Remark',          required:false },
+    { key:'orderId',      label:'Order ID',                  required:true  },
+    { key:'trackingNo',   label:'Tracking Number (ถ้ามี)',   required:false },
+    { key:'consign',      label:'Consign / เลข consign',     required:false },
+    { key:'sku',          label:'SKU / แบรนด์ (สินค้าหลัก)', required:true  },
+    { key:'freeGiftSku',  label:'ของแถม (SKU ของแถม)',       required:false },
+    { key:'freeGiftQty',  label:'จำนวนของแถม',               required:false },
+    { key:'spu',          label:'SPU',                       required:false },
+    { key:'productName',  label:'Product Name / ชื่อสินค้า', required:false },
+    { key:'brand',        label:'Brand / แบรนด์ (label)',    required:false },
+    { key:'qty',          label:'Quantity / จำนวน',          required:true  },
+    { key:'customer',     label:'Customer Name / ชื่อลูกค้า',required:false },
+    { key:'phone',        label:'Phone / เบอร์โทร',          required:false },
+    { key:'address',      label:'Address / ที่อยู่',          required:false },
+    { key:'province',     label:'Province / จังหวัด',        required:false },
+    { key:'district',     label:'District / อำเภอ',          required:false },
+    { key:'subDistrict',  label:'Sub District / ตำบล',       required:false },
+    { key:'zipcode',      label:'Zipcode / รหัสไปรษณีย์',    required:false },
+    { key:'orderDate',    label:'Order Date / วันที่',        required:false },
+    { key:'deliveryDate', label:'Delivery Date',             required:false },
+    { key:'remark',       label:'Remark / หมายเหตุ',         required:false },
   ];
 
   const DEFAULT_SHEETS = [
@@ -2941,14 +2943,20 @@ function doGet(e) {
       // group rows → orders
       const orderMap = {};
       for (const row of rows) {
-        const orderId    = gv(row,'orderId');
-        const trackingNo = gv(row,'trackingNo');
-        const sku        = gv(row,'sku');
-        const qty        = Number(gv(row,'qty'))||0;
-        if (!orderId||!trackingNo||!sku||qty<=0) {
-          errorLog.push(`orderId:${orderId||'–'} sku:${sku||'–'} — ข้อมูลไม่ครบ`);
-          errors.push(row); continue;
+        const orderId = gv(row,'orderId');
+        if (!orderId) { errorLog.push(`ข้ามแถว — ไม่มี Order ID`); continue; }
+
+        // Tracking: ใช้ orderId แทนถ้ายังไม่มี tracking number
+        const trackingNo = gv(row,'trackingNo') || orderId;
+
+        // SKU: ดึงจากฟิลด์ sku (map จากคอลัมน์ แบรนด์)
+        const sku = gv(row,'sku') || gv(row,'brand');
+        const qty = Number(gv(row,'qty'))||0;
+        if (!sku || qty <= 0) {
+          errorLog.push(`orderId:${orderId} — ไม่มี SKU หรือ จำนวน`);
+          continue;
         }
+
         if (!orderMap[orderId]) {
           const carrier = carrierMap[row.__sheet]||gv(row,'carrier')||row.__sheet||'–';
           orderMap[orderId] = {
@@ -2964,7 +2972,24 @@ function doGet(e) {
         const o = orderMap[orderId];
         const carrier = carrierMap[row.__sheet]||o.shipping.carrier;
         if (!o.trackings[trackingNo]) o.trackings[trackingNo] = { trackingNo, carrier, stage:'รอหยิบสินค้า', items:[] };
-        o.trackings[trackingNo].items.push({ sku, spu:gv(row,'spu'), productName:gv(row,'productName'), brand:gv(row,'brand'), qty, model:gv(row,'productName')||sku, price:0 });
+
+        // สินค้าหลัก
+        o.trackings[trackingNo].items.push({
+          sku, productName: gv(row,'productName')||sku,
+          brand: gv(row,'brand')||sku, spu: gv(row,'spu'),
+          qty, model: gv(row,'productName')||sku, price:0, type:'main'
+        });
+
+        // ของแถม — เพิ่มเป็น line item ที่ 2
+        const giftSku = gv(row,'freeGiftSku');
+        if (giftSku) {
+          const giftQty = Number(gv(row,'freeGiftQty'))||1;
+          o.trackings[trackingNo].items.push({
+            sku: giftSku, productName: giftSku,
+            brand: giftSku, qty: giftQty,
+            model: giftSku, price:0, type:'gift'
+          });
+        }
       }
 
       const orderList = Object.values(orderMap).map(o=>({
