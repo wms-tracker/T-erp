@@ -122,7 +122,20 @@ service cloud.firestore {
     match /auditLog/{id} {
       allow create: if isSignedIn() && isActive();
       allow read: if isAdmin() || hasRole('manager');
-      allow update, delete: if false; // ห้ามแก้ไข/ลบประวัติ
+      allow update, delete: if false;
+    }
+
+    // ----- settings: การตั้งค่าระบบ (importConfig ฯลฯ) -----
+    match /settings/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if hasRole('warehouse') || isAdmin();
+    }
+
+    // ----- importHistory: ประวัติการ Import จาก Google Sheets -----
+    match /importHistory/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create: if hasRole('warehouse') || isAdmin();
+      allow update, delete: if isAdmin();
     }
   }
 }

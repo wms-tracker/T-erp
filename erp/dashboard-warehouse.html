@@ -18,6 +18,8 @@
   const profile = await requireRole(['warehouse']);
 
   const SECTIONS = {
+    'import-dashboard':  { title: '⬇️ Import Orders จาก Google Sheets' },
+    'import-settings':   { title: '⚙️ ตั้งค่า Google Sheets Import' },
     'manifest-create':   { title: '🆕 สร้างกำกับสินค้า' },
     'manifest':          { title: '📂 จัดการกำกับสินค้า' },
     'picking-strategy':  { title: '⚙️ กลยุทธ์จัดกลุ่มออเดอร์' },
@@ -52,6 +54,8 @@
   }
 
   const RENDERERS = {
+    'import-dashboard':  renderImportDashboard,
+    'import-settings':   renderImportSettings,
     'manifest-create':   renderManifestCreate,
     'manifest':          renderManifestList,
     'picking-strategy':  renderPickingStrategy,
@@ -2475,6 +2479,544 @@
       toast('ยกเลิกกำกับแล้ว');
       renderManifestList();
     } catch(e) { alert('ไม่สำเร็จ: '+e.message); }
+  };
+
+  // ===================================================================
+  // 📊 GOOGLE SHEETS IMPORT SYSTEM
+  // ===================================================================
+  const IMPORT_FIELDS = [
+    { key:'orderId',      label:'Order ID',        required:true  },
+    { key:'trackingNo',   label:'Tracking Number', required:true  },
+    { key:'consign',      label:'Consign',         required:false },
+    { key:'sku',          label:'SKU',             required:true  },
+    { key:'spu',          label:'SPU',             required:false },
+    { key:'productName',  label:'Product Name',    required:false },
+    { key:'brand',        label:'Brand',           required:false },
+    { key:'qty',          label:'Quantity',        required:true  },
+    { key:'customer',     label:'Customer Name',   required:false },
+    { key:'phone',        label:'Phone',           required:false },
+    { key:'address',      label:'Address',         required:false },
+    { key:'province',     label:'Province',        required:false },
+    { key:'district',     label:'District',        required:false },
+    { key:'subDistrict',  label:'Sub District',    required:false },
+    { key:'zipcode',      label:'Zipcode',         required:false },
+    { key:'orderDate',    label:'Order Date',      required:false },
+    { key:'deliveryDate', label:'Delivery Date',   required:false },
+    { key:'remark',       label:'Remark',          required:false },
+  ];
+
+  const DEFAULT_SHEETS = [
+    { sheetName:'Best Express Bulky', carrier:'Best Express' },
+    { sheetName:'Kex HRZ',           carrier:'KEX' },
+    { sheetName:'Business Idea HRZ', carrier:'Business Idea' },
+  ];
+  const DEFAULT_SPREADSHEET_ID = '1LYfwD2uhqZqi9IJvhdUmmj2X8O1xVSx_6BoNfaqm8Y8';
+
+  async function loadImportSettings() {
+    try {
+      const snap = await getDoc(doc(db,'settings','importConfig'));
+      return snap.exists() ? snap.data() : {};
+    } catch(e) { return {}; }
+  }
+  async function saveImportSettings(data) {
+    await setDoc(doc(db,'settings','importConfig'), { ...data, updatedAt: serverTimestamp() }, { merge: true });
+  }
+
+  // ----------------------------------------------------------------
+  // Import Dashboard
+  // ----------------------------------------------------------------
+  async function renderImportDashboard() {
+    main.innerHTML = `<div class="card"><p style="color:#999;text-align:center;padding:20px;">กำลังโหลด...</p></div>`;
+    const cfg = await loadImportSettings();
+    let history = [];
+    try {
+      const snap = await getDocs(query(collection(db,'importHistory'), orderBy('importedAt','desc'), limit(10)));
+      snap.forEach(d => history.push({_id:d.id,...d.data()}));
+    } catch(e) {}
+    const last = history[0];
+    const lastTime = last?.importedAt?.seconds
+      ? new Date(last.importedAt.seconds*1000).toLocaleString('th-TH') : '–';
+    const sheets = cfg.sheets || DEFAULT_SHEETS;
+    const hasUrl = !!cfg.webAppUrl;
+
+    main.innerHTML = `
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:14px;">
+        ${[
+          ['⬇️','นำเข้าล่าสุด', last?.importedOrders||0,  '#1a73e8'],
+          ['✅','สำเร็จ',         last?.imported||0,        '#065f46'],
+          ['⚠️','Error',          last?.errors||0,           '#d97706'],
+          ['🔁','Duplicate',      last?.duplicates||0,      '#7c3aed'],
+        ].map(([ic,lb,vl,co])=>`
+          <div class="card" style="text-align:center;padding:14px 8px;">
+            <div style="font-size:1.4rem;">${ic}</div>
+            <div style="font-size:1.7rem;font-weight:700;color:${co};">${vl}</div>
+            <div style="font-size:0.76rem;color:#888;">${lb}</div>
+          </div>`).join('')}
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+          <div>
+            <div style="font-size:0.82rem;color:#888;">Import ล่าสุด: <b style="color:#333;">${lastTime}</b></div>
+            ${!hasUrl ? `<div style="font-size:0.82rem;color:#f59e0b;margin-top:3px;">⚠ ยังไม่ตั้งค่า Apps Script URL — <a href="dashboard-warehouse.html#import-settings" style="color:#1a73e8;">ไปตั้งค่า</a></div>` : ''}
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btn-import-now" onclick="window.__importNow()" ${!hasUrl?'disabled title="กรุณาตั้งค่า Apps Script URL ก่อน"':''}>⬇️ Import Now</button>
+            <button class="btn btn-outline" onclick="renderImportDashboard()">🔄 รีเฟรช</button>
+            <a href="dashboard-warehouse.html#import-settings" class="btn btn-outline">⚙️ ตั้งค่า</a>
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:0.82rem;font-weight:600;color:#555;margin-bottom:6px;">เลือก Sheet:</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            ${sheets.map(s=>`
+              <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.85rem;">
+                <input type="checkbox" class="sheet-chk" value="${escV(s.sheetName)}" checked />
+                ${escV(s.sheetName)}
+                <span style="color:#888;font-size:0.78rem;">(${escV(s.carrier)})</span>
+              </label>`).join('')}
+          </div>
+        </div>
+
+        <div id="import-progress" style="display:none;margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#555;margin-bottom:4px;">
+            <span id="prog-label">กำลังนำเข้า...</span><span id="prog-pct">0%</span>
+          </div>
+          <div style="background:#e8eaf6;border-radius:8px;height:8px;overflow:hidden;">
+            <div id="prog-bar" style="background:#1a73e8;height:100%;width:0%;transition:width 0.25s;"></div>
+          </div>
+        </div>
+        <div id="import-result"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin:0 0 12px;font-size:0.95rem;">📋 ประวัติการ Import</h3>
+        ${history.length ? `
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr>
+              <th>เวลา</th><th>โดย</th>
+              <th style="text-align:center;">นำเข้า</th><th style="text-align:center;">Error</th><th style="text-align:center;">ซ้ำ</th>
+              <th>ผล</th><th style="text-align:right;">วินาที</th>
+            </tr></thead>
+            <tbody>
+              ${history.map(h => {
+                const t = h.importedAt?.seconds ? new Date(h.importedAt.seconds*1000).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}) : '–';
+                const [rc,rl] = h.result==='success' ? ['#065f46','✅ สำเร็จ'] : h.result==='partial' ? ['#d97706','⚠️ บางส่วน'] : ['#b91c1c','❌ ล้มเหลว'];
+                return `<tr>
+                  <td style="font-size:0.82rem;">${t}</td>
+                  <td style="font-size:0.82rem;">${escV(h.importedByName||'–')}</td>
+                  <td style="text-align:center;font-weight:600;">${h.importedOrders||0}</td>
+                  <td style="text-align:center;color:${h.errors?'#d97706':'#aaa'};">${h.errors||0}</td>
+                  <td style="text-align:center;color:${h.duplicates?'#7c3aed':'#aaa'};">${h.duplicates||0}</td>
+                  <td style="font-weight:600;font-size:0.82rem;color:${rc};">${rl}</td>
+                  <td style="text-align:right;font-size:0.82rem;color:#888;">${h.duration||'–'}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p style="color:#bbb;text-align:center;padding:16px;">ยังไม่มีประวัติ</p>'}
+      </div>
+    `;
+
+    // auto-import timer
+    if (window._autoImportTimer) { clearInterval(window._autoImportTimer); window._autoImportTimer = null; }
+    if (cfg.autoImport && cfg.importInterval && hasUrl) {
+      const ms = parseInt(cfg.importInterval) * 60000;
+      window._autoImportTimer = setInterval(() => {
+        if (document.getElementById('btn-import-now')) window.__importNow();
+      }, ms);
+    }
+  }
+
+  // ----------------------------------------------------------------
+  // Import Settings
+  // ----------------------------------------------------------------
+  async function renderImportSettings() {
+    main.innerHTML = `<div class="card"><p style="color:#999;text-align:center;padding:20px;">กำลังโหลด...</p></div>`;
+    const cfg = await loadImportSettings();
+    const sheets  = cfg.sheets  || DEFAULT_SHEETS;
+    const mapping = cfg.columnMapping || {};
+
+    const scriptTemplate = `// วางใน Google Apps Script แล้ว Deploy → Web App
+// Execute as: Me | Who has access: Anyone
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.openById('${DEFAULT_SPREADSHEET_ID}');
+    var result = [];
+    ss.getSheets().forEach(function(sheet) {
+      var vals = sheet.getDataRange().getValues();
+      if (vals.length < 2) return;
+      var headers = vals[0].map(function(h){ return String(h).trim(); });
+      for (var i = 1; i < vals.length; i++) {
+        var row = { __sheet: sheet.getName() };
+        var hasData = false;
+        headers.forEach(function(h, j) {
+          row[h] = vals[i][j] !== undefined ? String(vals[i][j]) : '';
+          if (row[h]) hasData = true;
+        });
+        if (hasData) result.push(row);
+      }
+    });
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, rows: result, ts: new Date().toISOString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`;
+
+    main.innerHTML = `
+      <div class="card" style="margin-bottom:14px;">
+        <h2 style="margin:0 0 4px;font-size:1.05rem;">🔗 เชื่อมต่อ Google Sheets</h2>
+        <p style="font-size:0.82rem;color:#888;margin:0 0 14px;">ใช้ Google Apps Script เป็น bridge ดึงข้อมูลจาก private Spreadsheet</p>
+
+        <div class="field" style="margin-bottom:10px;">
+          <label>Spreadsheet ID</label>
+          <input id="cfg-sid" value="${escV(cfg.spreadsheetId||DEFAULT_SPREADSHEET_ID)}"
+            style="font-family:monospace;font-size:0.84rem;" />
+          <span style="font-size:0.77rem;color:#888;">จาก URL: .../spreadsheets/d/<b>[ID นี้]</b>/edit</span>
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label>Apps Script Web App URL</label>
+          <input id="cfg-url" value="${escV(cfg.webAppUrl||'')}"
+            placeholder="https://script.google.com/macros/s/xxx/exec"
+            style="font-family:monospace;font-size:0.83rem;" />
+        </div>
+
+        <details>
+          <summary style="cursor:pointer;font-size:0.85rem;color:#1a73e8;font-weight:600;padding:6px 0;">
+            📋 วิธีสร้าง Apps Script (คลิกดู)
+          </summary>
+          <div style="margin-top:10px;background:#f8f9fa;border-radius:8px;padding:14px;">
+            <ol style="font-size:0.83rem;color:#555;line-height:2;margin:0 0 10px;padding-left:18px;">
+              <li>เปิด Google Sheet → <b>Extensions → Apps Script</b></li>
+              <li>ลบโค้ดเดิมทิ้ง วาง script ด้านล่างแทน</li>
+              <li>กด <b>Deploy → New deployment → Web App</b></li>
+              <li>Execute as: <b>Me</b> | Who has access: <b>Anyone</b></li>
+              <li>Copy URL มาวางในช่อง "Apps Script Web App URL" ด้านบน</li>
+            </ol>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:0.8rem;font-weight:600;color:#555;">Apps Script:</span>
+              <button onclick="window.__copyScript()" style="background:#e8f0fe;color:#1a73e8;border:none;border-radius:6px;padding:4px 12px;font-size:0.78rem;cursor:pointer;font-family:inherit;">📋 Copy Script</button>
+            </div>
+            <pre id="script-code" style="background:#1e1e2e;color:#cdd6f4;padding:12px;border-radius:8px;font-size:0.7rem;overflow-x:auto;line-height:1.5;margin:0;white-space:pre-wrap;">${escV(scriptTemplate)}</pre>
+          </div>
+        </details>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h3 style="margin:0;font-size:0.95rem;">📋 Sheet → ขนส่ง</h3>
+          <button onclick="window.__addSheetRow()" style="background:#e8f0fe;color:#1a73e8;border:none;border-radius:6px;padding:5px 12px;font-size:0.8rem;cursor:pointer;font-family:inherit;">+ เพิ่ม Sheet</button>
+        </div>
+        <div id="sheet-rows">
+          ${sheets.map((s,i)=>`
+            <div class="srow" id="srow-${i}" style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+              <input class="srow-name" value="${escV(s.sheetName)}" placeholder="ชื่อ Sheet"
+                style="flex:1;padding:8px 10px;border:1.5px solid #dde;border-radius:7px;font-size:0.85rem;font-family:inherit;" />
+              <span style="color:#888;">→</span>
+              <input class="srow-carrier" value="${escV(s.carrier)}" placeholder="ขนส่ง"
+                style="flex:1;padding:8px 10px;border:1.5px solid #dde;border-radius:7px;font-size:0.85rem;font-family:inherit;" />
+              <button onclick="document.getElementById('srow-${i}').remove()"
+                style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:6px 9px;cursor:pointer;">✕</button>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <h3 style="margin:0;font-size:0.95rem;">🗂 Column Mapping</h3>
+          <button class="btn btn-outline" style="font-size:0.78rem;" onclick="window.__loadHeaders()">🔍 โหลด Headers จาก Sheet</button>
+        </div>
+        <p style="font-size:0.8rem;color:#888;margin:0 0 12px;">พิมพ์ชื่อหัวคอลัมน์ใน Sheet ให้ตรงกับแต่ละฟิลด์ (case-sensitive)</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:8px;">
+          ${IMPORT_FIELDS.map(f=>`
+            <div class="field" style="margin:0;">
+              <label>${escV(f.label)}${f.required?' <span style="color:#d23;">*</span>':''}</label>
+              <input class="col-map" data-field="${f.key}" value="${escV(mapping[f.key]||'')}"
+                placeholder="ชื่อคอลัมน์ใน Sheet"
+                style="font-size:0.83rem;" />
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <h3 style="margin:0 0 12px;font-size:0.95rem;">🔧 ตัวเลือก</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+          <div class="field">
+            <label>Duplicate Policy</label>
+            <select id="cfg-dup" style="padding:9px 11px;border:1.5px solid #dde;border-radius:8px;font-size:0.88rem;font-family:inherit;">
+              <option value="skip"    ${(cfg.duplicatePolicy||'skip')==='skip'   ?'selected':''}>Skip (ข้ามรายการซ้ำ)</option>
+              <option value="update"  ${cfg.duplicatePolicy==='update'  ?'selected':''}>Update (อัพเดท)</option>
+              <option value="replace" ${cfg.duplicatePolicy==='replace' ?'selected':''}>Replace (แทนที่ทั้งหมด)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Auto Import ทุก</label>
+            <select id="cfg-interval" style="padding:9px 11px;border:1.5px solid #dde;border-radius:8px;font-size:0.88rem;font-family:inherit;">
+              <option value=""  ${!cfg.importInterval?'selected':''}>ปิด</option>
+              <option value="5" ${cfg.importInterval==='5' ?'selected':''}>5 นาที</option>
+              <option value="15"${cfg.importInterval==='15'?'selected':''}>15 นาที</option>
+              <option value="30"${cfg.importInterval==='30'?'selected':''}>30 นาที</option>
+              <option value="60"${cfg.importInterval==='60'?'selected':''}>1 ชั่วโมง</option>
+            </select>
+          </div>
+          <div class="field">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;">
+              <input type="checkbox" id="cfg-autogroup" ${cfg.autoGroup?'checked':''} />
+              Auto Grouping หลัง Import
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="cfg-autoimport" ${cfg.autoImport?'checked':''} />
+              เปิด Auto Import ตาม Interval
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center;">
+        <span id="settings-msg" style="font-size:0.82rem;"></span>
+        <button class="btn btn-outline" onclick="window.__testConn()">🔌 ทดสอบ</button>
+        <button class="btn btn-primary" onclick="window.__saveImportSettings()">💾 บันทึก</button>
+      </div>
+    `;
+
+    let _srowCount = sheets.length;
+    window.__addSheetRow = function() {
+      const rows = document.getElementById('sheet-rows');
+      const div = document.createElement('div');
+      div.className = 'srow'; div.id = `srow-${_srowCount}`;
+      div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:8px;';
+      div.innerHTML = `
+        <input class="srow-name" placeholder="ชื่อ Sheet" style="flex:1;padding:8px 10px;border:1.5px solid #dde;border-radius:7px;font-size:0.85rem;font-family:inherit;" />
+        <span style="color:#888;">→</span>
+        <input class="srow-carrier" placeholder="ขนส่ง" style="flex:1;padding:8px 10px;border:1.5px solid #dde;border-radius:7px;font-size:0.85rem;font-family:inherit;" />
+        <button onclick="this.parentElement.remove()" style="background:#fee2e2;color:#991b1b;border:none;border-radius:6px;padding:6px 9px;cursor:pointer;">✕</button>`;
+      rows.appendChild(div); _srowCount++;
+    };
+
+    window.__copyScript = function() {
+      navigator.clipboard?.writeText(scriptTemplate)
+        .then(()=>toast('คัดลอก Script แล้ว ✔'))
+        .catch(()=>{ const el=document.getElementById('script-code'); if(el){const r=document.createRange();r.selectNode(el);window.getSelection().removeAllRanges();window.getSelection().addRange(r);} toast('เลือกข้อความแล้ว — กด Ctrl+C'); });
+    };
+
+    window.__testConn = async function() {
+      const url = document.getElementById('cfg-url')?.value.trim();
+      const msg = document.getElementById('settings-msg');
+      if (!url) { msg.textContent='⚠ ใส่ URL ก่อน'; msg.style.color='#d97706'; return; }
+      msg.textContent='🔌 กำลังทดสอบ...'; msg.style.color='#888';
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        if (json.ok) {
+          msg.textContent=`✅ สำเร็จ — พบ ${json.rows?.length||0} แถว`; msg.style.color='#065f46';
+        } else {
+          msg.textContent=`⚠ Script error: ${json.error}`; msg.style.color='#d97706';
+        }
+      } catch(e) { msg.textContent=`❌ ${e.message}`; msg.style.color='#b91c1c'; }
+    };
+
+    window.__loadHeaders = async function() {
+      const url = document.getElementById('cfg-url')?.value.trim();
+      if (!url) { alert('ใส่ Apps Script URL ก่อน'); return; }
+      try {
+        const res = await fetch(url);
+        const json = await res.json();
+        if (!json.ok || !json.rows?.length) { alert('ไม่พบข้อมูล หรือ Sheet ว่าง'); return; }
+        const headers = [...new Set(json.rows.flatMap(r => Object.keys(r).filter(k=>!k.startsWith('__'))))];
+        const ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px;';
+        ov.innerHTML = `<div style="background:#fff;border-radius:12px;padding:20px;max-width:520px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+          <h3 style="margin:0 0 10px;font-size:0.95rem;">🗂 Headers ที่พบใน Sheet</h3>
+          <p style="font-size:0.82rem;color:#888;margin:0 0 10px;">คลิกชื่อเพื่อ copy ไปวางใน Column Mapping</p>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+            ${headers.map(h=>`<span style="background:#e8f0fe;color:#1a73e8;padding:3px 10px;border-radius:10px;font-size:0.8rem;font-family:monospace;cursor:pointer;"
+              onclick="navigator.clipboard?.writeText(${JSON.stringify(h)}).then(()=>toast('คัดลอก: ${escV(h)}'))">${escV(h)}</span>`).join('')}
+          </div>
+          <button onclick="this.closest('[style*=fixed]').remove()" class="btn btn-outline" style="width:100%;">ปิด</button>
+        </div>`;
+        document.body.appendChild(ov);
+      } catch(e) { alert('โหลดไม่สำเร็จ: '+e.message); }
+    };
+
+    window.__saveImportSettings = async function() {
+      const spreadsheetId = document.getElementById('cfg-sid')?.value.trim();
+      const webAppUrl     = document.getElementById('cfg-url')?.value.trim();
+      const duplicatePolicy = document.getElementById('cfg-dup')?.value;
+      const importInterval  = document.getElementById('cfg-interval')?.value;
+      const autoGroup   = document.getElementById('cfg-autogroup')?.checked;
+      const autoImport  = document.getElementById('cfg-autoimport')?.checked;
+      const sheets = [];
+      document.querySelectorAll('.srow').forEach(row => {
+        const sn = row.querySelector('.srow-name')?.value.trim();
+        const cr = row.querySelector('.srow-carrier')?.value.trim();
+        if (sn) sheets.push({ sheetName:sn, carrier:cr||sn });
+      });
+      const columnMapping = {};
+      document.querySelectorAll('.col-map').forEach(inp => {
+        if (inp.dataset.field && inp.value.trim()) columnMapping[inp.dataset.field] = inp.value.trim();
+      });
+      const msg = document.getElementById('settings-msg');
+      try {
+        await saveImportSettings({ spreadsheetId, webAppUrl, sheets, columnMapping, duplicatePolicy, importInterval, autoGroup, autoImport });
+        msg.textContent='✅ บันทึกแล้ว'; msg.style.color='#065f46';
+        toast('บันทึกการตั้งค่าแล้ว ✔');
+      } catch(e) { msg.textContent='❌ '+e.message; msg.style.color='#b91c1c'; }
+    };
+  }
+
+  // ----------------------------------------------------------------
+  // Core Import Engine
+  // ----------------------------------------------------------------
+  window.__importNow = async function() {
+    const btn = document.getElementById('btn-import-now');
+    const progDiv  = document.getElementById('import-progress');
+    const resultDiv = document.getElementById('import-result');
+    if (btn) { btn.disabled=true; btn.textContent='⏳ กำลังนำเข้า...'; }
+    if (progDiv) progDiv.style.display='';
+
+    const setProg = (pct, lbl) => {
+      const b=document.getElementById('prog-bar'), l=document.getElementById('prog-label'), p=document.getElementById('prog-pct');
+      if(b) b.style.width=pct+'%';
+      if(l) l.textContent=lbl;
+      if(p) p.textContent=pct+'%';
+    };
+
+    const t0 = Date.now();
+    const errors=[], errorLog=[];
+    let imported=0, duplicates=0, totalRows=0;
+
+    try {
+      const cfg = await loadImportSettings();
+      if (!cfg.webAppUrl) throw new Error('ยังไม่ตั้งค่า Apps Script URL — ไปที่ ⚙️ ตั้งค่า Import');
+
+      setProg(10,'กำลังดึงข้อมูลจาก Google Sheets...');
+
+      const selectedSheets = [...document.querySelectorAll('.sheet-chk:checked')].map(c=>c.value);
+      const res = await fetch(cfg.webAppUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error||'Apps Script ตอบกลับผิดพลาด');
+
+      // carrier map from settings
+      const carrierMap = {};
+      (cfg.sheets||DEFAULT_SHEETS).forEach(s=>{ carrierMap[s.sheetName]=s.carrier||s.sheetName; });
+
+      // filter selected sheets
+      let rows = json.rows||[];
+      if (selectedSheets.length) rows = rows.filter(r=>selectedSheets.includes(r.__sheet));
+      totalRows = rows.length;
+      if (!totalRows) { toast('ไม่พบแถวข้อมูล'); if(btn){btn.disabled=false;btn.textContent='⬇️ Import Now';} if(progDiv)progDiv.style.display='none'; return; }
+
+      setProg(20, `พบ ${totalRows} แถว — กำลังประมวลผล...`);
+
+      const colMap = cfg.columnMapping||{};
+      const gv = (row, field) => { const h=colMap[field]; return h ? String(row[h]??'').trim() : ''; };
+
+      // group rows → orders
+      const orderMap = {};
+      for (const row of rows) {
+        const orderId    = gv(row,'orderId');
+        const trackingNo = gv(row,'trackingNo');
+        const sku        = gv(row,'sku');
+        const qty        = Number(gv(row,'qty'))||0;
+        if (!orderId||!trackingNo||!sku||qty<=0) {
+          errorLog.push(`orderId:${orderId||'–'} sku:${sku||'–'} — ข้อมูลไม่ครบ`);
+          errors.push(row); continue;
+        }
+        if (!orderMap[orderId]) {
+          const carrier = carrierMap[row.__sheet]||gv(row,'carrier')||row.__sheet||'–';
+          orderMap[orderId] = {
+            id: orderId, source:'sheets', sourceSheet: row.__sheet,
+            customer:{ name:gv(row,'customer'), phone:gv(row,'phone'), addressDetail:gv(row,'address'),
+              province:gv(row,'province'), district:gv(row,'district'),
+              subDistrict:gv(row,'subDistrict'), zipcode:gv(row,'zipcode') },
+            shipping:{ carrier },
+            trackings:{}, orderDate:gv(row,'orderDate'),
+            deliveryDate:gv(row,'deliveryDate'), remark:gv(row,'remark'), consign:gv(row,'consign'),
+          };
+        }
+        const o = orderMap[orderId];
+        const carrier = carrierMap[row.__sheet]||o.shipping.carrier;
+        if (!o.trackings[trackingNo]) o.trackings[trackingNo] = { trackingNo, carrier, stage:'รอหยิบสินค้า', items:[] };
+        o.trackings[trackingNo].items.push({ sku, spu:gv(row,'spu'), productName:gv(row,'productName'), brand:gv(row,'brand'), qty, model:gv(row,'productName')||sku, price:0 });
+      }
+
+      const orderList = Object.values(orderMap).map(o=>({
+        ...o, trackings: Object.values(o.trackings),
+        items: Object.values(o.trackings).flatMap(t=>t.items),
+      }));
+
+      setProg(35, `รวมออเดอร์ได้ ${orderList.length} รายการ — กำลังบันทึก...`);
+
+      const dupPolicy = cfg.duplicatePolicy||'skip';
+      let done=0;
+      for (const order of orderList) {
+        try {
+          const existSnap = await getDocs(query(collection(db,'orders'), where('id','==',order.id), limit(1)));
+          if (!existSnap.empty) {
+            duplicates++;
+            if (dupPolicy==='skip') { done++; setProg(35+Math.round(done/orderList.length*60),'...'); continue; }
+            const updateData = { ...order, updatedAt:serverTimestamp() };
+            if (dupPolicy==='replace') { updateData.warehouseStage='รอหยิบสินค้า'; updateData.status='รอดำเนินการ'; }
+            await updateDoc(existSnap.docs[0].ref, updateData);
+          } else {
+            await addDoc(collection(db,'orders'), {
+              ...order, warehouseStage:'รอหยิบสินค้า', status:'รอดำเนินการ',
+              importedAt:serverTimestamp(), importedBy:profile.uid,
+              importedByName:profile.name||profile.email||'–',
+              createdBy:profile.uid, createdByName:profile.name||profile.email||'–',
+            });
+            imported++;
+          }
+        } catch(e) { errorLog.push(`Order ${order.id}: ${e.message}`); }
+        done++;
+        setProg(35+Math.round(done/orderList.length*60), `บันทึก ${done}/${orderList.length}...`);
+      }
+
+      setProg(97,'บันทึกประวัติ...');
+      const duration = Math.round((Date.now()-t0)/1000);
+      const result = errorLog.length===0?'success':imported>0?'partial':'failed';
+      try {
+        await addDoc(collection(db,'importHistory'), {
+          importedAt:serverTimestamp(), importedBy:profile.uid,
+          importedByName:profile.name||profile.email||'–',
+          totalRows, importedOrders:imported, imported, duplicates,
+          errors:errorLog.length, errorLog:errorLog.slice(0,50), duration, result,
+        });
+      } catch(e) {}
+
+      if (cfg.autoGroup && imported>0 && window.__autoGroup) {
+        setProg(99,'Auto-Grouping...'); await window.__autoGroup();
+      }
+      setProg(100,'เสร็จสิ้น');
+
+      const [rbg,rborder,rtitle] = result==='success'
+        ? ['#d1fae5','#6ee7b7','✅ Import สำเร็จ']
+        : result==='partial'
+        ? ['#fef3c7','#fbbf24','⚠️ Import บางส่วน']
+        : ['#fee2e2','#f87171','❌ Import ล้มเหลว'];
+
+      if (resultDiv) resultDiv.innerHTML = `
+        <div style="background:${rbg};border:1px solid ${rborder};border-radius:8px;padding:12px 14px;margin-top:8px;">
+          <b>${rtitle}</b> — นำเข้า <b>${imported}</b> | ซ้ำ <b>${duplicates}</b> | Error <b>${errorLog.length}</b> | ${duration}s
+        </div>
+        ${errorLog.length?`<div style="margin-top:6px;background:#fff5f5;border-radius:8px;padding:10px;font-size:0.79rem;color:#b91c1c;max-height:100px;overflow-y:auto;">${errorLog.map(e=>`<div>${escV(e)}</div>`).join('')}</div>`:''}
+      `;
+      toast(`✅ Import เสร็จ: ${imported} ใหม่, ${duplicates} ซ้ำ, ${errorLog.length} error`);
+
+    } catch(err) {
+      if (resultDiv) resultDiv.innerHTML = `<div style="background:#fee2e2;border:1px solid #f87171;border-radius:8px;padding:12px;color:#b91c1c;margin-top:8px;">❌ ${escV(err.message)}</div>`;
+      toast('❌ '+err.message);
+    } finally {
+      if (btn) { btn.disabled=false; btn.textContent='⬇️ Import Now'; }
+      if (progDiv) setTimeout(()=>{ if(progDiv) progDiv.style.display='none'; }, 2000);
+    }
   };
 
   // ===================================================================

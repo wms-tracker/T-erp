@@ -16,6 +16,10 @@ const ROLE_LABEL = {
 // group = { groupKey, icon, label, items: [{key, label, href}] }
 const NAV = {
   warehouse: [
+    { groupKey: 'gs-import', icon: '📊', label: 'นำเข้า', items: [
+      { key: 'import-dashboard', label: '⬇️ Import จาก Sheets',  href: 'dashboard-warehouse.html#import-dashboard' },
+      { key: 'import-settings',  label: '⚙️ ตั้งค่า Import',      href: 'dashboard-warehouse.html#import-settings' },
+    ]},
     { groupKey: 'manifest', icon: '📋', label: 'กำกับ', items: [
       { key: 'manifest-create', label: '🆕 สร้างกำกับสินค้า',  href: 'dashboard-warehouse.html#manifest-create' },
       { key: 'manifest',        label: '📂 จัดการกำกับสินค้า', href: 'dashboard-warehouse.html#manifest' },
