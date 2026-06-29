@@ -2969,7 +2969,7 @@ function doGet(e) {
       const orderMap = {};
       for (const row of rows) {
         const orderId = gv(row,'orderId');
-        if (!orderId) { errorLog.push(`ข้ามแถว — ไม่มี Order ID`); continue; }
+        if (!orderId) continue; // แถวว่าง — ข้ามโดยไม่นับ error
 
         // Tracking: ใช้ orderId แทนถ้ายังไม่มี tracking number
         const trackingNo = gv(row,'trackingNo') || orderId;
