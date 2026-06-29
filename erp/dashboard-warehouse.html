@@ -315,9 +315,24 @@
           <button class="btn btn-outline" id="btn-refresh-pipeline">🔄 รีเฟรช</button>
         </div>
       </div>
-      <div class="card">
-        <table>
-          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>รายการสินค้า</th><th>ยอดรวม</th><th>วันที่สั่ง</th><th>การดำเนินการ</th></tr></thead>
+      <div class="card" style="overflow-x:auto;">
+        <table style="table-layout:fixed;width:100%;">
+          <colgroup>
+            <col style="width:120px;" />   <!-- Order ID -->
+            <col />                         <!-- รายการสินค้า (flex) -->
+            <col style="width:90px;" />    <!-- ยอดรวม -->
+            <col style="width:100px;" />   <!-- วันจัดส่ง -->
+            <col style="width:130px;" />   <!-- ลูกค้า -->
+            <col style="width:220px;" />   <!-- การดำเนินการ -->
+          </colgroup>
+          <thead><tr>
+            <th>Order ID</th>
+            <th>รายการสินค้า</th>
+            <th style="text-align:right;">ยอดรวม</th>
+            <th style="font-size:0.82rem;">วันจัดส่ง</th>
+            <th style="font-size:0.82rem;">ลูกค้า</th>
+            <th style="font-size:0.82rem;text-align:center;">การดำเนินการ</th>
+          </tr></thead>
           <tbody id="pipeline-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
@@ -339,7 +354,16 @@
 
       // สร้างแถวสำหรับแต่ละออเดอร์ — QC และ Outbound แตกแถวต่อ tracking (ถ้ามี)
       const rowsHtml = list.map(o => {
-        const itemsTxt = (o.items || []).map(it => `${it.name || it.model || it.sku || ''} ×${it.qty}`).join(', ');
+        const itemsHtml = (o.items || []).map(it => {
+          const name = it.name || it.model || it.sku || '–';
+          const code = name.match(/\(([^()]+)\)\s*$/)?.[1] || '';
+          return `<div style="margin-bottom:2px;font-size:0.83rem;line-height:1.35;">
+            ${code ? `<span style="font-family:monospace;font-weight:700;color:#1a73e8;font-size:0.78rem;">[${escPL(code)}]</span> ` : ''}${escPL(name)} <b>×${it.qty}</b>
+            ${it.type==='gift'?'<span style="color:#888;font-size:0.73rem;">(ของแถม)</span>':''}
+          </div>`;
+        }).join('');
+        const shipDate = o.shipping?.shipDate || o.deliveryDate || o.orderDate || '–';
+        const fmtShip = fmtOrderDate(shipDate);
         const hasTrackings = o.trackings && o.trackings.length > 0;
 
         // QC และ Outbound: ถ้ามี trackings → แตกแถวต่อ tracking ที่อยู่ใน stage นั้น
@@ -396,12 +420,12 @@
           ` + actionsHtml;
           return `
             <tr>
-              <td><strong>${escPL(o.id || o._id)}</strong><br>${trkBadge}</td>
-              <td>${escPL(o.customer?.name || '-')}</td>
-              <td style="font-size:0.82rem;max-width:220px;">${escPL(itemsTxt || '-')}</td>
-              <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
-              <td style="white-space:nowrap;font-size:0.8rem;">${escPL(o.orderDate || '-')}</td>
-              <td style="white-space:nowrap;">${actionsHtml}</td>
+              <td style="font-weight:700;font-size:0.9rem;">${escPL(o.id || o._id)}<br>${trkBadge}</td>
+              <td>${itemsHtml}</td>
+              <td style="text-align:right;font-weight:700;">฿${fmtNum(o.subtotal)}</td>
+              <td style="font-size:0.82rem;color:#555;">${fmtShip}</td>
+              <td style="font-size:0.82rem;">${escPL(o.customer?.name || '–')}</td>
+              <td style="text-align:center;">${actionsHtml}</td>
             </tr>`;
         } else if (stageKey === 'qc') {
           actionsHtml = `<button class="btn btn-outline" style="font-size:0.78rem;padding:6px 10px;" onclick="window.__printQcSheet('${o._id}')">🖨 ใบ QC</button> ` + actionsHtml;
@@ -414,12 +438,12 @@
         }
         return `
           <tr>
-            <td><strong>${escPL(o.id || o._id)}</strong></td>
-            <td>${escPL(o.customer?.name || '-')}</td>
-            <td style="font-size:0.82rem;max-width:260px;">${escPL(itemsTxt || '-')}</td>
-            <td><strong>฿${fmtNum(o.subtotal)}</strong></td>
-            <td style="white-space:nowrap;font-size:0.8rem;">${escPL(o.orderDate || '-')}</td>
-            <td style="white-space:nowrap;">${actionsHtml}</td>
+            <td style="font-weight:700;font-size:0.9rem;">${escPL(o.id || o._id)}</td>
+            <td>${itemsHtml}</td>
+            <td style="text-align:right;font-weight:700;">฿${fmtNum(o.subtotal)}</td>
+            <td style="font-size:0.82rem;color:#555;">${fmtShip}</td>
+            <td style="font-size:0.82rem;">${escPL(o.customer?.name || '–')}</td>
+            <td style="text-align:center;">${actionsHtml}</td>
           </tr>`;
       }).join('');
 
