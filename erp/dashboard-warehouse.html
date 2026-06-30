@@ -64,7 +64,7 @@
     'verification-scan': renderVerificationScan,
     stock: renderStock,
     inbound: renderInbound,
-    picking: renderPipeline.bind(null, 'รอหยิบสินค้า', 'picking'),
+    picking: renderPickingV2,
     packing: renderPipeline.bind(null, 'กำลังแพ็ค', 'packing'),
     qc: renderPipeline.bind(null, 'รอตรวจสอบ QC', 'qc'),
     outbound: renderPipeline.bind(null, 'พร้อมจัดส่ง', 'outbound'),
@@ -456,6 +456,153 @@
       tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
     }
   }
+
+  // ===================================================================
+  // 🛒 หยิบสินค้า (Picking) — card layout
+  // ===================================================================
+  const _PICK_CARRIERS = [
+    { key: 'all',           label: 'ทั้งหมด',        color: '#444',    bg: '#f0f0f0',  border: '#bbb'    },
+    { key: 'Lunio',         label: '🛏 Lunio',        color: '#1a73e8', bg: '#e8f0fe',  border: '#1a73e8' },
+    { key: 'KEX HRZ',       label: '🚚 KEX HRZ',      color: '#1a8a3a', bg: '#e6f4ea',  border: '#1a8a3a' },
+    { key: 'Best Express',  label: '📦 Best Express', color: '#c2500e', bg: '#fef3ec',  border: '#f59e0b' },
+    { key: 'Business Idea', label: '🏪 Business Idea',color: '#6d28d9', bg: '#f0ecfd',  border: '#7c3aed' },
+  ];
+  const _PICK_BORDER = { 'Lunio':'#1a73e8', 'KEX HRZ':'#1a8a3a', 'Best Express':'#f59e0b', 'Business Idea':'#7c3aed' };
+  let _pickAllOrders = [], _pickActiveFilter = 'all';
+
+  async function renderPickingV2() {
+    main.innerHTML = `
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">
+        <div style="padding:10px 14px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:0.79rem;color:#888;font-weight:600;white-space:nowrap;">ขนส่ง:</span>
+          <div id="pick-filter-tabs" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;"></div>
+          <button class="btn btn-outline" style="font-size:0.79rem;padding:5px 12px;flex-shrink:0;" onclick="window.__loadPickingV2()">🔄 รีเฟรช</button>
+        </div>
+        <div id="pick-summary" style="padding:7px 14px;background:#f8f9fa;font-size:0.81rem;color:#666;">กำลังโหลด...</div>
+      </div>
+      <div id="pick-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    `;
+    await _loadPickingV2();
+  }
+
+  function _renderPickFilterTabs() {
+    const el = document.getElementById('pick-filter-tabs');
+    if (!el) return;
+    el.innerHTML = _PICK_CARRIERS.map(c => {
+      const n = c.key === 'all' ? _pickAllOrders.length : _pickAllOrders.filter(o => (o.shipping?.carrier||'') === c.key).length;
+      const active = _pickActiveFilter === c.key;
+      return `<button onclick="window.__pickSetFilter('${c.key}')" style="
+        font-size:0.79rem;padding:4px 12px;border-radius:20px;
+        border:1.5px solid ${active ? c.border : '#ddd'};
+        background:${active ? c.bg : '#fff'};color:${active ? c.color : '#666'};
+        font-weight:${active ? '700' : '500'};cursor:pointer;white-space:nowrap;
+      ">${c.label}${_pickAllOrders.length ? ` (${n})` : ''}</button>`;
+    }).join('');
+  }
+
+  async function _loadPickingV2() {
+    const listEl = document.getElementById('pick-list');
+    const sumEl  = document.getElementById('pick-summary');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center;padding:32px;color:#999;">กำลังโหลด...</div>';
+    try {
+      const snap = await getDocs(query(collection(db,'orders'), where('warehouseStage','==','รอหยิบสินค้า')));
+      _pickAllOrders = [];
+      snap.forEach(d => _pickAllOrders.push({ _id: d.id, ...d.data() }));
+      _pickAllOrders.sort((a, b) => (a.id||'').localeCompare(b.id||''));
+      _renderPickList();
+    } catch(err) {
+      if (listEl) listEl.innerHTML = `<div class="card" style="color:#d23;text-align:center;padding:24px;">โหลดไม่สำเร็จ: ${err.message}</div>`;
+    }
+  }
+
+  function _renderPickList() {
+    const listEl = document.getElementById('pick-list');
+    const sumEl  = document.getElementById('pick-summary');
+    if (!listEl) return;
+    _renderPickFilterTabs();
+    const filtered = _pickActiveFilter === 'all'
+      ? _pickAllOrders
+      : _pickAllOrders.filter(o => (o.shipping?.carrier||'') === _pickActiveFilter);
+    const totalItems = filtered.reduce((s,o) => s + (o.items||[]).length, 0);
+    if (sumEl) sumEl.textContent = `${filtered.length} ออเดอร์ · ${totalItems} รายการ`;
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:#999;">ไม่มีออเดอร์รอหยิบสินค้าในขณะนี้</div>';
+      return;
+    }
+    listEl.innerHTML = filtered.map(o => _renderPickCard(o)).join('');
+  }
+
+  function _renderPickCard(o) {
+    const carrier    = o.shipping?.carrier || '–';
+    const borderCol  = _PICK_BORDER[carrier] || '#ddd';
+    const fmtShip    = fmtOrderDate(o.shipping?.shipDate || o.deliveryDate || o.orderDate || '');
+    const orderTime  = (() => {
+      if (!o.orderDate) return '–';
+      const d = new Date(o.orderDate);
+      if (isNaN(d)) return String(o.orderDate).slice(0,10);
+      return d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'2-digit'})
+           + ' ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    })();
+    const icon = carrier === 'Lunio' ? '🛏' : carrier.includes('KEX') ? '🚚' : carrier.includes('Best') ? '📦' : '📦';
+    const itemsHtml = (o.items||[]).map(it => {
+      const nm   = it.name || it.model || it.sku || '–';
+      const code = nm.match(/\(([^()]+)\)\s*$/)?.[1] || it.sku || '';
+      const gift = it.type === 'gift';
+      return `
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid #f5f5f5;">
+          <div style="width:50px;height:50px;background:#f0f4ff;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">${icon}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.875rem;font-weight:600;color:#1a2540;line-height:1.4;">${escPL(nm)}</div>
+            ${code ? `<div style="font-size:0.76rem;color:#1a73e8;font-family:monospace;margin-top:2px;font-weight:700;">${escPL(code)}</div>` : ''}
+            ${gift  ? `<span style="font-size:0.7rem;background:#f5f5f5;color:#888;padding:1px 7px;border-radius:4px;margin-top:3px;display:inline-block;">ของแถม</span>` : ''}
+          </div>
+          <div style="flex-shrink:0;padding-top:2px;text-align:right;">
+            <span style="font-size:0.9rem;font-weight:700;">×${it.qty}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div style="background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.05);border-left:4px solid ${borderCol};overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 14px;background:#fafafa;border-bottom:1px solid #f0f0f0;">
+          <input type="checkbox" style="width:15px;height:15px;cursor:pointer;flex-shrink:0;">
+          <span style="width:8px;height:8px;background:#f59e0b;border-radius:50%;flex-shrink:0;display:inline-block;"></span>
+          <strong style="font-size:0.92rem;font-family:monospace;color:#1a2540;">${escPL(o.id||o._id)}</strong>
+          <span style="font-size:0.77rem;color:#aaa;margin-left:4px;">📅 ${orderTime}</span>
+          <span style="flex:1;"></span>
+          <span style="font-size:0.74rem;background:#fff8e1;color:#92400e;padding:2px 10px;border-radius:10px;font-weight:600;">รอหยิบสินค้า</span>
+        </div>
+        <div style="padding:0 14px;">${itemsHtml || '<div style="padding:12px 0;color:#aaa;font-size:0.85rem;">ไม่มีรายการสินค้า</div>'}</div>
+        <div style="padding:10px 14px;border-top:1px solid #f0f0f0;background:#fafafa;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;gap:18px;flex:1;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:0.71rem;color:#999;margin-bottom:1px;">ขนส่ง</div>
+              <div style="font-size:0.82rem;font-weight:700;color:${borderCol};">🚚 ${escPL(carrier)}</div>
+            </div>
+            <div>
+              <div style="font-size:0.71rem;color:#999;margin-bottom:1px;">ลูกค้า</div>
+              <div style="font-size:0.82rem;">${escPL(o.customer?.name||'–')}</div>
+            </div>
+            <div>
+              <div style="font-size:0.71rem;color:#999;margin-bottom:1px;">วันจัดส่ง</div>
+              <div style="font-size:0.82rem;font-weight:600;color:#d23;">${escPL(fmtShip)}</div>
+            </div>
+            <div>
+              <div style="font-size:0.71rem;color:#999;margin-bottom:1px;">ยอดรวม</div>
+              <div style="font-size:0.85rem;font-weight:700;">฿${fmtNum(o.subtotal)}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+            <button class="btn btn-outline" style="font-size:0.76rem;padding:5px 9px;" onclick="window.__printPickList('${o._id}')">🖨 Pick List</button>
+            <button class="btn" style="font-size:0.76rem;padding:5px 9px;background:#e8f0fe;color:#1a73e8;border:1px solid #c5d9fb;" onclick="window.__openScanPick('${o._id}')">📷 สแกน</button>
+            <button class="btn" style="font-size:0.76rem;padding:5px 12px;background:#1a8a3a;color:#fff;" onclick="window.__advanceOrder('${o._id}','picking')">✔ หยิบครบแล้ว</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  window.__loadPickingV2   = _loadPickingV2;
+  window.__pickSetFilter   = key => { _pickActiveFilter = key; _renderPickList(); };
 
   // ===================================================================
   // 🖨 ใบ Pick List — สรุปรายการที่ต้องหยิบ พร้อมตำแหน่งจัดเก็บ (location) สำหรับพิมพ์ถือเดิน
