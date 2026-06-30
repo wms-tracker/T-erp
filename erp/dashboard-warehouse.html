@@ -2773,6 +2773,7 @@
       ? new Date(last.importedAt.seconds*1000).toLocaleString('th-TH') : '–';
     const sheets = cfg.sheets || DEFAULT_SHEETS;
     const hasUrl = !!cfg.webAppUrl;
+    const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
 
     main.innerHTML = `
       <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:14px;">
@@ -2817,9 +2818,9 @@
             </div>
             <div>
               <div style="font-size:0.82rem;font-weight:600;color:#555;margin-bottom:6px;">นำเข้าตั้งแต่วันที่:</div>
-              <input type="date" id="import-from-date"
+              <input type="date" id="import-from-date" value="${todayStr}"
                 style="padding:7px 10px;border:1.5px solid #c5c8d6;border-radius:8px;font-size:0.85rem;font-family:inherit;" />
-              <span style="font-size:0.78rem;color:#888;margin-left:4px;">(เว้นว่าง = ทั้งหมด)</span>
+              <span style="font-size:0.78rem;color:#888;margin-left:4px;">(ค่าเริ่มต้น = วันนี้ ดึงทุกออเดอร์ตั้งแต่วันนี้เป็นต้นไป รวมที่ลงไว้ล่วงหน้า · ลบให้ว่าง = ดึงทั้งหมดย้อนหลัง)</span>
             </div>
           </div>
         </div>
