@@ -3187,7 +3187,7 @@ function doGet(e) {
         const trackingNo = gv(row,'trackingNo') || orderId;
 
         const sku     = gv(row,'sku') || gv(row,'brand');
-        const qty     = Number(gv(row,'qty'))||0;
+        let   qty     = Number(gv(row,'qty'))||0;
         const giftSku = gv(row,'freeGiftSku');
         const giftQty = Number(gv(row,'freeGiftQty'))||0;
 
