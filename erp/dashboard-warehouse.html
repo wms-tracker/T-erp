@@ -468,7 +468,7 @@
     { key: 'Business Idea', label: '🏪 Business Idea',color: '#6d28d9', bg: '#f0ecfd',  border: '#7c3aed' },
   ];
   const _PICK_BORDER = { 'Lunio':'#1a73e8', 'KEX HRZ':'#1a8a3a', 'Best Express':'#f59e0b', 'Business Idea':'#7c3aed' };
-  let _pickAllOrders = [], _pickActiveFilter = 'all';
+  let _pickAllOrders = [], _pickActiveFilter = 'all', _pickDateFilter = 'all';
 
   async function renderPickingV2() {
     main.innerHTML = `
@@ -478,11 +478,27 @@
           <div id="pick-filter-tabs" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;"></div>
           <button class="btn btn-outline" style="font-size:0.79rem;padding:5px 12px;flex-shrink:0;" onclick="window.__loadPickingV2()">🔄 รีเฟรช</button>
         </div>
+        <div style="padding:10px 14px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:0.79rem;color:#888;font-weight:600;white-space:nowrap;">📅 วันจัดส่ง:</span>
+          <select id="pick-date-select" onchange="window.__pickSetDate(this.value)"
+            style="padding:5px 10px;border:1.5px solid #ddd;border-radius:8px;font-size:0.82rem;font-family:inherit;">
+            <option value="all">ทั้งหมด</option>
+          </select>
+        </div>
         <div id="pick-summary" style="padding:7px 14px;background:#f8f9fa;font-size:0.81rem;color:#666;">กำลังโหลด...</div>
       </div>
       <div id="pick-list" style="display:flex;flex-direction:column;gap:10px;"></div>
     `;
     await _loadPickingV2();
+  }
+
+  function _renderPickDateOptions() {
+    const sel = document.getElementById('pick-date-select');
+    if (!sel) return;
+    const dates = [...new Set(_pickAllOrders.map(o => o.shipping?.shipDate).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="all">ทั้งหมด</option>' +
+      dates.map(d => `<option value="${d}" ${d===_pickDateFilter?'selected':''}>${fmtOrderDate(d)}</option>`).join('');
+    sel.value = _pickDateFilter;
   }
 
   function _renderPickFilterTabs() {
@@ -509,6 +525,7 @@
       _pickAllOrders = [];
       snap.forEach(d => _pickAllOrders.push({ _id: d.id, ...d.data() }));
       _pickAllOrders.sort((a, b) => (a.id||'').localeCompare(b.id||''));
+      _renderPickDateOptions();
       _renderPickList();
     } catch(err) {
       if (listEl) listEl.innerHTML = `<div class="card" style="color:#d23;text-align:center;padding:24px;">โหลดไม่สำเร็จ: ${err.message}</div>`;
@@ -520,9 +537,10 @@
     const sumEl  = document.getElementById('pick-summary');
     if (!listEl) return;
     _renderPickFilterTabs();
-    const filtered = _pickActiveFilter === 'all'
+    let filtered = _pickActiveFilter === 'all'
       ? _pickAllOrders
       : _pickAllOrders.filter(o => (o.shipping?.carrier||'') === _pickActiveFilter);
+    if (_pickDateFilter !== 'all') filtered = filtered.filter(o => (o.shipping?.shipDate||'') === _pickDateFilter);
     const totalItems = filtered.reduce((s,o) => s + (o.items||[]).length, 0);
     if (sumEl) sumEl.textContent = `${filtered.length} ออเดอร์ · ${totalItems} รายการ`;
     if (!filtered.length) {
@@ -603,6 +621,7 @@
 
   window.__loadPickingV2   = _loadPickingV2;
   window.__pickSetFilter   = key => { _pickActiveFilter = key; _renderPickList(); };
+  window.__pickSetDate     = val => { _pickDateFilter = val; _renderPickList(); };
 
   // ===================================================================
   // 🖨 ใบ Pick List — สรุปรายการที่ต้องหยิบ พร้อมตำแหน่งจัดเก็บ (location) สำหรับพิมพ์ถือเดิน
@@ -2700,6 +2719,7 @@
   const IMPORT_FIELDS = [
     { key:'orderId',      label:'Order ID',                  required:true  },
     { key:'trackingNo',   label:'Tracking Number (ถ้ามี)',   required:false },
+    { key:'carrier',      label:'ขนส่ง (ถ้ามีคอลัมน์แยกในชีท เช่น Lunio/รับที่คลัง)', required:false },
     { key:'consign',      label:'Consign / เลข consign',     required:false },
     { key:'sku',          label:'SKU / แบรนด์ (สินค้าหลัก)', required:true  },
     { key:'freeGiftSku',  label:'ของแถม (SKU ของแถม)',       required:false },
@@ -3194,20 +3214,23 @@ function doGet(e) {
         // ต้องมีอย่างน้อย 1 SKU (แบรนด์ หรือ ของแถม)
         if (!sku && !giftSku) continue;
 
+        // คอลัมน์ขนส่งต่อแถว (เช่น "ขนส่ง" ในชีท HRZ(Lunio) ที่มีทั้ง Lunio/รับที่คลังปนกัน) มาก่อนค่า default ของทั้งชีทเสมอ
+        const rowCarrier = gv(row,'carrier') || row.__carrier;
+        const shipDate   = gv(row,'deliveryDate') || gv(row,'orderDate');
         if (!orderMap[orderId]) {
-          const carrier = carrierMap[row.__sheet]||row.__carrier||gv(row,'carrier')||row.__sheet||'–';
+          const carrier = rowCarrier||carrierMap[row.__sheet]||row.__sheet||'–';
           orderMap[orderId] = {
             id: orderId, source:'sheets', sourceSheet: row.__sheet,
             customer:{ name:gv(row,'customer'), phone:gv(row,'phone'), addressDetail:gv(row,'address'),
               province:gv(row,'province'), district:gv(row,'district'),
               subDistrict:gv(row,'subDistrict'), zipcode:gv(row,'zipcode') },
-            shipping:{ carrier },
+            shipping:{ carrier, shipDate },
             trackings:{}, orderDate:gv(row,'orderDate'),
             deliveryDate:gv(row,'deliveryDate'), remark:gv(row,'remark'), consign:gv(row,'consign'),
           };
         }
         const o = orderMap[orderId];
-        const carrier = carrierMap[row.__sheet]||o.shipping.carrier;
+        const carrier = rowCarrier||carrierMap[row.__sheet]||o.shipping.carrier;
         if (!o.trackings[trackingNo]) o.trackings[trackingNo] = { trackingNo, carrier, stage:'รอหยิบสินค้า', items:[] };
 
         // สินค้าหลัก (ถ้ามีแบรนด์)
