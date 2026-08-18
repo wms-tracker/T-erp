@@ -669,16 +669,13 @@
       const ws = o.warehouseStage || '';
       const canSendWarehouse = o.status === 'รอดำเนินการ' && !ws;
       const canCancel = o.status === 'รอดำเนินการ';
-      const canDelete = o.status === 'ยกเลิก' || o.status === 'เสร็จสิ้น';
       const actionBtn = canSendWarehouse
         ? `<button class="btn btn-primary" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__sendToWarehouse('${o._id}')">📦 ส่งคลัง</button>`
         : '';
       const cancelBtn = canCancel
         ? `<button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__cancelOrder('${o._id}')">✕ ยกเลิก</button>`
         : '';
-      const deleteBtn = canDelete
-        ? `<button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__deleteOrder('${o._id}')">🗑️ ลบ</button>`
-        : '';
+      const deleteBtn = `<button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__deleteOrder('${o._id}')">🗑️ ลบ</button>`;
       return `
         <tr>
           <td><strong>${o.id || o._id}</strong></td>
@@ -729,11 +726,13 @@
     } catch (err) { alert('ดำเนินการไม่สำเร็จ: ' + err.message); }
   };
 
-  // ลบออเดอร์เก่า (เฉพาะออเดอร์ที่ยกเลิกหรือเสร็จสิ้นแล้วเท่านั้น) — ถาวร ย้อนกลับไม่ได้
+  // ลบออเดอร์ — ถาวร ย้อนกลับไม่ได้ (ออเดอร์ที่ยังไม่ยกเลิก/เสร็จสิ้น จะเตือนเข้มกว่าเพราะอาจยังทำงานอยู่ในคลัง)
   window.__deleteOrder = async function (orderDocId) {
     const order = _allOrdersCache.find(o => o._id === orderDocId);
     const label = order ? (order.id || orderDocId) : orderDocId;
-    if (!confirm(`ยืนยันลบออเดอร์ ${label} ถาวร?\n\nการลบนี้ย้อนกลับไม่ได้ และจะไม่ลบประวัติการเคลื่อนไหวสต็อก/ใบแจ้งหนี้ที่อ้างอิงออเดอร์นี้ไว้แล้ว`)) return;
+    const isActive = order && order.status === 'รอดำเนินการ';
+    const warnExtra = isActive ? '\n\n⚠️ ออเดอร์นี้ยังอยู่ในสถานะ "รอดำเนินการ" (อาจกำลังดำเนินการอยู่ในคลัง) — ตรวจสอบให้แน่ใจก่อนลบ' : '';
+    if (!confirm(`ยืนยันลบออเดอร์ ${label} ถาวร?\n\nการลบนี้ย้อนกลับไม่ได้ และจะไม่ลบประวัติการเคลื่อนไหวสต็อก/ใบแจ้งหนี้ที่อ้างอิงออเดอร์นี้ไว้แล้ว${warnExtra}`)) return;
     try {
       await deleteDoc(doc(db, 'orders', orderDocId));
       _allOrdersCache = _allOrdersCache.filter(o => o._id !== orderDocId);
