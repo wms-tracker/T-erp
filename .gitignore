@@ -1,2 +1,17 @@
 .claude/
 *.log
+
+# ความลับ — ห้ามขึ้น GitHub (มี token อยู่ข้างใน)
+START.bat
+.env
+
+# ของที่ generate เอง
+node_modules/
+__pycache__/
+*.pyc
+*.csv
+*.png
+
+# ไฟล์อื่นที่ไม่เกี่ยวกับ deploy
+index.html
+lucky-number-engine.html

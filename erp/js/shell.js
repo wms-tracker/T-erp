@@ -97,6 +97,9 @@ const NAV = {
     { groupKey: 'finance', icon: '💰', label: 'การเงิน', items: [
       { key: 'finance',    label: 'รายงานการเงิน (ดูอย่างเดียว)',     href: 'dashboard-manager.html#finance' },
     ]},
+    { groupKey: 'shipping', icon: '🚚', label: 'ส่งออก', items: [
+      { key: 'shipping',   label: 'ยอดส่งออกประจำเดือน',              href: 'dashboard-export-trend.html' },
+    ]},
   ],
 };
 

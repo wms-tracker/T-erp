@@ -3148,7 +3148,14 @@ function doGet(e) {
       el.onerror = () => { cleanup(); reject(new Error('Script load failed')); };
       el.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
       document.head.appendChild(el);
-      function cleanup() { clearTimeout(t); delete window[cb]; el.parentNode?.removeChild(el); }
+      function cleanup() {
+        clearTimeout(t);
+        el.parentNode?.removeChild(el);
+        // ไม่ลบ window[cb] ทันที — ลบ <script> ออกจาก DOM ไม่ได้ยกเลิกการทำงานฝั่ง Apps Script
+        // ถ้า response มาช้าแล้วมาถึงทีหลัง ต้องยังมีฟังก์ชันให้เรียก ไม่งั้นจะเกิด ReferenceError ค้างใน console
+        window[cb] = function(){};
+        setTimeout(() => { delete window[cb]; }, 300000);
+      }
     });
   }
 
@@ -3181,7 +3188,14 @@ function doGet(e) {
       // ถ้าเลือกวันที่ → ไม่จำกัด row (อ่านทั้งหมดแล้ว filter วันที่ใน script)
       // ถ้าไม่เลือกวันที่ → จำกัด 200 แถวล่าสุดต่อ sheet เพื่อป้องกัน timeout
       let fetchUrl = cfg.webAppUrl + (fromDate ? `?from=${fromDate}` : '?limit=200');
-      const json = await _gsJsonp(fetchUrl);
+      let json;
+      try {
+        json = await _gsJsonp(fetchUrl, 180000);
+      } catch (e1) {
+        // ลองใหม่อีก 1 ครั้ง — เคสนี้มักเป็นปัญหาเครือข่าย/โหลดช้าชั่วคราว ไม่ใช่สคริปต์พัง
+        setProg(12, `เชื่อมต่อไม่สำเร็จ (${e1.message}) — ลองใหม่อีกครั้ง...`);
+        json = await _gsJsonp(fetchUrl, 180000);
+      }
       if (!json.ok) throw new Error(json.error||'Apps Script ตอบกลับผิดพลาด');
 
       // carrier map from settings

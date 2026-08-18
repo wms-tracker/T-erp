@@ -1,0 +1,1133 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แดชบอร์ดยอดส่งออกประจำเดือน — รายเดือน / ไตรมาส / ปี</title>
+<meta name="description" content="แนวโน้มยอดออเดอร์ส่งออกปี 2565-2569 รายเดือน รายไตรมาส และรายปี จาก Google Sheets (แท็บ Promotion)">
+<style>
+  :root {
+    color-scheme: light;
+    --paper:          #f6f4ec;
+    --surface:        #ffffff;
+    --ink:            #1c1a12;
+    --ink-soft:       #5c5745;
+    --ink-faint:      #948d76;
+    --line:           #e6e1d0;
+    --line-strong:    #d2caae;
+    --border:         rgba(28,26,18,0.09);
+    --shadow-1:       0 1px 2px rgba(28,26,18,0.06);
+    --shadow-2:       0 10px 28px -12px rgba(28,26,18,0.16);
+    --accent:         #0d6e63;
+    --accent-ink:     #ffffff;
+    --accent-soft:    #e0efea;
+    --accent-soft-ink:#0d6e63;
+    --status-good:    #1c7a3e;
+    --status-good-bg: #e4f3e8;
+    --status-critical:#b3372f;
+    --status-critical-bg:#fbe9e6;
+    --status-nodata:  #a49c85;
+    --status-nodata-bg:#efeade;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --paper:          #14130e;
+      --surface:        #1d1c15;
+      --ink:            #f2efe3;
+      --ink-soft:       #c1baa2;
+      --ink-faint:      #837b63;
+      --line:           #322e21;
+      --line-strong:    #423d2c;
+      --border:         rgba(242,239,227,0.10);
+      --shadow-1:       0 1px 2px rgba(0,0,0,0.3);
+      --shadow-2:       0 12px 32px -14px rgba(0,0,0,0.55);
+      --accent:         #3aab9e;
+      --accent-ink:     #06211d;
+      --accent-soft:    #163430;
+      --accent-soft-ink:#5fc7ba;
+      --status-good:    #45b072;
+      --status-good-bg: #143622;
+      --status-critical:#e2766f;
+      --status-critical-bg:#3a1d1a;
+      --status-nodata:  #6b6350;
+      --status-nodata-bg:#221f17;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper:          #14130e;
+    --surface:        #1d1c15;
+    --ink:            #f2efe3;
+    --ink-soft:       #c1baa2;
+    --ink-faint:      #837b63;
+    --line:           #322e21;
+    --line-strong:    #423d2c;
+    --border:         rgba(242,239,227,0.10);
+    --shadow-1:       0 1px 2px rgba(0,0,0,0.3);
+    --shadow-2:       0 12px 32px -14px rgba(0,0,0,0.55);
+    --accent:         #3aab9e;
+    --accent-ink:     #06211d;
+    --accent-soft:    #163430;
+    --accent-soft-ink:#5fc7ba;
+    --status-good:    #45b072;
+    --status-good-bg: #143622;
+    --status-critical:#e2766f;
+    --status-critical-bg:#3a1d1a;
+    --status-nodata:  #6b6350;
+    --status-nodata-bg:#221f17;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --paper:          #f6f4ec;
+    --surface:        #ffffff;
+    --ink:            #1c1a12;
+    --ink-soft:       #5c5745;
+    --ink-faint:      #948d76;
+    --line:           #e6e1d0;
+    --line-strong:    #d2caae;
+    --border:         rgba(28,26,18,0.09);
+    --accent:         #0d6e63;
+    --accent-ink:     #ffffff;
+    --accent-soft:    #e0efea;
+    --accent-soft-ink:#0d6e63;
+    --status-good:    #1c7a3e;
+    --status-good-bg: #e4f3e8;
+    --status-critical:#b3372f;
+    --status-critical-bg:#fbe9e6;
+    --status-nodata:  #a49c85;
+    --status-nodata-bg:#efeade;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  }
+
+  /* kept for compatibility with earlier revisions of this page's JS/inline styles */
+  :root { --surface-1: var(--surface); --page-plane: var(--paper); --text-primary: var(--ink); --text-secondary: var(--ink-soft); --text-muted: var(--ink-faint); --gridline: var(--line); --baseline: var(--line-strong); --accent-bg: var(--accent-soft); }
+
+  * { box-sizing: border-box; }
+  @media (prefers-reduced-motion: no-preference) {
+    .card, .tile { animation: rise .5s cubic-bezier(.16,1,.3,1) both; }
+    .card:nth-of-type(2) { animation-delay: .04s; }
+    .card:nth-of-type(3) { animation-delay: .08s; }
+    .card:nth-of-type(4) { animation-delay: .12s; }
+    @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  }
+
+  html { background: var(--paper); }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Segoe UI", system-ui, -apple-system, "Noto Sans Thai", sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px 64px; }
+
+  .accent-rule { height: 4px; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 40%, var(--s4))); }
+
+  header.page-header { padding: 30px 0 22px; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+  h1 { font-size: 27px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+  .subtitle { color: var(--ink-soft); font-size: 13.5px; max-width: 62ch; }
+
+  .banner {
+    margin-top: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    box-shadow: var(--shadow-1);
+  }
+  .banner b { color: var(--ink); }
+
+  nav.tabs {
+    display: flex;
+    gap: 4px;
+    margin: 0 0 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  nav.tabs button {
+    appearance: none;
+    background: transparent;
+    border: none;
+    padding: 10px 16px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  nav.tabs button:hover { color: var(--ink); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  nav.pill-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 22px;
+    padding: 5px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-1);
+  }
+  nav.pill-tabs button {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: transparent;
+    border: none;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    cursor: pointer;
+    border-radius: 8px;
+    font-family: inherit;
+    transition: background .15s ease, color .15s ease;
+  }
+  nav.pill-tabs button:hover { background: var(--paper); color: var(--ink); }
+  nav.pill-tabs button.active { background: var(--accent); color: var(--accent-ink); }
+  nav.pill-tabs .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--dot-color, currentColor); opacity: .8; }
+  nav.pill-tabs button.active .dot { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-ink) 35%, transparent); }
+
+  section.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-1), var(--shadow-2);
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.005em; }
+  .card .card-sub { font-size: 12px; color: var(--ink-faint); margin-bottom: 16px; }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+  .tile {
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    padding: 14px 16px 14px 18px;
+    overflow: hidden;
+  }
+  .tile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--line-strong); }
+  .tile:has(.badge.up)::before { background: var(--status-good); }
+  .tile:has(.badge.down)::before { background: var(--status-critical); }
+  .tile .tile-label { font-size: 11.5px; color: var(--ink-faint); margin-bottom: 6px; font-weight: 600; }
+  .tile .tile-value { font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .tile .tile-sub { font-size: 11.5px; color: var(--ink-faint); margin-top: 4px; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px 3px 7px;
+    border-radius: 999px;
+    margin-top: 7px;
+  }
+  .badge.up { background: var(--status-good-bg); color: var(--status-good); }
+  .badge.down { background: var(--status-critical-bg); color: var(--status-critical); }
+  .badge.partial { background: var(--accent-soft); color: var(--accent-soft-ink); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .legend-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; color: var(--ink-soft);
+    background: var(--paper); border: 1px solid var(--border);
+    padding: 5px 11px 5px 8px; border-radius: 999px;
+  }
+  .legend-swatch { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  .chart-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .control-block { display: flex; flex-direction: column; gap: 5px; }
+  .control-block .control-label { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-faint); }
+  .control-row { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--ink-soft); }
+  .control-row select {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .mode-toggle { display: flex; gap: 3px; background: var(--paper); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+  .mode-toggle button {
+    appearance: none;
+    border: none;
+    background: transparent;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 999px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .mode-toggle button.active { background: var(--accent); color: var(--accent-ink); }
+
+  .chart-scroll { overflow-x: auto; }
+  svg.chart { display: block; }
+  .line-path { fill: none; stroke-width: 2.25; stroke-linecap: round; stroke-linejoin: round; }
+  .dot { stroke-width: 2; }
+  .dot.nodata { fill: var(--surface); }
+  .dot.endpoint { stroke-width: 2.5; }
+  .point-label { font-size: 9.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .axis-label { font-size: 10.5px; fill: var(--ink-faint); font-variant-numeric: tabular-nums; }
+  .gridline { stroke: var(--line); stroke-width: 1; }
+  .bar-nodata { fill: var(--status-nodata-bg); stroke: var(--status-nodata); stroke-width: 1; stroke-dasharray: 3 2; }
+
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 13px;
+    font-size: 12px;
+    box-shadow: var(--shadow-2);
+    opacity: 0;
+    transition: opacity 0.1s;
+    white-space: nowrap;
+    z-index: 10;
+  }
+  .tooltip .tt-title { font-weight: 700; margin-bottom: 3px; }
+  .tooltip .tt-row { color: var(--ink-soft); display: flex; align-items: center; gap: 6px; }
+  .tt-swatch { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  table.data-table th, table.data-table td {
+    text-align: right;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  table.data-table th:first-child, table.data-table td:first-child { text-align: left; font-variant-numeric: normal; }
+  table.data-table th {
+    color: var(--ink-faint);
+    font-weight: 700;
+    font-size: 10.5px;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--line-strong);
+    background: var(--paper);
+    position: sticky; top: 0;
+  }
+  table.data-table td.muted { color: var(--ink-faint); }
+  table.data-table tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--paper) 55%, transparent); }
+  table.data-table tr:hover td { background: var(--accent-soft); }
+  table.data-table td.yoy-up { color: var(--status-good); font-weight: 700; }
+  table.data-table td.yoy-down { color: var(--status-critical); font-weight: 700; }
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); }
+  .table-wrap table.data-table { border: none; }
+
+  footer.foot {
+    margin-top: 28px;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+</style>
+</head>
+<body>
+<div class="accent-rule"></div>
+<div class="wrap">
+
+  <header class="page-header">
+    <a href="dashboard-manager.html#overview" style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink-soft);text-decoration:none;margin-bottom:10px;">← กลับสู่ Web ERP</a>
+    <p class="eyebrow">Export &amp; Promotion Performance</p>
+    <h1>แดชบอร์ดยอดส่งออกประจำเดือน</h1>
+    <div class="subtitle">เปรียบเทียบรายเดือน / รายไตรมาส / รายปี ปี 2565–2569 — ข้อมูลจริงจาก Google Sheets (แท็บ “Promotion” ตาราง “ตารางส่งออกประจำเดือน”)</div>
+    <div class="banner" id="dataBanner"></div>
+  </header>
+
+  <nav class="pill-tabs" id="datasetTabs">
+    <button data-dataset="total" class="active" style="--dot-color:var(--s1)"><span class="dot"></span>ยอดส่งออกรวม</button>
+    <button data-dataset="promo5" style="--dot-color:var(--s2)"><span class="dot"></span>โปรดับเบิ้ล 5 วัน</button>
+    <button data-dataset="promo15" style="--dot-color:var(--s3)"><span class="dot"></span>โปรฯ Mid Month 15-16</button>
+    <button data-dataset="promo25" style="--dot-color:var(--s4)"><span class="dot"></span>โปรฯ Pay Day 25-26</button>
+    <button data-dataset="promo28" style="--dot-color:var(--s5)"><span class="dot"></span>Pay Day 28-30</button>
+  </nav>
+
+  <nav class="tabs" id="tabs">
+    <button data-view="months" class="active">รายเดือน</button>
+    <button data-view="quarters">รายไตรมาส</button>
+    <button data-view="years">รายปี</button>
+  </nav>
+
+  <section class="card">
+    <h2 id="tileHeading">ภาพรวมล่าสุด</h2>
+    <div class="card-sub" id="tileSub"></div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="chartHeading">ยอดส่งออกรายเดือน เทียบรายปี</h2>
+    <div class="card-sub" id="chartSub">แต่ละเส้น = 1 ปี (พ.ศ.) · จุดกลวง = ปีล่าสุดที่ยังไม่มีข้อมูลในเดือนนั้น</div>
+    <div class="chart-controls">
+      <div class="control-block">
+        <span class="control-label">ช่วงปีที่แสดง (พ.ศ.)</span>
+        <div class="control-row">
+          <select id="yearFrom"></select>
+          <span>ถึง</span>
+          <select id="yearTo"></select>
+        </div>
+      </div>
+      <div class="control-block">
+        <span class="control-label">รูปแบบตัวเลข</span>
+        <div class="mode-toggle" id="modeToggle">
+          <button type="button" data-mode="value" class="active">ยอดรวม</button>
+          <button type="button" data-mode="percent">% เพิ่ม/ลด (YoY)</button>
+        </div>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="chart-scroll" style="position:relative;">
+      <svg class="chart" id="chart"></svg>
+      <div class="tooltip" id="tooltip"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 id="tableHeading">ตารางข้อมูล + YoY %</h2>
+    <div class="card-sub">YoY % = เทียบกับช่วงเดียวกันของปีก่อนหน้า (พ.ศ.)</div>
+    <div class="table-wrap">
+      <table class="data-table" id="dataTable"></table>
+    </div>
+  </section>
+
+  <footer class="foot">
+    ที่มา: Google Sheets ที่ผู้ใช้แชร์ลิงก์มา แท็บ “Promotion” ตาราง “ตารางส่งออกประจำเดือน” (ดึงข้อมูล ณ วันที่สร้างหน้านี้) ·
+    ปี 2569 (2026) เป็นข้อมูลบางส่วน (ถึงเดือนล่าสุดที่มีตัวเลขในชีตต้นทาง) ไม่ใช่ทั้งปี · หน้านี้เป็นภาพนิ่ง — ถ้าชีตต้นทางอัปเดต ต้องขอให้ดึงข้อมูลใหม่อีกครั้ง
+  </footer>
+
+</div>
+
+<script type="module">
+import { requireRole } from "./js/auth.js";
+await requireRole(['manager']);
+
+const YEARS = [2565, 2566, 2567, 2568, 2569];
+const SERIES_COLORS = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
+const MONTH_KEYS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+const DATASETS = {
+  total: {
+    label: 'ยอดส่งออกรวม', noun: 'ยอดส่งออก', sourceTable: 'ตารางส่งออกประจำเดือน',
+    monthly: {
+      January:   [8969, 17020, 24773, 39067, 54969],
+      February:  [8259, 14583, 24371, 35175, 57690],
+      March:     [9611, 17386, 34027, 40178, 65483],
+      April:     [10072, 14802, 29924, 37479, 60426],
+      May:       [10081, 16829, 38671, 46056, 66000],
+      June:      [11957, 17552, 44569, 34748, 65012],
+      July:      [12506, 18088, 48727, 40484, 61168],
+      August:    [12934, 18371, 55366, 43162, null],
+      September: [12970, 18126, 51843, 44558, null],
+      October:   [13147, 18898, 54878, 42974, null],
+      November:  [14590, 24581, 59091, 64835, null],
+      December:  [11983, 26192, 49334, 63065, null],
+    },
+  },
+  promo5: {
+    label: 'โปรดับเบิ้ล 5 วัน', noun: 'ยอดขายโปรดับเบิ้ล', sourceTable: 'ตารางโปรดับเบิ้ล 5 วัน',
+    monthly: {
+      January:   [1997, 4384, 4869, 6306, 8045],
+      February:  [1864, 3121, 5105, 10870, 13938],
+      March:     [2049, 4442, 7581, 10915, 10254],
+      April:     [2353, 3911, 7286, 11166, 9922],
+      May:       [2483, 4242, 8933, 11618, 13607],
+      June:      [3102, 6310, 10974, 12311, 16199],
+      July:      [2985, 5821, 14975, 10906, 15287],
+      August:    [3198, 5036, 14998, 9330, null],
+      September: [4037, 5984, 11340, 12548, null],
+      October:   [3352, 5233, 12522, 10991, null],
+      November:  [5227, 7611, 13068, 15561, null],
+      December:  [6149, 9261, 13476, 15487, null],
+    },
+  },
+  promo15: {
+    label: 'โปรฯ Mid Month 15-16', noun: 'ยอดขายโปรฯ Mid Month ', sourceTable: 'ตารางโปรฯ Mid Month 15-16',
+    monthly: {
+      January:   [367, 1112, 2325, 2666, 4072],
+      February:  [628, 1148, 1914, 1657, 4212],
+      March:     [751, 1113, 2250, 1769, 4472],
+      April:     [413, 237, null, null, 6495],
+      May:       [658, 1183, 2250, 2781, 3419],
+      June:      [789, 968, 2328, 3726, 4223],
+      July:      [728, 698, 4264, 3021, 3929],
+      August:    [900, 1198, 3366, 2572, null],
+      September: [690, 1114, 2951, 2901, null],
+      October:   [747, 1708, 2911, 2981, null],
+      November:  [1602, 2345, 2325, 3384, null],
+      December:  [930, 2690, 3229, null, null],
+    },
+  },
+  promo25: {
+    label: 'โปรฯ Pay Day 25-26', noun: 'ยอดขายโปรฯ Pay Day ', sourceTable: 'ตารางโปรฯ Pay Day 25-26',
+    monthly: {
+      January:   [559, 1119, 1516, 1513, 3568],
+      February:  [608, 732, 1740, 2548, 4389],
+      March:     [525, 872, 3000, 3214, 5335],
+      April:     [883, 1021, 2125, 2873, 5989],
+      May:       [563, 960, 2125, 3126, 6996],
+      June:      [613, 954, 3396, 3065, 4641],
+      July:      [806, 1488, 2850, 2787, 4631],
+      August:    [571, 1065, 2880, 3327, null],
+      September: [724, 1460, 2941, 3062, null],
+      October:   [845, 1236, 2986, 2745, null],
+      November:  [749, 705, 10799, 3490, null],
+      December:  [null, 2233, 3418, 4215, null],
+    },
+  },
+  promo28: {
+    label: 'Pay Day 28-30', noun: 'ยอดขาย Pay Day 28-30 ', sourceTable: 'Pay Day 28-30',
+    monthly: {
+      January:   [null, null, null, null, 5370],
+      February:  [null, null, null, null, 1921],
+      March:     [null, null, null, null, 5325],
+      April:     [null, null, null, null, 3605],
+      May:       [null, null, null, null, 4570],
+      June:      [null, null, null, null, 5345],
+      July:      [null, null, null, null, 7583],
+      August:    [null, null, null, null, null],
+      September: [null, null, null, null, null],
+      October:   [null, null, null, null, null],
+      November:  [null, null, null, null, null],
+      December:  [null, null, null, null, null],
+    },
+  },
+};
+
+let currentDataset = 'total';
+
+function fmtInt(n) { return n === null || n === undefined ? '—' : Math.round(n).toLocaleString('en-US'); }
+function fmtPct(n) { return n === null || n === undefined ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%'; }
+
+/* ---------- build month / quarter / year series ---------- */
+function buildMonths(monthly) {
+  return MONTH_KEYS.map((key, i) => ({
+    label: MONTH_TH[i], full: key,
+    values: YEARS.map((y, yi) => monthly[key][yi]),
+  }));
+}
+function buildQuarters(monthly) {
+  const months = buildMonths(monthly);
+  const quarters = [];
+  for (let q = 0; q < 4; q++) {
+    const mset = months.slice(q * 3, q * 3 + 3);
+    const values = YEARS.map((y, yi) => {
+      const vals = mset.map(m => m.values[yi]);
+      if (vals.some(v => v === null)) return vals.every(v => v === null) ? null : vals.reduce((a, b) => a + (b || 0), 0);
+      return vals.reduce((a, b) => a + b, 0);
+    });
+    quarters.push({ label: `Q${q + 1}`, full: `Q${q + 1}`, values, partial: mset.some(m => m.values.some(v => v === null)) });
+  }
+  return quarters;
+}
+function buildYears(monthly) {
+  const months = buildMonths(monthly);
+  return YEARS.map((y, yi) => {
+    const vals = months.map(m => m.values[yi]);
+    const hasAny = vals.some(v => v !== null);
+    const complete = vals.every(v => v !== null);
+    const total = hasAny ? vals.reduce((a, b) => a + (b || 0), 0) : null;
+    return { label: String(y), full: String(y), total, complete, hasAny };
+  });
+}
+
+let MONTHS = buildMonths(DATASETS[currentDataset].monthly);
+let QUARTERS = buildQuarters(DATASETS[currentDataset].monthly);
+let YEARSAGG = buildYears(DATASETS[currentDataset].monthly);
+
+/* sum of the first `monthCount` months of quarter `qIdx` for year index `yearIdx` — used to
+   compare a partial quarter against the same subset of months in another year (apples-to-apples) */
+function partialMatchedQuarter(qIdx, yearIdx, monthCount) {
+  if (monthCount <= 0) return null;
+  const mset = MONTHS.slice(qIdx * 3, qIdx * 3 + monthCount);
+  if (mset.some(m => m.values[yearIdx] === null)) return null;
+  return mset.reduce((a, m) => a + m.values[yearIdx], 0);
+}
+
+/* ---------- banner + tiles ---------- */
+(function initBanner() {
+  const lastCompleteIdx = MONTHS.reduce((acc, m, i) => (m.values[4] !== null ? i : acc), -1);
+  const lastLabel = lastCompleteIdx >= 0 ? MONTHS[lastCompleteIdx].full : '—';
+  document.getElementById('dataBanner').innerHTML =
+    `<b>สถานะข้อมูล:</b> ปี 2569 มีตัวเลขถึงเดือน <b>${lastLabel}</b> เท่านั้น — เดือนที่เหลือของปีนี้ยังไม่มีข้อมูลในชีตต้นทาง (แสดงเป็นจุดกลวง/ช่องว่าง ไม่ใช่ศูนย์)`;
+})();
+
+function renderTiles() {
+  const tiles = document.getElementById('tiles');
+  tiles.innerHTML = '';
+
+  const lastMonthIdx = MONTHS.reduce((acc, m, i) => (m.values[4] !== null ? i : acc), -1);
+  const m = MONTHS[lastMonthIdx];
+  const curM = m.values[4], prevM = m.values[3];
+  const yoyM = prevM ? ((curM - prevM) / prevM) * 100 : null;
+
+  const qIdx = QUARTERS.reduce((acc, q, i) => (q.values[4] !== null ? i : acc), -1);
+  const q = QUARTERS[qIdx];
+  const curQ = q.values[4];
+  const qMonthsPresent = MONTHS.slice(qIdx * 3, qIdx * 3 + 3).filter(mo => mo.values[4] !== null).length;
+  const prevQMatched = partialMatchedQuarter(qIdx, 3, qMonthsPresent);
+  const yoyQ = prevQMatched ? ((curQ - prevQMatched) / prevQMatched) * 100 : null;
+
+  const ytdMonths = MONTHS.slice(0, lastMonthIdx + 1);
+  const ytdCur = ytdMonths.reduce((a, mo) => a + (mo.values[4] || 0), 0);
+  const ytdPrev = ytdMonths.reduce((a, mo) => a + (mo.values[3] || 0), 0);
+  const yoyYtd = ytdPrev ? ((ytdCur - ytdPrev) / ytdPrev) * 100 : null;
+
+  const noun = DATASETS[currentDataset].noun;
+  document.getElementById('tileSub').textContent = `อ้างอิงเดือนล่าสุดที่มีข้อมูล: ${m.full} 2569`;
+
+  const withData = YEARSAGG.filter(y => y.total !== null);
+  const best = withData.length ? withData.reduce((a, b) => (b.total > a.total ? b : a)) : null;
+
+  const defs = [
+    { label: `${noun}เดือน ${m.full} 2569`, value: fmtInt(curM), yoy: yoyM, sub: `${m.full} 2568: ${fmtInt(prevM)}` },
+    { label: `${noun}ไตรมาส ${q.full} 2569`, value: fmtInt(curQ), yoy: yoyQ,
+      sub: qMonthsPresent < 3
+        ? `เทียบเฉพาะ ${qMonthsPresent} เดือนแรกของ ${q.full} 2568: ${fmtInt(prevQMatched)}`
+        : `${q.full} 2568: ${fmtInt(prevQMatched)}`,
+      partial: q.partial },
+    { label: `สะสมตั้งแต่ต้นปี (YTD ถึง ${m.full})`, value: fmtInt(ytdCur), yoy: yoyYtd, sub: `ช่วงเดียวกันปี 2568: ${fmtInt(ytdPrev)}` },
+    { label: `ปีที่${noun}สูงสุด (เท่าที่มีข้อมูล)`, value: best ? best.label : '—', sub: best ? fmtInt(best.total) + ' ออเดอร์' : 'ไม่มีข้อมูล' },
+  ];
+
+  for (const def of defs) {
+    const el = document.createElement('div');
+    el.className = 'tile';
+    let badge = '';
+    if (def.yoy !== null && def.yoy !== undefined) {
+      const dir = def.yoy >= 0 ? 'up' : 'down';
+      badge = `<div class="badge ${dir}">${def.yoy >= 0 ? '▲' : '▼'} ${fmtPct(def.yoy)} YoY</div>`;
+    }
+    if (def.partial) badge += `<div class="badge partial">ไตรมาสยังไม่ครบ</div>`;
+    el.innerHTML = `<div class="tile-label">${def.label}</div><div class="tile-value">${def.value}</div>${badge}<div class="tile-sub">${def.sub || ''}</div>`;
+    tiles.appendChild(el);
+  }
+}
+
+/* ---------- legend ---------- */
+/* ---------- year-range + display-mode state ---------- */
+let rangeStart = 0;
+let rangeEnd = YEARS.length - 1;
+let chartMode = 'value'; // 'value' | 'percent'
+let currentView = 'months';
+
+function activeIndices() {
+  const arr = [];
+  for (let i = rangeStart; i <= rangeEnd; i++) arr.push(i);
+  return arr;
+}
+/* indices with a valid prior-year comparison, restricted to the active range — used by percent mode */
+function activePercentIndices() {
+  return activeIndices().filter(i => i >= 1);
+}
+
+function initRangeControls() {
+  const fromSel = document.getElementById('yearFrom');
+  const toSel = document.getElementById('yearTo');
+  fromSel.innerHTML = YEARS.map((y, i) => `<option value="${i}">${y}</option>`).join('');
+  toSel.innerHTML = YEARS.map((y, i) => `<option value="${i}">${y}</option>`).join('');
+  fromSel.value = rangeStart;
+  toSel.value = rangeEnd;
+
+  fromSel.addEventListener('change', () => {
+    rangeStart = Math.min(parseInt(fromSel.value, 10), rangeEnd);
+    fromSel.value = rangeStart;
+    renderView(currentView);
+  });
+  toSel.addEventListener('change', () => {
+    rangeEnd = Math.max(parseInt(toSel.value, 10), rangeStart);
+    toSel.value = rangeEnd;
+    renderView(currentView);
+  });
+
+  document.getElementById('modeToggle').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-mode]');
+    if (!btn) return;
+    chartMode = btn.dataset.mode;
+    document.querySelectorAll('#modeToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderView(currentView);
+  });
+}
+
+function renderLegend() {
+  const legend = document.getElementById('legend');
+  const indices = chartMode === 'percent' ? activePercentIndices() : activeIndices();
+  if (chartMode === 'percent' && !indices.length) {
+    legend.innerHTML = `<div class="legend-item">เลือกช่วงปีที่มีอย่างน้อย 2 ปีติดกัน เพื่อดู % เปลี่ยนแปลง</div>`;
+    return;
+  }
+  legend.innerHTML = indices.map(i => {
+    const y = YEARS[i];
+    const label = chartMode === 'percent' ? `พ.ศ. ${y} เทียบ ${YEARS[i - 1]}` : `พ.ศ. ${y}${y === 2569 ? ' (ถึงปัจจุบัน)' : ''}`;
+    return `<div class="legend-item"><span class="legend-swatch" style="background:${SERIES_COLORS[i]}"></span>${label}</div>`;
+  }).join('');
+}
+
+/* percent-change series for a line/quarter item list: value at index i = % change of year `si` vs year `si-1` */
+function percentSeriesFor(items, si) {
+  return items.map(it => {
+    const cur = it.values[si], prev = it.values[si - 1];
+    if (cur === null || prev === null || !prev) return null;
+    return ((cur - prev) / prev) * 100;
+  });
+}
+
+/* ---------- line chart (months / quarters), value or percent mode ---------- */
+function renderLineChart(items, xLabelKey) {
+  const svg = document.getElementById('chart');
+  const tooltip = document.getElementById('tooltip');
+  const W = Math.max(600, items.length * 90 + 100);
+  const H = 320;
+  const padL = 64, padR = 24, padT = 20, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+
+  const isPercent = chartMode === 'percent';
+  const indices = isPercent ? activePercentIndices() : activeIndices();
+
+  if (isPercent && !indices.length) {
+    const msg = document.createElementNS(ns, 'text');
+    msg.setAttribute('x', W / 2); msg.setAttribute('y', H / 2);
+    msg.setAttribute('text-anchor', 'middle'); msg.setAttribute('class', 'axis-label');
+    msg.textContent = 'เลือกช่วงปีที่มีอย่างน้อย 2 ปีติดกัน เพื่อดู % เปลี่ยนแปลง';
+    svg.appendChild(msg);
+    return;
+  }
+
+  const seriesData = indices.map(si => ({ si, values: isPercent ? percentSeriesFor(items, si) : items.map(it => it.values[si]) }));
+
+  let niceMax, niceMin, zeroY;
+  if (isPercent) {
+    const allVals = seriesData.flatMap(s => s.values.filter(v => v !== null));
+    const maxAbs = Math.max(10, ...allVals.map(v => Math.abs(v)));
+    const step = Math.ceil(maxAbs * 1.2 / 20) * 20 || 20;
+    niceMax = step; niceMin = -step;
+  } else {
+    const allVals = seriesData.flatMap(s => s.values.filter(v => v !== null));
+    const maxVal = Math.max(1, ...allVals);
+    niceMax = Math.ceil(maxVal * 1.12 / 5000) * 5000 || 5000;
+    niceMin = 0;
+  }
+  const range = niceMax - niceMin;
+  const yAt = v => padT + plotH - (plotH * ((v - niceMin) / range));
+
+  const gridSteps = isPercent ? 4 : 5;
+  for (let i = 0; i <= gridSteps; i++) {
+    const val = niceMin + (range * i / gridSteps);
+    const y = yAt(val);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('class', 'gridline');
+    svg.appendChild(line);
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', padL - 8); label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end'); label.setAttribute('class', 'axis-label');
+    label.textContent = isPercent ? (Math.round(val) + '%') : Math.round(val).toLocaleString('en-US');
+    svg.appendChild(label);
+  }
+
+  const stepX = plotW / (items.length - 1 || 1);
+  const xAt = i => padL + stepX * i;
+
+  if (isPercent) {
+    const zy = yAt(0);
+    const zline = document.createElementNS(ns, 'line');
+    zline.setAttribute('x1', padL); zline.setAttribute('x2', W - padR);
+    zline.setAttribute('y1', zy); zline.setAttribute('y2', zy);
+    zline.setAttribute('stroke', 'var(--baseline)'); zline.setAttribute('stroke-width', '1.5');
+    svg.appendChild(zline);
+  }
+
+  const defs = document.createElementNS(ns, 'defs');
+  svg.appendChild(defs);
+
+  seriesData.forEach(({ si, values }) => {
+    const pts = values.map((v, i) => ({ x: xAt(i), y: v, i }));
+    const present = pts.filter(p => p.y !== null);
+    const lastPresentIdx = pts.reduce((acc, p, i) => (p.y !== null ? i : acc), -1);
+    if (present.length) {
+      let d = '';
+      let started = false;
+      pts.forEach(p => {
+        if (p.y === null) { started = false; return; }
+        d += (started ? 'L' : 'M') + p.x + ' ' + yAt(p.y) + ' ';
+        started = true;
+      });
+      if (!isPercent) {
+        const gradId = `grad-${si}-${currentView}`;
+        const grad = document.createElementNS(ns, 'linearGradient');
+        grad.setAttribute('id', gradId);
+        grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+        grad.setAttribute('x2', '0'); grad.setAttribute('y2', '1');
+        const stop1 = document.createElementNS(ns, 'stop');
+        stop1.setAttribute('offset', '0%'); stop1.setAttribute('stop-color', SERIES_COLORS[si]); stop1.setAttribute('stop-opacity', '0.16');
+        const stop2 = document.createElementNS(ns, 'stop');
+        stop2.setAttribute('offset', '100%'); stop2.setAttribute('stop-color', SERIES_COLORS[si]); stop2.setAttribute('stop-opacity', '0');
+        grad.appendChild(stop1); grad.appendChild(stop2);
+        defs.appendChild(grad);
+
+        let areaD = '';
+        let segStart = null;
+        pts.forEach((p, i) => {
+          if (p.y === null) {
+            if (segStart !== null) { areaD += `L${pts[i - 1].x} ${padT + plotH} L${segStart.x} ${padT + plotH} Z `; segStart = null; }
+            return;
+          }
+          if (segStart === null) { areaD += `M${p.x} ${padT + plotH} L${p.x} ${yAt(p.y)} `; segStart = p; }
+          else { areaD += `L${p.x} ${yAt(p.y)} `; }
+          if (i === pts.length - 1) areaD += `L${p.x} ${padT + plotH} L${segStart.x} ${padT + plotH} Z `;
+        });
+        const area = document.createElementNS(ns, 'path');
+        area.setAttribute('d', areaD.trim());
+        area.setAttribute('fill', `url(#${gradId})`);
+        area.setAttribute('stroke', 'none');
+        svg.appendChild(area);
+      }
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d.trim());
+      path.setAttribute('class', 'line-path');
+      path.setAttribute('stroke', SERIES_COLORS[si]);
+      svg.appendChild(path);
+    }
+    pts.forEach(p => {
+      const cx = p.x, cy = p.y !== null ? yAt(p.y) : padT + plotH - 4;
+      const isEndpoint = p.i === lastPresentIdx;
+      const dot = document.createElementNS(ns, 'circle');
+      dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('r', isEndpoint ? 5.5 : 4);
+      dot.setAttribute('class', (p.y === null ? 'dot nodata' : 'dot') + (isEndpoint ? ' endpoint' : ''));
+      dot.setAttribute('stroke', SERIES_COLORS[si]);
+      dot.setAttribute('fill', p.y === null ? 'var(--surface)' : (isEndpoint ? SERIES_COLORS[si] : 'var(--surface)'));
+      dot.style.cursor = 'pointer';
+      dot.addEventListener('mousemove', (e) => {
+        const b = svg.getBoundingClientRect();
+        tooltip.style.opacity = 1;
+        tooltip.style.left = (e.clientX - b.left + 12) + 'px';
+        tooltip.style.top = (e.clientY - b.top - 10) + 'px';
+        const title = isPercent ? `${items[p.i][xLabelKey]} · พ.ศ. ${YEARS[si]} เทียบ ${YEARS[si - 1]}` : `${items[p.i][xLabelKey]} · พ.ศ. ${YEARS[si]}`;
+        const row = p.y === null
+          ? `<div class="tt-row">ยังไม่มีข้อมูล</div>`
+          : isPercent
+            ? `<div class="tt-row"><span class="tt-swatch" style="background:${SERIES_COLORS[si]}"></span>${fmtPct(p.y)}</div>`
+            : `<div class="tt-row"><span class="tt-swatch" style="background:${SERIES_COLORS[si]}"></span>ยอดส่งออก: ${fmtInt(p.y)}</div>`;
+        tooltip.innerHTML = `<div class="tt-title">${title}</div>${row}`;
+      });
+      dot.addEventListener('mouseleave', () => { tooltip.style.opacity = 0; });
+      svg.appendChild(dot);
+
+      if (isPercent && p.y !== null) {
+        const lbl = document.createElementNS(ns, 'text');
+        lbl.setAttribute('x', cx); lbl.setAttribute('y', p.y >= 0 ? cy - 8 : cy + 14);
+        lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('class', 'point-label');
+        lbl.setAttribute('fill', p.y >= 0 ? 'var(--status-good)' : 'var(--status-critical)');
+        lbl.textContent = fmtPct(p.y);
+        svg.appendChild(lbl);
+      }
+    });
+  });
+
+  items.forEach((it, i) => {
+    const xlabel = document.createElementNS(ns, 'text');
+    xlabel.setAttribute('x', xAt(i)); xlabel.setAttribute('y', H - padB + 20);
+    xlabel.setAttribute('text-anchor', 'middle'); xlabel.setAttribute('class', 'axis-label');
+    xlabel.textContent = it.label;
+    svg.appendChild(xlabel);
+  });
+
+  if (!isPercent) {
+    const baseline = document.createElementNS(ns, 'line');
+    baseline.setAttribute('x1', padL); baseline.setAttribute('x2', W - padR);
+    baseline.setAttribute('y1', padT + plotH); baseline.setAttribute('y2', padT + plotH);
+    baseline.setAttribute('stroke', 'var(--baseline)'); baseline.setAttribute('stroke-width', '1');
+    svg.appendChild(baseline);
+  }
+}
+
+/* ---------- bar chart (years), value or percent mode ---------- */
+function renderYearBars() {
+  const svg = document.getElementById('chart');
+  const tooltip = document.getElementById('tooltip');
+  const isPercent = chartMode === 'percent';
+  const indices = isPercent ? activePercentIndices() : activeIndices();
+  const items = indices.map(i => YEARSAGG[i]);
+
+  const W = Math.max(500, items.length * 110 + 80 || 500);
+  const H = 320;
+  const padL = 64, padR = 24, padT = 20, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  svg.innerHTML = '';
+  const ns = 'http://www.w3.org/2000/svg';
+
+  if (!items.length) {
+    const msg = document.createElementNS(ns, 'text');
+    msg.setAttribute('x', W / 2); msg.setAttribute('y', H / 2);
+    msg.setAttribute('text-anchor', 'middle'); msg.setAttribute('class', 'axis-label');
+    msg.textContent = 'เลือกช่วงปีที่มีอย่างน้อย 2 ปีติดกัน เพื่อดู % เปลี่ยนแปลง';
+    svg.appendChild(msg);
+    return;
+  }
+
+  /* YoY% per year index, using YTD-matched comparison when the year is partial */
+  function yoyForYearIndex(i) {
+    const cur = YEARSAGG[i];
+    let prev = YEARSAGG[i - 1].total;
+    if (!cur.complete) {
+      const monthsPresent = MONTHS.filter(m => m.values[i] !== null).length;
+      prev = MONTHS.slice(0, monthsPresent).reduce((a, m) => a + (m.values[i - 1] || 0), 0);
+    }
+    if (!prev) return null;
+    return ((cur.total - prev) / prev) * 100;
+  }
+
+  let niceMax, niceMin;
+  if (isPercent) {
+    const vals = indices.map(yoyForYearIndex).filter(v => v !== null);
+    const maxAbs = Math.max(10, ...vals.map(v => Math.abs(v)));
+    const step = Math.ceil(maxAbs * 1.2 / 20) * 20 || 20;
+    niceMax = step; niceMin = -step;
+  } else {
+    const maxVal = Math.max(1, ...items.map(it => it.total));
+    niceMax = Math.ceil(maxVal * 1.15 / 50000) * 50000 || 50000;
+    niceMin = 0;
+  }
+  const range = niceMax - niceMin;
+  const yAt = v => padT + plotH - (plotH * ((v - niceMin) / range));
+
+  const gridSteps = 5;
+  for (let i = 0; i <= gridSteps; i++) {
+    const val = niceMin + (range * i / gridSteps);
+    const y = yAt(val);
+    const line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+    line.setAttribute('y1', y); line.setAttribute('y2', y);
+    line.setAttribute('class', 'gridline');
+    svg.appendChild(line);
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', padL - 8); label.setAttribute('y', y + 4);
+    label.setAttribute('text-anchor', 'end'); label.setAttribute('class', 'axis-label');
+    label.textContent = isPercent ? (Math.round(val) + '%') : Math.round(val).toLocaleString('en-US');
+    svg.appendChild(label);
+  }
+
+  const bandW = plotW / items.length;
+  const barW = Math.min(64, bandW * 0.5);
+  const zeroY = yAt(0);
+
+  items.forEach((it, pos) => {
+    const i = indices[pos];
+    const cx = padL + bandW * pos + bandW / 2;
+    const val = isPercent ? yoyForYearIndex(i) : it.total;
+    if (val === null) return;
+    const barH = Math.abs(yAt(val) - (isPercent ? zeroY : padT + plotH));
+    const y = isPercent ? (val >= 0 ? yAt(val) : zeroY) : padT + plotH - barH;
+
+    const rect = document.createElementNS(ns, 'rect');
+    rect.setAttribute('x', cx - barW / 2);
+    rect.setAttribute('y', y);
+    rect.setAttribute('width', barW);
+    rect.setAttribute('height', Math.max(2, barH));
+    rect.setAttribute('rx', 4);
+    rect.setAttribute('fill', isPercent ? (val >= 0 ? 'var(--status-good)' : 'var(--status-critical)') : SERIES_COLORS[i]);
+    if (!isPercent && !it.complete) rect.setAttribute('opacity', '0.55');
+    rect.style.cursor = 'pointer';
+    rect.addEventListener('mousemove', (e) => {
+      const b = svg.getBoundingClientRect();
+      tooltip.style.opacity = 1;
+      tooltip.style.left = (e.clientX - b.left + 12) + 'px';
+      tooltip.style.top = (e.clientY - b.top - 10) + 'px';
+      tooltip.innerHTML = isPercent
+        ? `<div class="tt-title">พ.ศ. ${it.label} เทียบ ${YEARS[i - 1]}</div><div class="tt-row">${fmtPct(val)}</div>` +
+          (it.complete ? '' : `<div class="tt-row">* เทียบเฉพาะช่วง YTD ที่มีข้อมูลจริง</div>`)
+        : `<div class="tt-title">พ.ศ. ${it.label}</div><div class="tt-row">ยอดส่งออกรวม: ${fmtInt(it.total)}</div>` +
+          (it.complete ? '' : `<div class="tt-row">* ข้อมูลบางส่วน ยังไม่ครบทั้งปี</div>`);
+    });
+    rect.addEventListener('mouseleave', () => { tooltip.style.opacity = 0; });
+    svg.appendChild(rect);
+
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x', cx); lbl.setAttribute('y', isPercent ? (val >= 0 ? y - 8 : y + barH + 14) : y - 8);
+    lbl.setAttribute('text-anchor', 'middle'); lbl.setAttribute('class', 'point-label');
+    lbl.setAttribute('fill', isPercent ? (val >= 0 ? 'var(--status-good)' : 'var(--status-critical)') : 'var(--text-secondary)');
+    lbl.textContent = isPercent ? fmtPct(val) : (fmtInt(it.total) + (it.complete ? '' : '*'));
+    svg.appendChild(lbl);
+
+    const xlabel = document.createElementNS(ns, 'text');
+    xlabel.setAttribute('x', cx); xlabel.setAttribute('y', H - padB + 20);
+    xlabel.setAttribute('text-anchor', 'middle'); xlabel.setAttribute('class', 'axis-label');
+    xlabel.textContent = it.label;
+    svg.appendChild(xlabel);
+  });
+
+  const baseline = document.createElementNS(ns, 'line');
+  baseline.setAttribute('x1', padL); baseline.setAttribute('x2', W - padR);
+  baseline.setAttribute('y1', isPercent ? zeroY : padT + plotH); baseline.setAttribute('y2', isPercent ? zeroY : padT + plotH);
+  baseline.setAttribute('stroke', 'var(--baseline)'); baseline.setAttribute('stroke-width', isPercent ? '1.5' : '1');
+  svg.appendChild(baseline);
+}
+
+/* ---------- tables (always show absolute values + a YoY% column; columns limited to the selected range) ---------- */
+function yoyCell(cur, prev) {
+  if (cur === null || prev === null || !prev) return '<td class="muted">—</td>';
+  const pct = ((cur - prev) / prev) * 100;
+  const cls = pct >= 0 ? 'yoy-up' : 'yoy-down';
+  return `<td class="${cls}">${fmtPct(pct)}</td>`;
+}
+
+function renderMonthlyTable() {
+  const table = document.getElementById('dataTable');
+  const indices = activeIndices();
+  let html = '<thead><tr><th>เดือน</th>' + indices.map(i => `<th>${YEARS[i]}</th>`).join('') + '<th>YoY ล่าสุด</th></tr></thead><tbody>';
+  MONTHS.forEach(m => {
+    html += `<tr><td>${m.full}</td>` + indices.map(i => `<td>${fmtInt(m.values[i])}</td>`).join('') +
+      yoyCell(m.values[4], m.values[3]) + '</tr>';
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+function renderQuarterlyTable() {
+  const table = document.getElementById('dataTable');
+  const indices = activeIndices();
+  let html = '<thead><tr><th>ไตรมาส</th>' + indices.map(i => `<th>${YEARS[i]}</th>`).join('') + '<th>YoY (เทียบช่วงเดียวกัน)</th></tr></thead><tbody>';
+  QUARTERS.forEach((q, qIdx) => {
+    const monthsPresent = MONTHS.slice(qIdx * 3, qIdx * 3 + 3).filter(mo => mo.values[4] !== null).length;
+    const isPartial = monthsPresent > 0 && monthsPresent < 3;
+    const prevMatched = monthsPresent > 0 ? partialMatchedQuarter(qIdx, 3, monthsPresent) : null;
+    html += `<tr><td>${q.full}${isPartial ? ' *' : ''}</td>` + indices.map(i => `<td>${fmtInt(q.values[i])}</td>`).join('') +
+      yoyCell(q.values[4], prevMatched) + '</tr>';
+  });
+  html += `</tbody><tfoot><tr><td colspan="${indices.length + 2}" class="muted" style="text-align:left; font-size:11px; padding-top:6px;">* ไตรมาสยังไม่ครบทุกเดือน — คอลัมน์ YoY เทียบเฉพาะเดือนที่มีข้อมูลจริงกับช่วงเดียวกันของปีก่อน ไม่ใช่ทั้งไตรมาส</td></tr></tfoot>`;
+  table.innerHTML = html;
+}
+function renderYearlyTable() {
+  const table = document.getElementById('dataTable');
+  const indices = activeIndices();
+  let html = '<thead><tr><th>ปี (พ.ศ.)</th><th>ยอดรวม</th><th>สถานะ</th><th>YoY (เทียบช่วงเดียวกัน)</th></tr></thead><tbody>';
+  indices.forEach(i => {
+    const y = YEARSAGG[i];
+    let prev = i > 0 ? YEARSAGG[i - 1].total : null;
+    let note = '';
+    let statusLabel = 'ครบปี';
+    let statusClass = '';
+    if (!y.hasAny) {
+      statusLabel = 'ไม่มีข้อมูล';
+      statusClass = 'muted';
+    } else if (!y.complete) {
+      statusLabel = 'ข้อมูลบางส่วน';
+      statusClass = 'muted';
+      const monthsPresent = MONTHS.filter(m => m.values[i] !== null).length;
+      prev = MONTHS.slice(0, monthsPresent).reduce((a, m) => a + (m.values[i - 1] || 0), 0);
+      note = ' *';
+    }
+    html += `<tr><td>${y.label}${note}</td><td>${fmtInt(y.total)}</td><td class="${statusClass}">${statusLabel}</td>` +
+      yoyCell(y.total, prev) + '</tr>';
+  });
+  html += '</tbody><tfoot><tr><td colspan="4" class="muted" style="text-align:left; font-size:11px; padding-top:6px;">* ปียังไม่ครบ — YoY เทียบเฉพาะจำนวนเดือนที่มีข้อมูลจริงกับช่วงเดียวกันของปีก่อน (YTD)</td></tr></tfoot>';
+  table.innerHTML = html;
+}
+
+/* ---------- view switching ---------- */
+function headingsFor(noun) {
+  return {
+    months:   { chart: `${noun}รายเดือน เทียบรายปี`, chartPct: `% เพิ่ม/ลด ${noun}รายเดือน เทียบปีก่อนหน้า`, sub: 'แต่ละเส้น = 1 ปี (พ.ศ.) · จุดกลวง = เดือนที่ยังไม่มีข้อมูล', subPct: 'แต่ละเส้น = ปีนั้นเทียบปีก่อนหน้าเดือนเดียวกัน · เขียว = เพิ่มขึ้น แดง = ลดลง' },
+    quarters: { chart: `${noun}รายไตรมาส เทียบรายปี`, chartPct: `% เพิ่ม/ลด ${noun}รายไตรมาส เทียบปีก่อนหน้า`, sub: 'แต่ละเส้น = 1 ปี (พ.ศ.) · จุดกลวง = ไตรมาสที่ยังไม่มีข้อมูลครบ', subPct: 'แต่ละเส้น = ปีนั้นเทียบปีก่อนหน้าไตรมาสเดียวกัน · เขียว = เพิ่มขึ้น แดง = ลดลง' },
+    years:    { chart: `${noun}รวมรายปี`, chartPct: `% เพิ่ม/ลด ${noun}รายปี เทียบปีก่อนหน้า`, sub: 'แท่งจาง = ปีที่ข้อมูลยังไม่ครบทั้งปี (2569) · แท่งหาย = ไม่มีข้อมูลปีนั้น', subPct: 'แท่งเขียว = ปีนั้นเพิ่มขึ้นจากปีก่อน · แท่งแดง = ลดลง' },
+  };
+}
+
+function renderView(view) {
+  currentView = view;
+  const h = headingsFor(DATASETS[currentDataset].noun)[view];
+  const isPercent = chartMode === 'percent';
+  document.getElementById('chartHeading').textContent = isPercent ? h.chartPct : h.chart;
+  document.getElementById('chartSub').textContent = isPercent ? h.subPct : h.sub;
+  document.getElementById('tableHeading').textContent = `ตารางข้อมูล ${DATASETS[currentDataset].label} + YoY %`;
+  renderLegend();
+  renderTiles();
+
+  if (view === 'months') { renderLineChart(MONTHS, 'full'); renderMonthlyTable(); }
+  else if (view === 'quarters') { renderLineChart(QUARTERS, 'full'); renderQuarterlyTable(); }
+  else { renderYearBars(); renderYearlyTable(); }
+
+  document.getElementById('legend').style.display = (view === 'years' && !isPercent) ? 'none' : 'flex';
+}
+
+function switchDataset(key) {
+  currentDataset = key;
+  const ds = DATASETS[key];
+  MONTHS = buildMonths(ds.monthly);
+  QUARTERS = buildQuarters(ds.monthly);
+  YEARSAGG = buildYears(ds.monthly);
+  document.querySelector('.subtitle').textContent =
+    `เปรียบเทียบรายเดือน / รายไตรมาส / รายปี ปี 2565–2569 — ข้อมูลจริงจาก Google Sheets (แท็บ “Promotion” ตาราง “${ds.sourceTable}”)`;
+  renderView(currentView);
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-view]');
+  if (!btn) return;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderView(btn.dataset.view);
+});
+
+document.getElementById('datasetTabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-dataset]');
+  if (!btn) return;
+  document.querySelectorAll('#datasetTabs button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  switchDataset(btn.dataset.dataset);
+});
+
+initRangeControls();
+renderView('months');
+</script>
+</body>
+</html>
