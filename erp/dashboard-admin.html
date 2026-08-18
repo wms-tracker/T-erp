@@ -669,11 +669,15 @@
       const ws = o.warehouseStage || '';
       const canSendWarehouse = o.status === 'รอดำเนินการ' && !ws;
       const canCancel = o.status === 'รอดำเนินการ';
+      const canDelete = o.status === 'ยกเลิก' || o.status === 'เสร็จสิ้น';
       const actionBtn = canSendWarehouse
         ? `<button class="btn btn-primary" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__sendToWarehouse('${o._id}')">📦 ส่งคลัง</button>`
         : '';
       const cancelBtn = canCancel
         ? `<button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__cancelOrder('${o._id}')">✕ ยกเลิก</button>`
+        : '';
+      const deleteBtn = canDelete
+        ? `<button class="btn btn-danger" style="font-size:0.78rem;padding:5px 10px;" onclick="window.__deleteOrder('${o._id}')">🗑️ ลบ</button>`
         : '';
       return `
         <tr>
@@ -685,7 +689,7 @@
           <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || o.createdAt || '-'}</td>
           <td><span class="badge ${ORDER_CLS[o.status] || ''}">${o.status || '-'}</span></td>
           <td>${ws ? `<span class="badge ${WH_STAGE_CLS[ws] || 'badge-pending'}" style="font-size:0.75rem;">${ws}</span>` : '<span style="color:#aaa;font-size:0.8rem;">—</span>'}</td>
-          <td style="white-space:nowrap;">${actionBtn} ${cancelBtn}</td>
+          <td style="white-space:nowrap;">${actionBtn} ${cancelBtn} ${deleteBtn}</td>
         </tr>`;
     }).join('');
   }
@@ -723,6 +727,23 @@
       if (idx >= 0) _allOrdersCache[idx].status = 'ยกเลิก';
       renderOrderRows();
     } catch (err) { alert('ดำเนินการไม่สำเร็จ: ' + err.message); }
+  };
+
+  // ลบออเดอร์เก่า (เฉพาะออเดอร์ที่ยกเลิกหรือเสร็จสิ้นแล้วเท่านั้น) — ถาวร ย้อนกลับไม่ได้
+  window.__deleteOrder = async function (orderDocId) {
+    const order = _allOrdersCache.find(o => o._id === orderDocId);
+    const label = order ? (order.id || orderDocId) : orderDocId;
+    if (!confirm(`ยืนยันลบออเดอร์ ${label} ถาวร?\n\nการลบนี้ย้อนกลับไม่ได้ และจะไม่ลบประวัติการเคลื่อนไหวสต็อก/ใบแจ้งหนี้ที่อ้างอิงออเดอร์นี้ไว้แล้ว`)) return;
+    try {
+      await deleteDoc(doc(db, 'orders', orderDocId));
+      _allOrdersCache = _allOrdersCache.filter(o => o._id !== orderDocId);
+      renderOrderRows();
+      const t = document.createElement('div');
+      t.textContent = `🗑️ ลบออเดอร์ ${label} เรียบร้อยแล้ว`;
+      t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 22px;border-radius:10px;font-size:0.9rem;box-shadow:0 4px 16px rgba(0,0,0,.18);z-index:9999;';
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
   };
 
   // ---------- จัดการผู้ใช้งาน & สิทธิ์ (ใช้งานได้จริง — เฟส 1) ----------
