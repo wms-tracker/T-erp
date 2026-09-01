@@ -381,6 +381,7 @@ tr:last-child td { border-bottom: none; }
     <div class="modal-actions">
       <button class="btn btn-danger"  id="cancel-btn" onclick="changeStatus('ยกเลิก')">ยกเลิก</button>
       <button class="btn btn-success" id="done-btn"   onclick="changeStatus('เสร็จสิ้น')">เสร็จสิ้น</button>
+      <button class="btn btn-danger"  id="delete-btn" onclick="deleteOrder(viewingOrderId)">🗑️ ลบออเดอร์</button>
       <button class="btn btn-outline" onclick="closeModal('detail-modal')">ปิด</button>
     </div>
   </div>
@@ -900,7 +901,10 @@ function renderHistory() {
       <td><strong>฿${fmt(o.subtotal)}</strong></td>
       <td style="white-space:nowrap;font-size:0.8rem">${o.orderDate || '-'}</td>
       <td><span class="badge ${cls[o.status]}">${o.status}</span></td>
-      <td><button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem" onclick="viewOrder('${o.id}')">ดู</button></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-outline" style="padding:4px 10px;font-size:0.8rem" onclick="viewOrder('${o.id}')">ดู</button>
+        <button class="btn btn-danger" style="padding:4px 10px;font-size:0.8rem" onclick="deleteOrder('${o.id}')">🗑️</button>
+      </td>
     </tr>
   `).join('');
 }
@@ -918,6 +922,15 @@ function changeStatus(status) {
   if (o) { o.status = status; saveOrders(); renderHistory(); }
   closeModal('detail-modal');
   toast(`อัปเดตสถานะเป็น "${status}" แล้ว`);
+}
+function deleteOrder(id) {
+  if (!confirm(`ยืนยันลบออเดอร์ ${id} ถาวร?\n\nจะลบออกจากเครื่องนี้และระบบกลาง (Firestore) ด้วย — ย้อนกลับไม่ได้`)) return;
+  orders = orders.filter(o => o.id !== id);
+  saveOrders();
+  renderHistory();
+  closeModal('detail-modal');
+  toast(`🗑️ ลบออเดอร์ ${id} แล้ว`);
+  window.__deleteOrderFromFirestore?.(id);
 }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
@@ -1083,7 +1096,7 @@ initForm();
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import {
-    getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc, runTransaction
+    getFirestore, collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc, deleteDoc, runTransaction
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
   import { firebaseConfig } from "./erp/js/firebase-config.js";
 
@@ -1147,6 +1160,19 @@ initForm();
     } catch (err) {
       console.error('บันทึกออเดอร์ขึ้น Firestore ไม่สำเร็จ:', err);
       toast('⚠ บันทึกขึ้นระบบกลาง (Firestore) ไม่สำเร็จ — ข้อมูลยังถูกเก็บไว้ในเครื่องนี้');
+    }
+  };
+
+  // เรียกจาก deleteOrder() ในสคริปต์หลัก — ลบเอกสารออเดอร์ที่ตรงกับ id นี้ออกจาก Firestore ด้วย
+  // (ไม่งั้นตอนโหลดหน้าใหม่ loadMyOrdersFromFirestore จะดึงออเดอร์ที่ลบไปแล้วกลับเข้ามาในเครื่องอีก)
+  window.__deleteOrderFromFirestore = async function (orderId) {
+    if (!erpUser) return;
+    try {
+      const snap = await getDocs(query(collection(db, 'orders'), where('id', '==', orderId)));
+      for (const d of snap.docs) { await deleteDoc(doc(db, 'orders', d.id)); }
+    } catch (err) {
+      console.error('ลบออเดอร์จาก Firestore ไม่สำเร็จ:', orderId, err);
+      toast('⚠ ลบออกจากระบบกลาง (Firestore) ไม่สำเร็จ — ลบเฉพาะในเครื่องนี้แล้ว');
     }
   };
 
