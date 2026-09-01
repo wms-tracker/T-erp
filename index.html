@@ -314,7 +314,8 @@ tr:last-child td { border-bottom: none; }
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <h2 style="margin:0;border:none;padding:0">ประวัติออเดอร์</h2>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-danger" id="bulk-delete-btn" style="display:none;" onclick="deleteSelectedOrders()">🗑️ ลบที่เลือก (<span id="bulk-delete-count">0</span>)</button>
           <select id="filter-status" onchange="renderHistory()" style="padding:5px 8px;border:1px solid #ddd;border-radius:8px;font-size:0.85rem;">
             <option value="">ทั้งหมด</option>
             <option value="รอดำเนินการ">รอดำเนินการ</option>
@@ -326,7 +327,7 @@ tr:last-child td { border-bottom: none; }
       </div>
       <div style="overflow-x:auto;">
         <table>
-          <thead><tr><th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>ยอดรวม</th><th>วันลงออเดอร์</th><th>สถานะ</th><th></th></tr></thead>
+          <thead><tr><th style="width:28px;"><input type="checkbox" id="select-all-orders" onchange="toggleSelectAllOrders(this.checked)" /></th><th>Order ID</th><th>ลูกค้า</th><th>ช่องทาง</th><th>ยอดรวม</th><th>วันลงออเดอร์</th><th>สถานะ</th><th></th></tr></thead>
           <tbody id="history-body"></tbody>
         </table>
       </div>
@@ -887,14 +888,16 @@ function clearFormSilently() {
 }
 
 // ============ HISTORY ============
+let selectedOrderIds = new Set();
 function renderHistory() {
   const filter = document.getElementById('filter-status').value;
   const list = filter ? orders.filter(o => o.status === filter) : orders;
   const body = document.getElementById('history-body');
-  if (!list.length) { body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#bbb;padding:20px">ยังไม่มีออเดอร์</td></tr>'; return; }
+  if (!list.length) { body.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#bbb;padding:20px">ยังไม่มีออเดอร์</td></tr>'; updateBulkDeleteUI(); return; }
   const cls = { 'รอดำเนินการ': 'badge-pending', 'เสร็จสิ้น': 'badge-done', 'ยกเลิก': 'badge-cancel' };
   body.innerHTML = list.map(o => `
     <tr>
+      <td><input type="checkbox" class="order-select" data-id="${o.id}" ${selectedOrderIds.has(o.id) ? 'checked' : ''} onchange="toggleSelectOrder('${o.id}', this.checked)" /></td>
       <td><strong>${o.id}</strong></td>
       <td>${o.customer.name || '-'}</td>
       <td>${o.channel || '-'}</td>
@@ -907,6 +910,31 @@ function renderHistory() {
       </td>
     </tr>
   `).join('');
+  updateBulkDeleteUI();
+}
+function toggleSelectOrder(id, checked) {
+  if (checked) selectedOrderIds.add(id); else selectedOrderIds.delete(id);
+  updateBulkDeleteUI();
+}
+function toggleSelectAllOrders(checked) {
+  document.querySelectorAll('#history-body .order-select').forEach(cb => {
+    cb.checked = checked;
+    if (checked) selectedOrderIds.add(cb.dataset.id); else selectedOrderIds.delete(cb.dataset.id);
+  });
+  updateBulkDeleteUI();
+}
+function updateBulkDeleteUI() {
+  const visibleIds = Array.from(document.querySelectorAll('#history-body .order-select')).map(cb => cb.dataset.id);
+  const visibleSelectedCount = visibleIds.filter(id => selectedOrderIds.has(id)).length;
+  const btn = document.getElementById('bulk-delete-btn');
+  const countEl = document.getElementById('bulk-delete-count');
+  countEl.textContent = selectedOrderIds.size;
+  btn.style.display = selectedOrderIds.size ? '' : 'none';
+  const selectAll = document.getElementById('select-all-orders');
+  if (selectAll) {
+    selectAll.checked = visibleIds.length > 0 && visibleSelectedCount === visibleIds.length;
+    selectAll.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visibleIds.length;
+  }
 }
 function viewOrder(id) {
   viewingOrderId = id;
@@ -931,6 +959,18 @@ function deleteOrder(id) {
   closeModal('detail-modal');
   toast(`🗑️ ลบออเดอร์ ${id} แล้ว`);
   window.__deleteOrderFromFirestore?.(id);
+}
+function deleteSelectedOrders() {
+  const ids = Array.from(selectedOrderIds);
+  if (!ids.length) return;
+  if (!confirm(`ยืนยันลบออเดอร์ที่เลือกไว้ ${ids.length} รายการถาวร?\n\nจะลบออกจากเครื่องนี้และระบบกลาง (Firestore) ด้วย — ย้อนกลับไม่ได้`)) return;
+  const idSet = new Set(ids);
+  orders = orders.filter(o => !idSet.has(o.id));
+  saveOrders();
+  selectedOrderIds.clear();
+  renderHistory();
+  toast(`🗑️ ลบออเดอร์ ${ids.length} รายการแล้ว`);
+  ids.forEach(id => window.__deleteOrderFromFirestore?.(id));
 }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
