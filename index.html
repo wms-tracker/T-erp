@@ -188,7 +188,7 @@ tr:last-child td { border-bottom: none; }
       <!-- ข้อมูลออเดอร์ -->
       <div class="section-title">📋 ข้อมูลออเดอร์</div>
       <div class="form-grid">
-        <div class="field"><label>Order ID (auto)</label><input id="f-orderid" readonly /></div>
+        <div class="field"><label>Order ID (เว้นว่าง = ออกเลขอัตโนมัติ)</label><input id="f-orderid" placeholder="เว้นว่างไว้เพื่อออกเลขอัตโนมัติ" /></div>
         <div class="field"><label>Paper Running Number ID</label><input id="f-paperno" placeholder="เลขที่เอกสาร" /></div>
         <div class="field"><label>Order Date (วันลงออเดอร์)</label><input id="f-orderdate" type="date" /></div>
         <div class="field"><label>Invoice Number</label><input id="f-invoice" placeholder="เลขที่ใบแจ้งหนี้" /></div>
@@ -782,7 +782,7 @@ function nextOrderId() {
   return 'ORD-' + String(orderCounter).padStart(6, '0');
 }
 function initForm() {
-  document.getElementById('f-orderid').value = 'ORD-' + String(orderCounter + 1).padStart(6, '0') + ' (จะออกเลขจริงเมื่อบันทึก)';
+  document.getElementById('f-orderid').value = '';
   document.getElementById('f-orderdate').value = todayStr();
   document.getElementById('f-shipdate').value = todayStr();
   orderItems = [];
@@ -857,18 +857,31 @@ async function confirmOrder() {
   const btn = document.getElementById('btn-confirm-order');
   if (btn) btn.disabled = true;
 
-  // ออกเลขออเดอร์จากตัวนับกลางบน Firestore ก่อน เพื่อไม่ให้เลขซ้ำกันระหว่างผู้ใช้/เครื่องต่างๆ
-  // (ถ้าเชื่อมต่อไม่ได้ เช่น ออฟไลน์ จะสำรองด้วยเลขเครื่อง+รหัสกันชน เพื่อไม่ให้ชนกันเอง)
+  const customId = val('f-orderid');
   let id;
-  try {
-    if (window.getNextOrderIdFromFirestore) {
-      id = await window.getNextOrderIdFromFirestore();
-    } else {
-      throw new Error('no-firestore-counter');
+  if (customId) {
+    // ผู้ใช้กรอกเลขออเดอร์เอง — เช็คซ้ำทั้งในเครื่องนี้และระบบกลางก่อนบันทึก
+    const dupLocal = orders.some(o => o.id === customId);
+    const dupRemote = window.checkOrderIdExistsInFirestore ? await window.checkOrderIdExistsInFirestore(customId) : false;
+    if (dupLocal || dupRemote) {
+      toast(`⚠ เลขออเดอร์ "${customId}" มีอยู่แล้ว กรุณาใช้เลขอื่น`);
+      if (btn) btn.disabled = false;
+      return;
     }
-  } catch (err) {
-    console.warn('ออกเลขออเดอร์จากระบบกลางไม่สำเร็จ ใช้เลขสำรองแทน:', err);
-    id = nextOrderId() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    id = customId;
+  } else {
+    // ไม่ได้กรอกเอง — ออกเลขออเดอร์จากตัวนับกลางบน Firestore เพื่อไม่ให้เลขซ้ำกันระหว่างผู้ใช้/เครื่องต่างๆ
+    // (ถ้าเชื่อมต่อไม่ได้ เช่น ออฟไลน์ จะสำรองด้วยเลขเครื่อง+รหัสกันชน เพื่อไม่ให้ชนกันเอง)
+    try {
+      if (window.getNextOrderIdFromFirestore) {
+        id = await window.getNextOrderIdFromFirestore();
+      } else {
+        throw new Error('no-firestore-counter');
+      }
+    } catch (err) {
+      console.warn('ออกเลขออเดอร์จากระบบกลางไม่สำเร็จ ใช้เลขสำรองแทน:', err);
+      id = nextOrderId() + '-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    }
   }
 
   if (btn) btn.disabled = false;
@@ -1191,6 +1204,17 @@ initForm();
       return updated;
     });
     return 'ORD-' + String(next).padStart(6, '0');
+  };
+
+  // เรียกจาก confirmOrder() เมื่อผู้ใช้กรอกเลขออเดอร์เอง — เช็คว่าเลขนี้มีอยู่แล้วในระบบกลางหรือยัง (กันชนกับเครื่อง/คนอื่น)
+  window.checkOrderIdExistsInFirestore = async function (orderId) {
+    try {
+      const snap = await getDocs(query(collection(db, 'orders'), where('id', '==', orderId)));
+      return !snap.empty;
+    } catch (err) {
+      console.warn('ตรวจสอบเลขออเดอร์ซ้ำจาก Firestore ไม่สำเร็จ:', err);
+      return false; // ตรวจสอบไม่ได้ (เช่นออฟไลน์) — ปล่อยผ่านไปก่อน ยังมีตัวเช็คในเครื่องอยู่
+    }
   };
 
   // เรียกจาก confirmOrder() ในสคริปต์หลัก เพื่อบันทึกออเดอร์เข้า Firestore กลาง
