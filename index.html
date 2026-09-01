@@ -149,6 +149,7 @@ tr:last-child td { border-bottom: none; }
           <input type="file" id="csv-upload" accept=".csv" style="display:none" onchange="importCSV(event)" />
         </label>
         <button class="btn" style="background:#e8f0fe;color:#1a73e8;" onclick="downloadTemplate()">⬇ Template</button>
+        <button class="btn btn-danger" onclick="deleteAllProducts()">🗑️ ลบสินค้าทั้งหมด</button>
       </div>
       <div id="import-preview" style="display:none;margin-top:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -686,6 +687,14 @@ function deleteProduct(id) {
   if (!confirm('ลบสินค้านี้?')) return;
   products = products.filter(p => p.id !== id);
   saveProducts(); renderProducts();
+}
+function deleteAllProducts() {
+  if (!products.length) { toast('ไม่มีสินค้าให้ลบ'); return; }
+  if (!confirm(`ยืนยันลบสินค้าทั้งหมด ${products.length} รายการ?\n\nลบเฉพาะรายการสินค้าในเครื่องนี้ ไม่กระทบออเดอร์ที่บันทึกไว้แล้ว — จากนั้นอัปโหลด CSV ใหม่ได้เลย`)) return;
+  products = [];
+  saveProducts();
+  renderProducts();
+  toast('🗑️ ลบสินค้าทั้งหมดแล้ว — อัปโหลด CSV ใหม่ได้เลย');
 }
 function getCategories() { return ['ทั้งหมด', ...[...new Set(products.map(p => p.cat))]]; }
 
