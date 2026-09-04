@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>แดชบอร์ดความเสียหาย — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS, STATUS_LIST, STATUS_BADGE,
+  listReports, computeKPIs, groupCount, monthlyTrend, toCSV, downloadCSV,
+} from "./js/damage-reports.js";
+
+const profile = await requireRole(["warehouse", "manager"]);
+const canEdit = profile.role === "warehouse" || profile.role === "admin";
+const main = renderShell(profile, "damage-dashboard", "📊 แดชบอร์ดความเสียหาย (Damage Area Report)");
+
+let all = [];
+let filtered = [];
+
+main.innerHTML = `
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="card">
+    <div class="filter-bar">
+      <div class="field"><label>ค้นหา</label><input id="ft-search" placeholder="เลขที่ / หัวข้อ..." /></div>
+      <div class="field"><label>ตั้งแต่วันที่</label><input id="ft-from" type="date" /></div>
+      <div class="field"><label>ถึงวันที่</label><input id="ft-to" type="date" /></div>
+      <div class="field"><label>Zone</label><select id="ft-zone"><option value="">— ทั้งหมด —</option></select></div>
+      <div class="field"><label>ประเภท</label><select id="ft-type"><option value="">— ทั้งหมด —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select></div>
+      <div class="field"><label>ความรุนแรง</label><select id="ft-severity"><option value="">— ทั้งหมด —</option>${SEVERITY_LIST.map((s) => `<option value="${s}">${SEVERITY_LABEL[s]}</option>`).join("")}</select></div>
+      <div class="field"><label>สถานะ</label><select id="ft-status"><option value="">— ทั้งหมด —</option>${STATUS_LIST.map((s) => `<option value="${s}">${s}</option>`).join("")}</select></div>
+      <div class="field"><label>ผู้รับผิดชอบ</label><input id="ft-resp" placeholder="ชื่อผู้รับผิดชอบ" /></div>
+      <button class="btn btn-outline" id="btn-clear-filter">ล้างตัวกรอง</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-outline" id="btn-export-csv">⬇️ Export CSV</button>
+      ${canEdit ? `<a class="btn btn-primary" href="damage-report-form.html">🆕 แจ้งความเสียหายใหม่</a>` : ""}
+      <button class="btn btn-outline" id="btn-refresh">🔄 รีเฟรช</button>
+    </div>
+  </div>
+
+  <div class="grid-cards" style="grid-template-columns:1fr 1fr;">
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">📍 ความเสียหายแยกตาม Zone</div><div id="by-zone"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">🏷 ความเสียหายแยกตามประเภท</div><div id="by-type"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title" style="font-size:0.95rem;">📈 แนวโน้มจำนวนความเสียหายรายเดือน</div>
+    <div id="trend-chart" style="display:flex;align-items:flex-end;gap:10px;height:140px;padding-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div class="section-title" style="margin:0;">📋 รายการรายงานความเสียหาย</div>
+      <span id="count-label" style="font-size:0.82rem;color:#888;"></span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr>
+          <th>เลขที่</th><th>วันที่</th><th>หัวข้อ</th><th>Zone</th><th>ประเภท</th>
+          <th>ความรุนแรง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th></th>
+        </tr></thead>
+        <tbody id="rows"><tr><td colspan="9" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+`;
+
+function renderKPI() {
+  const k = computeKPIs(filtered);
+  document.getElementById("kpi-row").innerHTML = `
+    <div class="kpi-card"><div class="num">${k.total}</div><div class="label">รายงานทั้งหมด</div></div>
+    <div class="kpi-card"><div class="num">${k.new}</div><div class="label">รายงานใหม่</div></div>
+    <div class="kpi-card"><div class="num">${k.inProgress}</div><div class="label">กำลังดำเนินการ</div></div>
+    <div class="kpi-card"><div class="num">${k.pending}</div><div class="label">รอดำเนินการ</div></div>
+    <div class="kpi-card"><div class="num">${k.done}</div><div class="label">ดำเนินการเสร็จแล้ว</div></div>
+    <div class="kpi-card kpi-critical"><div class="num">${k.critical}</div><div class="label">Critical</div></div>
+  `;
+}
+
+function renderBreakdowns() {
+  const byZone = groupCount(filtered, (r) => r.zone);
+  const byType = groupCount(filtered, (r) => r.damageType);
+  const bar = (label, count, max) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="width:130px;font-size:0.82rem;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${label}">${label}</div>
+      <div style="flex:1;background:#f0f2f8;border-radius:6px;height:16px;overflow:hidden;"><div style="width:${max ? (count / max * 100) : 0}%;background:#1a73e8;height:100%;"></div></div>
+      <div style="width:28px;text-align:right;font-size:0.82rem;font-weight:700;">${count}</div>
+    </div>`;
+  const maxZone = Math.max(1, ...byZone.map((x) => x[1]));
+  const maxType = Math.max(1, ...byType.map((x) => x[1]));
+  document.getElementById("by-zone").innerHTML = byZone.length ? byZone.map(([z, c]) => bar(z, c, maxZone)).join("") : `<p style="color:#999;font-size:0.85rem;">ไม่มีข้อมูล</p>`;
+  document.getElementById("by-type").innerHTML = byType.length ? byType.map(([t, c]) => bar(t, c, maxType)).join("") : `<p style="color:#999;font-size:0.85rem;">ไม่มีข้อมูล</p>`;
+}
+
+function renderTrend() {
+  const trend = monthlyTrend(filtered, 6);
+  const max = Math.max(1, ...trend.map((b) => b.count));
+  document.getElementById("trend-chart").innerHTML = trend.map((b) => `
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+      <div style="font-size:0.78rem;font-weight:700;margin-bottom:4px;">${b.count || ""}</div>
+      <div style="width:100%;max-width:36px;background:linear-gradient(180deg,#5a8dfb,#1a73e8);border-radius:6px 6px 0 0;height:${(b.count / max * 100) || 2}%;min-height:2px;"></div>
+      <div style="font-size:0.72rem;color:#888;margin-top:6px;">${b.label}</div>
+    </div>`).join("");
+}
+
+function renderRows() {
+  const tbody = document.getElementById("rows");
+  document.getElementById("count-label").textContent = `พบ ${filtered.length} รายการ`;
+  tbody.innerHTML = filtered.length ? filtered.map((r) => `
+    <tr style="cursor:pointer;" data-id="${r.id}">
+      <td class="mono">${r.reportNo}</td>
+      <td style="white-space:nowrap;">${r.reportDate || "-"}</td>
+      <td>${r.title || "-"}</td>
+      <td>${r.zone || "-"}</td>
+      <td>${r.damageType || "-"}</td>
+      <td><span class="sev-badge ${SEVERITY_CLASS[r.severity] || ""}">${SEVERITY_LABEL[r.severity] || r.severity || "-"}</span></td>
+      <td><span class="badge ${STATUS_BADGE[r.status] || "badge-pending"}">${r.status}</span></td>
+      <td>${r.responsiblePerson || "-"}</td>
+      <td><a class="btn btn-outline" href="damage-report-view.html?id=${r.id}" style="padding:5px 10px;font-size:0.78rem;">ดู</a></td>
+    </tr>`).join("") : `<tr><td colspan="9" style="text-align:center;color:#999;">ไม่พบรายงานที่ตรงกับตัวกรอง</td></tr>`;
+  tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
+    tr.addEventListener("click", (e) => {
+      if (e.target.closest("a")) return;
+      location.href = `damage-report-view.html?id=${tr.dataset.id}`;
+    });
+  });
+}
+
+function applyFilters() {
+  const search = document.getElementById("ft-search").value.trim().toLowerCase();
+  const from = document.getElementById("ft-from").value;
+  const to = document.getElementById("ft-to").value;
+  const zone = document.getElementById("ft-zone").value;
+  const type = document.getElementById("ft-type").value;
+  const severity = document.getElementById("ft-severity").value;
+  const status = document.getElementById("ft-status").value;
+  const resp = document.getElementById("ft-resp").value.trim().toLowerCase();
+
+  filtered = all.filter((r) => {
+    if (search && !(`${r.reportNo} ${r.title}`.toLowerCase().includes(search))) return false;
+    if (from && (r.reportDate || "") < from) return false;
+    if (to && (r.reportDate || "") > to) return false;
+    if (zone && r.zone !== zone) return false;
+    if (type && r.damageType !== type) return false;
+    if (severity && r.severity !== severity) return false;
+    if (status && r.status !== status) return false;
+    if (resp && !(r.responsiblePerson || "").toLowerCase().includes(resp)) return false;
+    return true;
+  });
+
+  renderKPI(); renderBreakdowns(); renderTrend(); renderRows();
+}
+
+async function load() {
+  document.getElementById("rows").innerHTML = `<tr><td colspan="9" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
+  all = await listReports();
+  const zoneSelect = document.getElementById("ft-zone");
+  const zones = [...new Set(all.map((r) => r.zone).filter(Boolean))].sort();
+  zoneSelect.innerHTML = `<option value="">— ทั้งหมด —</option>` + zones.map((z) => `<option value="${z}">${z}</option>`).join("");
+  applyFilters();
+}
+
+["ft-search", "ft-from", "ft-to", "ft-zone", "ft-type", "ft-severity", "ft-status", "ft-resp"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", applyFilters);
+  document.getElementById(id).addEventListener("change", applyFilters);
+});
+document.getElementById("btn-clear-filter").addEventListener("click", () => {
+  ["ft-search", "ft-from", "ft-to", "ft-zone", "ft-type", "ft-severity", "ft-status", "ft-resp"].forEach((id) => { document.getElementById(id).value = ""; });
+  applyFilters();
+});
+document.getElementById("btn-refresh").addEventListener("click", load);
+document.getElementById("btn-export-csv").addEventListener("click", () => {
+  downloadCSV(`damage-reports-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(filtered));
+});
+
+await load();
+</script>
+</html>

@@ -42,6 +42,10 @@ const NAV = {
       { key: 'verification-scan', label: '📱 สแกน PDA Mode',                  href: 'dashboard-warehouse.html#verification-scan' },
       { key: 'outbound',          label: '🚚 จัดส่งสินค้า (Outbound)',         href: 'dashboard-warehouse.html#outbound' },
     ]},
+    { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
+      { key: 'damage-dashboard', label: '📊 แดชบอร์ดความเสียหาย',  href: 'damage-reports.html' },
+      { key: 'damage-create',    label: '🆕 แจ้งความเสียหาย',       href: 'damage-report-form.html' },
+    ]},
   ],
   admin: [
     { groupKey: 'orders', icon: '📋', label: 'ออเดอร์', items: [
@@ -51,6 +55,10 @@ const NAV = {
     ]},
     { groupKey: 'purchase', icon: '🛒', label: 'จัดซื้อ', items: [
       { key: 'po',         label: 'ใบสั่งซื้อ (PO)',                  href: 'dashboard-admin.html#po' },
+    ]},
+    { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
+      { key: 'damage-dashboard', label: '📊 แดชบอร์ดความเสียหาย',  href: 'damage-reports.html' },
+      { key: 'damage-create',    label: '🆕 แจ้งความเสียหาย',       href: 'damage-report-form.html' },
     ]},
     { groupKey: 'team', icon: '👥', label: 'ทีม', items: [
       { key: 'users',      label: 'จัดการผู้ใช้งาน & สิทธิ์',         href: 'dashboard-admin.html#users' },
@@ -99,6 +107,9 @@ const NAV = {
     ]},
     { groupKey: 'shipping', icon: '🚚', label: 'ส่งออก', items: [
       { key: 'shipping',   label: 'ยอดส่งออกประจำเดือน',              href: 'dashboard-export-trend.html' },
+    ]},
+    { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
+      { key: 'damage-dashboard', label: 'แดชบอร์ดความเสียหาย (ดูอย่างเดียว)', href: 'damage-reports.html' },
     ]},
   ],
 };

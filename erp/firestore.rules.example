@@ -137,5 +137,23 @@ service cloud.firestore {
       allow create: if hasRole('warehouse') || isAdmin();
       allow update, delete: if isAdmin();
     }
+
+    // ----- damageReports: รายงานพื้นที่/ทรัพย์สินเสียหาย (Damage Area Report) -----
+    // คลัง/แอดมิน สร้าง-แก้ไข-เปลี่ยนสถานะได้เต็มสิทธิ์ / manager อ่านได้อย่างเดียว (ไม่มี allow update ให้)
+    match /damageReports/{reportId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if hasRole('warehouse') || isAdmin();
+      allow delete: if isAdmin();
+
+      match /images/{imageId} {
+        allow read: if isSignedIn() && isActive();
+        allow create, update, delete: if hasRole('warehouse') || isAdmin();
+      }
+      match /history/{historyId} {
+        allow read: if isSignedIn() && isActive();
+        allow create: if hasRole('warehouse') || isAdmin();
+        allow update, delete: if false; // audit trail ห้ามแก้/ลบย้อนหลัง
+      }
+    }
   }
 }

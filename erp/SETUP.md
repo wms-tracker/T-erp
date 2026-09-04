@@ -24,6 +24,26 @@
 
 > กฎเหล่านี้ทำให้: ต้อง login ก่อนถึงเข้าระบบได้, แต่ละแผนกเห็น/แก้ข้อมูลได้ตามสิทธิ์ที่กำหนดไว้ใน `SCHEMA.md`
 
+## ขั้นตอนที่ 3.5 — ตั้งค่า Cloudinary (สำหรับอัปโหลดรูปภาพ — ใช้โดยโมดูล Damage Area Report)
+รูปภาพของระบบ Damage Area Report ใช้ **Cloudinary** แทน Firebase Storage เพราะ Firebase เปลี่ยนนโยบายให้
+Storage ต้องอัปเกรดเป็นแผน Blaze (ผูกบัตรเครดิต) ก่อนถึงจะเปิดใช้งานได้ — Cloudinary มี free tier (25GB)
+ที่ไม่ต้องผูกบัตร
+
+1. สมัครฟรีที่ https://cloudinary.com/users/register/free (ไม่ต้องกรอกบัตรเครดิต)
+2. หลัง login จะเห็น **"Cloud name"** อยู่บนหน้า Dashboard — จดไว้
+3. ไปที่ไอคอนเฟือง (Settings) มุมบนขวา → แท็บ **"Upload"** → เลื่อนหา **"Upload presets"** → กด **"Add upload preset"**
+   - Signing Mode: เปลี่ยนเป็น **"Unsigned"** (สำคัญ — ให้เว็บอัปโหลดตรงได้โดยไม่ต้องมี backend)
+   - Folder: ใส่ `damage-reports`
+   - กด Save แล้วจดชื่อ preset ที่ได้
+4. คัดลอกไฟล์ `erp/js/cloudinary-config.example.js` เป็น `erp/js/cloudinary-config.js` (มีไฟล์นี้อยู่แล้ว
+   เป็นค่า placeholder) แล้วแทนค่า `cloudName` และ `uploadPreset` ด้วยค่าจริงจากข้อ 2-3
+5. ไม่ต้องตั้งค่า Firestore Rules เพิ่มสำหรับรูปภาพ — Cloudinary ไม่ผ่าน Firestore Rules (เป็นบริการแยก)
+   ความปลอดภัยควบคุมด้วย upload preset ที่จำกัด folder ไว้แล้วในข้อ 3
+
+> ข้อจำกัด: การอัปโหลดแบบ unsigned preset ลบไฟล์จาก client โดยตรงไม่ได้ (ต้องมี API secret ซึ่งห้ามฝังในโค้ด
+> หน้าเว็บ) เวลาผู้ใช้ "ลบรูป" ในแอป จะลบแค่ข้อมูลอ้างอิงใน Firestore เท่านั้น ไฟล์จริงยังอยู่บน Cloudinary
+> (ไม่กระทบการใช้งาน เพราะ free tier มีพื้นที่ 25GB ให้ใช้)
+
 ## ขั้นตอนที่ 4 — สร้างบัญชีผู้ใช้งานคนแรก (สำหรับตัวคุณเอง = admin)
 1. ไปที่ Authentication → แท็บ "Users" → "Add user"
 2. กรอกอีเมลและรหัสผ่านสำหรับตัวคุณเอง → "Add user"
@@ -67,7 +87,12 @@ erp/
 ├── js/
 │   ├── auth.js                 ระบบ login/logout/ตรวจสิทธิ์ (RBAC)
 │   ├── shell.js                สร้าง sidebar/เมนูตามแผนกอัตโนมัติ
-│   └── firebase-config.example.js   ตัวอย่างไฟล์ config (คัดลอกเป็น firebase-config.js แล้วใส่ค่าจริง)
+│   ├── damage-reports.js       โมดูล Damage Area Report (CRUD, อัปโหลดรูป, เลขที่เอกสาร, audit trail)
+│   ├── firebase-config.example.js   ตัวอย่างไฟล์ config (คัดลอกเป็น firebase-config.js แล้วใส่ค่าจริง)
+│   └── cloudinary-config.example.js ตัวอย่างไฟล์ config สำหรับอัปโหลดรูป (คัดลอกเป็น cloudinary-config.js)
+├── damage-reports.html         แดชบอร์ด Damage Area Report (KPI/filter/รายการ)
+├── damage-report-form.html     ฟอร์มแจ้ง/แก้ไขความเสียหาย
+├── damage-report-view.html     รายละเอียดรายงาน + เปลี่ยนสถานะ + Before/After + พิมพ์ PDF
 ├── css/erp.css                 สไตล์ภาพรวมของระบบ
 ├── SCHEMA.md                   โครงสร้างฐานข้อมูล (Firestore collections) ทั้งหมด
 ├── firestore.rules.example     กฎความปลอดภัย Firestore (คัดลอกไปวางใน Console)

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>แจ้งความเสียหาย — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS,
+  validateReportData, createReport, updateReport, getReport,
+  listImages, uploadImage, deleteImage, setImageSequence, updateImageMeta,
+} from "./js/damage-reports.js";
+
+const profile = await requireRole(["warehouse"]);
+const params = new URLSearchParams(location.search);
+const editId = params.get("id");
+const isEdit = !!editId;
+const user = { uid: profile.uid, name: profile.name, email: profile.email };
+
+const main = renderShell(profile, "damage-create", isEdit ? "✏️ แก้ไขรายงานความเสียหาย" : "🆕 แจ้งความเสียหายใหม่");
+
+let selectedSeverity = "";
+// images: { id?(server), file?(local), previewUrl, caption, location, capturedAt, _removed? }
+let images = [];
+
+main.innerHTML = `
+  <div class="card">
+    <div class="section-title">📋 ข้อมูลรายงาน</div>
+    <p class="section-desc">เลขที่รายงานจะออกให้อัตโนมัติทันทีที่บันทึก (รูปแบบ DAR-YYYYMMDD-NNN)</p>
+    <div class="grid-cards">
+      <div class="field"><label>เลขที่รายงาน</label><input id="f-reportno" disabled placeholder="จะออกให้หลังบันทึก" /></div>
+      <div class="field"><label>วันที่พบความเสียหาย <span class="req">*</span></label><input id="f-date" type="date" /></div>
+      <div class="field"><label>เวลาที่พบ</label><input id="f-time" type="time" /></div>
+      <div class="field"><label>ผู้แจ้ง <span class="req">*</span></label><input id="f-reporter" placeholder="ชื่อผู้แจ้ง" /></div>
+      <div class="field"><label>แผนก</label><input id="f-department" placeholder="เช่น คลังสินค้า" /></div>
+      <div class="field"><label>พื้นที่/โซน <span class="req">*</span></label><input id="f-zone" placeholder="เช่น Zone Outbound" /></div>
+    </div>
+    <div class="field">
+      <label>ประเภทความเสียหาย <span class="req">*</span></label>
+      <select id="f-type"><option value="">— เลือกประเภท —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
+    </div>
+    <div class="field">
+      <label>ระดับความรุนแรง <span class="req">*</span></label>
+      <div id="sev-pills" style="display:flex;gap:8px;flex-wrap:wrap;">
+        ${SEVERITY_LIST.map((s) => `<button type="button" class="sev-pill ${SEVERITY_CLASS[s]}" data-sev="${s}">${SEVERITY_LABEL[s]}</button>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">📝 รายละเอียดความเสียหาย</div>
+    <div class="field"><label>หัวข้อความเสียหาย <span class="req">*</span></label><input id="f-title" placeholder="สรุปสั้น ๆ เช่น พื้นคอนกรีตแตกร้าวหน้าโซน Outbound" /></div>
+    <div class="field"><label>รายละเอียดความเสียหาย <span class="req">*</span></label><textarea id="f-desc" rows="4" placeholder="อธิบายลักษณะความเสียหายแบบละเอียด"></textarea></div>
+    <div class="field"><label>สาเหตุเบื้องต้น</label><textarea id="f-cause" rows="3" placeholder="สาเหตุที่คาดว่าเป็นไปได้ (ถ้าทราบ)"></textarea></div>
+    <div class="field">
+      <label>ผลกระทบ</label>
+      <label class="check-row"><input type="checkbox" id="f-imp-ops" /> มีผลต่อการทำงาน</label>
+      <label class="check-row"><input type="checkbox" id="f-imp-safety" /> มีผลต่อความปลอดภัย</label>
+      <label class="check-row"><input type="checkbox" id="f-imp-property" /> มีผลต่อสินค้า/ทรัพย์สิน</label>
+      <textarea id="f-imp-details" rows="2" placeholder="รายละเอียดผลกระทบเพิ่มเติม" style="margin-top:8px;"></textarea>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">📍 ตำแหน่งความเสียหาย</div>
+    <div class="grid-cards">
+      <div class="field"><label>อาคาร</label><input id="f-loc-building" /></div>
+      <div class="field"><label>ชั้น</label><input id="f-loc-floor" /></div>
+      <div class="field"><label>Zone</label><input id="f-loc-zone" /></div>
+      <div class="field"><label>Area</label><input id="f-loc-area" /></div>
+      <div class="field"><label>จุด/Location</label><input id="f-loc-point" /></div>
+      <div class="field"><label>ช่อง/แร็ค (ถ้ามี)</label><input id="f-loc-rack" /></div>
+    </div>
+    <div class="field"><label>รายละเอียดตำแหน่งเพิ่มเติม</label><textarea id="f-loc-note" rows="2"></textarea></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">📷 รูปภาพหลักฐาน <span class="req">*</span></div>
+    <p class="section-desc">แนบได้หลายรูป ถ่ายจากมือถือได้โดยตรง — ต้องมีอย่างน้อย 1 รูป</p>
+    <label class="upload-drop" id="drop-zone">
+      <div style="font-size:2rem;">📷</div>
+      <div style="font-weight:700;margin-top:4px;">แตะเพื่อเลือกรูป / ถ่ายรูป</div>
+      <div style="font-size:0.78rem;margin-top:2px;">รองรับหลายรูปพร้อมกัน</div>
+      <input type="file" id="f-images" accept="image/*" capture="environment" multiple />
+    </label>
+    <div class="img-gallery" id="img-gallery" style="margin-top:16px;"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">🔧 การประเมินและการแก้ไข</div>
+    <div class="grid-cards">
+      <div class="field"><label>ผู้รับผิดชอบ</label><input id="f-resp-person" /></div>
+      <div class="field"><label>หน่วยงานที่ต้องดำเนินการ</label><input id="f-resp-dept" /></div>
+      <div class="field"><label>งบประมาณโดยประมาณ (บาท)</label><input id="f-cost" type="number" min="0" /></div>
+      <div class="field"><label>วันที่ต้องการให้ดำเนินการ</label><input id="f-duedate" type="date" /></div>
+    </div>
+    <div class="field"><label>แนวทางแก้ไขเบื้องต้น</label><textarea id="f-corrective" rows="3"></textarea></div>
+  </div>
+
+  <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <button class="btn btn-primary btn-lg" id="btn-save">💾 บันทึกรายงาน</button>
+    <button class="btn btn-outline btn-lg" id="btn-cancel">ยกเลิก</button>
+    <span class="msg" id="save-msg" style="flex:1;"></span>
+  </div>
+`;
+
+// ---------- severity pills ----------
+document.getElementById("sev-pills").addEventListener("click", (e) => {
+  const btn = e.target.closest(".sev-pill");
+  if (!btn) return;
+  selectedSeverity = btn.dataset.sev;
+  document.querySelectorAll(".sev-pill").forEach((b) => b.classList.toggle("active", b === btn));
+});
+
+// ---------- images ----------
+function renderGallery() {
+  const gallery = document.getElementById("img-gallery");
+  const visible = images.filter((i) => !i._removed);
+  gallery.innerHTML = visible.map((img, idx) => `
+    <div class="img-thumb" data-idx="${images.indexOf(img)}">
+      <img src="${img.previewUrl || img.url}" />
+      <div class="tools">
+        ${idx > 0 ? `<button data-act="up" title="เลื่อนขึ้น">▲</button>` : ""}
+        ${idx < visible.length - 1 ? `<button data-act="down" title="เลื่อนลง">▼</button>` : ""}
+        <button data-act="del" title="ลบรูปนี้">✕</button>
+      </div>
+      <div class="cap">
+        <input data-act="cap" placeholder="คำบรรยายภาพ" value="${(img.caption || "").replace(/"/g, "&quot;")}" style="width:100%;border:1px solid #e0e3ef;border-radius:6px;padding:5px 7px;font-size:0.78rem;margin-bottom:4px;" />
+        <input data-act="loc" placeholder="ตำแหน่ง/จุดที่ถ่าย" value="${(img.location || "").replace(/"/g, "&quot;")}" style="width:100%;border:1px solid #e0e3ef;border-radius:6px;padding:5px 7px;font-size:0.78rem;" />
+        <div class="meta">${img.capturedAt ? new Date(img.capturedAt).toLocaleString("th-TH") : ""}</div>
+      </div>
+    </div>
+  `).join("") || `<p style="color:#999;font-size:0.85rem;">ยังไม่มีรูปภาพ</p>`;
+
+  gallery.querySelectorAll(".img-thumb").forEach((thumb) => {
+    const idx = Number(thumb.dataset.idx);
+    thumb.querySelector('[data-act="del"]').addEventListener("click", () => {
+      images[idx]._removed = true;
+      if (images[idx].previewUrl) URL.revokeObjectURL(images[idx].previewUrl);
+      renderGallery();
+    });
+    thumb.querySelector('[data-act="cap"]').addEventListener("input", (e) => { images[idx].caption = e.target.value; });
+    thumb.querySelector('[data-act="loc"]').addEventListener("input", (e) => { images[idx].location = e.target.value; });
+    const upBtn = thumb.querySelector('[data-act="up"]');
+    const downBtn = thumb.querySelector('[data-act="down"]');
+    if (upBtn) upBtn.addEventListener("click", () => { swapVisible(idx, -1); });
+    if (downBtn) downBtn.addEventListener("click", () => { swapVisible(idx, 1); });
+  });
+}
+
+function swapVisible(realIdx, dir) {
+  const visibleIdxs = images.map((img, i) => (!img._removed ? i : null)).filter((i) => i !== null);
+  const pos = visibleIdxs.indexOf(realIdx);
+  const swapWith = visibleIdxs[pos + dir];
+  if (swapWith === undefined) return;
+  [images[realIdx], images[swapWith]] = [images[swapWith], images[realIdx]];
+  renderGallery();
+}
+
+document.getElementById("f-images").addEventListener("change", (e) => {
+  for (const file of e.target.files) {
+    images.push({ file, previewUrl: URL.createObjectURL(file), caption: "", location: "", capturedAt: new Date().toISOString() });
+  }
+  e.target.value = "";
+  renderGallery();
+});
+
+renderGallery();
+
+// ---------- load existing (edit mode) ----------
+if (isEdit) {
+  const msg = document.getElementById("save-msg");
+  msg.textContent = "กำลังโหลดข้อมูล...";
+  const report = await getReport(editId);
+  if (!report) {
+    msg.textContent = "ไม่พบรายงานนี้";
+    msg.classList.add("error");
+  } else {
+    document.getElementById("f-reportno").value = report.reportNo || "";
+    document.getElementById("f-date").value = report.reportDate || "";
+    document.getElementById("f-time").value = report.reportTime || "";
+    document.getElementById("f-reporter").value = report.reporterName || "";
+    document.getElementById("f-department").value = report.department || "";
+    document.getElementById("f-zone").value = report.zone || "";
+    document.getElementById("f-type").value = report.damageType || "";
+    document.getElementById("f-title").value = report.title || "";
+    document.getElementById("f-desc").value = report.description || "";
+    document.getElementById("f-cause").value = report.cause || "";
+    document.getElementById("f-imp-ops").checked = !!report.impact?.operations;
+    document.getElementById("f-imp-safety").checked = !!report.impact?.safety;
+    document.getElementById("f-imp-property").checked = !!report.impact?.property;
+    document.getElementById("f-imp-details").value = report.impact?.details || "";
+    document.getElementById("f-loc-building").value = report.location?.building || "";
+    document.getElementById("f-loc-floor").value = report.location?.floor || "";
+    document.getElementById("f-loc-zone").value = report.location?.zone || "";
+    document.getElementById("f-loc-area").value = report.location?.area || "";
+    document.getElementById("f-loc-point").value = report.location?.point || "";
+    document.getElementById("f-loc-rack").value = report.location?.rack || "";
+    document.getElementById("f-loc-note").value = report.location?.note || "";
+    document.getElementById("f-resp-person").value = report.responsiblePerson || "";
+    document.getElementById("f-resp-dept").value = report.responsibleDept || "";
+    document.getElementById("f-cost").value = report.estimatedCost || "";
+    document.getElementById("f-duedate").value = report.dueDate || "";
+    document.getElementById("f-corrective").value = report.correctiveAction || "";
+    if (report.severity) {
+      selectedSeverity = report.severity;
+      document.querySelectorAll(".sev-pill").forEach((b) => b.classList.toggle("active", b.dataset.sev === report.severity));
+    }
+    const existingImgs = await listImages(editId, "main");
+    images = existingImgs.map((img) => ({ id: img.id, url: img.url, caption: img.caption, location: img.location, capturedAt: img.capturedAt }));
+    renderGallery();
+    msg.textContent = "";
+  }
+} else {
+  document.getElementById("f-reporter").value = profile.name || profile.email || "";
+  document.getElementById("f-date").value = new Date().toISOString().slice(0, 10);
+}
+
+// ---------- save ----------
+document.getElementById("btn-cancel").addEventListener("click", () => { location.href = "damage-reports.html"; });
+
+document.getElementById("btn-save").addEventListener("click", async () => {
+  const msg = document.getElementById("save-msg");
+  msg.className = "msg";
+  const data = {
+    reportDate: document.getElementById("f-date").value,
+    reportTime: document.getElementById("f-time").value,
+    reporter: document.getElementById("f-reporter").value.trim(),
+    department: document.getElementById("f-department").value.trim(),
+    zone: document.getElementById("f-zone").value.trim(),
+    damageType: document.getElementById("f-type").value,
+    severity: selectedSeverity,
+    title: document.getElementById("f-title").value.trim(),
+    description: document.getElementById("f-desc").value.trim(),
+    cause: document.getElementById("f-cause").value.trim(),
+    impact: {
+      operations: document.getElementById("f-imp-ops").checked,
+      safety: document.getElementById("f-imp-safety").checked,
+      property: document.getElementById("f-imp-property").checked,
+      details: document.getElementById("f-imp-details").value.trim(),
+    },
+    location: {
+      building: document.getElementById("f-loc-building").value.trim(),
+      floor: document.getElementById("f-loc-floor").value.trim(),
+      zone: document.getElementById("f-loc-zone").value.trim(),
+      area: document.getElementById("f-loc-area").value.trim(),
+      point: document.getElementById("f-loc-point").value.trim(),
+      rack: document.getElementById("f-loc-rack").value.trim(),
+      note: document.getElementById("f-loc-note").value.trim(),
+    },
+    responsiblePerson: document.getElementById("f-resp-person").value.trim(),
+    responsibleDept: document.getElementById("f-resp-dept").value.trim(),
+    correctiveAction: document.getElementById("f-corrective").value.trim(),
+    estimatedCost: document.getElementById("f-cost").value,
+    dueDate: document.getElementById("f-duedate").value,
+  };
+  const visibleImages = images.filter((i) => !i._removed);
+  const errors = validateReportData(data, visibleImages.length);
+  if (errors.length) {
+    msg.classList.add("error");
+    msg.innerHTML = "⚠️ " + errors.join(" / ");
+    return;
+  }
+
+  const btn = document.getElementById("btn-save");
+  btn.disabled = true;
+  try {
+    let reportId = editId;
+    if (isEdit) {
+      msg.textContent = "กำลังบันทึกการแก้ไข...";
+      await updateReport(editId, data, user);
+    } else {
+      msg.textContent = "กำลังสร้างรายงาน...";
+      reportId = await createReport(data, user);
+    }
+
+    // ลบรูปที่ผู้ใช้กดลบ (เฉพาะรูปที่เคยอยู่บน server)
+    const toDelete = images.filter((i) => i._removed && i.id);
+    for (const img of toDelete) {
+      await deleteImage(reportId, img.id, user);
+    }
+
+    // อัปโหลดรูปใหม่ + จัดลำดับรูปเดิมตามตำแหน่งล่าสุดในหน้าจอ
+    for (let idx = 0; idx < visibleImages.length; idx++) {
+      const img = visibleImages[idx];
+      msg.textContent = `กำลังอัปโหลดรูปภาพ ${idx + 1}/${visibleImages.length}...`;
+      if (img.file) {
+        await uploadImage(reportId, img.file, { imageType: "main", caption: img.caption, location: img.location, capturedAt: img.capturedAt, sequence: idx }, user);
+      } else if (img.id) {
+        await updateImageMeta(reportId, img.id, { caption: img.caption || "", location: img.location || "" });
+        await setImageSequence(reportId, img.id, idx);
+      }
+    }
+
+    location.href = `damage-report-view.html?id=${reportId}`;
+  } catch (err) {
+    msg.classList.add("error");
+    msg.textContent = "บันทึกไม่สำเร็จ: " + (err?.message || err);
+    btn.disabled = false;
+  }
+});
+</script>
+</html>

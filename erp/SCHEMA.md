@@ -80,6 +80,28 @@
 }
 ```
 
+### `damageReports/{reportId}`
+รายงานพื้นที่/ทรัพย์สินเสียหายในคลัง (Damage Area Report) — โมดูล `erp/damage-reports.js`
+```json
+{
+  "reportNo": "DAR-20260903-001", "reportDate": "2026-09-03", "reportTime": "10:30",
+  "reporterUid": "...", "reporterName": "...", "department": "คลังสินค้า",
+  "zone": "Zone Outbound",
+  "location": { "building": "", "floor": "", "zone": "", "area": "", "point": "", "rack": "", "note": "" },
+  "damageType": "พื้น/ผนัง/เพดาน", "severity": "ต่ำ | ปานกลาง | สูง | Critical",
+  "title": "...", "description": "...", "cause": "...",
+  "impact": { "operations": false, "safety": false, "property": false, "details": "" },
+  "responsiblePerson": "...", "responsibleDept": "...", "correctiveAction": "...",
+  "estimatedCost": 0, "dueDate": "2026-09-10",
+  "status": "New | รับเรื่องแล้ว | กำลังตรวจสอบ | รอดำเนินการ | กำลังซ่อม | ดำเนินการเสร็จแล้ว | ปิดรายงาน",
+  "mainImageCount": 0, "beforeImageCount": 0, "afterImageCount": 0,
+  "createdBy": "uid", "createdByName": "...", "createdAt": "timestamp", "updatedAt": "timestamp", "closedAt": "timestamp"
+}
+```
+Subcollections:
+- `damageReports/{id}/images/{imageId}` — `{ url, publicId, imageType: "main|before|after", caption, location, capturedAt, sequence, uploadedBy, uploadedAt }` (ไฟล์จริงอัปโหลดไปที่ **Cloudinary** ผ่าน unsigned upload preset — ไม่ใช่ Firebase Storage เพราะ Storage ต้องใช้แผน Blaze/ผูกบัตรเครดิต — ดู `erp/js/cloudinary-config.example.js`)
+- `damageReports/{id}/history/{historyId}` — `{ action, field, oldValue, newValue, changedBy, changedByName, changedAt }` (audit trail)
+
 ### `auditLog/{id}`
 บันทึกการเปลี่ยนแปลงข้อมูลสำคัญ (ใครทำอะไร เมื่อไหร่)
 ```json
