@@ -22,14 +22,42 @@ function rateCardId(row, effectiveFrom) {
   return sanitizeId(`${row.carrierId}_${row.serviceId || "x"}_${row.zone}_${row.weightFrom}-${row.weightTo}_${effectiveFrom}`);
 }
 
-const BATCH_CHUNK = 450; // Firestore's hard limit is 500 writes/batch — leave headroom
+// Firestore caps a batch at 500 writes AND ~10MiB of encoded request payload — whichever
+// hits first. Docs with an embedded array (freightSkuRateGrids' `cells`) can run ~15KB
+// each, so count alone isn't a safe chunking rule: 450 of those docs is under 500 writes
+// but landed at ~11.5MB encoded and got rejected. Chunk by BOTH count and an estimated byte
+// budget (using JSON size as a proxy — Firestore's wire format runs larger than raw JSON
+// due to per-field type wrappers, so the budget is set well under the real 10MiB cap).
+const MAX_OPS_PER_BATCH = 400;
+const MAX_BYTES_PER_BATCH = 3 * 1024 * 1024; // 3MB of JSON ≈ comfortably under the 10MiB wire-format cap
+
+function estimateBytes(data) {
+  return new TextEncoder().encode(JSON.stringify(data)).length;
+}
 
 async function commitInChunks(writes) {
-  for (let i = 0; i < writes.length; i += BATCH_CHUNK) {
-    const batch = writeBatch(db);
-    for (const w of writes.slice(i, i + BATCH_CHUNK)) batch.set(w.ref, w.data, { merge: true });
+  let batch = writeBatch(db);
+  let opsInBatch = 0;
+  let bytesInBatch = 0;
+
+  const flush = async () => {
+    if (opsInBatch === 0) return;
     await batch.commit();
+    batch = writeBatch(db);
+    opsInBatch = 0;
+    bytesInBatch = 0;
+  };
+
+  for (const w of writes) {
+    const size = estimateBytes(w.data);
+    if (opsInBatch > 0 && (opsInBatch >= MAX_OPS_PER_BATCH || bytesInBatch + size > MAX_BYTES_PER_BATCH)) {
+      await flush();
+    }
+    batch.set(w.ref, w.data, { merge: true });
+    opsInBatch++;
+    bytesInBatch += size;
   }
+  await flush();
   return writes.length;
 }
 
