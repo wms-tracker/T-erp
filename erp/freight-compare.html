@@ -138,6 +138,14 @@ document.getElementById("btn-compare").addEventListener("click", async () => {
         jobs.push({ carrier: c, service: svc, input: { ...base, carrierId: c.id, serviceId: svc?.id || null } });
       }
     }
+    if (!jobs.length) {
+      document.getElementById("result-panel").innerHTML = `<div class="card">${emptyStateHTML({
+        icon: "🚚", title: "ยังไม่มี Carrier ในระบบ",
+        desc: "ต้องนำเข้าข้อมูลจาก Excel หรือเพิ่ม Carrier เองก่อน จึงจะเปรียบเทียบได้",
+        actionLabel: "⬇️ ไปหน้านำเข้าจาก Excel", actionHref: "freight-import.html",
+      })}</div>`;
+      return;
+    }
     const results = await Promise.all(jobs.map((j) => calculateAndOptionallySave(j.input, profile, { save: false })));
     const rows = jobs.map((j, i) => ({
       label: `${j.carrier.name || j.carrier.id}${j.service ? " — " + j.service.name : ""}`,
