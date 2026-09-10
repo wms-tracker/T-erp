@@ -102,6 +102,62 @@ Subcollections:
 - `damageReports/{id}/images/{imageId}` — `{ url, publicId, imageType: "main|before|after", caption, location, capturedAt, sequence, uploadedBy, uploadedAt }` (ไฟล์จริงอัปโหลดไปที่ **Cloudinary** ผ่าน unsigned upload preset — ไม่ใช่ Firebase Storage เพราะ Storage ต้องใช้แผน Blaze/ผูกบัตรเครดิต — ดู `erp/js/cloudinary-config.example.js`)
 - `damageReports/{id}/history/{historyId}` — `{ action, field, oldValue, newValue, changedBy, changedByName, changedAt }` (audit trail)
 
+### Freight Cost Calculator collections — โมดูล `erp/js/freight-engine.js` + `erp/js/freight-data.js`
+ดูรายละเอียดสถาปัตยกรรมเต็มใน plan ที่อนุมัติไว้ (`freight-engine.js` = pure calculation engine,
+`freight-data.js` = Firestore access, `freight-import*.js` = นำเข้าจาก `Shipping Price.xlsx`)
+
+```
+freightCarriers/{carrierId}          // id = รหัสสั้น เช่น "best","kex","businessIdea","nimExpress"
+{
+  name, active,
+  pricingStrategy: "WEIGHT_ZONE_TABLE" | "SKU_ZONE_GRID" | "SKU_SIZE_CLASS",
+  weightRule: "ACTUAL" | "MAX_ACTUAL_VOLUMETRIC" | "SKU_GRID" | "SIZE_CLASS",
+  dimFactor, roundingRule: { mode: "NONE"|"CEIL_TO", step },
+  services: [{ id, name }],           // เช่น DHL มี [{id:"parcel",...},{id:"bulky",...}]
+}
+
+freightZoneMap/{postalCode}          // id = รหัสไปรษณีย์ 5 หลัก
+{
+  province, region, districts: [...],
+  carrierZones: { businessIdea, best, flash, kex, dhl, kerry },  // ค่า zone ต่อ carrier
+  remoteAreaByCarrier: { best, dhl, kerry },                     // true = พื้นที่ห่างไกล
+  zoneSource: { ... },                // "exact" (มาจากคอลัมน์ตรงของ carrier) | "derived" (คำนวณจาก BI column) | "manual"
+}
+
+freightRateCards/{id}                // ตาราง น้ำหนัก×โซน (Best/Flash/Kerry/KEX/DHL Parcel/Bulky)
+{ carrierId, serviceId, zone, weightFrom, weightTo, rate, rateVersion, effectiveFrom, effectiveTo }
+
+freightSkuRateGrids/{sku}            // Business Idea: ราคาเฉพาะ SKU × ช่วงตัวเลข × โซน
+{ sku, name, type, size, weightKg, cells: [{ bracketLabel, zone, rate, rateVersion, effectiveFrom, effectiveTo }] }
+
+freightSizeClassRates/{id}           // Nim-express: Size Class -> ราคา (คีย์ = ข้อความ label เต็ม ไม่ตัดคำ)
+{ carrierId: "nimExpress", sizeClass, rate, rateVersion, effectiveFrom, effectiveTo }
+
+freightSkuDimensions/{sku}           // ขนาด/น้ำหนักจริงต่อ SKU (รวม Product sheet + SKU NIM's sizeClass)
+{ sku, name, widthCm, lengthCm, heightCm, weightKg, sizeClass }
+
+freightSurcharges/{id}
+{ carrierId, serviceId?, type, calcType: "FIXED"|"PERCENT"|"PER_KG"|"PER_SHIPMENT"|"PER_ORDER", value,
+  appliesWhen?: { remoteAreaOnly, bulkyOnly }, effectiveFrom, effectiveTo }
+
+freightCodRules/{id}
+{ carrierId, percent, minFee, maxFee, effectiveFrom, effectiveTo }
+
+freightBulkyThresholds/{carrierId_serviceId}
+{ carrierId, serviceId, maxLengthCm, maxWidthCm, maxHeightCm, maxWeightKg, maxDimensionSumCm }
+
+freightCalculations/{id}             // ผลการคำนวณที่บันทึกไว้ (ตรวจสอบย้อนหลังได้ตามสเปกข้อ 45)
+{ calcNo, input, result /* ผลลัพธ์เต็มจาก calculateFreight() รวม trace[] */,
+  status, confidence, totalFreight, orderId, trackingNo, carrierId,
+  createdBy, createdByName, createdAt, updatedAt }
+```
+Subcollection: `freightCalculations/{id}/history/{historyId}` — เหมือน `damageReports/{id}/history`
+ทุกประการ (`logHistory`/`listHistory` ใน `freight-data.js` คือฟังก์ชันเดียวกับของ damage-reports)
+
+**ข้อควรทราบเรื่องความแม่นยำ**: ระบบไม่ import คอลัมน์ที่คำนวณไว้ล่วงหน้าในไฟล์ Excel ต้นฉบับ
+(เช่น คอลัมน์ Dimension/MAX/Zone Cost ในชีต `Product`) เพราะไม่ทราบสูตรที่แน่ชัด — ราคาทั้งหมด
+คำนวณสดจาก Rate Card + Zone + Surcharge เสมอ ตาม "ห้ามระบบเดาราคา" (กฎข้อ 15/45)
+
 ### `auditLog/{id}`
 บันทึกการเปลี่ยนแปลงข้อมูลสำคัญ (ใครทำอะไร เมื่อไหร่)
 ```json

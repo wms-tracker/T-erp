@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Zone Mapping — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { toast, emptyStateHTML } from "./js/ui.js";
+import { listZoneMapEntries, saveZoneMapEntry, listCarriers } from "./js/freight-data.js";
+
+const profile = await requireRole(["admin", "warehouse"]);
+const main = renderShell(profile, "freight-zones", "📍 Zone Mapping (ตามรหัสไปรษณีย์)");
+
+let entries = [];
+let filtered = [];
+let carriers = [];
+let editingId = null;
+
+main.innerHTML = `
+  <div class="card">
+    <div class="filter-bar">
+      <div class="field"><label>ค้นหารหัสไปรษณีย์ / จังหวัด</label><input id="ft-search" placeholder="เช่น 10100 หรือ กรุงเทพ" /></div>
+      <button class="btn btn-outline" id="btn-add">+ เพิ่มรหัสไปรษณีย์ใหม่</button>
+    </div>
+    <span id="count-label" style="font-size:0.82rem;color:#888;"></span>
+    <div style="overflow-x:auto;margin-top:10px;">
+      <table>
+        <thead><tr><th>รหัสไปรษณีย์</th><th>จังหวัด/เขต</th><th>Business Idea</th><th>Best</th><th>Flash/DHL/Kerry (derived)</th><th>Remote Area</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7"><div class="skel-row skeleton"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="edit-card" hidden></div>
+`;
+
+function editFormHTML(entry) {
+  const e = entry || { postalCode: "", province: "", region: "", carrierZones: {}, remoteAreaByCarrier: {} };
+  const cz = e.carrierZones || {};
+  const ra = e.remoteAreaByCarrier || {};
+  return `
+    <div class="section-title" style="font-size:0.95rem;">${entry ? `แก้ไขรหัสไปรษณีย์ ${e.postalCode}` : "เพิ่มรหัสไปรษณีย์ใหม่"}</div>
+    <div class="field"><label>รหัสไปรษณีย์ (5 หลัก)${entry ? "" : " <span class='req'>*</span>"}</label>
+      <input id="ez-postal" value="${e.postalCode}" ${entry ? "disabled" : ""} maxlength="5" /></div>
+    <div class="field"><label>จังหวัด/เขต</label><input id="ez-province" value="${e.province || ""}" /></div>
+    <div class="field"><label>Business Idea Zone</label><input id="ez-bi" value="${cz.businessIdea || ""}" placeholder="เช่น กรุงเทพฯ ปริมณฑล" /></div>
+    <div class="field"><label>Best Zone (BKK/UPC)</label><input id="ez-best" value="${cz.best || ""}" /></div>
+    <div class="field"><label>Flash Zone (BKK/UPC)</label><input id="ez-flash" value="${cz.flash || ""}" /></div>
+    <div class="field"><label>DHL Zone (BKK/UPC)</label><input id="ez-dhl" value="${cz.dhl || ""}" /></div>
+    <div class="field"><label>Kerry Zone (BKK/UPC)</label><input id="ez-kerry" value="${cz.kerry || ""}" /></div>
+    <div class="field"><label>KEX Zone</label><input id="ez-kex" value="${cz.kex || "ALL"}" /></div>
+    <div class="section-title" style="font-size:0.85rem;margin-top:10px;">พื้นที่ห่างไกล (Remote Area) — ต่อ Carrier</div>
+    <div class="check-row">
+      <label><input type="checkbox" id="ra-best" ${ra.best ? "checked" : ""} /> Best</label>
+      <label><input type="checkbox" id="ra-dhl" ${ra.dhl ? "checked" : ""} /> DHL</label>
+      <label><input type="checkbox" id="ra-kerry" ${ra.kerry ? "checked" : ""} /> Kerry</label>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-primary" id="btn-save-zone" style="width:auto;padding:10px 24px;">บันทึก</button>
+      <button class="btn btn-outline" id="btn-cancel-zone" style="width:auto;padding:10px 24px;">ยกเลิก</button>
+    </div>`;
+}
+
+function openEdit(entry) {
+  editingId = entry ? entry.postalCode : "__new__";
+  const card = document.getElementById("edit-card");
+  card.hidden = false;
+  card.innerHTML = editFormHTML(entry);
+  document.getElementById("btn-cancel-zone").addEventListener("click", () => { card.hidden = true; editingId = null; });
+  document.getElementById("btn-save-zone").addEventListener("click", async () => {
+    const postalCode = entry ? entry.postalCode : document.getElementById("ez-postal").value.trim();
+    if (!/^\d{5}$/.test(postalCode)) { toast({ type: "error", title: "รหัสไปรษณีย์ต้องเป็นตัวเลข 5 หลัก" }); return; }
+    await saveZoneMapEntry(postalCode, {
+      province: document.getElementById("ez-province").value.trim(),
+      carrierZones: {
+        businessIdea: document.getElementById("ez-bi").value.trim() || null,
+        best: document.getElementById("ez-best").value.trim() || null,
+        flash: document.getElementById("ez-flash").value.trim() || null,
+        dhl: document.getElementById("ez-dhl").value.trim() || null,
+        kerry: document.getElementById("ez-kerry").value.trim() || null,
+        kex: document.getElementById("ez-kex").value.trim() || "ALL",
+      },
+      remoteAreaByCarrier: {
+        best: document.getElementById("ra-best").checked,
+        dhl: document.getElementById("ra-dhl").checked,
+        kerry: document.getElementById("ra-kerry").checked,
+      },
+      zoneSource: { businessIdea: "manual", best: "manual", flash: "manual", dhl: "manual", kerry: "manual", kex: "manual" },
+    }, profile);
+    toast({ title: "บันทึกสำเร็จ" });
+    card.hidden = true;
+    editingId = null;
+    await load();
+  });
+}
+
+function renderRows() {
+  const tbody = document.getElementById("rows");
+  document.getElementById("count-label").textContent = `พบ ${filtered.length} รายการ`;
+  if (!filtered.length) { tbody.innerHTML = `<tr><td colspan="7">${emptyStateHTML({ icon: "📍", title: "ไม่พบข้อมูล" })}</td></tr>`; return; }
+  tbody.innerHTML = filtered.slice(0, 300).map((e) => `
+    <tr data-id="${e.postalCode}" style="cursor:pointer;">
+      <td class="mono">${e.postalCode}</td><td>${e.province || "-"}</td>
+      <td>${e.carrierZones?.businessIdea || "-"}</td><td>${e.carrierZones?.best || "-"}</td>
+      <td>${e.carrierZones?.flash || "-"} / ${e.carrierZones?.dhl || "-"} / ${e.carrierZones?.kerry || "-"}</td>
+      <td>${(e.remoteAreaByCarrier?.best || e.remoteAreaByCarrier?.dhl || e.remoteAreaByCarrier?.kerry) ? "🔴 ใช่" : "-"}</td>
+      <td><button class="btn btn-outline btn-edit-zone" style="padding:4px 10px;font-size:0.76rem;">แก้ไข</button></td>
+    </tr>`).join("") + (filtered.length > 300 ? `<tr><td colspan="7" style="text-align:center;color:#999;">แสดง 300 จาก ${filtered.length} รายการ — พิมพ์คำค้นเพื่อกรอง</td></tr>` : "");
+  tbody.querySelectorAll(".btn-edit-zone").forEach((btn) => btn.addEventListener("click", (e) => {
+    const id = e.target.closest("tr").dataset.id;
+    openEdit(filtered.find((x) => x.postalCode === id));
+  }));
+}
+
+function applyFilter() {
+  const q = document.getElementById("ft-search").value.trim().toLowerCase();
+  filtered = !q ? entries : entries.filter((e) => e.postalCode.includes(q) || (e.province || "").toLowerCase().includes(q));
+  renderRows();
+}
+
+document.getElementById("ft-search").addEventListener("input", applyFilter);
+document.getElementById("btn-add").addEventListener("click", () => openEdit(null));
+
+async function load() {
+  [entries, carriers] = await Promise.all([listZoneMapEntries(), listCarriers()]);
+  applyFilter();
+}
+
+await load();
+</script>
+</html>

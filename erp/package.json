@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "erp/ is browser-loaded ESM (script type=module) with no bundler. This package.json only tells Node's test runner (node --test) to parse .js files here as ES modules — it has no effect on the browser and no effect outside this folder."
+}

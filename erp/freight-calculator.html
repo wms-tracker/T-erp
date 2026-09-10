@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>คำนวณค่าขนส่ง — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { toast } from "./js/ui.js";
+import { listCarriers, getSkuDimension, getSkuGrid, calculateAndOptionallySave } from "./js/freight-data.js";
+
+const profile = await requireRole(["admin", "warehouse", "sales"]);
+const main = renderShell(profile, "freight-calculator", "🧮 คำนวณค่าขนส่ง (Freight Calculator)");
+
+const STATUS_LABEL = {
+  CALCULATED: "คำนวณสำเร็จ", RATE_NOT_FOUND: "ไม่พบ Rate Card", ZONE_NOT_FOUND: "ไม่พบ Zone",
+  WEIGHT_ERROR: "ข้อมูลน้ำหนักผิดพลาด", DIMENSION_ERROR: "ข้อมูลขนาดผิดพลาด", DATA_ERROR: "ข้อมูลไม่ถูกต้อง",
+  MANUAL_REVIEW: "ต้องตรวจสอบเอง (Manual Review)", CALCULATION_ERROR: "คำนวณผิดพลาด (คำนวณซ้ำได้ผลไม่ตรงกัน)",
+};
+const STATUS_BADGE = {
+  CALCULATED: "badge-done", RATE_NOT_FOUND: "badge-cancel", ZONE_NOT_FOUND: "badge-cancel",
+  WEIGHT_ERROR: "badge-cancel", DIMENSION_ERROR: "badge-cancel", DATA_ERROR: "badge-cancel",
+  MANUAL_REVIEW: "badge-pending", CALCULATION_ERROR: "badge-cancel",
+};
+const CONFIDENCE_LABEL = { HIGH: "🟢 มั่นใจสูง", MEDIUM: "🟡 มั่นใจปานกลาง", LOW: "🔴 มั่นใจต่ำ" };
+
+let carriers = [];
+
+main.innerHTML = `
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+    <div class="card">
+      <div class="section-title">ข้อมูล Order</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field"><label>Order ID</label><input id="in-order" /></div>
+        <div class="field"><label>Tracking No.</label><input id="in-tracking" /></div>
+      </div>
+      <div class="field"><label>Carrier <span class="req">*</span></label><select id="in-carrier"></select></div>
+      <div class="field" id="service-field" hidden><label>Service</label><select id="in-service"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field"><label>จังหวัด <span class="req">*</span></label><input id="in-province" /></div>
+        <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
+      </div>
+      <div class="field"><label>SKU (ถ้ามี — จะดึงขนาด/น้ำหนักอัตโนมัติ)</label><input id="in-sku" /></div>
+      <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) — Carrier นี้กำหนดราคาต่อ SKU ระบบไม่ทราบเกณฑ์อัตโนมัติ ต้องเลือกเอง</label><select id="in-bracket"></select></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+        <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
+        <div class="field"><label>ยาว (ซม.)</label><input id="in-length" type="number" step="0.1" /></div>
+        <div class="field"><label>กว้าง (ซม.)</label><input id="in-width" type="number" step="0.1" /></div>
+        <div class="field"><label>สูง (ซม.)</label><input id="in-height" type="number" step="0.1" /></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="field"><label>ยอด COD (บาท, ถ้ามี)</label><input id="in-cod" type="number" step="0.01" /></div>
+        <div class="field"><label>วันที่จัดส่ง (Ship Date)</label><input id="in-shipdate" type="date" /></div>
+      </div>
+      <button class="btn btn-primary btn-lg" id="btn-calc">คำนวณ</button>
+    </div>
+    <div id="result-panel"><div class="card"><div class="empty-state"><div class="empty-icon">🧮</div><div class="empty-title">กรอกข้อมูลแล้วกด "คำนวณ"</div></div></div></div>
+  </div>
+`;
+
+document.getElementById("in-shipdate").value = new Date().toISOString().slice(0, 10);
+
+function traceHTML(trace) {
+  return `<div class="timeline">${(trace || []).map((t) => `
+    <div class="timeline-item tl-status">
+      <div class="timeline-title">Step ${t.step}: ${t.label}</div>
+      <div class="timeline-detail">${t.detail}</div>
+    </div>`).join("")}</div>`;
+}
+
+function breakdownRow(label, value) {
+  return `<div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#666;">${label}</span><span>${value == null ? "-" : Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`;
+}
+
+function renderResult(result) {
+  const panel = document.getElementById("result-panel");
+  const errorsHTML = result.errors?.length
+    ? `<div class="card" style="background:#fdecea;border:1px solid #f6c6c2;margin-top:10px;">${result.errors.map((e) => `<div style="font-size:0.84rem;">⚠️ ${e.message}${e.availableBrackets ? ` (${e.availableBrackets.join(", ")})` : ""}</div>`).join("")}</div>`
+    : "";
+  const warningsHTML = result.warnings?.length
+    ? `<div class="card" style="background:#fff8e1;border:1px solid #ffe4a3;margin-top:10px;">${result.warnings.map((w) => `<div style="font-size:0.84rem;">🟡 ${w}</div>`).join("")}</div>`
+    : "";
+  panel.innerHTML = `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="section-title" style="margin:0;">ผลการคำนวณ</div>
+        <span class="badge ${STATUS_BADGE[result.status] || "badge-pending"}">${STATUS_LABEL[result.status] || result.status}</span>
+      </div>
+      <div style="font-size:0.82rem;color:#888;margin:4px 0 12px;">${result.confidence ? CONFIDENCE_LABEL[result.confidence] : ""}</div>
+      ${errorsHTML}${warningsHTML}
+      ${result.status === "CALCULATED" ? `
+        <div style="margin-top:14px;">
+          ${breakdownRow("น้ำหนักจริง (kg)", result.actualWeight)}
+          ${breakdownRow("น้ำหนักปริมาตร (kg)", result.volumetricWeight)}
+          ${breakdownRow("น้ำหนักคิดค่าขนส่ง (kg)", result.chargeableWeight)}
+          <hr style="border:none;border-top:1px solid #eee;margin:8px 0;" />
+          ${breakdownRow("ค่าขนส่งพื้นฐาน", result.baseFreight)}
+          ${breakdownRow("ค่าน้ำมัน (Fuel Surcharge)", result.fuelSurcharge)}
+          ${breakdownRow("ค่า Bulky", result.bulkyFee)}
+          ${breakdownRow("ค่า COD", result.codFee)}
+          ${breakdownRow("อื่นๆ", result.otherFee)}
+          <hr style="border:none;border-top:2px solid #333;margin:8px 0;" />
+          <div style="display:flex;justify-content:space-between;font-weight:800;font-size:1.15rem;"><span>รวมทั้งหมด</span><span>${result.totalFreight?.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span></div>
+          <div style="font-size:0.78rem;color:#888;margin-top:4px;">Zone: ${result.zone || "-"} · Rate Version: ${result.rateVersion || "-"}</div>
+        </div>
+        <button class="btn btn-primary" id="btn-save-calc" style="width:auto;padding:8px 20px;margin-top:14px;">💾 บันทึกผลการคำนวณนี้</button>
+      ` : ""}
+      <details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:700;font-size:0.9rem;">📜 ดูรายละเอียดการคำนวณ (Trace)</summary>
+        <div style="margin-top:10px;">${traceHTML(result.trace)}</div>
+      </details>
+    </div>`;
+
+  const saveBtn = document.getElementById("btn-save-calc");
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    saveBtn.disabled = true; saveBtn.textContent = "กำลังบันทึก...";
+    try {
+      const { savedId } = await calculateAndOptionallySave(buildInput(), profile, { save: true });
+      toast({ title: "บันทึกผลการคำนวณสำเร็จ", desc: savedId });
+    } catch (err) {
+      toast({ type: "error", title: "บันทึกไม่สำเร็จ", desc: err.message });
+    } finally {
+      saveBtn.disabled = false; saveBtn.textContent = "💾 บันทึกผลการคำนวณนี้";
+    }
+  });
+}
+
+function buildInput() {
+  return {
+    orderId: document.getElementById("in-order").value.trim(),
+    trackingNo: document.getElementById("in-tracking").value.trim(),
+    carrierId: document.getElementById("in-carrier").value,
+    serviceId: document.getElementById("in-service").value || null,
+    province: document.getElementById("in-province").value.trim(),
+    postalCode: document.getElementById("in-postal").value.trim(),
+    sku: document.getElementById("in-sku").value.trim() || null,
+    weightBracketLabel: document.getElementById("in-bracket").value || null,
+    actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
+    lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,
+    widthCm: document.getElementById("in-width").value ? Number(document.getElementById("in-width").value) : null,
+    heightCm: document.getElementById("in-height").value ? Number(document.getElementById("in-height").value) : null,
+    codAmount: document.getElementById("in-cod").value ? Number(document.getElementById("in-cod").value) : null,
+    shipDate: document.getElementById("in-shipdate").value || null,
+  };
+}
+
+async function onCarrierChange() {
+  const carrier = carriers.find((c) => c.id === document.getElementById("in-carrier").value);
+  const svcField = document.getElementById("service-field");
+  const svcSel = document.getElementById("in-service");
+  if (carrier?.services?.length) {
+    svcField.hidden = false;
+    svcSel.innerHTML = carrier.services.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+  } else {
+    svcField.hidden = true;
+    svcSel.innerHTML = "";
+  }
+  await maybeLoadSkuBracket(carrier);
+}
+
+async function maybeLoadSkuBracket(carrier) {
+  const bracketField = document.getElementById("bracket-field");
+  const bracketSel = document.getElementById("in-bracket");
+  const sku = document.getElementById("in-sku").value.trim();
+  if (!carrier || carrier.pricingStrategy !== "SKU_ZONE_GRID" || !sku) { bracketField.hidden = true; return; }
+  const grid = await getSkuGrid(sku);
+  if (!grid) { bracketField.hidden = true; return; }
+  const brackets = [...new Set((grid.cells || []).map((c) => c.bracketLabel))];
+  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
+  bracketField.hidden = brackets.length === 0;
+}
+
+document.getElementById("in-sku").addEventListener("change", async () => {
+  const sku = document.getElementById("in-sku").value.trim();
+  const carrier = carriers.find((c) => c.id === document.getElementById("in-carrier").value);
+  if (sku) {
+    const dim = await getSkuDimension(sku);
+    if (dim) {
+      if (dim.weightKg != null) document.getElementById("in-weight").value = dim.weightKg;
+      if (dim.widthCm != null) document.getElementById("in-width").value = dim.widthCm;
+      if (dim.lengthCm != null) document.getElementById("in-length").value = dim.lengthCm;
+      if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
+    }
+  }
+  await maybeLoadSkuBracket(carrier);
+});
+
+document.getElementById("in-carrier").addEventListener("change", onCarrierChange);
+
+document.getElementById("btn-calc").addEventListener("click", async () => {
+  const input = buildInput();
+  if (!input.carrierId) { toast({ type: "error", title: "กรุณาเลือก Carrier" }); return; }
+  const btn = document.getElementById("btn-calc");
+  btn.disabled = true; btn.textContent = "กำลังคำนวณ...";
+  try {
+    const { result } = await calculateAndOptionallySave(input, profile, { save: false });
+    renderResult(result);
+  } catch (err) {
+    toast({ type: "error", title: "คำนวณไม่สำเร็จ", desc: err.message });
+  } finally {
+    btn.disabled = false; btn.textContent = "คำนวณ";
+  }
+});
+
+async function load() {
+  carriers = await listCarriers();
+  const sel = document.getElementById("in-carrier");
+  sel.innerHTML = `<option value="">— เลือก Carrier —</option>` + carriers.filter((c) => c.active !== false).map((c) => `<option value="${c.id}">${c.name || c.id}</option>`).join("");
+}
+
+await load();
+</script>
+</html>

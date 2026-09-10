@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>แดชบอร์ดค่าขนส่ง — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { emptyStateHTML } from "./js/ui.js";
+import { listCalculations, listCarriers } from "./js/freight-data.js";
+import {
+  normalizeCalc, computeKPIs, filterByPeriod, groupByCarrier, groupByProvince,
+  groupByWeightRange, dailyTrend,
+} from "./js/freight-dashboard.js";
+
+const profile = await requireRole(["admin", "warehouse", "sales", "manager"]);
+const main = renderShell(profile, "freight-dashboard", "📊 แดชบอร์ดค่าขนส่ง");
+
+let all = [];
+let carrierNames = {};
+let period = "30d";
+
+main.innerHTML = `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <div class="section-title" style="margin:0;">ช่วงเวลา</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="period-buttons">
+        ${[["today", "วันนี้"], ["7d", "7 วัน"], ["30d", "30 วัน"], ["month", "เดือนนี้"], ["year", "ปีนี้"], ["all", "ทั้งหมด"]]
+          .map(([v, l]) => `<button type="button" class="btn ${v === "30d" ? "btn-primary" : "btn-outline"}" data-period="${v}" style="padding:6px 14px;font-size:0.8rem;">${l}</button>`).join("")}
+      </div>
+    </div>
+  </div>
+
+  <div class="kpi-row" id="kpi-row"></div>
+
+  <div class="card">
+    <div class="section-title" style="font-size:0.95rem;">📈 แนวโน้มค่าขนส่งรายวัน</div>
+    <div id="trend-chart" style="display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:14px;overflow-x:auto;"></div>
+  </div>
+
+  <div class="grid-cards" style="grid-template-columns:1fr 1fr 1fr;">
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">🚚 ค่าขนส่งแยกตาม Carrier</div><div id="by-carrier"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">📍 ค่าขนส่งแยกตามจังหวัด (Top 10)</div><div id="by-province"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">⚖️ ค่าขนส่งแยกตามช่วงน้ำหนัก</div><div id="by-weight"></div></div>
+  </div>
+`;
+
+function kpiCard(icon, num, label, tone) {
+  return `<div class="kpi-card2 tone-${tone}"><div class="kpi-top"><div class="kpi-icon">${icon}</div></div><div class="num">${num}</div><div class="label">${label}</div></div>`;
+}
+
+function fmtMoney(n) { return (n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function renderKPI(records) {
+  const k = computeKPIs(records);
+  document.getElementById("kpi-row").innerHTML =
+    kpiCard("📋", k.total, "จำนวนที่คำนวณทั้งหมด", "new") +
+    kpiCard("✅", k.calculated, "คำนวณสำเร็จ", "done") +
+    kpiCard("⏳", k.manualReview, "ต้องตรวจสอบเอง (Manual Review)", "pending") +
+    kpiCard("🔴", k.failed, "คำนวณไม่สำเร็จ (ไม่พบ Rate/Zone/ข้อมูลผิด)", "critical") +
+    kpiCard("💰", fmtMoney(k.totalFreight) + " บาท", "ค่าขนส่งรวม", "progress") +
+    kpiCard("📊", fmtMoney(k.avgFreightPerOrder) + " บาท", "เฉลี่ยต่อ Order", "progress") +
+    kpiCard("⚖️", fmtMoney(k.freightPerKg) + " บาท/กก.", "ค่าขนส่งเฉลี่ยต่อกิโลกรัม", "progress");
+}
+
+function bar(label, count, total, maxTotal) {
+  return `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="width:110px;font-size:0.82rem;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${label}">${label}</div>
+      <div style="flex:1;background:#f0f2f8;border-radius:6px;height:16px;overflow:hidden;"><div style="width:${maxTotal ? (total / maxTotal * 100) : 0}%;background:#1a73e8;height:100%;border-radius:6px;"></div></div>
+      <div style="width:90px;text-align:right;font-size:0.78rem;font-weight:700;">${fmtMoney(total)}</div>
+    </div>`;
+}
+
+function renderBreakdowns(records) {
+  const byCarrier = groupByCarrier(records);
+  const byProvince = groupByProvince(records).slice(0, 10);
+  const byWeight = groupByWeightRange(records);
+  const maxC = Math.max(1, ...byCarrier.map((x) => x.total));
+  const maxP = Math.max(1, ...byProvince.map((x) => x.total));
+  const maxW = Math.max(1, ...byWeight.map((x) => x.total));
+  document.getElementById("by-carrier").innerHTML = byCarrier.length ? byCarrier.map((x) => bar(carrierNames[x.key] || x.key, x.count, x.total, maxC)).join("") : emptyStateHTML({ icon: "🚚", title: "ไม่มีข้อมูล" });
+  document.getElementById("by-province").innerHTML = byProvince.length ? byProvince.map((x) => bar(x.key, x.count, x.total, maxP)).join("") : emptyStateHTML({ icon: "📍", title: "ไม่มีข้อมูล" });
+  document.getElementById("by-weight").innerHTML = byWeight.map((x) => bar(x.key, x.count, x.total, maxW)).join("");
+}
+
+function renderTrend(records) {
+  const trend = dailyTrend(records, period === "today" ? 1 : period === "year" ? 365 : period === "month" ? 30 : period === "7d" ? 7 : 30);
+  const max = Math.max(1, ...trend.map((b) => b.total));
+  document.getElementById("trend-chart").innerHTML = trend.map((b) => `
+    <div style="flex:0 0 auto;min-width:30px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+      <div style="font-size:0.68rem;font-weight:700;margin-bottom:4px;">${b.total ? fmtMoney(b.total) : ""}</div>
+      <div style="width:100%;max-width:26px;background:linear-gradient(180deg,#5a8dfb,#1a73e8);border-radius:6px 6px 0 0;height:${(b.total / max * 100) || 2}%;min-height:2px;"></div>
+      <div style="font-size:0.68rem;color:#888;margin-top:6px;white-space:nowrap;">${b.label}</div>
+    </div>`).join("");
+}
+
+function render() {
+  const filtered = filterByPeriod(all, period);
+  renderKPI(filtered);
+  renderTrend(filtered);
+  renderBreakdowns(filtered);
+}
+
+document.getElementById("period-buttons").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-period]");
+  if (!btn) return;
+  period = btn.dataset.period;
+  document.querySelectorAll("#period-buttons [data-period]").forEach((b) => {
+    b.classList.toggle("btn-primary", b === btn);
+    b.classList.toggle("btn-outline", b !== btn);
+  });
+  render();
+});
+
+async function load() {
+  const [calcs, carriers] = await Promise.all([listCalculations(), listCarriers()]);
+  all = calcs.map(normalizeCalc);
+  carrierNames = Object.fromEntries(carriers.map((c) => [c.id, c.name || c.id]));
+  render();
+}
+
+await load();
+</script>
+</html>

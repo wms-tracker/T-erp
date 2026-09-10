@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ประวัติการคำนวณค่าขนส่ง — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { emptyStateHTML } from "./js/ui.js";
+import { listCalculations, listHistory } from "./js/freight-data.js";
+
+const profile = await requireRole(["admin", "warehouse", "sales", "manager"]);
+const main = renderShell(profile, "freight-calculations", "📋 ประวัติการคำนวณค่าขนส่ง");
+
+const STATUS_BADGE = {
+  CALCULATED: "badge-done", RATE_NOT_FOUND: "badge-cancel", ZONE_NOT_FOUND: "badge-cancel",
+  WEIGHT_ERROR: "badge-cancel", DIMENSION_ERROR: "badge-cancel", DATA_ERROR: "badge-cancel",
+  MANUAL_REVIEW: "badge-pending", CALCULATION_ERROR: "badge-cancel",
+};
+
+let all = [];
+let filtered = [];
+
+main.innerHTML = `
+  <div class="card">
+    <div class="filter-bar">
+      <div class="field"><label>ค้นหา</label><input id="ft-search" placeholder="Order ID / Tracking / เลขที่..." /></div>
+      <div class="field"><label>สถานะ</label><select id="ft-status"><option value="">— ทั้งหมด —</option>
+        ${Object.keys(STATUS_BADGE).map((s) => `<option value="${s}">${s}</option>`).join("")}</select></div>
+      <button class="btn btn-outline" id="btn-clear">ล้างตัวกรอง</button>
+    </div>
+    <span id="count-label" style="font-size:0.82rem;color:#888;"></span>
+    <div style="overflow-x:auto;margin-top:10px;">
+      <table>
+        <thead><tr><th>เลขที่</th><th>วันที่</th><th>Order/Tracking</th><th>Carrier</th><th>สถานะ</th><th>รวมค่าขนส่ง</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7"><div class="skel-row skeleton"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card" id="detail-card" hidden></div>
+`;
+
+function traceHTML(trace) {
+  return `<div class="timeline">${(trace || []).map((t) => `
+    <div class="timeline-item tl-status">
+      <div class="timeline-title">Step ${t.step}: ${t.label}</div>
+      <div class="timeline-detail">${t.detail}</div>
+    </div>`).join("")}</div>`;
+}
+
+async function openDetail(calc) {
+  const card = document.getElementById("detail-card");
+  card.hidden = false;
+  const history = await listHistory(calc.id);
+  card.innerHTML = `
+    <div class="section-title">${calc.calcNo}</div>
+    <div style="font-size:0.85rem;color:#666;margin-bottom:10px;">
+      Order: ${calc.orderId || "-"} · Tracking: ${calc.trackingNo || "-"} · Carrier: ${calc.carrierId} ·
+      สร้างโดย ${calc.createdByName || "-"}
+    </div>
+    <div><span class="badge ${STATUS_BADGE[calc.status] || "badge-pending"}">${calc.status}</span></div>
+    <details open style="margin-top:12px;"><summary style="cursor:pointer;font-weight:700;">📜 Calculation Trace</summary>${traceHTML(calc.result?.trace)}</details>
+    <div class="section-title" style="font-size:0.9rem;margin-top:16px;">🕒 Audit History</div>
+    <div class="timeline">${history.map((h) => `
+      <div class="timeline-item tl-create">
+        <div class="timeline-time">${h.changedAt?.toDate?.().toLocaleString("th-TH") || "-"}</div>
+        <div class="timeline-title">${h.action}</div>
+        <div class="timeline-detail">โดย ${h.changedByName || h.changedBy}</div>
+      </div>`).join("") || "<div style='color:#999;font-size:0.85rem;'>ไม่มีประวัติ</div>"}</div>
+  `;
+}
+
+function renderRows() {
+  const tbody = document.getElementById("rows");
+  document.getElementById("count-label").textContent = `พบ ${filtered.length} รายการ`;
+  if (!filtered.length) { tbody.innerHTML = `<tr><td colspan="7">${emptyStateHTML({ icon: "📋", title: all.length ? "ไม่พบรายการที่ตรงกับตัวกรอง" : "ยังไม่มีประวัติการคำนวณ" })}</td></tr>`; return; }
+  tbody.innerHTML = filtered.map((c) => `
+    <tr data-id="${c.id}" style="cursor:pointer;">
+      <td class="mono">${c.calcNo}</td>
+      <td>${c.createdAt?.toDate?.().toLocaleDateString("th-TH") || "-"}</td>
+      <td>${c.orderId || "-"} / ${c.trackingNo || "-"}</td>
+      <td>${c.carrierId}</td>
+      <td><span class="badge ${STATUS_BADGE[c.status] || "badge-pending"}">${c.status}</span></td>
+      <td>${c.totalFreight != null ? c.totalFreight.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}</td>
+      <td><button class="btn btn-outline btn-view" style="padding:4px 10px;font-size:0.76rem;">ดู</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", () => openDetail(filtered.find((c) => c.id === tr.dataset.id))));
+}
+
+function applyFilter() {
+  const q = document.getElementById("ft-search").value.trim().toLowerCase();
+  const status = document.getElementById("ft-status").value;
+  filtered = all.filter((c) => {
+    if (q && !(`${c.calcNo} ${c.orderId} ${c.trackingNo}`.toLowerCase().includes(q))) return false;
+    if (status && c.status !== status) return false;
+    return true;
+  });
+  renderRows();
+}
+
+document.getElementById("ft-search").addEventListener("input", applyFilter);
+document.getElementById("ft-status").addEventListener("change", applyFilter);
+document.getElementById("btn-clear").addEventListener("click", () => {
+  document.getElementById("ft-search").value = ""; document.getElementById("ft-status").value = ""; applyFilter();
+});
+
+async function load() {
+  all = await listCalculations();
+  applyFilter();
+}
+
+await load();
+</script>
+</html>

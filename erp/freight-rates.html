@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Rate Card — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { toast, confirmModal, emptyStateHTML } from "./js/ui.js";
+import { listCarriers, listRateCardsForCarrier, saveRateCard, deleteRateCard } from "./js/freight-data.js";
+import { findOverlappingRateCards } from "./js/freight-engine.js";
+
+const profile = await requireRole(["admin"]);
+const main = renderShell(profile, "freight-rates", "💴 จัดการ Rate Card");
+
+let carriers = [];
+let currentCarrierId = null;
+let rateCards = [];
+let editingRow = null;
+
+main.innerHTML = `
+  <div class="card">
+    <div class="field" style="max-width:320px;"><label>เลือก Carrier</label><select id="sel-carrier"></select></div>
+  </div>
+  <div id="body" hidden>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="section-title" style="margin:0;">รายการ Rate Card</div>
+        <button class="btn btn-primary" id="btn-add-rate" style="width:auto;padding:8px 18px;">+ เพิ่ม Rate</button>
+      </div>
+      <div style="overflow-x:auto;margin-top:10px;">
+        <table><thead><tr><th>Service</th><th>Zone</th><th>น้ำหนักตั้งแต่</th><th>ถึง</th><th>ราคา</th><th>Effective From</th><th>Effective To</th><th></th></tr></thead>
+        <tbody id="rows"></tbody></table>
+      </div>
+    </div>
+    <div class="card" id="form-card" hidden></div>
+  </div>
+`;
+
+function serviceOptions(carrier) {
+  const svcs = carrier?.services || [];
+  return `<option value="">— ไม่มี (ทั้ง Carrier) —</option>` + svcs.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+}
+
+function rateFormHTML(carrier, row) {
+  const r = row || { serviceId: "", zone: "", weightFrom: "", weightTo: "", rate: "", effectiveFrom: new Date().toISOString().slice(0, 10), effectiveTo: "" };
+  return `
+    <div class="section-title" style="font-size:0.95rem;">${row?.id ? "แก้ไข Rate" : "เพิ่ม Rate ใหม่"}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+      <div class="field" style="margin:0;"><label>Service</label><select id="rf-service">${serviceOptions(carrier)}</select></div>
+      <div class="field" style="margin:0;"><label>Zone (เช่น BKK, UPC, ALL)</label><input id="rf-zone" value="${r.zone}" /></div>
+      <div class="field" style="margin:0;"><label>น้ำหนักตั้งแต่ (กก.)</label><input id="rf-from" type="number" step="0.01" value="${r.weightFrom}" /></div>
+      <div class="field" style="margin:0;"><label>ถึง (กก.)</label><input id="rf-to" type="number" step="0.01" value="${r.weightTo}" /></div>
+      <div class="field" style="margin:0;"><label>ราคา (บาท)</label><input id="rf-rate" type="number" step="0.01" value="${r.rate}" /></div>
+      <div class="field" style="margin:0;"><label>Effective From</label><input id="rf-from-date" type="date" value="${r.effectiveFrom || ""}" /></div>
+      <div class="field" style="margin:0;"><label>Effective To (เว้นว่าง = ยังไม่หมดอายุ)</label><input id="rf-to-date" type="date" value="${r.effectiveTo || ""}" /></div>
+    </div>
+    <div id="overlap-warning"></div>
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <button class="btn btn-primary" id="btn-save-rate" style="width:auto;padding:10px 24px;">บันทึก</button>
+      <button class="btn btn-outline" id="btn-cancel-rate" style="width:auto;padding:10px 24px;">ยกเลิก</button>
+    </div>`;
+  }
+
+function openForm(row) {
+  editingRow = row || null;
+  const carrier = carriers.find((c) => c.id === currentCarrierId);
+  const card = document.getElementById("form-card");
+  card.hidden = false;
+  card.innerHTML = rateFormHTML(carrier, row);
+  if (row?.serviceId) document.getElementById("rf-service").value = row.serviceId;
+
+  document.getElementById("btn-cancel-rate").addEventListener("click", () => { card.hidden = true; editingRow = null; });
+  document.getElementById("btn-save-rate").addEventListener("click", async () => {
+    const candidate = {
+      id: row?.id, carrierId: currentCarrierId,
+      serviceId: document.getElementById("rf-service").value || null,
+      zone: document.getElementById("rf-zone").value.trim(),
+      weightFrom: Number(document.getElementById("rf-from").value),
+      weightTo: Number(document.getElementById("rf-to").value),
+      rate: Number(document.getElementById("rf-rate").value),
+      effectiveFrom: document.getElementById("rf-from-date").value || null,
+      effectiveTo: document.getElementById("rf-to-date").value || null,
+    };
+    if (!candidate.zone || Number.isNaN(candidate.weightFrom) || Number.isNaN(candidate.weightTo) || Number.isNaN(candidate.rate)) {
+      toast({ type: "error", title: "กรุณากรอกข้อมูลให้ครบ" }); return;
+    }
+    if (candidate.weightTo < candidate.weightFrom) { toast({ type: "error", title: "น้ำหนัก 'ถึง' ต้องไม่น้อยกว่า 'ตั้งแต่'" }); return; }
+
+    const conflicts = findOverlappingRateCards(candidate, rateCards);
+    if (conflicts.length) {
+      const ok = await confirmModal({
+        icon: "⚠️", title: "ช่วงน้ำหนัก/วันที่นี้ซ้อนทับกับ Rate ที่มีอยู่แล้ว", danger: true, confirmLabel: "บันทึกทับอยู่ดี",
+        desc: `พบ ${conflicts.length} รายการที่ซ้อนทับ (Zone เดียวกัน + ช่วงน้ำหนักซ้อนกัน + ช่วงวันที่ซ้อนกัน) — ระบบจะเลือก Rate ล่าสุดตาม Effective Date ตอนคำนวณ แนะนำให้ตรวจสอบก่อนบันทึก`,
+      });
+      if (!ok) return;
+    }
+    await saveRateCard(row?.id, candidate, profile);
+    toast({ title: "บันทึก Rate สำเร็จ" });
+    card.hidden = true; editingRow = null;
+    await loadRates();
+  });
+}
+
+function renderRows() {
+  const tbody = document.getElementById("rows");
+  const carrier = carriers.find((c) => c.id === currentCarrierId);
+  const svcName = (id) => (carrier?.services || []).find((s) => s.id === id)?.name || id || "-";
+  if (!rateCards.length) { tbody.innerHTML = `<tr><td colspan="8">${emptyStateHTML({ icon: "💴", title: "ยังไม่มี Rate Card สำหรับ Carrier นี้" })}</td></tr>`; return; }
+  const sorted = [...rateCards].sort((a, b) => (a.zone || "").localeCompare(b.zone || "") || a.weightFrom - b.weightFrom);
+  tbody.innerHTML = sorted.map((r) => `
+    <tr>
+      <td>${svcName(r.serviceId)}</td><td>${r.zone}</td><td>${r.weightFrom}</td><td>${r.weightTo}</td>
+      <td>${r.rate.toLocaleString()}</td><td>${r.effectiveFrom || "-"}</td><td>${r.effectiveTo || "ยังไม่หมดอายุ"}</td>
+      <td>
+        <button class="btn btn-outline btn-edit" data-id="${r.id}" style="padding:4px 10px;font-size:0.76rem;">แก้ไข</button>
+        <button class="btn btn-outline btn-del" data-id="${r.id}" style="padding:4px 10px;font-size:0.76rem;">ลบ</button>
+      </td>
+    </tr>`).join("");
+  tbody.querySelectorAll(".btn-edit").forEach((b) => b.addEventListener("click", () => openForm(rateCards.find((r) => r.id === b.dataset.id))));
+  tbody.querySelectorAll(".btn-del").forEach((b) => b.addEventListener("click", async () => {
+    const ok = await confirmModal({ title: "ลบ Rate นี้?" });
+    if (!ok) return;
+    await deleteRateCard(b.dataset.id);
+    toast({ title: "ลบแล้ว" });
+    await loadRates();
+  }));
+}
+
+async function loadRates() {
+  rateCards = currentCarrierId ? await listRateCardsForCarrier(currentCarrierId) : [];
+  renderRows();
+}
+
+document.getElementById("sel-carrier").addEventListener("change", async (e) => {
+  currentCarrierId = e.target.value || null;
+  document.getElementById("body").hidden = !currentCarrierId;
+  document.getElementById("form-card").hidden = true;
+  if (currentCarrierId) await loadRates();
+});
+document.getElementById("btn-add-rate").addEventListener("click", () => openForm(null));
+
+async function load() {
+  carriers = await listCarriers();
+  const sel = document.getElementById("sel-carrier");
+  sel.innerHTML = `<option value="">— เลือก Carrier —</option>` + carriers.map((c) => `<option value="${c.id}">${c.name || c.id}</option>`).join("");
+}
+
+await load();
+</script>
+</html>

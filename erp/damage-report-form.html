@@ -5,15 +5,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>แจ้งความเสียหาย — Web ERP</title>
 <link rel="stylesheet" href="css/erp.css" />
+<style>
+  .wizard-progress{display:flex;align-items:center;margin-bottom:20px;overflow-x:auto;padding-bottom:2px;}
+  .wp-step{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;min-width:76px;cursor:pointer;background:none;border:none;font-family:inherit;}
+  .wp-dot{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1rem;background:#eef0f7;color:#999;font-weight:700;border:2px solid transparent;transition:background .15s,color .15s;}
+  .wp-label{font-size:0.72rem;color:#999;text-align:center;white-space:nowrap;}
+  .wp-step.done .wp-dot{background:#e6f7ee;color:#1a8a3a;}
+  .wp-step.done .wp-label{color:#1a8a3a;}
+  .wp-step.active .wp-dot{background:#1a73e8;color:#fff;border-color:#c7ddff;}
+  .wp-step.active .wp-label{color:#1a73e8;font-weight:700;}
+  .wp-line{flex:1;height:2px;background:#e5e7f0;min-width:16px;margin:0 2px;margin-bottom:20px;}
+  .wp-line.done{background:#1a8a3a;}
+  .wizard-step{display:none;}
+  .wizard-step.active{display:block;}
+  .wizard-nav{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:4px;}
+  .review-kv{display:grid;grid-template-columns:170px 1fr;gap:8px 12px;font-size:0.86rem;}
+  .review-kv .k{color:#888;}
+  .review-kv .v{color:#222;font-weight:500;}
+  @media(max-width:640px){ .review-kv{grid-template-columns:130px 1fr;} }
+</style>
 </head>
 <body></body>
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
+import { openAnnotator } from "./js/annotate.js";
+import { toast } from "./js/ui.js";
 import {
   DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS,
   validateReportData, createReport, updateReport, getReport,
-  listImages, uploadImage, deleteImage, setImageSequence, updateImageMeta,
+  listImages, uploadImage, deleteImage, setImageSequence, updateImageMeta, setAnnotatedImage,
 } from "./js/damage-reports.js";
 
 const profile = await requireRole(["warehouse"]);
@@ -27,87 +48,212 @@ const main = renderShell(profile, "damage-create", isEdit ? "✏️ แก้ไ
 let selectedSeverity = "";
 // images: { id?(server), file?(local), previewUrl, caption, location, capturedAt, _removed? }
 let images = [];
+let currentStep = 1;
+const TOTAL_STEPS = 5;
+const STEPS = [
+  { n: 1, icon: "📍", label: "สถานที่" },
+  { n: 2, icon: "⚠️", label: "ความเสียหาย" },
+  { n: 3, icon: "📷", label: "รูปภาพ" },
+  { n: 4, icon: "🔧", label: "การดำเนินการ" },
+  { n: 5, icon: "✅", label: "ตรวจสอบ" },
+];
 
 main.innerHTML = `
-  <div class="card">
-    <div class="section-title">📋 ข้อมูลรายงาน</div>
-    <p class="section-desc">เลขที่รายงานจะออกให้อัตโนมัติทันทีที่บันทึก (รูปแบบ DAR-YYYYMMDD-NNN)</p>
-    <div class="grid-cards">
-      <div class="field"><label>เลขที่รายงาน</label><input id="f-reportno" disabled placeholder="จะออกให้หลังบันทึก" /></div>
-      <div class="field"><label>วันที่พบความเสียหาย <span class="req">*</span></label><input id="f-date" type="date" /></div>
-      <div class="field"><label>เวลาที่พบ</label><input id="f-time" type="time" /></div>
-      <div class="field"><label>ผู้แจ้ง <span class="req">*</span></label><input id="f-reporter" placeholder="ชื่อผู้แจ้ง" /></div>
-      <div class="field"><label>แผนก</label><input id="f-department" placeholder="เช่น คลังสินค้า" /></div>
-      <div class="field"><label>พื้นที่/โซน <span class="req">*</span></label><input id="f-zone" placeholder="เช่น Zone Outbound" /></div>
+  <div class="wizard-progress" id="wizard-progress"></div>
+
+  <!-- Step 1: Location -->
+  <div class="wizard-step" data-step="1">
+    <div class="card">
+      <div class="section-title">📍 สถานที่และเวลาที่พบ</div>
+      <p class="section-desc">เลขที่รายงานจะออกให้อัตโนมัติทันทีที่บันทึก (รูปแบบ DAR-YYYYMMDD-NNN)</p>
+      <div class="grid-cards">
+        <div class="field"><label>เลขที่รายงาน</label><input id="f-reportno" disabled placeholder="จะออกให้หลังบันทึก" /></div>
+        <div class="field"><label>วันที่พบความเสียหาย <span class="req">*</span></label><input id="f-date" type="date" /></div>
+        <div class="field"><label>เวลาที่พบ</label><input id="f-time" type="time" /></div>
+        <div class="field"><label>ผู้แจ้ง <span class="req">*</span></label><input id="f-reporter" placeholder="ชื่อผู้แจ้ง" /></div>
+        <div class="field"><label>แผนก</label><input id="f-department" placeholder="เช่น คลังสินค้า" /></div>
+        <div class="field"><label>พื้นที่/โซน <span class="req">*</span></label><input id="f-zone" placeholder="เช่น Zone Outbound" /></div>
+      </div>
     </div>
-    <div class="field">
-      <label>ประเภทความเสียหาย <span class="req">*</span></label>
-      <select id="f-type"><option value="">— เลือกประเภท —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
+    <div class="card">
+      <div class="section-title">ตำแหน่งโดยละเอียด (ถ้าทราบ)</div>
+      <div class="grid-cards">
+        <div class="field"><label>อาคาร</label><input id="f-loc-building" /></div>
+        <div class="field"><label>ชั้น</label><input id="f-loc-floor" /></div>
+        <div class="field"><label>Zone</label><input id="f-loc-zone" /></div>
+        <div class="field"><label>Area</label><input id="f-loc-area" /></div>
+        <div class="field"><label>จุด/Location</label><input id="f-loc-point" /></div>
+        <div class="field"><label>ช่อง/แร็ค (ถ้ามี)</label><input id="f-loc-rack" /></div>
+      </div>
+      <div class="field"><label>รายละเอียดตำแหน่งเพิ่มเติม</label><textarea id="f-loc-note" rows="2"></textarea></div>
     </div>
-    <div class="field">
-      <label>ระดับความรุนแรง <span class="req">*</span></label>
-      <div id="sev-pills" style="display:flex;gap:8px;flex-wrap:wrap;">
-        ${SEVERITY_LIST.map((s) => `<button type="button" class="sev-pill ${SEVERITY_CLASS[s]}" data-sev="${s}">${SEVERITY_LABEL[s]}</button>`).join("")}
+  </div>
+
+  <!-- Step 2: Damage -->
+  <div class="wizard-step" data-step="2">
+    <div class="card">
+      <div class="section-title">⚠️ ประเภทและความรุนแรง</div>
+      <div class="field">
+        <label>ประเภทความเสียหาย <span class="req">*</span></label>
+        <select id="f-type"><option value="">— เลือกประเภท —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
+      </div>
+      <div class="field">
+        <label>ระดับความรุนแรง <span class="req">*</span></label>
+        <div id="sev-pills" style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${SEVERITY_LIST.map((s) => `<button type="button" class="sev-pill ${SEVERITY_CLASS[s]}" data-sev="${s}">${SEVERITY_LABEL[s]}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">📝 รายละเอียดความเสียหาย</div>
+      <div class="field"><label>หัวข้อความเสียหาย <span class="req">*</span></label><input id="f-title" placeholder="สรุปสั้น ๆ เช่น พื้นคอนกรีตแตกร้าวหน้าโซน Outbound" /></div>
+      <div class="field"><label>รายละเอียดความเสียหาย <span class="req">*</span></label><textarea id="f-desc" rows="4" placeholder="อธิบายลักษณะความเสียหายแบบละเอียด"></textarea></div>
+      <div class="field"><label>สาเหตุเบื้องต้น</label><textarea id="f-cause" rows="3" placeholder="สาเหตุที่คาดว่าเป็นไปได้ (ถ้าทราบ)"></textarea></div>
+      <div class="field">
+        <label>ผลกระทบ</label>
+        <label class="check-row"><input type="checkbox" id="f-imp-ops" /> มีผลต่อการทำงาน</label>
+        <label class="check-row"><input type="checkbox" id="f-imp-safety" /> มีผลต่อความปลอดภัย</label>
+        <label class="check-row"><input type="checkbox" id="f-imp-property" /> มีผลต่อสินค้า/ทรัพย์สิน</label>
+        <textarea id="f-imp-details" rows="2" placeholder="รายละเอียดผลกระทบเพิ่มเติม" style="margin-top:8px;"></textarea>
       </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="section-title">📝 รายละเอียดความเสียหาย</div>
-    <div class="field"><label>หัวข้อความเสียหาย <span class="req">*</span></label><input id="f-title" placeholder="สรุปสั้น ๆ เช่น พื้นคอนกรีตแตกร้าวหน้าโซน Outbound" /></div>
-    <div class="field"><label>รายละเอียดความเสียหาย <span class="req">*</span></label><textarea id="f-desc" rows="4" placeholder="อธิบายลักษณะความเสียหายแบบละเอียด"></textarea></div>
-    <div class="field"><label>สาเหตุเบื้องต้น</label><textarea id="f-cause" rows="3" placeholder="สาเหตุที่คาดว่าเป็นไปได้ (ถ้าทราบ)"></textarea></div>
-    <div class="field">
-      <label>ผลกระทบ</label>
-      <label class="check-row"><input type="checkbox" id="f-imp-ops" /> มีผลต่อการทำงาน</label>
-      <label class="check-row"><input type="checkbox" id="f-imp-safety" /> มีผลต่อความปลอดภัย</label>
-      <label class="check-row"><input type="checkbox" id="f-imp-property" /> มีผลต่อสินค้า/ทรัพย์สิน</label>
-      <textarea id="f-imp-details" rows="2" placeholder="รายละเอียดผลกระทบเพิ่มเติม" style="margin-top:8px;"></textarea>
+  <!-- Step 3: Photos -->
+  <div class="wizard-step" data-step="3">
+    <div class="card">
+      <div class="section-title">📷 รูปภาพหลักฐาน <span class="req">*</span></div>
+      <p class="section-desc">แนบได้หลายรูป ถ่ายจากมือถือได้โดยตรง — ต้องมีอย่างน้อย 1 รูป</p>
+      <label class="upload-drop" id="drop-zone">
+        <div style="font-size:2rem;">📷</div>
+        <div style="font-weight:700;margin-top:4px;">แตะเพื่อเลือกรูป / ถ่ายรูป</div>
+        <div style="font-size:0.78rem;margin-top:2px;">รองรับหลายรูปพร้อมกัน</div>
+        <input type="file" id="f-images" accept="image/*" capture="environment" multiple />
+      </label>
+      <div class="img-gallery" id="img-gallery" style="margin-top:16px;"></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="section-title">📍 ตำแหน่งความเสียหาย</div>
-    <div class="grid-cards">
-      <div class="field"><label>อาคาร</label><input id="f-loc-building" /></div>
-      <div class="field"><label>ชั้น</label><input id="f-loc-floor" /></div>
-      <div class="field"><label>Zone</label><input id="f-loc-zone" /></div>
-      <div class="field"><label>Area</label><input id="f-loc-area" /></div>
-      <div class="field"><label>จุด/Location</label><input id="f-loc-point" /></div>
-      <div class="field"><label>ช่อง/แร็ค (ถ้ามี)</label><input id="f-loc-rack" /></div>
+  <!-- Step 4: Action -->
+  <div class="wizard-step" data-step="4">
+    <div class="card">
+      <div class="section-title">🔧 การประเมินและการแก้ไข</div>
+      <p class="section-desc">ส่วนนี้กรอกภายหลังได้ ไม่บังคับ</p>
+      <div class="grid-cards">
+        <div class="field"><label>ผู้รับผิดชอบ</label><input id="f-resp-person" /></div>
+        <div class="field"><label>หน่วยงานที่ต้องดำเนินการ</label><input id="f-resp-dept" /></div>
+        <div class="field"><label>งบประมาณโดยประมาณ (บาท)</label><input id="f-cost" type="number" min="0" /></div>
+        <div class="field"><label>วันที่ต้องการให้ดำเนินการ</label><input id="f-duedate" type="date" /></div>
+      </div>
+      <div class="field"><label>แนวทางแก้ไขเบื้องต้น</label><textarea id="f-corrective" rows="3"></textarea></div>
     </div>
-    <div class="field"><label>รายละเอียดตำแหน่งเพิ่มเติม</label><textarea id="f-loc-note" rows="2"></textarea></div>
   </div>
 
-  <div class="card">
-    <div class="section-title">📷 รูปภาพหลักฐาน <span class="req">*</span></div>
-    <p class="section-desc">แนบได้หลายรูป ถ่ายจากมือถือได้โดยตรง — ต้องมีอย่างน้อย 1 รูป</p>
-    <label class="upload-drop" id="drop-zone">
-      <div style="font-size:2rem;">📷</div>
-      <div style="font-weight:700;margin-top:4px;">แตะเพื่อเลือกรูป / ถ่ายรูป</div>
-      <div style="font-size:0.78rem;margin-top:2px;">รองรับหลายรูปพร้อมกัน</div>
-      <input type="file" id="f-images" accept="image/*" capture="environment" multiple />
-    </label>
-    <div class="img-gallery" id="img-gallery" style="margin-top:16px;"></div>
-  </div>
-
-  <div class="card">
-    <div class="section-title">🔧 การประเมินและการแก้ไข</div>
-    <div class="grid-cards">
-      <div class="field"><label>ผู้รับผิดชอบ</label><input id="f-resp-person" /></div>
-      <div class="field"><label>หน่วยงานที่ต้องดำเนินการ</label><input id="f-resp-dept" /></div>
-      <div class="field"><label>งบประมาณโดยประมาณ (บาท)</label><input id="f-cost" type="number" min="0" /></div>
-      <div class="field"><label>วันที่ต้องการให้ดำเนินการ</label><input id="f-duedate" type="date" /></div>
+  <!-- Step 5: Review -->
+  <div class="wizard-step" data-step="5">
+    <div class="card">
+      <div class="section-title">✅ ตรวจสอบก่อนบันทึก</div>
+      <div id="review-body"></div>
     </div>
-    <div class="field"><label>แนวทางแก้ไขเบื้องต้น</label><textarea id="f-corrective" rows="3"></textarea></div>
   </div>
 
-  <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-    <button class="btn btn-primary btn-lg" id="btn-save">💾 บันทึกรายงาน</button>
-    <button class="btn btn-outline btn-lg" id="btn-cancel">ยกเลิก</button>
-    <span class="msg" id="save-msg" style="flex:1;"></span>
+  <div class="card wizard-nav">
+    <button class="btn btn-outline btn-lg" id="btn-back">← ย้อนกลับ</button>
+    <span class="msg" id="save-msg" style="flex:1;text-align:center;"></span>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-outline btn-lg" id="btn-cancel">ยกเลิก</button>
+      <button class="btn btn-primary btn-lg" id="btn-next">ถัดไป →</button>
+      <button class="btn btn-primary btn-lg" id="btn-save" style="display:none;">💾 บันทึกรายงาน</button>
+    </div>
   </div>
 `;
+
+// ---------- wizard progress + step visibility ----------
+function renderProgress() {
+  document.getElementById("wizard-progress").innerHTML = STEPS.map((s, i) => `
+    ${i > 0 ? `<div class="wp-line ${s.n <= currentStep ? "done" : ""}"></div>` : ""}
+    <button type="button" class="wp-step ${s.n === currentStep ? "active" : s.n < currentStep ? "done" : ""}" data-goto="${s.n}">
+      <div class="wp-dot">${s.n < currentStep ? "✓" : s.icon}</div>
+      <div class="wp-label">${s.n}. ${s.label}</div>
+    </button>
+  `).join("");
+  document.querySelectorAll(".wp-step").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = Number(btn.dataset.goto);
+      if (target < currentStep) goToStep(target); // ย้อนกลับได้อิสระ ไปข้างหน้าต้องผ่านปุ่ม "ถัดไป" เพื่อกันข้ามขั้นที่ยังไม่ครบ
+    });
+  });
+}
+
+function goToStep(n) {
+  currentStep = n;
+  document.querySelectorAll(".wizard-step").forEach((el) => el.classList.toggle("active", Number(el.dataset.step) === n));
+  document.getElementById("btn-back").style.visibility = n === 1 ? "hidden" : "visible";
+  document.getElementById("btn-next").style.display = n === TOTAL_STEPS ? "none" : "inline-flex";
+  document.getElementById("btn-save").style.display = n === TOTAL_STEPS ? "inline-flex" : "none";
+  document.getElementById("save-msg").textContent = "";
+  document.getElementById("save-msg").className = "msg";
+  if (n === TOTAL_STEPS) renderReview();
+  renderProgress();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+// ---------- per-step validation (full validateReportData still re-checked at final save) ----------
+function validateStep(n) {
+  const errors = [];
+  if (n === 1) {
+    if (!document.getElementById("f-date").value) errors.push("กรุณาระบุวันที่พบความเสียหาย");
+    if (!document.getElementById("f-reporter").value.trim()) errors.push("กรุณาระบุผู้แจ้ง");
+    if (!document.getElementById("f-zone").value.trim()) errors.push("กรุณาระบุพื้นที่/โซน");
+  } else if (n === 2) {
+    if (!document.getElementById("f-type").value) errors.push("กรุณาเลือกประเภทความเสียหาย");
+    if (!selectedSeverity) errors.push("กรุณาเลือกระดับความรุนแรง");
+    if (!document.getElementById("f-title").value.trim()) errors.push("กรุณาระบุหัวข้อความเสียหาย");
+    if (!document.getElementById("f-desc").value.trim()) errors.push("กรุณาระบุรายละเอียดความเสียหาย");
+  } else if (n === 3) {
+    if (!images.filter((i) => !i._removed).length) errors.push("ต้องแนบรูปภาพอย่างน้อย 1 รูป");
+  }
+  return errors;
+}
+
+document.getElementById("btn-next").addEventListener("click", () => {
+  const errors = validateStep(currentStep);
+  const msg = document.getElementById("save-msg");
+  if (errors.length) {
+    msg.className = "msg error";
+    msg.innerHTML = "⚠️ " + errors.join(" / ");
+    return;
+  }
+  goToStep(currentStep + 1);
+});
+document.getElementById("btn-back").addEventListener("click", () => goToStep(Math.max(1, currentStep - 1)));
+
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function renderReview() {
+  const v = (id) => document.getElementById(id).value;
+  const visibleImages = images.filter((i) => !i._removed);
+  const impacts = [
+    document.getElementById("f-imp-ops").checked && "การทำงาน",
+    document.getElementById("f-imp-safety").checked && "ความปลอดภัย",
+    document.getElementById("f-imp-property").checked && "สินค้า/ทรัพย์สิน",
+  ].filter(Boolean);
+  document.getElementById("review-body").innerHTML = `
+    <div class="review-kv">
+      <div class="k">พื้นที่/โซน</div><div class="v">${esc(v("f-zone")) || "-"}</div>
+      <div class="k">วันที่ / เวลาที่พบ</div><div class="v">${esc(v("f-date"))} ${esc(v("f-time"))}</div>
+      <div class="k">ผู้แจ้ง</div><div class="v">${esc(v("f-reporter")) || "-"}</div>
+      <div class="k">ประเภทความเสียหาย</div><div class="v">${esc(v("f-type")) || "-"}</div>
+      <div class="k">ความรุนแรง</div><div class="v">${selectedSeverity ? `<span class="sev-badge ${SEVERITY_CLASS[selectedSeverity]}">${SEVERITY_LABEL[selectedSeverity]}</span>` : "-"}</div>
+      <div class="k">หัวข้อ</div><div class="v">${esc(v("f-title")) || "-"}</div>
+      <div class="k">รายละเอียด</div><div class="v" style="white-space:pre-wrap;">${esc(v("f-desc")) || "-"}</div>
+      <div class="k">ผลกระทบ</div><div class="v">${impacts.length ? impacts.join(", ") : "-"}</div>
+      <div class="k">รูปภาพ</div><div class="v">${visibleImages.length} รูป</div>
+      <div class="k">ผู้รับผิดชอบ</div><div class="v">${esc(v("f-resp-person")) || "-"}</div>
+    </div>
+    ${visibleImages.length ? `<div class="img-gallery" style="margin-top:16px;">${visibleImages.map((img) => `<div class="img-thumb"><img src="${img.previewUrl || img.url}" /></div>`).join("")}</div>` : ""}
+    <p style="margin-top:16px;font-size:0.8rem;color:#999;">ต้องการแก้ไขส่วนไหน คลิกที่ขั้นตอนด้านบนเพื่อย้อนกลับไปแก้ได้เลย</p>
+  `;
+}
 
 // ---------- severity pills ----------
 document.getElementById("sev-pills").addEventListener("click", (e) => {
@@ -121,10 +267,15 @@ document.getElementById("sev-pills").addEventListener("click", (e) => {
 function renderGallery() {
   const gallery = document.getElementById("img-gallery");
   const visible = images.filter((i) => !i._removed);
-  gallery.innerHTML = visible.map((img, idx) => `
+  gallery.innerHTML = visible.map((img, idx) => {
+    const displaySrc = img.annotatedPreviewUrl || img.annotatedUrl || img.previewUrl || img.url;
+    const isAnnotated = !!(img.annotatedPreviewUrl || img.annotatedUrl);
+    return `
     <div class="img-thumb" data-idx="${images.indexOf(img)}">
-      <img src="${img.previewUrl || img.url}" />
+      ${isAnnotated ? `<span class="type-tag" style="background:rgba(224,36,36,0.9);">✏️ วาดแล้ว</span>` : ""}
+      <img src="${displaySrc}" />
       <div class="tools">
+        <button data-act="annotate" title="วาดชี้จุดเสียหาย">✏️</button>
         ${idx > 0 ? `<button data-act="up" title="เลื่อนขึ้น">▲</button>` : ""}
         ${idx < visible.length - 1 ? `<button data-act="down" title="เลื่อนลง">▼</button>` : ""}
         <button data-act="del" title="ลบรูปนี้">✕</button>
@@ -135,7 +286,8 @@ function renderGallery() {
         <div class="meta">${img.capturedAt ? new Date(img.capturedAt).toLocaleString("th-TH") : ""}</div>
       </div>
     </div>
-  `).join("") || `<p style="color:#999;font-size:0.85rem;">ยังไม่มีรูปภาพ</p>`;
+  `;
+  }).join("") || `<p style="color:#999;font-size:0.85rem;">ยังไม่มีรูปภาพ</p>`;
 
   gallery.querySelectorAll(".img-thumb").forEach((thumb) => {
     const idx = Number(thumb.dataset.idx);
@@ -146,11 +298,37 @@ function renderGallery() {
     });
     thumb.querySelector('[data-act="cap"]').addEventListener("input", (e) => { images[idx].caption = e.target.value; });
     thumb.querySelector('[data-act="loc"]').addEventListener("input", (e) => { images[idx].location = e.target.value; });
+    thumb.querySelector('[data-act="annotate"]').addEventListener("click", () => void handleAnnotate(idx));
     const upBtn = thumb.querySelector('[data-act="up"]');
     const downBtn = thumb.querySelector('[data-act="down"]');
     if (upBtn) upBtn.addEventListener("click", () => { swapVisible(idx, -1); });
     if (downBtn) downBtn.addEventListener("click", () => { swapVisible(idx, 1); });
   });
+}
+
+// วาดชี้จุดเสียหายบนรูป (สเปกข้อ 25) — รูปที่มีอยู่บน server แล้ว (edit mode)
+// บันทึกทันที ส่วนรูปที่เพิ่งเลือกในเครื่อง (ยังไม่อัปโหลด) จะพักไว้ใน
+// annotatedBlob แล้วอัปโหลดพร้อมรูปต้นฉบับตอนกด "บันทึกรายงาน"
+async function handleAnnotate(idx) {
+  const img = images[idx];
+  const src = img.annotatedPreviewUrl || img.annotatedUrl || img.previewUrl || img.url;
+  const blob = await openAnnotator(src);
+  if (!blob) return;
+  if (img.previewUrl2) URL.revokeObjectURL(img.previewUrl2);
+  const previewUrl2 = URL.createObjectURL(blob);
+  img.annotatedPreviewUrl = previewUrl2;
+  img.previewUrl2 = previewUrl2; // tracked separately for cleanup, independent of the original's previewUrl
+  if (img.id && editId) {
+    try {
+      await setAnnotatedImage(editId, img.id, blob);
+      toast({ title: "บันทึกการวาดแล้ว" });
+    } catch (err) {
+      toast({ type: "error", title: "บันทึกการวาดไม่สำเร็จ", desc: err?.message || String(err) });
+    }
+  } else {
+    img.annotatedBlob = blob;
+  }
+  renderGallery();
 }
 
 function swapVisible(realIdx, dir) {
@@ -171,6 +349,10 @@ document.getElementById("f-images").addEventListener("change", (e) => {
 });
 
 renderGallery();
+// รองรับ ?step=3 จาก FAB "ถ่ายรูปและสร้างรายงาน" — เข้าตรงขั้นถ่ายรูปได้ทันที
+// (ไปข้างหน้าได้อิสระตอนเปิดหน้าครั้งแรกเท่านั้น validateReportData ตอนบันทึกจริงยังครบเหมือนเดิม)
+const requestedStep = Math.min(TOTAL_STEPS, Math.max(1, parseInt(params.get("step"), 10) || 1));
+goToStep(requestedStep);
 
 // ---------- load existing (edit mode) ----------
 if (isEdit) {
@@ -290,13 +472,17 @@ document.getElementById("btn-save").addEventListener("click", async () => {
       const img = visibleImages[idx];
       msg.textContent = `กำลังอัปโหลดรูปภาพ ${idx + 1}/${visibleImages.length}...`;
       if (img.file) {
-        await uploadImage(reportId, img.file, { imageType: "main", caption: img.caption, location: img.location, capturedAt: img.capturedAt, sequence: idx }, user);
+        await uploadImage(reportId, img.file, { imageType: "main", caption: img.caption, location: img.location, capturedAt: img.capturedAt, sequence: idx, annotatedBlob: img.annotatedBlob }, user);
       } else if (img.id) {
         await updateImageMeta(reportId, img.id, { caption: img.caption || "", location: img.location || "" });
         await setImageSequence(reportId, img.id, idx);
       }
     }
 
+    sessionStorage.setItem("dar-flash", JSON.stringify({
+      title: isEdit ? "บันทึกการแก้ไขสำเร็จ" : "สร้างรายงานสำเร็จ",
+      desc: document.getElementById("f-reportno").value || "",
+    }));
     location.href = `damage-report-view.html?id=${reportId}`;
   } catch (err) {
     msg.classList.add("error");

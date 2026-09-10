@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>เปรียบเทียบค่าขนส่ง — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { toast, emptyStateHTML } from "./js/ui.js";
+import { listCarriers, getSkuDimension, getSkuGrid, calculateAndOptionallySave } from "./js/freight-data.js";
+
+const profile = await requireRole(["admin", "warehouse", "sales", "manager"]);
+const main = renderShell(profile, "freight-compare", "⚖️ เปรียบเทียบค่าขนส่งระหว่าง Carrier");
+
+const STATUS_LABEL = {
+  CALCULATED: "คำนวณสำเร็จ", RATE_NOT_FOUND: "ไม่พบ Rate Card", ZONE_NOT_FOUND: "ไม่พบ Zone",
+  WEIGHT_ERROR: "ข้อมูลน้ำหนักผิดพลาด", DIMENSION_ERROR: "ข้อมูลขนาดผิดพลาด", DATA_ERROR: "ข้อมูลไม่ถูกต้อง",
+  MANUAL_REVIEW: "ต้องตรวจสอบเอง", CALCULATION_ERROR: "คำนวณผิดพลาด",
+};
+const STATUS_BADGE = {
+  CALCULATED: "badge-done", MANUAL_REVIEW: "badge-pending",
+  RATE_NOT_FOUND: "badge-cancel", ZONE_NOT_FOUND: "badge-cancel", WEIGHT_ERROR: "badge-cancel",
+  DIMENSION_ERROR: "badge-cancel", DATA_ERROR: "badge-cancel", CALCULATION_ERROR: "badge-cancel",
+};
+
+let carriers = [];
+
+main.innerHTML = `
+  <div class="card">
+    <div class="section-title">ข้อมูล Order (คำนวณครั้งเดียว เทียบทุก Carrier พร้อมกัน)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="field"><label>จังหวัด <span class="req">*</span></label><input id="in-province" /></div>
+      <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
+    </div>
+    <div class="field"><label>SKU (ถ้ามี — จำเป็นสำหรับ Business Idea / Nim-express)</label><input id="in-sku" /></div>
+    <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) สำหรับ Business Idea</label><select id="in-bracket"></select></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+      <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
+      <div class="field"><label>ยาว (ซม.)</label><input id="in-length" type="number" step="0.1" /></div>
+      <div class="field"><label>กว้าง (ซม.)</label><input id="in-width" type="number" step="0.1" /></div>
+      <div class="field"><label>สูง (ซม.)</label><input id="in-height" type="number" step="0.1" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="field"><label>ยอด COD (บาท, ถ้ามี)</label><input id="in-cod" type="number" step="0.01" /></div>
+      <div class="field"><label>วันที่จัดส่ง</label><input id="in-shipdate" type="date" /></div>
+    </div>
+    <button class="btn btn-primary btn-lg" id="btn-compare">⚖️ เปรียบเทียบทุก Carrier</button>
+  </div>
+
+  <div id="result-panel"></div>
+`;
+
+document.getElementById("in-shipdate").value = new Date().toISOString().slice(0, 10);
+
+document.getElementById("in-sku").addEventListener("change", async () => {
+  const sku = document.getElementById("in-sku").value.trim();
+  const bracketField = document.getElementById("bracket-field");
+  const bracketSel = document.getElementById("in-bracket");
+  if (!sku) { bracketField.hidden = true; return; }
+  const dim = await getSkuDimension(sku);
+  if (dim) {
+    if (dim.weightKg != null) document.getElementById("in-weight").value = dim.weightKg;
+    if (dim.widthCm != null) document.getElementById("in-width").value = dim.widthCm;
+    if (dim.lengthCm != null) document.getElementById("in-length").value = dim.lengthCm;
+    if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
+  }
+  const grid = await getSkuGrid(sku);
+  const brackets = grid ? [...new Set((grid.cells || []).map((c) => c.bracketLabel))] : [];
+  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
+  bracketField.hidden = brackets.length === 0;
+});
+
+function buildBaseInput() {
+  return {
+    province: document.getElementById("in-province").value.trim(),
+    postalCode: document.getElementById("in-postal").value.trim(),
+    sku: document.getElementById("in-sku").value.trim() || null,
+    weightBracketLabel: document.getElementById("in-bracket").value || null,
+    actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
+    lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,
+    widthCm: document.getElementById("in-width").value ? Number(document.getElementById("in-width").value) : null,
+    heightCm: document.getElementById("in-height").value ? Number(document.getElementById("in-height").value) : null,
+    codAmount: document.getElementById("in-cod").value ? Number(document.getElementById("in-cod").value) : null,
+    shipDate: document.getElementById("in-shipdate").value || null,
+  };
+}
+
+function renderResults(rows) {
+  const panel = document.getElementById("result-panel");
+  const priced = rows.filter((r) => r.result.status === "CALCULATED").sort((a, b) => a.result.totalFreight - b.result.totalFreight);
+  const cheapest = priced[0];
+  const mostExpensive = priced[priced.length - 1];
+
+  const summary = priced.length >= 2 ? `
+    <div class="card" style="background:#e6f7ee;border:1px solid #b8e0c7;">
+      <div style="font-size:0.95rem;">
+        🟢 <strong>ถูกที่สุด:</strong> ${cheapest.label} — ${cheapest.result.totalFreight.toFixed(2)} บาท<br>
+        🔴 <strong>แพงที่สุด:</strong> ${mostExpensive.label} — ${mostExpensive.result.totalFreight.toFixed(2)} บาท<br>
+        💰 <strong>ประหยัดได้สูงสุด:</strong> ${(mostExpensive.result.totalFreight - cheapest.result.totalFreight).toFixed(2)} บาท
+        (${(((mostExpensive.result.totalFreight - cheapest.result.totalFreight) / mostExpensive.result.totalFreight) * 100).toFixed(1)}%) ถ้าเลือก ${cheapest.label} แทน ${mostExpensive.label}
+      </div>
+    </div>` : "";
+
+  panel.innerHTML = `
+    ${summary}
+    <div class="card">
+      <div class="section-title" style="font-size:0.95rem;">ผลเปรียบเทียบทั้งหมด</div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>Carrier</th><th>สถานะ</th><th>ค่าขนส่งรวม</th><th>ต่างจากถูกที่สุด</th></tr></thead>
+          <tbody>${rows.sort((a, b) => (a.result.totalFreight ?? Infinity) - (b.result.totalFreight ?? Infinity)).map((r) => `
+            <tr style="${cheapest && r === cheapest ? "background:#e6f7ee;" : ""}${mostExpensive && r === mostExpensive && priced.length >= 2 ? "background:#fdecea;" : ""}">
+              <td>${r.label}${cheapest && r === cheapest ? " 🟢" : ""}${mostExpensive && r === mostExpensive && priced.length >= 2 ? " 🔴" : ""}</td>
+              <td><span class="badge ${STATUS_BADGE[r.result.status] || "badge-pending"}">${STATUS_LABEL[r.result.status] || r.result.status}</span></td>
+              <td>${r.result.totalFreight != null ? r.result.totalFreight.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "-"}</td>
+              <td>${r.result.totalFreight != null && cheapest ? "+" + (r.result.totalFreight - cheapest.result.totalFreight).toFixed(2) : "-"}</td>
+            </tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+document.getElementById("btn-compare").addEventListener("click", async () => {
+  const base = buildBaseInput();
+  if (!base.province && !base.postalCode) { toast({ type: "error", title: "กรุณาระบุจังหวัดหรือรหัสไปรษณีย์" }); return; }
+  const btn = document.getElementById("btn-compare");
+  btn.disabled = true; btn.textContent = "กำลังคำนวณ...";
+  document.getElementById("result-panel").innerHTML = `<div class="card">${emptyStateHTML({ icon: "⏳", title: "กำลังคำนวณทุก Carrier..." })}</div>`;
+  try {
+    const jobs = [];
+    for (const c of carriers.filter((c) => c.active !== false)) {
+      const services = c.services?.length ? c.services : [null];
+      for (const svc of services) {
+        jobs.push({ carrier: c, service: svc, input: { ...base, carrierId: c.id, serviceId: svc?.id || null } });
+      }
+    }
+    const results = await Promise.all(jobs.map((j) => calculateAndOptionallySave(j.input, profile, { save: false })));
+    const rows = jobs.map((j, i) => ({
+      label: `${j.carrier.name || j.carrier.id}${j.service ? " — " + j.service.name : ""}`,
+      result: results[i].result,
+    }));
+    renderResults(rows);
+  } catch (err) {
+    toast({ type: "error", title: "เปรียบเทียบไม่สำเร็จ", desc: err.message });
+  } finally {
+    btn.disabled = false; btn.textContent = "⚖️ เปรียบเทียบทุก Carrier";
+  }
+});
+
+async function load() {
+  carriers = await listCarriers();
+}
+
+await load();
+</script>
+</html>

@@ -10,6 +10,7 @@
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
+import { toast, confirmModal } from "./js/ui.js";
 import {
   SEVERITY_LABEL, SEVERITY_CLASS, STATUS_LIST, STATUS_BADGE, STATUS_CLOSED,
   getReport, listImages, listHistory, changeStatus,
@@ -28,6 +29,11 @@ if (!reportId) {
   main.innerHTML = `<div class="card">ไม่พบเลขที่รายงาน — <a href="damage-reports.html">กลับไปแดชบอร์ด</a></div>`;
   throw new Error("no id");
 }
+
+main.innerHTML = `
+  <div class="card"><div class="skeleton skel-line w-40" style="height:22px;"></div><div class="skeleton skel-line w-60"></div></div>
+  <div class="card"><div class="skeleton skel-line w-80"></div><div class="skeleton skel-line w-60"></div><div class="skeleton skel-line w-40"></div></div>
+`;
 
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 function fmtDate(s) { if (!s) return "-"; try { return new Date(s).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" }); } catch (e) { return s; } }
@@ -54,6 +60,29 @@ function impactList(impact) {
   if (impact.safety) list.push("มีผลต่อความปลอดภัย");
   if (impact.property) list.push("มีผลต่อสินค้า/ทรัพย์สิน");
   return list;
+}
+
+const HISTORY_TONE = { create: "tl-create", change_status: "tl-status", upload_image: "tl-image", delete_image: "tl-image", close: "tl-close" };
+function timelineItem(h) {
+  const tone = h.action === "change_status" && h.newValue === "ปิดรายงาน" ? "tl-close" : (HISTORY_TONE[h.action] || "tl-status");
+  let detail = "";
+  if (h.action === "change_status") detail = `${esc(h.oldValue || "-")} → ${esc(h.newValue || "-")}`;
+  else if (h.action === "update_field") detail = `${esc(h.field || "")}: ${esc((h.oldValue || "-").slice(0, 40))} → ${esc((h.newValue || "-").slice(0, 40))}`;
+  else if (h.newValue) detail = esc(h.newValue.slice(0, 60));
+  return `
+    <div class="timeline-item ${tone}">
+      <div class="timeline-time">${fmtDateTime(h.changedAt)}</div>
+      <div class="timeline-title">${historyActionLabel(h.action)}</div>
+      ${detail ? `<div class="timeline-detail">${detail}</div>` : ""}
+      <div class="timeline-detail by">โดย ${esc(h.changedByName || "-")}</div>
+    </div>`;
+}
+
+function showFlashToast() {
+  const raw = sessionStorage.getItem("dar-flash");
+  if (!raw) return;
+  sessionStorage.removeItem("dar-flash");
+  try { toast(JSON.parse(raw)); } catch (e) {}
 }
 
 async function load() {
@@ -109,10 +138,17 @@ async function load() {
     <div class="card">
       <div class="section-title">📷 รูปภาพหลักฐาน (${mainImgs.length})</div>
       <div class="img-gallery">
-        ${mainImgs.map((img) => `
-          <div class="img-thumb"><img src="${img.url}" onclick="window.open('${img.url}','_blank')" style="cursor:zoom-in;" />
-            <div class="cap">${esc(img.caption) || "<span style=color:#bbb;>ไม่มีคำบรรยาย</span>"}${img.location ? `<div class="meta">📍 ${esc(img.location)}</div>` : ""}</div>
-          </div>`).join("") || `<p style="color:#999;">ไม่มีรูปภาพ</p>`}
+        ${mainImgs.map((img) => {
+          const displaySrc = img.annotatedUrl || img.url;
+          return `
+          <div class="img-thumb">
+            ${img.annotatedUrl ? `<span class="type-tag" style="background:rgba(224,36,36,0.9);">✏️ วาดแล้ว</span>` : ""}
+            <img src="${displaySrc}" onclick="window.open('${displaySrc}','_blank')" style="cursor:zoom-in;" />
+            <div class="cap">${esc(img.caption) || "<span style=color:#bbb;>ไม่มีคำบรรยาย</span>"}${img.location ? `<div class="meta">📍 ${esc(img.location)}</div>` : ""}
+              ${img.annotatedUrl ? `<div class="meta"><a href="${img.url}" target="_blank">ดูรูปต้นฉบับ</a></div>` : ""}
+            </div>
+          </div>`;
+        }).join("") || `<p style="color:#999;">ไม่มีรูปภาพ</p>`}
       </div>
       ${canEdit ? `<p style="font-size:0.8rem;color:#999;margin-top:10px;">แก้ไข/เพิ่ม/ลบ/จัดเรียงรูปหลักได้ที่หน้า <a href="damage-report-form.html?id=${reportId}">✏️ แก้ไขรายงาน</a></p>` : ""}
     </div>
@@ -154,21 +190,8 @@ async function load() {
     </div>
 
     <div class="card">
-      <div class="section-title">🕘 ประวัติการแก้ไข (Audit Trail)</div>
-      <table>
-        <thead><tr><th>วันที่/เวลา</th><th>การกระทำ</th><th>ฟิลด์</th><th>ค่าเดิม</th><th>ค่าใหม่</th><th>ผู้แก้ไข</th></tr></thead>
-        <tbody>
-          ${history.length ? history.map((h) => `
-            <tr>
-              <td style="font-size:0.8rem;white-space:nowrap;">${fmtDateTime(h.changedAt)}</td>
-              <td>${historyActionLabel(h.action)}</td>
-              <td style="font-size:0.8rem;color:#888;">${esc(h.field || "-")}</td>
-              <td style="font-size:0.8rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${esc((h.oldValue || "").slice(0, 60))}</td>
-              <td style="font-size:0.8rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;">${esc((h.newValue || "").slice(0, 60))}</td>
-              <td style="font-size:0.8rem;">${esc(h.changedByName)}</td>
-            </tr>`).join("") : `<tr><td colspan="6" style="text-align:center;color:#999;">ยังไม่มีประวัติ</td></tr>`}
-        </tbody>
-      </table>
+      <div class="section-title">🕘 ประวัติการแก้ไข (Activity Timeline)</div>
+      ${history.length ? `<div class="timeline">${[...history].reverse().map((h) => timelineItem(h)).join("")}</div>` : `<p style="color:#999;font-size:0.85rem;">ยังไม่มีประวัติ</p>`}
     </div>
   `;
 
@@ -177,14 +200,30 @@ async function load() {
 
   document.getElementById("btn-status-save")?.addEventListener("click", async () => {
     const sel = document.getElementById("status-select");
-    const m = document.getElementById("status-msg");
-    try { await changeStatus(reportId, sel.value, user); m.className = "msg ok"; m.textContent = "บันทึกสถานะแล้ว"; await load(); }
-    catch (e) { m.className = "msg error"; m.textContent = "ผิดพลาด: " + e.message; }
+    try {
+      await changeStatus(reportId, sel.value, user);
+      await load();
+      toast({ title: "บันทึกสถานะแล้ว", desc: sel.value });
+    } catch (e) {
+      toast({ type: "error", title: "บันทึกสถานะไม่สำเร็จ", desc: e.message });
+    }
   });
   document.getElementById("btn-close")?.addEventListener("click", async () => {
-    if (!confirm("ยืนยันปิดรายงานนี้? หลังปิดแล้วยังแก้ไขสถานะกลับได้ในภายหลังหากจำเป็น")) return;
-    try { await changeStatus(reportId, STATUS_CLOSED, user); await load(); }
-    catch (e) { alert("ผิดพลาด: " + e.message); }
+    const ok = await confirmModal({
+      icon: "✔",
+      title: "ยืนยันปิดรายงานนี้?",
+      desc: "หลังปิดแล้วยังแก้ไขสถานะกลับได้ในภายหลังหากจำเป็น",
+      confirmLabel: "ปิดรายงาน",
+      danger: false,
+    });
+    if (!ok) return;
+    try {
+      await changeStatus(reportId, STATUS_CLOSED, user);
+      await load();
+      toast({ title: "ปิดรายงานแล้ว", desc: report.reportNo });
+    } catch (e) {
+      toast({ type: "error", title: "ปิดรายงานไม่สำเร็จ", desc: e.message });
+    }
   });
 
   document.getElementById("up-before")?.addEventListener("change", (e) => handleBAUpload(e, "before"));
@@ -207,6 +246,7 @@ async function load() {
 }
 
 await load();
+showFlashToast();
 
 // ---------- Generate Report (Print / Save as PDF) ----------
 // ใช้แพทเทิร์นเดียวกับ __printPackingSlip ใน dashboard-warehouse.html — build HTML string เต็มหน้า
@@ -265,7 +305,7 @@ function printReport(report, mainImgs, beforeImgs, afterImgs) {
         </table>
       </section>
       ${mainImgs.length ? `<section><h2>Section 3 — รูปภาพหลักฐาน</h2><div class="gallery">
-        ${mainImgs.map((img, i) => `<figure><img src="${img.url}" /><figcaption><b>Figure ${i + 1}</b>${img.caption ? " — " + esc(img.caption) : ""}${img.location ? "<br>ตำแหน่ง: " + esc(img.location) : ""}</figcaption></figure>`).join("")}
+        ${mainImgs.map((img, i) => `<figure><img src="${img.annotatedUrl || img.url}" /><figcaption><b>Figure ${i + 1}</b>${img.caption ? " — " + esc(img.caption) : ""}${img.location ? "<br>ตำแหน่ง: " + esc(img.location) : ""}</figcaption></figure>`).join("")}
       </div></section>` : ""}
       <section><h2>Section 4 — แนวทางแก้ไข</h2>
         <table class="kv">

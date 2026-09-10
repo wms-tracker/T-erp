@@ -46,6 +46,13 @@ const NAV = {
       { key: 'damage-dashboard', label: '📊 แดชบอร์ดความเสียหาย',  href: 'damage-reports.html' },
       { key: 'damage-create',    label: '🆕 แจ้งความเสียหาย',       href: 'damage-report-form.html' },
     ]},
+    { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
+      { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง',    href: 'freight-dashboard.html' },
+      { key: 'freight-calculator',   label: '🧮 คำนวณค่าขนส่ง',      href: 'freight-calculator.html' },
+      { key: 'freight-compare',      label: '⚖️ เปรียบเทียบ Carrier', href: 'freight-compare.html' },
+      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณ',    href: 'freight-calculations.html' },
+      { key: 'freight-zones',        label: '📍 Zone Mapping',        href: 'freight-zones.html' },
+    ]},
   ],
   admin: [
     { groupKey: 'orders', icon: '📋', label: 'ออเดอร์', items: [
@@ -59,6 +66,16 @@ const NAV = {
     { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
       { key: 'damage-dashboard', label: '📊 แดชบอร์ดความเสียหาย',  href: 'damage-reports.html' },
       { key: 'damage-create',    label: '🆕 แจ้งความเสียหาย',       href: 'damage-report-form.html' },
+    ]},
+    { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
+      { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง',      href: 'freight-dashboard.html' },
+      { key: 'freight-calculator',   label: '🧮 คำนวณค่าขนส่ง',        href: 'freight-calculator.html' },
+      { key: 'freight-compare',      label: '⚖️ เปรียบเทียบ Carrier',   href: 'freight-compare.html' },
+      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณ',      href: 'freight-calculations.html' },
+      { key: 'freight-carriers',     label: '🚚 Carrier',                href: 'freight-carriers.html' },
+      { key: 'freight-rates',        label: '💴 Rate Card',              href: 'freight-rates.html' },
+      { key: 'freight-zones',        label: '📍 Zone Mapping',           href: 'freight-zones.html' },
+      { key: 'freight-import',       label: '⬇️ นำเข้าจาก Excel',        href: 'freight-import.html' },
     ]},
     { groupKey: 'team', icon: '👥', label: 'ทีม', items: [
       { key: 'users',      label: 'จัดการผู้ใช้งาน & สิทธิ์',         href: 'dashboard-admin.html#users' },
@@ -81,6 +98,11 @@ const NAV = {
     ]},
     { groupKey: 'shipping', icon: '🚚', label: 'ขนส่ง', items: [
       { key: 'shipping',   label: 'ติดตามสถานะจัดส่ง',                href: 'view-shipping.html' },
+    ]},
+    { groupKey: 'freight', icon: '🧮', label: 'ค่าขนส่ง', items: [
+      { key: 'freight-calculator',   label: '🧮 คำนวณค่าขนส่ง',   href: 'freight-calculator.html' },
+      { key: 'freight-compare',      label: '⚖️ เปรียบเทียบ Carrier', href: 'freight-compare.html' },
+      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณ', href: 'freight-calculations.html' },
     ]},
   ],
   accounting: [
@@ -110,6 +132,10 @@ const NAV = {
     ]},
     { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
       { key: 'damage-dashboard', label: 'แดชบอร์ดความเสียหาย (ดูอย่างเดียว)', href: 'damage-reports.html' },
+    ]},
+    { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
+      { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง (ดูอย่างเดียว)', href: 'freight-dashboard.html' },
+      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณค่าขนส่ง', href: 'freight-calculations.html' },
     ]},
   ],
 };
@@ -142,6 +168,7 @@ export function renderShell(profile, activeKey, title) {
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:'Sarabun',sans-serif;background:#f0f2f8;overflow:hidden;}
     .erp-shell{display:flex;height:100dvh;width:100vw;overflow:hidden;}
+    .nav-drawer{display:flex;background:#fff;} /* wraps primary+secondary — inline row on desktop, slide-in unit on mobile (see media query) */
 
     /* === Primary rail === */
     .nav-primary{
@@ -255,15 +282,44 @@ export function renderShell(profile, activeKey, title) {
     .msg.error{color:#c00;}
     .mono{font-family:monospace;}
 
-    /* Mobile responsive */
-    @media(max-width:640px){
-      .nav-secondary{width:170px;}
-      .erp-main-inner{padding:14px 12px;}
+    /* === Mobile topbar (hamburger + title) — hidden on desktop === */
+    .mobile-topbar{
+      display:none;align-items:center;gap:10px;
+      height:52px;flex-shrink:0;padding:0 12px;
+      background:#fff;border-bottom:1px solid #e0e3ef;
+      position:sticky;top:0;z-index:15;
+    }
+    .hamburger-btn{
+      width:38px;height:38px;flex-shrink:0;border:none;border-radius:9px;
+      background:#f0f2f8;color:#1a237e;font-size:1.2rem;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .hamburger-btn:hover{background:#e5e8f5;}
+    .mobile-topbar-title{
+      font-size:0.98rem;font-weight:700;color:#1a237e;
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    .nav-backdrop{
+      display:none;position:fixed;inset:0;background:rgba(15,20,40,0.45);z-index:29;
+    }
+
+    /* Mobile responsive — drawer takes over below 768px per the design spec's own breakpoint */
+    @media(max-width:768px){
+      .mobile-topbar{display:flex;}
+      .erp-main h1{display:none;} /* shown in the mobile topbar instead, avoid duplicate title */
+      .nav-drawer{
+        position:fixed;top:0;left:0;height:100dvh;z-index:30;
+        transform:translateX(-100%);transition:transform .22s ease;
+      }
+      .nav-drawer.open{transform:translateX(0);box-shadow:6px 0 24px rgba(0,0,0,0.18);}
+      .nav-backdrop.open{display:block;}
+      .nav-secondary{width:220px;}
     }
     @media(max-width:420px){
-      .nav-primary{width:58px;}
-      .nav-group-btn{width:46px;}
-      .nav-secondary{width:150px;}
+      .nav-primary{width:64px;}
+      .nav-group-btn{width:52px;}
+      .nav-secondary{width:190px;}
+      .erp-main-inner{padding:14px 12px;}
     }
   `;
 
@@ -276,33 +332,42 @@ export function renderShell(profile, activeKey, title) {
     <style>${css}</style>
     <div class="erp-shell">
 
-      <!-- Primary rail -->
-      <nav class="nav-primary">
-        <div class="nav-brand">🏢</div>
-        <div class="nav-brand-label">Web<br>ERP</div>
-        <div id="nav-primary-items" style="display:flex;flex-direction:column;align-items:center;width:100%;padding:0 7px;gap:2px;">
-          ${groups.map(g => `
-            <button class="nav-group-btn ${g.groupKey === initGroupKey ? 'active' : ''}"
-              data-gkey="${g.groupKey}"
-              title="${g.label}">
-              <span class="g-icon">${g.icon}</span>
-              <span class="g-label">${g.label}</span>
-            </button>
-          `).join('')}
-        </div>
-        <div class="nav-logout">
-          <div class="nav-avatar">${userInitial}</div>
-          <button class="nav-logout-btn" id="btn-logout">ออกจาก<br>ระบบ</button>
-        </div>
-      </nav>
+      <div class="nav-backdrop" id="nav-backdrop"></div>
 
-      <!-- Secondary panel -->
-      <aside class="nav-secondary" id="nav-secondary">
-        <!-- filled by JS below -->
-      </aside>
+      <!-- Nav drawer: primary rail + secondary panel together — inline on desktop, slide-in on mobile -->
+      <div class="nav-drawer" id="nav-drawer">
+        <!-- Primary rail -->
+        <nav class="nav-primary">
+          <div class="nav-brand">🏢</div>
+          <div class="nav-brand-label">Web<br>ERP</div>
+          <div id="nav-primary-items" style="display:flex;flex-direction:column;align-items:center;width:100%;padding:0 7px;gap:2px;">
+            ${groups.map(g => `
+              <button class="nav-group-btn ${g.groupKey === initGroupKey ? 'active' : ''}"
+                data-gkey="${g.groupKey}"
+                title="${g.label}">
+                <span class="g-icon">${g.icon}</span>
+                <span class="g-label">${g.label}</span>
+              </button>
+            `).join('')}
+          </div>
+          <div class="nav-logout">
+            <div class="nav-avatar">${userInitial}</div>
+            <button class="nav-logout-btn" id="btn-logout">ออกจาก<br>ระบบ</button>
+          </div>
+        </nav>
+
+        <!-- Secondary panel -->
+        <aside class="nav-secondary" id="nav-secondary">
+          <!-- filled by JS below -->
+        </aside>
+      </div>
 
       <!-- Main -->
       <div class="erp-main">
+        <div class="mobile-topbar">
+          <button class="hamburger-btn" id="btn-hamburger" aria-label="เปิดเมนู">☰</button>
+          <div class="mobile-topbar-title">${title}</div>
+        </div>
         <div class="erp-main-inner">
           <h1>${title}</h1>
           <div id="main-content"></div>
@@ -358,7 +423,147 @@ export function renderShell(profile, activeKey, title) {
     location.href = 'login.html';
   });
 
+  // ---- mobile hamburger drawer ----
+  const drawer = document.getElementById('nav-drawer');
+  const backdrop = document.getElementById('nav-backdrop');
+  const openDrawer = () => { drawer.classList.add('open'); backdrop.classList.add('open'); document.body.style.overflow = 'hidden'; };
+  const closeDrawer = () => { drawer.classList.remove('open'); backdrop.classList.remove('open'); document.body.style.overflow = ''; };
+  document.getElementById('btn-hamburger').addEventListener('click', openDrawer);
+  backdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
   return document.getElementById('main-content');
+}
+
+// ===================================================================
+// Floating Action Button — mobile-only (hidden on desktop via CSS),
+// opt-in per page: call renderFAB([{icon,label,href}, ...]) from a page
+// that wants a quick-add shortcut (e.g. the damage-reports dashboard).
+// Not baked into renderShell() itself since it's a per-feature action,
+// not something every department's page needs.
+// ===================================================================
+export function renderFAB(items) {
+  if (!items || !items.length) return;
+  if (document.getElementById('fab-root')) return; // avoid duplicates if called twice
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .fab-root{display:none;}
+    @media(max-width:768px){
+      .fab-root{display:block;position:fixed;right:18px;bottom:22px;z-index:40;}
+      .fab-main{
+        width:56px;height:56px;border-radius:50%;border:none;
+        background:linear-gradient(135deg,#2e6cf6,#1a73e8);color:#fff;font-size:1.6rem;
+        box-shadow:0 6px 18px rgba(26,115,232,0.45);cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        transition:transform .18s ease;
+      }
+      .fab-root.open .fab-main{transform:rotate(45deg);}
+      .fab-menu{
+        position:absolute;right:0;bottom:68px;display:flex;flex-direction:column;
+        align-items:flex-end;gap:10px;opacity:0;pointer-events:none;transform:translateY(8px);
+        transition:opacity .16s ease,transform .16s ease;
+      }
+      .fab-root.open .fab-menu{opacity:1;pointer-events:auto;transform:translateY(0);}
+      .fab-item{
+        display:flex;align-items:center;gap:10px;text-decoration:none;
+        background:#fff;color:#1a237e;font-size:0.84rem;font-weight:600;
+        padding:9px 14px 9px 9px;border-radius:26px;box-shadow:0 4px 14px rgba(20,30,60,0.18);
+        white-space:nowrap;
+      }
+      .fab-item .fi{
+        width:32px;height:32px;border-radius:50%;background:#eaf1ff;
+        display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;
+      }
+      .fab-backdrop{display:none;position:fixed;inset:0;z-index:39;}
+      .fab-root.open .fab-backdrop{display:block;}
+    }
+  `;
+  document.head.appendChild(style);
+
+  const root = document.createElement('div');
+  root.className = 'fab-root';
+  root.id = 'fab-root';
+  root.innerHTML = `
+    <div class="fab-backdrop"></div>
+    <div class="fab-menu">
+      ${items.map((it) => `<a class="fab-item" href="${it.href}"><span class="fi">${it.icon}</span>${it.label}</a>`).join("")}
+    </div>
+    <button class="fab-main" id="fab-main" aria-label="เพิ่ม">＋</button>
+  `;
+  document.body.appendChild(root);
+
+  const toggle = () => root.classList.toggle('open');
+  document.getElementById('fab-main').addEventListener('click', toggle);
+  root.querySelector('.fab-backdrop').addEventListener('click', toggle);
+}
+
+// ===================================================================
+// Notification bell — opt-in per page, same pattern as renderFAB.
+// items: [{ tone:'critical'|'warning'|'overdue'|'success', icon, title, desc, href }]
+// This is a load-time snapshot (computed once when the calling page loads
+// its data), not a live listener — matches the rest of the app, which has
+// no real-time updates anywhere else either.
+// ===================================================================
+export function renderNotifications(items) {
+  if (document.getElementById('notif-root')) return;
+  items = items || [];
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .notif-root{position:fixed;top:10px;right:16px;z-index:41;}
+    .notif-bell{
+      width:38px;height:38px;border-radius:50%;border:none;background:#fff;
+      box-shadow:0 2px 10px rgba(20,30,60,0.12);cursor:pointer;font-size:1.1rem;
+      display:flex;align-items:center;justify-content:center;position:relative;
+    }
+    .notif-badge{
+      position:absolute;top:-2px;right:-2px;background:#c62828;color:#fff;
+      font-size:0.62rem;font-weight:700;min-width:16px;height:16px;border-radius:9px;
+      display:flex;align-items:center;justify-content:center;padding:0 3px;
+    }
+    .notif-panel{
+      display:none;position:absolute;top:46px;right:0;width:320px;max-width:calc(100vw - 32px);
+      background:#fff;border-radius:14px;box-shadow:0 12px 32px rgba(15,20,45,0.2);
+      max-height:70vh;overflow-y:auto;
+    }
+    .notif-root.open .notif-panel{display:block;}
+    .notif-header{padding:14px 16px 10px;font-weight:700;color:#1a237e;font-size:0.92rem;border-bottom:1px solid #eef0f7;}
+    .notif-item{display:flex;gap:10px;padding:11px 16px;text-decoration:none;border-bottom:1px solid #f4f5fa;}
+    .notif-item:last-child{border-bottom:none;}
+    .notif-item:hover{background:#f7f9ff;}
+    .notif-item .ni-icon{font-size:1.05rem;flex-shrink:0;line-height:1.3;}
+    .notif-item .ni-title{font-size:0.84rem;font-weight:600;color:#222;line-height:1.35;}
+    .notif-item .ni-desc{font-size:0.76rem;color:#999;margin-top:1px;}
+    .notif-empty{padding:28px 16px;text-align:center;color:#999;font-size:0.84rem;}
+    @media(max-width:768px){ .notif-root{top:7px;right:56px;} }
+  `;
+  document.head.appendChild(style);
+
+  const root = document.createElement('div');
+  root.className = 'notif-root';
+  root.id = 'notif-root';
+  root.innerHTML = `
+    <button class="notif-bell" id="notif-bell" aria-label="การแจ้งเตือน">
+      🔔
+      ${items.length ? `<span class="notif-badge">${items.length > 9 ? "9+" : items.length}</span>` : ""}
+    </button>
+    <div class="notif-panel">
+      <div class="notif-header">🔔 การแจ้งเตือน (${items.length})</div>
+      ${items.length
+        ? items.map((it) => `<a class="notif-item" href="${it.href}"><span class="ni-icon">${it.icon}</span><div><div class="ni-title">${it.title}</div><div class="ni-desc">${it.desc || ""}</div></div></a>`).join("")
+        : `<div class="notif-empty">ไม่มีการแจ้งเตือนใหม่</div>`}
+    </div>
+  `;
+  document.body.appendChild(root);
+
+  document.getElementById('notif-bell').addEventListener('click', (e) => {
+    e.stopPropagation();
+    root.classList.toggle('open');
+  });
+  document.addEventListener('click', (e) => {
+    if (!root.contains(e.target)) root.classList.remove('open');
+  });
 }
 
 export function statusBadge(status) {

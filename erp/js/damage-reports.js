@@ -224,13 +224,21 @@ export function compressImage(file, maxDim = 1600, quality = 0.8) {
 
 const IMAGE_COUNT_FIELD = { main: "mainImageCount", before: "beforeImageCount", after: "afterImageCount" };
 
+// meta.annotatedBlob (optional): a drawn-on copy from the annotate tool
+// (สเปกข้อ 25) — uploaded and stored as annotatedUrl alongside the
+// original's own url, never replacing it, so both stay viewable.
 export async function uploadImage(reportId, file, meta, user) {
   const blob = await compressImage(file);
   const uploaded = await cloudinaryUpload(blob, `damage-reports/${reportId}`);
+  let annotatedUrl = null;
+  if (meta.annotatedBlob) {
+    const annotated = await cloudinaryUpload(meta.annotatedBlob, `damage-reports/${reportId}/annotated`);
+    annotatedUrl = annotated.secure_url;
+  }
   const imgRef = doc(collection(db, "damageReports", reportId, "images"));
   const imageType = meta.imageType || "main";
   await setDoc(imgRef, {
-    url: uploaded.secure_url, publicId: uploaded.public_id, imageType,
+    url: uploaded.secure_url, publicId: uploaded.public_id, imageType, annotatedUrl,
     caption: meta.caption || "", location: meta.location || "",
     capturedAt: meta.capturedAt || new Date().toISOString(),
     sequence: meta.sequence ?? 0,
@@ -241,6 +249,13 @@ export async function uploadImage(reportId, file, meta, user) {
   });
   await logHistory(reportId, "upload_image", imageType, null, meta.caption || imgRef.id, user);
   return imgRef.id;
+}
+
+// เพิ่ม/แทนที่รูป annotate ให้รูปที่มีอยู่แล้วบน server (edit mode) — ไม่แตะ url เดิม
+export async function setAnnotatedImage(reportId, imageId, annotatedBlob) {
+  const uploaded = await cloudinaryUpload(annotatedBlob, `damage-reports/${reportId}/annotated`);
+  await updateDoc(doc(db, "damageReports", reportId, "images", imageId), { annotatedUrl: uploaded.secure_url });
+  return uploaded.secure_url;
 }
 
 export async function deleteImage(reportId, imageId, user) {
@@ -296,6 +311,52 @@ export function computeKPIs(reports) {
   return k;
 }
 
+// เปรียบเทียบจำนวนรายงาน (ที่ผ่าน matchFn) ของเดือนนี้เทียบกับเดือนก่อนหน้า —
+// ใช้กับ KPI card ที่ต้องโชว์ Trend % เทียบเดือนก่อน นับจาก reportDate
+// เหมือน monthlyTrend ด้านล่าง เพื่อให้ตัวเลขสอดคล้องกัน
+export function computeMonthOverMonth(reports, matchFn) {
+  const now = new Date();
+  const thisKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prevD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevKey = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, "0")}`;
+  let cur = 0, last = 0;
+  for (const r of reports) {
+    if (!matchFn(r)) continue;
+    const key = (r.reportDate || "").slice(0, 7);
+    if (key === thisKey) cur++;
+    else if (key === prevKey) last++;
+  }
+  if (last === 0) return { pct: cur === 0 ? 0 : 100, dir: cur === 0 ? "flat" : "up" };
+  const pct = Math.round(((cur - last) / last) * 100);
+  return { pct: Math.abs(pct), dir: pct > 0 ? "up" : pct < 0 ? "down" : "flat" };
+}
+
+// สเปกข้อ 34: Notification Center — สรุปรายการที่ต้องความสนใจ คำนวณจาก
+// รายชื่อรายงานที่หน้า dashboard โหลดมาแล้ว (snapshot ตอนโหลดหน้า ไม่ใช่
+// real-time listener — เหมือนฟีเจอร์อื่นในแอปนี้ที่ยังไม่มี real-time)
+export function computeNotifications(reports, maxEach = 5) {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const soonStr = new Date(now.getTime() + 2 * 86400000).toISOString().slice(0, 10);
+  const openStatuses = new Set(STATUS_LIST.filter((s) => s !== "ดำเนินการเสร็จแล้ว" && s !== STATUS_CLOSED));
+
+  const critical = reports.filter((r) => r.severity === "Critical" && openStatuses.has(r.status));
+  const overdue = reports.filter((r) => r.dueDate && r.dueDate < todayStr && openStatuses.has(r.status));
+  const nearDue = reports.filter((r) => r.dueDate && r.dueDate >= todayStr && r.dueDate <= soonStr && openStatuses.has(r.status));
+  const doneRecent = [...reports]
+    .filter((r) => r.status === "ดำเนินการเสร็จแล้ว")
+    .sort((a, b) => (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0))
+    .slice(0, 3);
+
+  const items = [];
+  const link = (r) => `damage-report-view.html?id=${r.id}`;
+  for (const r of critical.slice(0, maxEach)) items.push({ icon: "🔴", title: `Critical: ${r.title || r.reportNo}`, desc: r.zone || "", href: link(r) });
+  for (const r of overdue.slice(0, maxEach)) items.push({ icon: "🔴", title: `เกินกำหนด: ${r.title || r.reportNo}`, desc: r.dueDate ? `กำหนด ${r.dueDate}` : "", href: link(r) });
+  for (const r of nearDue.slice(0, maxEach)) items.push({ icon: "🟠", title: `ใกล้ครบกำหนด: ${r.title || r.reportNo}`, desc: r.dueDate ? `กำหนด ${r.dueDate}` : "", href: link(r) });
+  for (const r of doneRecent) items.push({ icon: "🟢", title: `ซ่อมเสร็จแล้ว: ${r.title || r.reportNo}`, desc: r.zone || "", href: link(r) });
+  return items;
+}
+
 export function groupCount(reports, keyFn) {
   const map = new Map();
   for (const r of reports) {
@@ -316,6 +377,52 @@ export function monthlyTrend(reports, months = 6) {
   const byKey = Object.fromEntries(buckets.map((b) => [b.key, b]));
   for (const r of reports) {
     const key = (r.reportDate || "").slice(0, 7);
+    if (byKey[key]) byKey[key].count++;
+  }
+  return buckets;
+}
+
+// กราฟแนวโน้มแบบเลือกช่วงเวลาได้ (สเปกข้อ 21: Today/7 Days/30 Days/This Month/This Year)
+// คืนค่าเป็น array ของ { label, count } พร้อมใช้วาดกราฟแท่งได้เลย
+export function periodTrend(reports, period = "7d") {
+  const now = new Date();
+  const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  if (period === "today") {
+    const todayKey = dayKey(now);
+    const buckets = Array.from({ length: 24 }, (_, h) => ({ key: h, label: `${h}:00`, count: 0 }));
+    for (const r of reports) {
+      if ((r.reportDate || "") !== todayKey) continue;
+      const hour = parseInt((r.reportTime || "0:0").split(":")[0], 10) || 0;
+      if (buckets[hour]) buckets[hour].count++;
+    }
+    return buckets;
+  }
+
+  if (period === "year") {
+    const buckets = Array.from({ length: 12 }, (_, m) => ({
+      key: `${now.getFullYear()}-${String(m + 1).padStart(2, "0")}`,
+      label: new Date(now.getFullYear(), m, 1).toLocaleDateString("th-TH", { month: "short" }),
+      count: 0,
+    }));
+    const byKey = Object.fromEntries(buckets.map((b) => [b.key, b]));
+    for (const r of reports) {
+      const key = (r.reportDate || "").slice(0, 7);
+      if (byKey[key]) byKey[key].count++;
+    }
+    return buckets;
+  }
+
+  // 'today' handled above; 'month' = days elapsed in current calendar month; '7d'/'30d' = rolling window
+  const days = period === "month" ? now.getDate() : period === "30d" ? 30 : 7;
+  const buckets = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+    buckets.push({ key: dayKey(d), label: d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }), count: 0 });
+  }
+  const byKey = Object.fromEntries(buckets.map((b) => [b.key, b]));
+  for (const r of reports) {
+    const key = (r.reportDate || "").slice(0, 10);
     if (byKey[key]) byKey[key].count++;
   }
   return buckets;

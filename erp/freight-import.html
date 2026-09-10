@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>นำเข้าข้อมูลค่าขนส่ง — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { toast, confirmModal } from "./js/ui.js";
+import { parseWorkbook, summarizeParsedWorkbook } from "./js/freight-import.js";
+import { importAll } from "./js/freight-import-write.js";
+
+const profile = await requireRole(["admin"]);
+const main = renderShell(profile, "freight-import", "⬇️ นำเข้าข้อมูลค่าขนส่งจาก Excel");
+
+const SHEET_NAMES = ["Best", "Flash", "Kerry", "DHLParcel", "DHL Bulky", "KEX", "Business Idea", "Nim-express", "SKU NIM", "Product", "Province"];
+
+let parsed = null;
+let workbookName = "";
+
+main.innerHTML = `
+  <div class="card">
+    <div class="section-title">ขั้นตอนที่ 1 — อัปโหลดไฟล์</div>
+    <div class="section-desc">
+      อัปโหลดไฟล์ Excel ค่าขนส่ง (ต้องมีชีตชื่อ: ${SHEET_NAMES.map((s) => `<code>${s}</code>`).join(", ")}) —
+      ระบบจะอ่านเฉพาะข้อมูลจริง (Rate Card / Zone / SKU) ไม่นำคอลัมน์ที่คำนวณไว้ล่วงหน้าในไฟล์ (เช่น Dimension/MAX ในชีต Product) เข้าระบบ
+      เพื่อไม่ให้เดาสูตรที่ไม่ทราบแน่ชัด — ราคาที่ใช้จริงจะคำนวณสดโดยระบบเสมอ
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls" />
+    <div id="file-status" style="margin-top:10px;font-size:0.85rem;color:#888;"></div>
+  </div>
+
+  <div class="card" id="preview-card" hidden>
+    <div class="section-title">ขั้นตอนที่ 2 — ตรวจสอบก่อนนำเข้า (Preview / Validate)</div>
+    <div class="grid-cards" style="grid-template-columns:repeat(4,1fr);" id="summary-grid"></div>
+    <div id="warnings-box" style="margin-top:14px;"></div>
+    <div class="field" style="max-width:260px;margin-top:14px;">
+      <label>วันที่เริ่มมีผล (Effective From) ของ Rate ชุดนี้</label>
+      <input type="date" id="effective-from" />
+    </div>
+    <div style="font-size:0.8rem;color:#888;margin-top:4px;">
+      นำเข้าซ้ำด้วยวันที่เดิม = อัปเดตทับข้อมูลชุดเดิม (แก้ไขราคาผิดพลาด) · นำเข้าด้วยวันที่ใหม่ = สร้าง Rate เวอร์ชันใหม่ควบคู่ของเดิม (ต้องไปปิด Effective To ของเวอร์ชันเก่าเองที่หน้า Rate Card ถ้าต้องการ)
+    </div>
+    <button class="btn btn-primary btn-lg" id="btn-confirm" style="width:auto;padding:12px 28px;margin-top:16px;">✅ ยืนยันนำเข้าข้อมูล</button>
+  </div>
+
+  <div class="card" id="progress-card" hidden>
+    <div class="section-title">กำลังนำเข้า...</div>
+    <div id="progress-log" style="font-family:monospace;font-size:0.85rem;white-space:pre-line;"></div>
+  </div>
+`;
+
+function summaryCard(icon, num, label) {
+  return `<div class="kpi-card"><div class="num">${icon} ${num}</div><div class="label">${label}</div></div>`;
+}
+
+function renderPreview() {
+  const s = summarizeParsedWorkbook(parsed);
+  document.getElementById("summary-grid").innerHTML =
+    summaryCard("🚚", s.rateCardRows, "แถว Rate Card (Best/Flash/Kerry/KEX/DHL)") +
+    summaryCard("📦", `${s.businessIdeaSkus} SKU / ${s.businessIdeaCells} ราคา`, "Business Idea Rate Grid") +
+    summaryCard("📐", s.nimSizeClasses, "Nim-express Size Class") +
+    summaryCard("🏷", s.skuDimensionCount, "SKU ที่มีขนาด/น้ำหนัก") +
+    summaryCard("📍", s.zoneMapEntries, "รหัสไปรษณีย์ใน Zone Map") +
+    summaryCard(s.zoneMapConflicts ? "🔴" : "🟢", s.zoneMapConflicts, "Zone ที่ข้อมูลขัดแย้งกัน (ไม่ Import อัตโนมัติ)") +
+    summaryCard(s.parseWarnings ? "🟠" : "🟢", s.parseWarnings, "คำเตือนระหว่างอ่านไฟล์");
+
+  const box = document.getElementById("warnings-box");
+  const items = [
+    ...parsed.warnings.map((w) => `⚠️ ${w}`),
+    ...parsed.zoneMap.conflicts.map((c) => `⚠️ รหัสไปรษณีย์ ${c.postalCode}: ${c.field} มีค่าขัดแย้งกัน (${c.values.join(" vs ")}) — กรุณาตรวจสอบที่หน้า Zone Mapping หลัง Import`),
+  ];
+  box.innerHTML = items.length
+    ? `<div class="card" style="background:#fff8e1;border:1px solid #ffe4a3;">${items.map((i) => `<div style="font-size:0.82rem;margin-bottom:4px;">${i}</div>`).join("")}</div>`
+    : `<div style="font-size:0.82rem;color:#1a8a3a;">✅ ไม่พบปัญหาจากการอ่านไฟล์</div>`;
+
+  document.getElementById("effective-from").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("preview-card").hidden = false;
+}
+
+document.getElementById("file-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  workbookName = file.name;
+  document.getElementById("file-status").textContent = `กำลังอ่านไฟล์ ${file.name} ...`;
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array", cellDates: false });
+    const sheets = {};
+    for (const name of SHEET_NAMES) {
+      if (!wb.Sheets[name]) continue;
+      sheets[name] = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+    }
+    const missing = SHEET_NAMES.filter((n) => !sheets[n]);
+    parsed = parseWorkbook(sheets);
+    document.getElementById("file-status").innerHTML =
+      `อ่านไฟล์สำเร็จ: ${file.name}` +
+      (missing.length ? `<br>⚠️ ไม่พบชีต: ${missing.join(", ")} — ส่วนที่เกี่ยวข้องจะไม่ถูกนำเข้า` : "");
+    renderPreview();
+  } catch (err) {
+    document.getElementById("file-status").textContent = `❌ อ่านไฟล์ไม่สำเร็จ: ${err.message}`;
+    toast({ type: "error", title: "อ่านไฟล์ไม่สำเร็จ", desc: err.message });
+  }
+});
+
+document.getElementById("btn-confirm").addEventListener("click", async () => {
+  const effectiveFrom = document.getElementById("effective-from").value;
+  if (!effectiveFrom) { toast({ type: "error", title: "กรุณาระบุวันที่เริ่มมีผล" }); return; }
+  const ok = await confirmModal({
+    icon: "⬇️", danger: false, confirmLabel: "นำเข้าเลย",
+    title: `นำเข้าข้อมูลจาก ${workbookName}?`,
+    desc: `Effective From: ${effectiveFrom} — ข้อมูล Rate/Zone/SKU ที่ตรงกับของเดิม (รหัสไปรษณีย์/SKU/ช่วงน้ำหนักเดียวกัน + วันที่เดียวกัน) จะถูกอัปเดตทับ ส่วนข้อมูลอื่นจะถูกเพิ่มใหม่`,
+  });
+  if (!ok) return;
+
+  document.getElementById("preview-card").hidden = true;
+  document.getElementById("progress-card").hidden = false;
+  const log = document.getElementById("progress-log");
+  const STEP_LABEL = {
+    carriers: "Carrier (สร้างใหม่เท่านั้น ไม่แตะของเดิมที่ Admin ตั้งค่าไว้แล้ว)",
+    rateCards: "Rate Card (Best/Flash/Kerry/KEX/DHL)",
+    zoneMap: "Zone Mapping ตามรหัสไปรษณีย์",
+    skuDimensions: "ขนาด/น้ำหนัก SKU",
+    businessIdeaGrid: "Business Idea Rate Grid",
+    sizeClassRates: "Nim-express Size Class Rate",
+  };
+
+  try {
+    await importAll(parsed, effectiveFrom, profile, (p) => {
+      log.textContent += `[${p.index}/${p.total}] ${STEP_LABEL[p.step] || p.step} — ${p.count} รายการ ✅\n`;
+    });
+    log.textContent += `\n✅ นำเข้าข้อมูลสำเร็จทั้งหมด`;
+    toast({ title: "นำเข้าข้อมูลสำเร็จ", desc: `Effective From ${effectiveFrom}` });
+  } catch (err) {
+    log.textContent += `\n❌ เกิดข้อผิดพลาด: ${err.message}`;
+    toast({ type: "error", title: "นำเข้าข้อมูลไม่สำเร็จ", desc: err.message });
+  }
+});
+</script>
+</html>

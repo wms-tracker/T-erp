@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Carrier — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+</head>
+<body></body>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { toast, confirmModal, emptyStateHTML } from "./js/ui.js";
+import {
+  listCarriers, saveCarrier, deleteCarrier,
+  listSurchargesForCarrier, saveSurcharge, deleteSurcharge,
+  listCodRulesForCarrier, saveCodRule, deleteCodRule,
+  getBulkyThreshold, saveBulkyThreshold,
+} from "./js/freight-data.js";
+
+const profile = await requireRole(["admin"]);
+const main = renderShell(profile, "freight-carriers", "🚚 จัดการ Carrier");
+
+const PRICING_STRATEGIES = [
+  ["WEIGHT_ZONE_TABLE", "ตามน้ำหนัก + โซน (ตารางราคา)"],
+  ["SKU_ZONE_GRID", "ตาม SKU เฉพาะ + โซน (เช่น Business Idea)"],
+  ["SKU_SIZE_CLASS", "ตาม Size Class ของ SKU (เช่น Nim-express)"],
+];
+const WEIGHT_RULES = [
+  ["ACTUAL", "ใช้น้ำหนักจริงเสมอ"],
+  ["MAX_ACTUAL_VOLUMETRIC", "MAX(น้ำหนักจริง, น้ำหนักปริมาตร)"],
+  ["SKU_GRID", "ไม่ใช้น้ำหนักในการคำนวณ (คิดตาม SKU+ช่วงตัวเลข)"],
+  ["SIZE_CLASS", "ไม่ใช้น้ำหนักในการคำนวณ (คิดตาม Size Class)"],
+];
+const SURCHARGE_TYPES = ["FUEL", "REMOTE_AREA", "BULKY", "INSURANCE", "RESIDENTIAL", "SPECIAL_HANDLING", "PEAK_SEASON", "WEEKEND", "HOLIDAY", "ADDRESS_CORRECTION", "REDELIVERY", "OTHER"];
+const CALC_TYPES = [
+  ["FIXED", "จำนวนคงที่ (บาท)"], ["PERCENT", "% ของค่าขนส่งพื้นฐาน"],
+  ["PER_KG", "บาท ต่อ กก. (ของน้ำหนักคิดค่าขนส่ง)"], ["PER_SHIPMENT", "คงที่ต่อ Shipment"], ["PER_ORDER", "คงที่ต่อ Order"],
+];
+
+let carriers = [];
+let selectedId = null;
+
+main.innerHTML = `
+  <div style="display:grid;grid-template-columns:280px 1fr;gap:16px;align-items:start;">
+    <div class="card">
+      <div class="section-title" style="font-size:0.95rem;">รายชื่อ Carrier</div>
+      <div id="carrier-list"></div>
+      <button class="btn btn-primary" id="btn-new" style="margin-top:10px;">+ เพิ่ม Carrier ใหม่</button>
+    </div>
+    <div id="detail-panel"><div class="card">${emptyStateHTML({ icon: "🚚", title: "เลือก Carrier ทางซ้าย หรือเพิ่มใหม่" })}</div></div>
+  </div>
+`;
+
+function renderList() {
+  const box = document.getElementById("carrier-list");
+  if (!carriers.length) { box.innerHTML = emptyStateHTML({ icon: "🚚", title: "ยังไม่มี Carrier", desc: "เพิ่มเอง หรือไปหน้า Import จาก Excel ก่อน" }); return; }
+  box.innerHTML = carriers.map((c) => `
+    <div data-id="${c.id}" style="padding:10px 12px;border-radius:10px;cursor:pointer;margin-bottom:4px;${c.id === selectedId ? "background:#e8f0fe;" : ""}">
+      <div style="font-weight:700;">${c.name || c.id}</div>
+      <div style="font-size:0.76rem;color:#888;">${c.id} · ${c.pricingStrategy || "-"}</div>
+    </div>`).join("");
+  box.querySelectorAll("[data-id]").forEach((el) => el.addEventListener("click", () => { selectedId = el.dataset.id; renderList(); renderDetail(); }));
+}
+
+function carrierFormHTML(c) {
+  const isNew = !c;
+  c = c || { id: "", name: "", pricingStrategy: "WEIGHT_ZONE_TABLE", weightRule: "MAX_ACTUAL_VOLUMETRIC", dimFactor: 5000, roundingRule: { mode: "CEIL_TO", step: 1 }, services: [], active: true };
+  return `
+    <div class="card">
+      <div class="section-title">${isNew ? "เพิ่ม Carrier ใหม่" : `⚙️ ${c.name || c.id}`}</div>
+      <div class="field"><label>รหัส Carrier (ใช้อ้างอิงในระบบ, แก้ไม่ได้ภายหลัง)${isNew ? " <span class='req'>*</span>" : ""}</label>
+        <input id="f-id" value="${c.id}" ${isNew ? "" : "disabled"} placeholder="เช่น best, flash, kex" /></div>
+      <div class="field"><label>ชื่อ Carrier</label><input id="f-name" value="${c.name || ""}" /></div>
+      <div class="field"><label>วิธีคิดราคา (Pricing Strategy)</label>
+        <select id="f-strategy">${PRICING_STRATEGIES.map(([v, l]) => `<option value="${v}" ${c.pricingStrategy === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="field"><label>กฎน้ำหนักที่ใช้คิดค่าขนส่ง (Weight Rule)</label>
+        <select id="f-weightrule">${WEIGHT_RULES.map(([v, l]) => `<option value="${v}" ${c.weightRule === v ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div class="field"><label>DIM Factor (สำหรับคำนวณน้ำหนักปริมาตร L×W×H÷DIM)</label>
+        <input id="f-dimfactor" type="number" min="1" value="${c.dimFactor || 5000}" /></div>
+      <div class="field"><label>กฎการปัดน้ำหนัก</label>
+        <select id="f-roundmode"><option value="NONE" ${c.roundingRule?.mode === "NONE" ? "selected" : ""}>ไม่ปัด</option><option value="CEIL_TO" ${(!c.roundingRule || c.roundingRule?.mode === "CEIL_TO") ? "selected" : ""}>ปัดขึ้นทุกกี่ กก.</option></select></div>
+      <div class="field"><label>ปัดขึ้นทุก (กก.)</label><input id="f-roundstep" type="number" min="0.01" step="0.01" value="${c.roundingRule?.step || 1}" /></div>
+      <div class="field"><label>Services (ถ้ามีมากกว่า 1 แบบ เช่น DHL Parcel/Bulky) — พิมพ์เป็น <code>id:ชื่อ</code> บรรทัดละ 1 รายการ</label>
+        <textarea id="f-services" rows="3">${(c.services || []).map((s) => `${s.id}:${s.name}`).join("\n")}</textarea></div>
+      <div class="check-row"><label><input type="checkbox" id="f-active" ${c.active !== false ? "checked" : ""} /> เปิดใช้งาน</label></div>
+      <div style="display:flex;gap:10px;margin-top:14px;">
+        <button class="btn btn-primary" id="btn-save-carrier" style="width:auto;padding:10px 24px;">บันทึก</button>
+        ${isNew ? "" : `<button class="btn btn-danger" id="btn-delete-carrier" style="width:auto;padding:10px 24px;">ลบ Carrier นี้</button>`}
+      </div>
+    </div>`;
+}
+
+function surchargeSectionHTML(carrierId, surcharges) {
+  return `
+    <div class="card">
+      <div class="section-title" style="font-size:0.95rem;">💰 ค่าบริการเพิ่มเติม (Surcharge)</div>
+      <table><thead><tr><th>ประเภท</th><th>วิธีคิด</th><th>ค่า</th><th>เงื่อนไข</th><th></th></tr></thead>
+      <tbody>${surcharges.map((s) => `
+        <tr>
+          <td>${s.type}</td><td>${(CALC_TYPES.find((c) => c[0] === s.calcType) || [, s.calcType])[1]}</td>
+          <td>${s.calcType === "PERCENT" ? (s.value * 100).toFixed(2) + "%" : s.value}</td>
+          <td>${s.appliesWhen?.remoteAreaOnly ? "เฉพาะพื้นที่ห่างไกล " : ""}${s.appliesWhen?.bulkyOnly ? "เฉพาะ Bulky" : ""}</td>
+          <td><button class="btn btn-outline btn-del-surcharge" data-id="${s.id}" style="padding:4px 10px;font-size:0.76rem;">ลบ</button></td>
+        </tr>`).join("") || `<tr><td colspan="5" style="color:#999;text-align:center;">ยังไม่มี</td></tr>`}</tbody></table>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr) auto;gap:8px;align-items:end;margin-top:12px;">
+        <div class="field" style="margin:0;"><label>ประเภท</label><select id="sc-type">${SURCHARGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select></div>
+        <div class="field" style="margin:0;"><label>วิธีคิด</label><select id="sc-calctype">${CALC_TYPES.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></div>
+        <div class="field" style="margin:0;"><label>ค่า (% ให้ใส่ทศนิยม เช่น 0.07 = 7%)</label><input id="sc-value" type="number" step="any" value="0" /></div>
+        <div class="field" style="margin:0;"><label><input type="checkbox" id="sc-remote" /> เฉพาะพื้นที่ห่างไกล</label></div>
+        <div class="field" style="margin:0;"><label><input type="checkbox" id="sc-bulky" /> เฉพาะ Bulky</label></div>
+        <button class="btn btn-primary" id="btn-add-surcharge" style="width:auto;padding:8px 16px;">+ เพิ่ม</button>
+      </div>
+    </div>`;
+}
+
+function codSectionHTML(carrierId, codRules) {
+  return `
+    <div class="card">
+      <div class="section-title" style="font-size:0.95rem;">💵 กฎ COD</div>
+      <table><thead><tr><th>%</th><th>ขั้นต่ำ</th><th>สูงสุด</th><th>Effective From</th><th></th></tr></thead>
+      <tbody>${codRules.map((r) => `
+        <tr><td>${(r.percent * 100).toFixed(2)}%</td><td>${r.minFee ?? "-"}</td><td>${r.maxFee ?? "-"}</td><td>${r.effectiveFrom || "-"}</td>
+        <td><button class="btn btn-outline btn-del-cod" data-id="${r.id}" style="padding:4px 10px;font-size:0.76rem;">ลบ</button></td></tr>`).join("") || `<tr><td colspan="5" style="color:#999;text-align:center;">ยังไม่มี</td></tr>`}</tbody></table>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr) auto;gap:8px;align-items:end;margin-top:12px;">
+        <div class="field" style="margin:0;"><label>% (เช่น 0.02 = 2%)</label><input id="cod-percent" type="number" step="any" value="0.02" /></div>
+        <div class="field" style="margin:0;"><label>ขั้นต่ำ (บาท)</label><input id="cod-min" type="number" step="any" /></div>
+        <div class="field" style="margin:0;"><label>สูงสุด (บาท)</label><input id="cod-max" type="number" step="any" /></div>
+        <div class="field" style="margin:0;"><label>Effective From</label><input id="cod-from" type="date" /></div>
+        <button class="btn btn-primary" id="btn-add-cod" style="width:auto;padding:8px 16px;">+ เพิ่ม</button>
+      </div>
+    </div>`;
+}
+
+function bulkySectionHTML(threshold) {
+  const t = threshold || {};
+  return `
+    <div class="card">
+      <div class="section-title" style="font-size:0.95rem;">📏 เกณฑ์ Bulky / Oversize (เตือนเท่านั้น ไม่เปลี่ยน Service อัตโนมัติ)</div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+        <div class="field" style="margin:0;"><label>ยาวสูงสุด (ซม.)</label><input id="bk-l" type="number" value="${t.maxLengthCm ?? ""}" /></div>
+        <div class="field" style="margin:0;"><label>กว้างสูงสุด (ซม.)</label><input id="bk-w" type="number" value="${t.maxWidthCm ?? ""}" /></div>
+        <div class="field" style="margin:0;"><label>สูงสูงสุด (ซม.)</label><input id="bk-h" type="number" value="${t.maxHeightCm ?? ""}" /></div>
+        <div class="field" style="margin:0;"><label>น้ำหนักสูงสุด (กก.)</label><input id="bk-weight" type="number" value="${t.maxWeightKg ?? ""}" /></div>
+        <div class="field" style="margin:0;"><label>ผลรวม ย+ก+ส สูงสุด (ซม.)</label><input id="bk-sum" type="number" value="${t.maxDimensionSumCm ?? ""}" /></div>
+      </div>
+      <button class="btn btn-primary" id="btn-save-bulky" style="width:auto;padding:8px 16px;margin-top:10px;">บันทึกเกณฑ์</button>
+    </div>`;
+}
+
+async function renderDetail() {
+  const panel = document.getElementById("detail-panel");
+  if (!selectedId) { panel.innerHTML = `<div class="card">${emptyStateHTML({ icon: "🚚", title: "เลือก Carrier ทางซ้าย" })}</div>`; return; }
+  const isNew = selectedId === "__new__";
+  const carrier = isNew ? null : carriers.find((c) => c.id === selectedId);
+  panel.innerHTML = carrierFormHTML(carrier);
+  wireCarrierForm(isNew, carrier);
+
+  if (!isNew && carrier) {
+    const [surcharges, codRules, bulky] = await Promise.all([
+      listSurchargesForCarrier(carrier.id), listCodRulesForCarrier(carrier.id), getBulkyThreshold(carrier.id, null),
+    ]);
+    panel.insertAdjacentHTML("beforeend", surchargeSectionHTML(carrier.id, surcharges) + codSectionHTML(carrier.id, codRules) + bulkySectionHTML(bulky));
+    wireSurcharges(carrier.id, surcharges);
+    wireCod(carrier.id, codRules);
+    wireBulky(carrier.id, bulky);
+  }
+}
+
+function wireCarrierForm(isNew, carrier) {
+  document.getElementById("btn-save-carrier").addEventListener("click", async () => {
+    const id = isNew ? document.getElementById("f-id").value.trim() : carrier.id;
+    if (!id) { toast({ type: "error", title: "กรุณาระบุรหัส Carrier" }); return; }
+    const data = {
+      name: document.getElementById("f-name").value.trim(),
+      pricingStrategy: document.getElementById("f-strategy").value,
+      weightRule: document.getElementById("f-weightrule").value,
+      dimFactor: Number(document.getElementById("f-dimfactor").value) || null,
+      roundingRule: { mode: document.getElementById("f-roundmode").value, step: Number(document.getElementById("f-roundstep").value) || 1 },
+      services: document.getElementById("f-services").value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+        const [sid, ...rest] = l.split(":"); return { id: sid.trim(), name: rest.join(":").trim() || sid.trim() };
+      }),
+      active: document.getElementById("f-active").checked,
+    };
+    await saveCarrier(id, data, profile);
+    toast({ title: "บันทึก Carrier สำเร็จ" });
+    selectedId = id;
+    await load();
+  });
+  const delBtn = document.getElementById("btn-delete-carrier");
+  if (delBtn) delBtn.addEventListener("click", async () => {
+    const ok = await confirmModal({ title: `ลบ Carrier '${carrier.name}'?`, desc: "Rate Card / Zone ที่ผูกกับ Carrier นี้จะยังอยู่ในระบบ แต่จะคำนวณไม่ได้จนกว่าจะสร้าง Carrier ใหม่ในรหัสเดิม" });
+    if (!ok) return;
+    await deleteCarrier(carrier.id);
+    selectedId = null;
+    toast({ title: "ลบ Carrier แล้ว" });
+    await load();
+  });
+}
+
+function wireSurcharges(carrierId, surcharges) {
+  document.getElementById("btn-add-surcharge").addEventListener("click", async () => {
+    const calcType = document.getElementById("sc-calctype").value;
+    let value = Number(document.getElementById("sc-value").value) || 0;
+    await saveSurcharge(null, {
+      carrierId, type: document.getElementById("sc-type").value, calcType, value,
+      appliesWhen: { remoteAreaOnly: document.getElementById("sc-remote").checked, bulkyOnly: document.getElementById("sc-bulky").checked },
+      effectiveFrom: null, effectiveTo: null,
+    }, profile);
+    toast({ title: "เพิ่ม Surcharge สำเร็จ" });
+    await renderDetail();
+  });
+  panelQueryAll(".btn-del-surcharge", async (id) => { await deleteSurcharge(id); toast({ title: "ลบแล้ว" }); await renderDetail(); });
+}
+
+function wireCod(carrierId, codRules) {
+  document.getElementById("btn-add-cod").addEventListener("click", async () => {
+    await saveCodRule(null, {
+      carrierId, percent: Number(document.getElementById("cod-percent").value) || 0,
+      minFee: document.getElementById("cod-min").value ? Number(document.getElementById("cod-min").value) : null,
+      maxFee: document.getElementById("cod-max").value ? Number(document.getElementById("cod-max").value) : null,
+      effectiveFrom: document.getElementById("cod-from").value || null, effectiveTo: null,
+    }, profile);
+    toast({ title: "เพิ่มกฎ COD สำเร็จ" });
+    await renderDetail();
+  });
+  panelQueryAll(".btn-del-cod", async (id) => { await deleteCodRule(id); toast({ title: "ลบแล้ว" }); await renderDetail(); });
+}
+
+function wireBulky(carrierId, threshold) {
+  document.getElementById("btn-save-bulky").addEventListener("click", async () => {
+    const num = (id) => { const v = document.getElementById(id).value; return v === "" ? null : Number(v); };
+    await saveBulkyThreshold(carrierId, null, {
+      maxLengthCm: num("bk-l"), maxWidthCm: num("bk-w"), maxHeightCm: num("bk-h"), maxWeightKg: num("bk-weight"), maxDimensionSumCm: num("bk-sum"),
+    }, profile);
+    toast({ title: "บันทึกเกณฑ์ Bulky สำเร็จ" });
+  });
+}
+
+function panelQueryAll(selector, handler) {
+  document.querySelectorAll(selector).forEach((el) => el.addEventListener("click", () => handler(el.dataset.id)));
+}
+
+document.getElementById("btn-new").addEventListener("click", () => { selectedId = "__new__"; renderList(); renderDetail(); });
+
+async function load() {
+  carriers = await listCarriers();
+  renderList();
+  await renderDetail();
+}
+
+await load();
+</script>
+</html>

@@ -155,5 +155,60 @@ service cloud.firestore {
         allow update, delete: if false; // audit trail ห้ามแก้/ลบย้อนหลัง
       }
     }
+
+    // ----- Freight Cost Calculator: Master Data -----
+    // Rate/Zone/Carrier/Surcharge/COD เป็นข้อมูลตั้งราคา แก้ไขได้เฉพาะแอดมิน (สเปกข้อ 25/38 —
+    // ห้าม Staff แก้ Rate โดยไม่ได้รับสิทธิ์) แต่ทุกคนที่ล็อกอินอ่านได้ เพราะ Calculator ต้องใช้
+    match /freightCarriers/{carrierId} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+    match /freightZoneMap/{postalCode} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if hasRole('warehouse') || isAdmin(); // warehouse แก้ไข Zone ได้ (เช่น เจอรหัสไปรษณีย์ผิด)
+    }
+    match /freightRateCards/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+    match /freightSkuRateGrids/{sku} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+    match /freightSizeClassRates/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+    match /freightSkuDimensions/{sku} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if hasRole('warehouse') || isAdmin();
+    }
+    match /freightSurcharges/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+    match /freightCodRules/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+    match /freightBulkyThresholds/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isAdmin();
+    }
+
+    // ----- freightCalculations: บันทึกผลการคำนวณค่าขนส่ง + Audit Trail -----
+    // ผู้ใช้ที่คำนวณได้ (admin/warehouse/sales) บันทึกผลได้ / manager อ่านได้อย่างเดียว / ลบได้เฉพาะแอดมิน
+    match /freightCalculations/{calcId} {
+      allow read: if isSignedIn() && isActive();
+      allow create: if hasRole('warehouse') || hasRole('sales') || isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+
+      match /history/{historyId} {
+        allow read: if isSignedIn() && isActive();
+        allow create: if hasRole('warehouse') || hasRole('sales') || isAdmin();
+        allow update, delete: if false; // audit trail ห้ามแก้/ลบย้อนหลัง
+      }
+    }
   }
 }

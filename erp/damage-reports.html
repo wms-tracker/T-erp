@@ -9,21 +9,36 @@
 <body></body>
 <script type="module">
 import { requireRole } from "./js/auth.js";
-import { renderShell } from "./js/shell.js";
+import { renderShell, renderFAB, renderNotifications } from "./js/shell.js";
+import { toast, emptyStateHTML } from "./js/ui.js";
 import {
   DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS, STATUS_LIST, STATUS_BADGE,
-  listReports, computeKPIs, groupCount, monthlyTrend, toCSV, downloadCSV,
+  listReports, computeKPIs, computeMonthOverMonth, computeNotifications, groupCount, periodTrend, toCSV, downloadCSV,
 } from "./js/damage-reports.js";
 
 const profile = await requireRole(["warehouse", "manager"]);
 const canEdit = profile.role === "warehouse" || profile.role === "admin";
 const main = renderShell(profile, "damage-dashboard", "📊 แดชบอร์ดความเสียหาย (Damage Area Report)");
+if (canEdit) {
+  renderFAB([
+    { icon: "📷", label: "ถ่ายรูปและสร้างรายงาน", href: "damage-report-form.html?step=3" },
+    { icon: "📝", label: "สร้างรายงาน", href: "damage-report-form.html" },
+    { icon: "🔧", label: "อัปเดตงานซ่อม", href: "#rows" },
+  ]);
+}
 
 let all = [];
 let filtered = [];
 
 main.innerHTML = `
-  <div class="kpi-row" id="kpi-row"></div>
+  <div class="kpi-row" id="kpi-row">
+    <div class="skeleton" style="height:98px;border-radius:14px;"></div>
+    <div class="skeleton" style="height:98px;border-radius:14px;"></div>
+    <div class="skeleton" style="height:98px;border-radius:14px;"></div>
+    <div class="skeleton" style="height:98px;border-radius:14px;"></div>
+    <div class="skeleton" style="height:98px;border-radius:14px;"></div>
+    <div class="skeleton" style="height:98px;border-radius:14px;"></div>
+  </div>
 
   <div class="card">
     <div class="filter-bar">
@@ -44,14 +59,22 @@ main.innerHTML = `
     </div>
   </div>
 
-  <div class="grid-cards" style="grid-template-columns:1fr 1fr;">
+  <div class="grid-cards" style="grid-template-columns:1fr 1fr 1fr;">
     <div class="card"><div class="section-title" style="font-size:0.95rem;">📍 ความเสียหายแยกตาม Zone</div><div id="by-zone"></div></div>
     <div class="card"><div class="section-title" style="font-size:0.95rem;">🏷 ความเสียหายแยกตามประเภท</div><div id="by-type"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">🚦 ความเสียหายแยกตามความรุนแรง</div><div id="by-severity"></div></div>
   </div>
 
   <div class="card">
-    <div class="section-title" style="font-size:0.95rem;">📈 แนวโน้มจำนวนความเสียหายรายเดือน</div>
-    <div id="trend-chart" style="display:flex;align-items:flex-end;gap:10px;height:140px;padding-top:10px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+      <div class="section-title" style="font-size:0.95rem;margin:0;">📈 แนวโน้มจำนวนความเสียหาย</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="trend-period">
+        ${[["today", "วันนี้"], ["7d", "7 วัน"], ["30d", "30 วัน"], ["month", "เดือนนี้"], ["year", "ปีนี้"]]
+          .map(([v, l], i) => `<button type="button" class="btn ${i === 1 ? "btn-primary" : "btn-outline"}" data-period="${v}" style="padding:5px 12px;font-size:0.78rem;">${l}</button>`)
+          .join("")}
+      </div>
+    </div>
+    <div id="trend-chart" style="display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:14px;overflow-x:auto;"></div>
   </div>
 
   <div class="card">
@@ -65,54 +88,93 @@ main.innerHTML = `
           <th>เลขที่</th><th>วันที่</th><th>หัวข้อ</th><th>Zone</th><th>ประเภท</th>
           <th>ความรุนแรง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th></th>
         </tr></thead>
-        <tbody id="rows"><tr><td colspan="9" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="9"><div class="skel-row skeleton" style="max-width:100%;"></div><div class="skel-row skeleton" style="max-width:96%;"></div><div class="skel-row skeleton" style="max-width:90%;"></div></td></tr></tbody>
       </table>
     </div>
   </div>
 `;
 
+function trendBadge(t) {
+  if (t.dir === "flat" && t.pct === 0) return `<span class="trend flat">— <span class="vs">เท่าเดือนก่อน</span></span>`;
+  const arrow = t.dir === "up" ? "▲" : "▼";
+  return `<span class="trend ${t.dir}">${arrow} ${t.pct}% <span class="vs">เทียบเดือนก่อน</span></span>`;
+}
+
+function kpiCard(tone, icon, num, label, trend) {
+  return `
+    <div class="kpi-card2 tone-${tone}">
+      <div class="kpi-top">
+        <div class="kpi-icon">${icon}</div>
+      </div>
+      <div class="num">${num}</div>
+      <div class="label">${label}</div>
+      ${trendBadge(trend)}
+    </div>`;
+}
+
 function renderKPI() {
   const k = computeKPIs(filtered);
-  document.getElementById("kpi-row").innerHTML = `
-    <div class="kpi-card"><div class="num">${k.total}</div><div class="label">รายงานทั้งหมด</div></div>
-    <div class="kpi-card"><div class="num">${k.new}</div><div class="label">รายงานใหม่</div></div>
-    <div class="kpi-card"><div class="num">${k.inProgress}</div><div class="label">กำลังดำเนินการ</div></div>
-    <div class="kpi-card"><div class="num">${k.pending}</div><div class="label">รอดำเนินการ</div></div>
-    <div class="kpi-card"><div class="num">${k.done}</div><div class="label">ดำเนินการเสร็จแล้ว</div></div>
-    <div class="kpi-card kpi-critical"><div class="num">${k.critical}</div><div class="label">Critical</div></div>
-  `;
+  const tAll = computeMonthOverMonth(filtered, () => true);
+  const tNew = computeMonthOverMonth(filtered, (r) => r.status === "New");
+  const tProgress = computeMonthOverMonth(filtered, (r) => ["รับเรื่องแล้ว", "กำลังตรวจสอบ", "กำลังซ่อม"].includes(r.status));
+  const tPending = computeMonthOverMonth(filtered, (r) => r.status === "รอดำเนินการ");
+  const tDone = computeMonthOverMonth(filtered, (r) => ["ดำเนินการเสร็จแล้ว", "ปิดรายงาน"].includes(r.status));
+  const tCritical = computeMonthOverMonth(filtered, (r) => r.severity === "Critical");
+
+  document.getElementById("kpi-row").innerHTML =
+    kpiCard("all", "📋", k.total, "รายงานทั้งหมด", tAll) +
+    kpiCard("new", "🆕", k.new, "รายงานใหม่", tNew) +
+    kpiCard("progress", "🔧", k.inProgress, "กำลังดำเนินการ", tProgress) +
+    kpiCard("pending", "⏳", k.pending, "รอดำเนินการ", tPending) +
+    kpiCard("done", "✅", k.done, "ดำเนินการเสร็จแล้ว", tDone) +
+    kpiCard("critical", "🔴", k.critical, "Critical", tCritical);
 }
 
 function renderBreakdowns() {
   const byZone = groupCount(filtered, (r) => r.zone);
   const byType = groupCount(filtered, (r) => r.damageType);
-  const bar = (label, count, max) => `
+  const bySeverity = SEVERITY_LIST.map((s) => [s, filtered.filter((r) => r.severity === s).length]);
+  const bar = (label, count, max, colorClass) => `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <div style="width:130px;font-size:0.82rem;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${label}">${label}</div>
-      <div style="flex:1;background:#f0f2f8;border-radius:6px;height:16px;overflow:hidden;"><div style="width:${max ? (count / max * 100) : 0}%;background:#1a73e8;height:100%;"></div></div>
+      <div style="width:110px;font-size:0.82rem;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${label}">${label}</div>
+      <div style="flex:1;background:#f0f2f8;border-radius:6px;height:16px;overflow:hidden;"><div style="width:${max ? (count / max * 100) : 0}%;background:${colorClass || "#1a73e8"};height:100%;border-radius:6px;"></div></div>
       <div style="width:28px;text-align:right;font-size:0.82rem;font-weight:700;">${count}</div>
     </div>`;
   const maxZone = Math.max(1, ...byZone.map((x) => x[1]));
   const maxType = Math.max(1, ...byType.map((x) => x[1]));
-  document.getElementById("by-zone").innerHTML = byZone.length ? byZone.map(([z, c]) => bar(z, c, maxZone)).join("") : `<p style="color:#999;font-size:0.85rem;">ไม่มีข้อมูล</p>`;
-  document.getElementById("by-type").innerHTML = byType.length ? byType.map(([t, c]) => bar(t, c, maxType)).join("") : `<p style="color:#999;font-size:0.85rem;">ไม่มีข้อมูล</p>`;
+  const maxSev = Math.max(1, ...bySeverity.map((x) => x[1]));
+  const SEV_COLOR = { "ต่ำ": "#2e7d32", "ปานกลาง": "#c98a00", "สูง": "#c1440e", "Critical": "#c62828" };
+  document.getElementById("by-zone").innerHTML = byZone.length ? byZone.map(([z, c]) => bar(z, c, maxZone)).join("") : emptyStateHTML({ icon: "📍", title: "ไม่มีข้อมูล" });
+  document.getElementById("by-type").innerHTML = byType.length ? byType.map(([t, c]) => bar(t, c, maxType)).join("") : emptyStateHTML({ icon: "🏷", title: "ไม่มีข้อมูล" });
+  document.getElementById("by-severity").innerHTML = bySeverity.map(([s, c]) => bar(SEVERITY_LABEL[s], c, maxSev, SEV_COLOR[s])).join("");
 }
 
+let trendPeriod = "7d";
 function renderTrend() {
-  const trend = monthlyTrend(filtered, 6);
+  const trend = periodTrend(filtered, trendPeriod);
   const max = Math.max(1, ...trend.map((b) => b.count));
   document.getElementById("trend-chart").innerHTML = trend.map((b) => `
-    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
-      <div style="font-size:0.78rem;font-weight:700;margin-bottom:4px;">${b.count || ""}</div>
-      <div style="width:100%;max-width:36px;background:linear-gradient(180deg,#5a8dfb,#1a73e8);border-radius:6px 6px 0 0;height:${(b.count / max * 100) || 2}%;min-height:2px;"></div>
-      <div style="font-size:0.72rem;color:#888;margin-top:6px;">${b.label}</div>
+    <div style="flex:0 0 auto;min-width:30px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
+      <div style="font-size:0.74rem;font-weight:700;margin-bottom:4px;">${b.count || ""}</div>
+      <div style="width:100%;max-width:26px;background:linear-gradient(180deg,#5a8dfb,#1a73e8);border-radius:6px 6px 0 0;height:${(b.count / max * 100) || 2}%;min-height:2px;"></div>
+      <div style="font-size:0.68rem;color:#888;margin-top:6px;white-space:nowrap;">${b.label}</div>
     </div>`).join("");
 }
 
 function renderRows() {
   const tbody = document.getElementById("rows");
   document.getElementById("count-label").textContent = `พบ ${filtered.length} รายการ`;
-  tbody.innerHTML = filtered.length ? filtered.map((r) => `
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="9">${emptyStateHTML({
+      icon: "📋",
+      title: all.length ? "ไม่พบรายงานที่ตรงกับตัวกรอง" : "ยังไม่มีรายงานความเสียหาย",
+      desc: all.length ? "ลองล้างตัวกรองแล้วค้นหาใหม่" : "เริ่มต้นด้วยการแจ้งความเสียหายรายการแรก",
+      actionLabel: !all.length && canEdit ? "+ สร้างรายงานแรก" : undefined,
+      actionHref: !all.length && canEdit ? "damage-report-form.html" : undefined,
+    })}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map((r) => `
     <tr style="cursor:pointer;" data-id="${r.id}">
       <td class="mono">${r.reportNo}</td>
       <td style="white-space:nowrap;">${r.reportDate || "-"}</td>
@@ -123,7 +185,7 @@ function renderRows() {
       <td><span class="badge ${STATUS_BADGE[r.status] || "badge-pending"}">${r.status}</span></td>
       <td>${r.responsiblePerson || "-"}</td>
       <td><a class="btn btn-outline" href="damage-report-view.html?id=${r.id}" style="padding:5px 10px;font-size:0.78rem;">ดู</a></td>
-    </tr>`).join("") : `<tr><td colspan="9" style="text-align:center;color:#999;">ไม่พบรายงานที่ตรงกับตัวกรอง</td></tr>`;
+    </tr>`).join("");
   tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
     tr.addEventListener("click", (e) => {
       if (e.target.closest("a")) return;
@@ -158,7 +220,7 @@ function applyFilters() {
 }
 
 async function load() {
-  document.getElementById("rows").innerHTML = `<tr><td colspan="9" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
+  document.getElementById("rows").innerHTML = `<tr><td colspan="9"><div class="skel-row skeleton" style="max-width:100%;"></div><div class="skel-row skeleton" style="max-width:96%;"></div><div class="skel-row skeleton" style="max-width:90%;"></div></td></tr>`;
   all = await listReports();
   const zoneSelect = document.getElementById("ft-zone");
   const zones = [...new Set(all.map((r) => r.zone).filter(Boolean))].sort();
@@ -176,9 +238,22 @@ document.getElementById("btn-clear-filter").addEventListener("click", () => {
 });
 document.getElementById("btn-refresh").addEventListener("click", load);
 document.getElementById("btn-export-csv").addEventListener("click", () => {
-  downloadCSV(`damage-reports-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(filtered));
+  const filename = `damage-reports-${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadCSV(filename, toCSV(filtered));
+  toast({ title: "ส่งออก CSV สำเร็จ", desc: `${filtered.length} รายการ · ${filename}` });
+});
+document.getElementById("trend-period").addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-period]");
+  if (!btn) return;
+  trendPeriod = btn.dataset.period;
+  document.querySelectorAll("#trend-period [data-period]").forEach((b) => {
+    b.classList.toggle("btn-primary", b === btn);
+    b.classList.toggle("btn-outline", b !== btn);
+  });
+  renderTrend();
 });
 
 await load();
+renderNotifications(computeNotifications(all));
 </script>
 </html>
