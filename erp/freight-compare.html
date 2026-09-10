@@ -37,8 +37,8 @@ main.innerHTML = `
       <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
     </div>
     <div class="field"><label>SKU (ถ้ามี — จำเป็นสำหรับ Business Idea / Nim-express)</label><input id="in-sku" /></div>
-    <div id="type-field" class="field" hidden><label>ประเภทการจัดส่ง (Type) สำหรับ Business Idea — SKU นี้จัดส่งได้มากกว่า 1 แบบ ราคาต่างกัน</label><select id="in-type"></select></div>
     <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) สำหรับ Business Idea</label><select id="in-bracket"></select></div>
+    <div id="type-note" style="font-size:0.8rem;color:#888;margin:-6px 0 10px;" hidden></div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
       <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
       <div class="field"><label>ยาว (ซม.)</label><input id="in-length" type="number" step="0.1" /></div>
@@ -57,27 +57,21 @@ main.innerHTML = `
 
 document.getElementById("in-shipdate").value = new Date().toISOString().slice(0, 10);
 
+// Business Idea's shipping "Type" (e.g. a mattress flat/unfolded vs. boxed — genuinely
+// different prices) isn't something to pick once and hide the alternative: it's another
+// priced option, exactly like DHL's separate Parcel/Bulky services already show as two
+// rows. So Compare auto-expands every variant type into its own row instead of making the
+// user choose one upfront. Verified against the real file: every SKU's variants share the
+// same set of weight-bracket labels, so one shared bracket selector is safe.
 let currentSkuGrid = null;
-
-function updateBracketOptions() {
-  const bracketField = document.getElementById("bracket-field");
-  const bracketSel = document.getElementById("in-bracket");
-  if (!currentSkuGrid) { bracketField.hidden = true; return; }
-  const chosenType = document.getElementById("in-type").value || currentSkuGrid.variants[0].type;
-  const variant = currentSkuGrid.variants.find((v) => v.type === chosenType) || currentSkuGrid.variants[0];
-  const brackets = [...new Set(variant.cells.map((c) => c.bracketLabel))];
-  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
-  bracketField.hidden = brackets.length === 0;
-}
-document.getElementById("in-type").addEventListener("change", updateBracketOptions);
 
 document.getElementById("in-sku").addEventListener("change", async () => {
   const sku = document.getElementById("in-sku").value.trim();
-  const typeField = document.getElementById("type-field");
-  const typeSel = document.getElementById("in-type");
   const bracketField = document.getElementById("bracket-field");
+  const bracketSel = document.getElementById("in-bracket");
+  const typeNote = document.getElementById("type-note");
   currentSkuGrid = null;
-  if (!sku) { typeField.hidden = true; bracketField.hidden = true; return; }
+  if (!sku) { bracketField.hidden = true; typeNote.hidden = true; return; }
   const dim = await getSkuDimension(sku);
   if (dim) {
     if (dim.weightKg != null) document.getElementById("in-weight").value = dim.weightKg;
@@ -86,16 +80,17 @@ document.getElementById("in-sku").addEventListener("change", async () => {
     if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
   }
   const grid = await getSkuGrid(sku);
-  if (!grid || !grid.variants?.length) { typeField.hidden = true; bracketField.hidden = true; return; }
+  if (!grid || !grid.variants?.length) { bracketField.hidden = true; typeNote.hidden = true; return; }
   currentSkuGrid = grid;
+  const brackets = [...new Set(grid.variants[0].cells.map((c) => c.bracketLabel))];
+  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
+  bracketField.hidden = brackets.length === 0;
   if (grid.variants.length > 1) {
-    typeField.hidden = false;
-    typeSel.innerHTML = grid.variants.map((v) => `<option value="${v.type}">${v.type}</option>`).join("");
+    typeNote.hidden = false;
+    typeNote.textContent = `ℹ️ SKU นี้จัดส่งได้ ${grid.variants.length} แบบ (${grid.variants.map((v) => v.type).join(", ")}) — จะแสดงราคาของ Business Idea แยกทุกแบบด้านล่าง`;
   } else {
-    typeField.hidden = true;
-    typeSel.innerHTML = `<option value="${grid.variants[0].type}">${grid.variants[0].type}</option>`;
+    typeNote.hidden = true;
   }
-  updateBracketOptions();
 });
 
 function buildBaseInput() {
@@ -103,7 +98,6 @@ function buildBaseInput() {
     province: document.getElementById("in-province").value.trim(),
     postalCode: document.getElementById("in-postal").value.trim(),
     sku: document.getElementById("in-sku").value.trim() || null,
-    variantType: document.getElementById("in-type").value || null,
     weightBracketLabel: document.getElementById("in-bracket").value || null,
     actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
     lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,
@@ -158,6 +152,17 @@ document.getElementById("btn-compare").addEventListener("click", async () => {
   try {
     const jobs = [];
     for (const c of carriers.filter((c) => c.active !== false)) {
+      if (c.pricingStrategy === "SKU_ZONE_GRID" && currentSkuGrid?.variants?.length) {
+        // One row per shipping Type — each is a genuinely different price, not a detail to
+        // collapse into one "best guess" row.
+        for (const v of currentSkuGrid.variants) {
+          jobs.push({
+            carrier: c, service: null, label: `${c.name || c.id} (${v.type})`,
+            input: { ...base, carrierId: c.id, serviceId: null, variantType: v.type },
+          });
+        }
+        continue;
+      }
       const services = c.services?.length ? c.services : [null];
       for (const svc of services) {
         jobs.push({ carrier: c, service: svc, input: { ...base, carrierId: c.id, serviceId: svc?.id || null } });
@@ -173,7 +178,7 @@ document.getElementById("btn-compare").addEventListener("click", async () => {
     }
     const results = await Promise.all(jobs.map((j) => calculateAndOptionallySave(j.input, profile, { save: false })));
     const rows = jobs.map((j, i) => ({
-      label: `${j.carrier.name || j.carrier.id}${j.service ? " — " + j.service.name : ""}`,
+      label: j.label || `${j.carrier.name || j.carrier.id}${j.service ? " — " + j.service.name : ""}`,
       result: results[i].result,
     }));
     renderResults(rows);
