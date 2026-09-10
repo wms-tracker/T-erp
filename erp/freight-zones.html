@@ -103,14 +103,14 @@ function renderRows() {
   const tbody = document.getElementById("rows");
   document.getElementById("count-label").textContent = `พบ ${filtered.length} รายการ`;
   if (!filtered.length) { tbody.innerHTML = `<tr><td colspan="7">${emptyStateHTML({ icon: "📍", title: "ไม่พบข้อมูล" })}</td></tr>`; return; }
-  tbody.innerHTML = filtered.slice(0, 300).map((e) => `
+  tbody.innerHTML = filtered.map((e) => `
     <tr data-id="${e.postalCode}" style="cursor:pointer;">
       <td class="mono">${e.postalCode}</td><td>${e.province || "-"}</td>
       <td>${e.carrierZones?.businessIdea || "-"}</td><td>${e.carrierZones?.best || "-"}</td>
       <td>${e.carrierZones?.flash || "-"} / ${e.carrierZones?.dhl || "-"} / ${e.carrierZones?.kerry || "-"}</td>
       <td>${(e.remoteAreaByCarrier?.best || e.remoteAreaByCarrier?.dhl || e.remoteAreaByCarrier?.kerry) ? "🔴 ใช่" : "-"}</td>
       <td><button class="btn btn-outline btn-edit-zone" style="padding:4px 10px;font-size:0.76rem;">แก้ไข</button></td>
-    </tr>`).join("") + (filtered.length > 300 ? `<tr><td colspan="7" style="text-align:center;color:#999;">แสดง 300 จาก ${filtered.length} รายการ — พิมพ์คำค้นเพื่อกรอง</td></tr>` : "");
+    </tr>`).join("");
   tbody.querySelectorAll(".btn-edit-zone").forEach((btn) => btn.addEventListener("click", (e) => {
     const id = e.target.closest("tr").dataset.id;
     openEdit(filtered.find((x) => x.postalCode === id));
