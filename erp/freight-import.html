@@ -39,6 +39,7 @@ main.innerHTML = `
     <div class="section-title">ขั้นตอนที่ 2 — ตรวจสอบก่อนนำเข้า (Preview / Validate)</div>
     <div class="grid-cards" style="grid-template-columns:repeat(4,1fr);" id="summary-grid"></div>
     <div id="warnings-box" style="margin-top:14px;"></div>
+    <div id="bi-conflicts-box"></div>
     <div class="field" style="max-width:260px;margin-top:14px;">
       <label>วันที่เริ่มมีผล (Effective From) ของ Rate ชุดนี้</label>
       <input type="date" id="effective-from" />
@@ -67,7 +68,8 @@ function renderPreview() {
     summaryCard("📐", s.nimSizeClasses, "Nim-express Size Class") +
     summaryCard("🏷", s.skuDimensionCount, "SKU ที่มีขนาด/น้ำหนัก") +
     summaryCard("📍", s.zoneMapEntries, "รหัสไปรษณีย์ใน Zone Map") +
-    summaryCard(s.zoneMapConflicts ? "🔴" : "🟢", s.zoneMapConflicts, "Zone ที่ข้อมูลขัดแย้งกัน (ไม่ Import อัตโนมัติ)") +
+    summaryCard(s.zoneMapConflicts ? "🔴" : "🟢", s.zoneMapConflicts, "Zone ที่ข้อมูลขัดแย้งกัน") +
+    summaryCard(s.businessIdeaConflicts ? "🔴" : "🟢", s.businessIdeaConflicts, "ราคา Business Idea ที่ขัดแย้งกันในไฟล์") +
     summaryCard(s.parseWarnings ? "🟠" : "🟢", s.parseWarnings, "คำเตือนระหว่างอ่านไฟล์");
 
   const box = document.getElementById("warnings-box");
@@ -78,6 +80,26 @@ function renderPreview() {
   box.innerHTML = items.length
     ? `<div class="card" style="background:#fff8e1;border:1px solid #ffe4a3;">${items.map((i) => `<div style="font-size:0.82rem;margin-bottom:4px;">${i}</div>`).join("")}</div>`
     : `<div style="font-size:0.82rem;color:#1a8a3a;">✅ ไม่พบปัญหาจากการอ่านไฟล์</div>`;
+
+  const biBox = document.getElementById("bi-conflicts-box");
+  const biConflicts = parsed.businessIdeaGrid.conflicts;
+  if (biConflicts.length) {
+    const distinctSkus = new Set(biConflicts.map((c) => c.sku)).size;
+    biBox.innerHTML = `
+      <div class="card" style="background:#fdecea;border:1px solid #f6c6c2;margin-top:10px;">
+        <div style="font-weight:700;margin-bottom:6px;">🔴 พบราคาขัดแย้งกันในไฟล์ Business Idea — ${biConflicts.length} จุด (${distinctSkus} SKU)</div>
+        <div style="font-size:0.82rem;margin-bottom:8px;">
+          หมายถึง SKU/ประเภทเดียวกัน ช่วงน้ำหนัก+โซนเดียวกัน แต่มีราคาต่างกันในไฟล์ (เช่น พิมพ์ผิด หรือมีราคาเก่า/ใหม่ปนกัน)
+          ระบบ<strong>จะไม่นำเข้าราคาของจุดที่ขัดแย้งกัน</strong> (เพื่อไม่ให้เดาราคาผิด) — SKU เหล่านี้จะคำนวณไม่ได้จนกว่าจะแก้ไขไฟล์ต้นฉบับแล้ว Import ใหม่
+        </div>
+        <div style="font-size:0.78rem;font-family:monospace;max-height:180px;overflow-y:auto;">
+          ${biConflicts.slice(0, 30).map((c) => `SKU ${c.sku} / ${c.type} / ${c.bracketLabel} / ${c.zone}`).join("<br>")}
+          ${biConflicts.length > 30 ? `<br>...และอีก ${biConflicts.length - 30} จุด` : ""}
+        </div>
+      </div>`;
+  } else {
+    biBox.innerHTML = "";
+  }
 
   document.getElementById("effective-from").value = new Date().toISOString().slice(0, 10);
   document.getElementById("preview-card").hidden = false;

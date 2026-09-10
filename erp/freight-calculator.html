@@ -45,6 +45,7 @@ main.innerHTML = `
         <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
       </div>
       <div class="field"><label>SKU (ถ้ามี — จะดึงขนาด/น้ำหนักอัตโนมัติ)</label><input id="in-sku" /></div>
+      <div id="type-field" class="field" hidden><label>ประเภทการจัดส่ง (Type) — SKU นี้จัดส่งได้มากกว่า 1 แบบ ราคาต่างกัน ต้องเลือกเอง</label><select id="in-type"></select></div>
       <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) — Carrier นี้กำหนดราคาต่อ SKU ระบบไม่ทราบเกณฑ์อัตโนมัติ ต้องเลือกเอง</label><select id="in-bracket"></select></div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
         <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
@@ -137,6 +138,7 @@ function buildInput() {
     province: document.getElementById("in-province").value.trim(),
     postalCode: document.getElementById("in-postal").value.trim(),
     sku: document.getElementById("in-sku").value.trim() || null,
+    variantType: document.getElementById("in-type").value || null,
     weightBracketLabel: document.getElementById("in-bracket").value || null,
     actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
     lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,
@@ -158,20 +160,50 @@ async function onCarrierChange() {
     svcField.hidden = true;
     svcSel.innerHTML = "";
   }
-  await maybeLoadSkuBracket(carrier);
+  await maybeLoadSkuVariant(carrier);
 }
 
-async function maybeLoadSkuBracket(carrier) {
+let currentSkuGrid = null;
+
+// Business Idea prices by (SKU, Type, Weight Bracket) — Type first (e.g. a mattress ships
+// flat/unfolded vs. boxed at very different prices), then Bracket within that Type. Neither
+// is auto-picked; the system doesn't know the rule, so the user always chooses (spec §15).
+async function maybeLoadSkuVariant(carrier) {
+  const typeField = document.getElementById("type-field");
+  const typeSel = document.getElementById("in-type");
+  const bracketField = document.getElementById("bracket-field");
+  const sku = document.getElementById("in-sku").value.trim();
+  currentSkuGrid = null;
+  if (!carrier || carrier.pricingStrategy !== "SKU_ZONE_GRID" || !sku) {
+    typeField.hidden = true; bracketField.hidden = true;
+    return;
+  }
+  const grid = await getSkuGrid(sku);
+  if (!grid || !grid.variants?.length) { typeField.hidden = true; bracketField.hidden = true; return; }
+  currentSkuGrid = grid;
+
+  if (grid.variants.length > 1) {
+    typeField.hidden = false;
+    typeSel.innerHTML = grid.variants.map((v) => `<option value="${v.type}">${v.type}</option>`).join("");
+  } else {
+    typeField.hidden = true;
+    typeSel.innerHTML = `<option value="${grid.variants[0].type}">${grid.variants[0].type}</option>`;
+  }
+  updateBracketOptions();
+}
+
+function updateBracketOptions() {
   const bracketField = document.getElementById("bracket-field");
   const bracketSel = document.getElementById("in-bracket");
-  const sku = document.getElementById("in-sku").value.trim();
-  if (!carrier || carrier.pricingStrategy !== "SKU_ZONE_GRID" || !sku) { bracketField.hidden = true; return; }
-  const grid = await getSkuGrid(sku);
-  if (!grid) { bracketField.hidden = true; return; }
-  const brackets = [...new Set((grid.cells || []).map((c) => c.bracketLabel))];
+  if (!currentSkuGrid) { bracketField.hidden = true; return; }
+  const chosenType = document.getElementById("in-type").value || currentSkuGrid.variants[0].type;
+  const variant = currentSkuGrid.variants.find((v) => v.type === chosenType) || currentSkuGrid.variants[0];
+  const brackets = [...new Set(variant.cells.map((c) => c.bracketLabel))];
   bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
   bracketField.hidden = brackets.length === 0;
 }
+
+document.getElementById("in-type").addEventListener("change", updateBracketOptions);
 
 document.getElementById("in-sku").addEventListener("change", async () => {
   const sku = document.getElementById("in-sku").value.trim();
@@ -185,7 +217,7 @@ document.getElementById("in-sku").addEventListener("change", async () => {
       if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
     }
   }
-  await maybeLoadSkuBracket(carrier);
+  await maybeLoadSkuVariant(carrier);
 });
 
 document.getElementById("in-carrier").addEventListener("change", onCarrierChange);

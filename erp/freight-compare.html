@@ -37,6 +37,7 @@ main.innerHTML = `
       <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
     </div>
     <div class="field"><label>SKU (ถ้ามี — จำเป็นสำหรับ Business Idea / Nim-express)</label><input id="in-sku" /></div>
+    <div id="type-field" class="field" hidden><label>ประเภทการจัดส่ง (Type) สำหรับ Business Idea — SKU นี้จัดส่งได้มากกว่า 1 แบบ ราคาต่างกัน</label><select id="in-type"></select></div>
     <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) สำหรับ Business Idea</label><select id="in-bracket"></select></div>
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
       <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
@@ -56,11 +57,27 @@ main.innerHTML = `
 
 document.getElementById("in-shipdate").value = new Date().toISOString().slice(0, 10);
 
-document.getElementById("in-sku").addEventListener("change", async () => {
-  const sku = document.getElementById("in-sku").value.trim();
+let currentSkuGrid = null;
+
+function updateBracketOptions() {
   const bracketField = document.getElementById("bracket-field");
   const bracketSel = document.getElementById("in-bracket");
-  if (!sku) { bracketField.hidden = true; return; }
+  if (!currentSkuGrid) { bracketField.hidden = true; return; }
+  const chosenType = document.getElementById("in-type").value || currentSkuGrid.variants[0].type;
+  const variant = currentSkuGrid.variants.find((v) => v.type === chosenType) || currentSkuGrid.variants[0];
+  const brackets = [...new Set(variant.cells.map((c) => c.bracketLabel))];
+  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
+  bracketField.hidden = brackets.length === 0;
+}
+document.getElementById("in-type").addEventListener("change", updateBracketOptions);
+
+document.getElementById("in-sku").addEventListener("change", async () => {
+  const sku = document.getElementById("in-sku").value.trim();
+  const typeField = document.getElementById("type-field");
+  const typeSel = document.getElementById("in-type");
+  const bracketField = document.getElementById("bracket-field");
+  currentSkuGrid = null;
+  if (!sku) { typeField.hidden = true; bracketField.hidden = true; return; }
   const dim = await getSkuDimension(sku);
   if (dim) {
     if (dim.weightKg != null) document.getElementById("in-weight").value = dim.weightKg;
@@ -69,9 +86,16 @@ document.getElementById("in-sku").addEventListener("change", async () => {
     if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
   }
   const grid = await getSkuGrid(sku);
-  const brackets = grid ? [...new Set((grid.cells || []).map((c) => c.bracketLabel))] : [];
-  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
-  bracketField.hidden = brackets.length === 0;
+  if (!grid || !grid.variants?.length) { typeField.hidden = true; bracketField.hidden = true; return; }
+  currentSkuGrid = grid;
+  if (grid.variants.length > 1) {
+    typeField.hidden = false;
+    typeSel.innerHTML = grid.variants.map((v) => `<option value="${v.type}">${v.type}</option>`).join("");
+  } else {
+    typeField.hidden = true;
+    typeSel.innerHTML = `<option value="${grid.variants[0].type}">${grid.variants[0].type}</option>`;
+  }
+  updateBracketOptions();
 });
 
 function buildBaseInput() {
@@ -79,6 +103,7 @@ function buildBaseInput() {
     province: document.getElementById("in-province").value.trim(),
     postalCode: document.getElementById("in-postal").value.trim(),
     sku: document.getElementById("in-sku").value.trim() || null,
+    variantType: document.getElementById("in-type").value || null,
     weightBracketLabel: document.getElementById("in-bracket").value || null,
     actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
     lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,

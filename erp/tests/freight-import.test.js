@@ -54,12 +54,56 @@ describe("parseBusinessIdeaSheet — bracket columns discovered from the header,
     ["", "", "", "", "", "BKK-metro", "Central", "North+Isaan", "South", "Special", "BKK-metro", "Central", "North+Isaan", "South", "Special"],
     ["EMS0000000077", "Emmas Mattress", "ที่นอนกาง", "107 x 201 x 30", 30.4, 910, 910, 1130, 1330, 1540, 956, 956, 1187, 1397, 1617],
   ];
-  test("finds both bracket groups and all 10 cells for the one SKU row", () => {
-    const out = parseBusinessIdeaSheet(rows);
-    assert.equal(out.length, 1);
-    assert.equal(out[0].cells.length, 10);
-    const cell = out[0].cells.find((c) => c.bracketLabel === "30.00-31.99" && c.zone === "Central");
+  test("finds both bracket groups and all 10 cells for the one SKU, in a single variant (one Type)", () => {
+    const { entries, conflicts } = parseBusinessIdeaSheet(rows);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].variants.length, 1);
+    assert.equal(entries[0].variants[0].cells.length, 10);
+    assert.equal(conflicts.length, 0);
+    const cell = entries[0].variants[0].cells.find((c) => c.bracketLabel === "30.00-31.99" && c.zone === "Central");
     assert.equal(cell.rate, 956);
+  });
+
+  test("the same SKU repeated under a different Type becomes a second variant, not an overwrite (real sheet shape: mattress flat vs. boxed)", () => {
+    const twoTypeRows = [
+      ["SKU", "Name", "Type", "Size", "Weight", "20.00-21.99", "", "", "", ""],
+      ["", "", "", "", "", "BKK", "", "", "", ""],
+      ["AHM0000000007", "เตียง", "ที่นอนกาง", "105 x 198 x 20", 20.2, 560],
+      ["AHM0000000007", "เตียง", "สินค้าอยู่ในกล่อง", "105 x 198 x 20", 20.2, 135],
+    ];
+    const { entries } = parseBusinessIdeaSheet(twoTypeRows);
+    assert.equal(entries.length, 1); // one SKU
+    assert.equal(entries[0].variants.length, 2); // two shipping types
+    const rates = entries[0].variants.map((v) => v.cells[0].rate).sort((a, b) => a - b);
+    assert.deepEqual(rates, [135, 560]); // both prices preserved, neither overwrote the other
+  });
+
+  test("the same (SKU, Type) repeated with a genuinely conflicting rate for the same cell is dropped and reported, not guessed", () => {
+    const conflictRows = [
+      ["SKU", "Name", "Type", "Size", "Weight", "20.00-21.99", "", "", "", ""],
+      ["", "", "", "", "", "BKK", "", "", "", ""],
+      ["EMS0000000030", "Topper", "ที่นอนกาง", "182 x 201 x 7.5", 32.52, 270],
+      ["EMS0000000030", "Topper", "ที่นอนกาง", "182 x 201 x 7.5", 32.52, 300], // same SKU+Type+bracket+zone, different rate
+    ];
+    const { entries, conflicts } = parseBusinessIdeaSheet(conflictRows);
+    assert.equal(conflicts.length, 1);
+    assert.equal(conflicts[0].sku, "EMS0000000030");
+    // the conflicting cell itself is dropped — never silently resolved to either 270 or 300
+    assert.equal(entries[0].variants[0].cells.length, 0);
+  });
+
+  test("a non-conflicting cell for the same (SKU, Type) survives even when another cell in the same pair conflicts", () => {
+    const rows2 = [
+      ["SKU", "Name", "Type", "Size", "Weight", "20.00-21.99", "", "", "", "", "22.00-23.99", "", "", "", ""],
+      ["", "", "", "", "", "BKK", "", "", "", "", "BKK", "", "", "", ""],
+      ["X1", "Item", "Type A", "10x10x10", 1, 100, "", "", "", "", 200],
+      ["X1", "Item", "Type A", "10x10x10", 1, 999, "", "", "", "", 200], // first bracket conflicts, second agrees
+    ];
+    const { entries, conflicts } = parseBusinessIdeaSheet(rows2);
+    assert.equal(conflicts.length, 1);
+    assert.equal(entries[0].variants[0].cells.length, 1);
+    assert.equal(entries[0].variants[0].cells[0].bracketLabel, "22.00-23.99");
+    assert.equal(entries[0].variants[0].cells[0].rate, 200);
   });
 });
 

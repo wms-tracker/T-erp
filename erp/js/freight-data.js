@@ -113,9 +113,16 @@ export async function saveSkuGrid(sku, data, user) {
   await setDoc(doc(db, "freightSkuRateGrids", sku), { ...data, sku, updatedBy: user.uid, updatedAt: serverTimestamp() }, { merge: true });
 }
 
+// gridDoc holds one `variants` entry per shipping Type (see freight-import.js's
+// parseBusinessIdeaSheet for why the same SKU can price differently by Type) — flatten all
+// of them into one array of cells, each tagged with its own variant `type`.
 function flattenSkuGrid(gridDoc) {
   if (!gridDoc) return [];
-  return (gridDoc.cells || []).map((c) => ({ sku: gridDoc.sku, ...c }));
+  const out = [];
+  for (const v of gridDoc.variants || []) {
+    for (const c of v.cells || []) out.push({ sku: gridDoc.sku, type: v.type, ...c });
+  }
+  return out;
 }
 
 // ---------- Size Class Rates (Nim-express) ----------

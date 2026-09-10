@@ -128,13 +128,25 @@ export function lookupWeightZoneRate(rateCards, { carrierId, serviceId, zoneKey,
   return candidates[0];
 }
 
-// skuGrid: [{sku, zone, bracketLabel, bracketMin, bracketMax, rate, rateVersion, effectiveFrom, effectiveTo}]
-export function lookupSkuGridRate(skuGrid, { sku, zoneKey, bracketLabel, shipDate }) {
+// skuGrid: [{sku, type, zone, bracketLabel, rate, rateVersion, effectiveFrom, effectiveTo}]
+// `type` is the shipping variant (e.g. a mattress flat/unfolded vs. boxed — genuinely
+// different prices). When a SKU has more than one type, the caller must pick one —
+// exactly like the weight-bracket case below, this is surfaced rather than guessed.
+export function lookupSkuGridRate(skuGrid, { sku, zoneKey, bracketLabel, type, shipDate }) {
   const rowsForSku = (skuGrid || []).filter((r) => r.sku === sku && isEffective(r, shipDate));
-  if (!bracketLabel) {
-    return { needsBracket: true, availableBrackets: [...new Set(rowsForSku.map((r) => r.bracketLabel))] };
+  if (!rowsForSku.length) return null;
+
+  const availableTypes = [...new Set(rowsForSku.map((r) => r.type))];
+  let rowsForType = rowsForSku;
+  if (availableTypes.length > 1) {
+    if (!type) return { needsType: true, availableTypes };
+    rowsForType = rowsForSku.filter((r) => r.type === type);
   }
-  const row = rowsForSku.find((r) => r.bracketLabel === bracketLabel && r.zone === zoneKey);
+
+  if (!bracketLabel) {
+    return { needsBracket: true, availableBrackets: [...new Set(rowsForType.map((r) => r.bracketLabel))] };
+  }
+  const row = rowsForType.find((r) => r.bracketLabel === bracketLabel && r.zone === zoneKey);
   return row ? { rate: row.rate, rateVersion: row.rateVersion } : null;
 }
 
@@ -351,10 +363,17 @@ export function calculateFreight(input, masterData) {
       addTrace("ค้นหาอัตราค่าขนส่ง (Rate Lookup)", "Carrier นี้คิดราคาเฉพาะ SKU — ต้องระบุ SKU");
       return blank(trace, STATUS.MANUAL_REVIEW, { actualWeight: actualWeightKg, chargeableWeight, zone: zone.zoneKey, zoneKey: zone.zoneKey, errors: [{ code: "SKU_REQUIRED", message: "Carrier นี้ต้องระบุ SKU จึงจะค้นหาราคาได้" }] });
     }
-    const result = lookupSkuGridRate(masterData.skuGrid, { sku: input.sku, zoneKey: zone.zoneKey, bracketLabel: input.weightBracketLabel, shipDate });
+    const result = lookupSkuGridRate(masterData.skuGrid, { sku: input.sku, zoneKey: zone.zoneKey, bracketLabel: input.weightBracketLabel, type: input.variantType, shipDate });
     if (!result) {
       addTrace("ค้นหาอัตราค่าขนส่ง (Rate Lookup)", `ไม่พบ Rate สำหรับ SKU=${input.sku}, Bracket=${input.weightBracketLabel}, Zone=${zone.zoneKey}`);
       return blank(trace, STATUS.RATE_NOT_FOUND, { actualWeight: actualWeightKg, chargeableWeight, zone: zone.zoneKey, zoneKey: zone.zoneKey, errors: [{ code: "RATE_NOT_FOUND", message: "ไม่พบ Rate ของ SKU/ช่วงตัวเลข/โซนนี้" }] });
+    }
+    if (result.needsType) {
+      addTrace("เลือกประเภทการจัดส่ง (Type)", `SKU นี้จัดส่งได้มากกว่า 1 แบบ ซึ่งราคาต่างกัน — ต้องเลือกเอง จากตัวเลือก: ${result.availableTypes.join(", ")}`);
+      return blank(trace, STATUS.MANUAL_REVIEW, {
+        actualWeight: actualWeightKg, chargeableWeight, zone: zone.zoneKey, zoneKey: zone.zoneKey,
+        errors: [{ code: "TYPE_REQUIRED", message: "กรุณาเลือกประเภทการจัดส่ง (Type) สำหรับ SKU นี้ — ระบบไม่เดาให้", availableTypes: result.availableTypes }],
+      });
     }
     if (result.needsBracket) {
       addTrace("เลือกช่วงตัวเลข (Weight Bracket)", `Carrier นี้ตั้งราคาต่อ SKU แยกตามช่วงตัวเลข — ระบบไม่ทราบเกณฑ์การเลือกอัตโนมัติ ต้องเลือกเอง จากตัวเลือก: ${result.availableBrackets.join(", ")}`);

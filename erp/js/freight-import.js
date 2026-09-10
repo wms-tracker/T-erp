@@ -85,6 +85,15 @@ export function parseKexSheet(rows) {
 // every bracket group at column>=5), row1 = sub-header naming the 5 zone columns of each
 // bracket group, row2+ = data. Bracket columns are discovered from row0 itself — never
 // hardcoded — so this keeps working if the workbook adds/removes bracket columns.
+//
+// The sheet is NOT one row per SKU: the same SKU repeats once per shipping "Type" (e.g. a
+// mattress shipped flat/unfolded vs. boxed/compressed have genuinely different prices), so
+// rows are grouped by (sku, type) first — never just sku — or a second row for the same SKU
+// would silently overwrite the first's prices. A handful of (sku, type) pairs STILL repeat
+// with a genuinely conflicting rate for the very same (bracket, zone) cell — that's a real
+// data-quality issue in the source sheet, not something to silently resolve, so those
+// specific cells are dropped and reported in `conflicts` rather than guessed; any
+// non-conflicting cells for that same SKU/type are kept.
 export function parseBusinessIdeaSheet(rows) {
   const headerRow = rows[0] || [];
   const subHeaderRow = rows[1] || [];
@@ -92,11 +101,14 @@ export function parseBusinessIdeaSheet(rows) {
   for (let c = 5; c < headerRow.length; c++) {
     if (!isBlank(headerRow[c])) brackets.push({ label: String(headerRow[c]).trim(), col: c });
   }
-  const out = [];
+
+  const bySkuType = new Map(); // JSON.stringify([sku, type]) -> { sku, name, type, size, weightKg, cellRows: [] }
   for (let r = 2; r < rows.length; r++) {
     const row = rows[r] || [];
     const sku = row[0];
     if (isBlank(sku)) continue;
+    const skuTrimmed = String(sku).trim();
+    const type = row[2] || "";
     const cells = [];
     for (const b of brackets) {
       for (let j = 0; j < 5; j++) {
@@ -107,12 +119,40 @@ export function parseBusinessIdeaSheet(rows) {
         }
       }
     }
-    out.push({
-      sku: String(sku).trim(), name: row[1] || "", type: row[2] || "",
-      size: row[3] || "", weightKg: num(row[4]), cells,
-    });
+    const key = JSON.stringify([skuTrimmed, type]);
+    if (!bySkuType.has(key)) {
+      bySkuType.set(key, { sku: skuTrimmed, name: row[1] || "", type, size: row[3] || "", weightKg: num(row[4]), cellRows: [] });
+    }
+    bySkuType.get(key).cellRows.push(cells);
   }
-  return out;
+
+  const conflicts = [];
+  const variantsBySku = new Map(); // sku -> { sku, name, variants: [] }
+  for (const { sku, name, type, size, weightKg, cellRows } of bySkuType.values()) {
+    let mergedCells;
+    if (cellRows.length === 1) {
+      mergedCells = cellRows[0];
+    } else {
+      const byCellKey = new Map(); // JSON.stringify([bracketLabel, zone]) -> rate | "CONFLICT"
+      for (const cells of cellRows) {
+        for (const c of cells) {
+          const cellKey = JSON.stringify([c.bracketLabel, c.zone]);
+          if (byCellKey.has(cellKey) && byCellKey.get(cellKey) !== c.rate) byCellKey.set(cellKey, "CONFLICT");
+          else if (!byCellKey.has(cellKey)) byCellKey.set(cellKey, c.rate);
+        }
+      }
+      mergedCells = [];
+      for (const [cellKey, rate] of byCellKey) {
+        const [bracketLabel, zone] = JSON.parse(cellKey);
+        if (rate === "CONFLICT") { conflicts.push({ sku, type, bracketLabel, zone }); continue; }
+        mergedCells.push({ bracketLabel, zone, rate });
+      }
+    }
+    if (!variantsBySku.has(sku)) variantsBySku.set(sku, { sku, name, variants: [] });
+    variantsBySku.get(sku).variants.push({ type, size, weightKg, cells: mergedCells });
+  }
+
+  return { entries: [...variantsBySku.values()], conflicts };
 }
 
 // ---------- Nim-express: size-class -> price ----------
@@ -323,10 +363,14 @@ export function parseWorkbook(sheets) {
 }
 
 export function summarizeParsedWorkbook(parsed) {
+  const businessIdeaCells = parsed.businessIdeaGrid.entries.reduce(
+    (a, e) => a + e.variants.reduce((b, v) => b + v.cells.length, 0), 0
+  );
   return {
     rateCardRows: parsed.rateCards.length,
-    businessIdeaSkus: parsed.businessIdeaGrid.length,
-    businessIdeaCells: parsed.businessIdeaGrid.reduce((a, r) => a + r.cells.length, 0),
+    businessIdeaSkus: parsed.businessIdeaGrid.entries.length,
+    businessIdeaCells,
+    businessIdeaConflicts: parsed.businessIdeaGrid.conflicts.length,
     nimSizeClasses: parsed.nimRates.length,
     skuNimCount: parsed.skuNim.length,
     productDimCount: parsed.productDims.length,

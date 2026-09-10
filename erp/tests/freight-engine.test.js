@@ -148,6 +148,26 @@ describe("SKU zone-grid lookup (Business Idea) — never auto-picks a bracket", 
     const r = lookupSkuGridRate(skuGrid, { sku: "EMS0000000077", zoneKey: "กรุงเทพฯ ปริมณฑล", bracketLabel: "30.00-31.99" });
     assert.equal(r.rate, 956);
   });
+  test("unknown SKU returns null (not a needsBracket with an empty list)", () => {
+    const r = lookupSkuGridRate(skuGrid, { sku: "NOPE", zoneKey: "กรุงเทพฯ ปริมณฑล" });
+    assert.equal(r, null);
+  });
+
+  // A SKU that ships two different ways (e.g. a mattress flat/unfolded vs. boxed) prices
+  // differently per way — the real Shipping Price.xlsx has exactly this shape.
+  const multiTypeGrid = [
+    { sku: "AHM0000000007", type: "ที่นอนกาง", zone: "BKK", bracketLabel: "20.00-21.99", rate: 560 },
+    { sku: "AHM0000000007", type: "สินค้าอยู่ในกล่อง", zone: "BKK", bracketLabel: "20.00-21.99", rate: 135 },
+  ];
+  test("a SKU with more than one shipping type needs the type selected before it'll even ask for a bracket", () => {
+    const r = lookupSkuGridRate(multiTypeGrid, { sku: "AHM0000000007", zoneKey: "BKK" });
+    assert.equal(r.needsType, true);
+    assert.deepEqual(r.availableTypes.sort(), ["สินค้าอยู่ในกล่อง", "ที่นอนกาง"].sort());
+  });
+  test("with both type and bracket given, resolves the exact rate for that type", () => {
+    const r = lookupSkuGridRate(multiTypeGrid, { sku: "AHM0000000007", zoneKey: "BKK", type: "สินค้าอยู่ในกล่อง", bracketLabel: "20.00-21.99" });
+    assert.equal(r.rate, 135);
+  });
 });
 
 describe("size-class lookup (Nim-express)", () => {
@@ -262,6 +282,19 @@ describe("calculateFreight — full pipeline", () => {
     const result = calculateFreight({ carrierId: "bi", sku: "EMS0000000077", postalCode: "10100", province: "กรุงเทพฯ", actualWeightKg: 30.4, shipDate: "2026-03-01" }, masterData({ carrier: skuCarrier, zoneMapEntry, skuGrid, rateCards: [] }));
     assert.equal(result.status, STATUS.MANUAL_REVIEW);
     assert.equal(result.errors[0].availableBrackets.length, 1);
+  });
+
+  test("SKU zone-grid carrier with multiple shipping types stops for MANUAL_REVIEW asking for the type first", () => {
+    const skuCarrier = { id: "bi", name: "Business Idea", pricingStrategy: "SKU_ZONE_GRID", weightRule: "SKU_GRID", roundingRule: { mode: "NONE" } };
+    const skuGrid = [
+      { sku: "AHM0000000007", type: "ที่นอนกาง", zone: "BI_ZONE", bracketLabel: "20.00-21.99", rate: 560 },
+      { sku: "AHM0000000007", type: "สินค้าอยู่ในกล่อง", zone: "BI_ZONE", bracketLabel: "20.00-21.99", rate: 135 },
+    ];
+    const zoneMapEntry = { carrierZones: { bi: "BI_ZONE" } };
+    const result = calculateFreight({ carrierId: "bi", sku: "AHM0000000007", postalCode: "10100", province: "กรุงเทพฯ", actualWeightKg: 20.2, shipDate: "2026-03-01" }, masterData({ carrier: skuCarrier, zoneMapEntry, skuGrid, rateCards: [] }));
+    assert.equal(result.status, STATUS.MANUAL_REVIEW);
+    assert.equal(result.errors[0].code, "TYPE_REQUIRED");
+    assert.equal(result.errors[0].availableTypes.length, 2);
   });
 
   test("invalid input (zero weight) returns WEIGHT_ERROR before touching any master data", () => {
