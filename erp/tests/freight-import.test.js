@@ -7,17 +7,17 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  parseWeightZoneSheet, parseKexSheet, parseBusinessIdeaSheet, parseNimExpressSheet,
+  parseWeightZoneSheet, parseNationalRateSheet, parseBusinessIdeaSheet, parseNimExpressSheet,
   parseSkuNimSheet, parseProductSheet, parseProvinceSheet, buildZoneMapDocs, mergeSkuDimensions,
   parseWorkbook, summarizeParsedWorkbook,
 } from "../js/freight-import.js";
 
-describe("parseWeightZoneSheet (Best / Flash / Kerry / DHLParcel / DHL Bulky)", () => {
+describe("parseWeightZoneSheet (Best / Flash / DHLParcel / DHL Bulky)", () => {
   const bestRows = [
     ["น้ำหนักกล่อง", "BKK", "UPC"],
     [1, 22.4, 28.8], [2, 26.4, 32.8], [3, 30.4, 36.8],
   ];
-  test("produces contiguous BKK+UPC brackets matching the real Best numbers", () => {
+  test("produces contiguous BKK+UPC brackets matching the real Best numbers (BKK-first header)", () => {
     const { rows, warnings } = parseWeightZoneSheet(bestRows, "best", null);
     assert.equal(warnings.length, 0);
     assert.equal(rows.length, 6);
@@ -36,15 +36,44 @@ describe("parseWeightZoneSheet (Best / Flash / Kerry / DHLParcel / DHL Bulky)", 
     const last = rows.filter((r) => r.rate === 999);
     assert.ok(last.every((r) => r.weightTo >= r.weightFrom));
   });
+
+  // Real bug caught against the actual file: Flash's header reads "UPC" then "BKK" — the
+  // OPPOSITE order from Best/DHL. Assuming a fixed column order silently swapped Flash's
+  // BKK/UPC rates. The column order must be read from the header, not assumed.
+  test("Flash's real header has UPC before BKK — rates must land in the correct zone, not swapped", () => {
+    const flashRows = [
+      ["Weight (Kg) / Volumetric Weight (Kg)", "UPC", "BKK"],
+      [1, 45, 40], // UPC=45, BKK=40 in the sheet's own column order
+    ];
+    const { rows, warnings } = parseWeightZoneSheet(flashRows, "flash", null);
+    assert.equal(warnings.length, 0);
+    assert.equal(rows.find((r) => r.zone === "BKK").rate, 40);
+    assert.equal(rows.find((r) => r.zone === "UPC").rate, 45);
+  });
+  test("an unrecognized header falls back to BKK-first but warns instead of failing silently", () => {
+    const oddHeaderRows = [["hdr", "???", "???"], [1, 10, 20]];
+    const { rows, warnings } = parseWeightZoneSheet(oddHeaderRows, "test", null);
+    assert.ok(warnings.length >= 1);
+    assert.equal(rows.find((r) => r.zone === "BKK").rate, 10);
+  });
 });
 
-describe("parseKexSheet", () => {
-  test("stops at the trailing note row and keeps national ('ALL') zone, matching real values", () => {
+describe("parseNationalRateSheet (KEX and Kerry — verified against the real file: neither has a BKK/UPC split)", () => {
+  test("KEX: stops at the trailing note row and keeps national ('ALL') zone, matching real values", () => {
     const rows = [["Weight (G)", "Baht"], [1, 22], [2, 26], ["50 KG.+ ขึ้นไป", "คิดค่าบริการเพิ่ม"]];
-    const out = parseKexSheet(rows);
+    const out = parseNationalRateSheet(rows, "kex");
     assert.equal(out.length, 2);
     assert.equal(out[1].rate, 26);
     assert.equal(out[1].zone, "ALL");
+  });
+  test("Kerry: single nationwide rate column, matching the real sheet's shape and numbers", () => {
+    const rows = [
+      ["น้ำหนักต่อกล่อง ( กิโลกรัม )*", "อัตราต่อกล่อง ทั่วประเทศ"],
+      [20, 280], [21, 330],
+    ];
+    const out = parseNationalRateSheet(rows, "kerry");
+    assert.equal(out.find((r) => r.weightTo === 21).rate, 330);
+    assert.ok(out.every((r) => r.zone === "ALL"));
   });
 });
 
@@ -177,7 +206,7 @@ describe("parseProvinceSheet + buildZoneMapDocs", () => {
     assert.equal(bkk.districts.length, 2);
     assert.equal(conflicts.length, 0);
   });
-  test("derives BKK/UPC for carriers with no dedicated column (flash/dhl/kerry), and flags it as derived", () => {
+  test("derives BKK/UPC for carriers with no dedicated column (flash/dhl), and flags it as derived", () => {
     const parsed = parseProvinceSheet(rows);
     const { docs } = buildZoneMapDocs(parsed);
     const bkk = docs.find((d) => d.postalCode === "10100");
@@ -224,7 +253,7 @@ describe("parseWorkbook — end to end summary over a tiny synthetic workbook", 
     const sheets = {
       "Best": [["hdr", "BKK", "UPC"], [1, 22.4, 28.8]],
       "Flash": [["hdr", "BKK", "UPC"], [1, 45, 45]],
-      "Kerry": [["hdr", "BKK", "UPC"], [1, 50, 50]],
+      "Kerry": [["hdr", "Baht"], [1, 50]],
       "DHLParcel": [["hdr", "BKK", "UPC"], [1, 50, 50]],
       "DHL Bulky": [["hdr", "BKK", "UPC"], [1, 70, 72]],
       "KEX": [["hdr", "Baht"], [1, 22]],
@@ -240,7 +269,7 @@ describe("parseWorkbook — end to end summary over a tiny synthetic workbook", 
     };
     const parsed = parseWorkbook(sheets);
     const summary = summarizeParsedWorkbook(parsed);
-    assert.equal(summary.rateCardRows, 2 * 5 + 1); // 5 weight-zone sheets x 2 zones + KEX's 1
+    assert.equal(summary.rateCardRows, 2 * 4 + 1 * 2); // 4 BKK/UPC sheets x 2 zones + KEX/Kerry's 1 each
     assert.equal(summary.businessIdeaSkus, 1);
     assert.equal(summary.businessIdeaCells, 5);
     assert.equal(summary.nimSizeClasses, 1);

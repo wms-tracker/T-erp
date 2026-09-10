@@ -38,13 +38,30 @@ export function canonicalizeZoneLabel(s) {
   return String(s).replace(/\s+/g, " ").replace(/และ/g, "").replace(/&/g, "").replace(/\s+/g, " ").trim();
 }
 
-// ---------- weight+zone rate tables: Best / Flash / Kerry / DHLParcel / DHL Bulky ----------
-// Sheet shape: row0 = header, row1+ = [weightKg, bkkPrice, upcPrice]. Rows are meant to be
-// read as "up to this weight" tiers — weightFrom is derived from the previous row so the
-// brackets are contiguous, never left to guesswork about what the source file "meant".
+// ---------- weight+zone rate tables: Best / Flash / DHLParcel / DHL Bulky ----------
+// Sheet shape: row0 = header naming the two rate columns, row1+ = [weightKg, price, price].
+// Rows are read as "up to this weight" tiers — weightFrom is derived from the previous row
+// so the brackets are contiguous, never left to guesswork about what the file "meant".
+//
+// The BKK/UPC column ORDER is not consistent across carriers — Best/DHL put BKK first, but
+// Flash's own header literally reads "UPC" then "BKK" (verified against the real file), so
+// the order is read from the header text itself rather than assumed. If the header can't be
+// matched confidently, this falls back to the BKK-first default and warns, rather than
+// silently mislabeling every rate.
 export function parseWeightZoneSheet(rows, carrierId, serviceId) {
   const out = [];
   const warnings = [];
+  const label = `${carrierId}${serviceId ? "/" + serviceId : ""}`;
+  const header = rows[0] || [];
+  const col1 = String(header[1] || "").trim().toUpperCase();
+  const col2 = String(header[2] || "").trim().toUpperCase();
+  let bkkCol = 1, upcCol = 2;
+  if (col1.includes("UPC") && col2.includes("BKK")) {
+    bkkCol = 2; upcCol = 1;
+  } else if (!(col1.includes("BKK") && col2.includes("UPC"))) {
+    warnings.push(`${label}: อ่านลำดับคอลัมน์ BKK/UPC จากหัวตารางไม่ได้ชัดเจน ("${header[1]}" / "${header[2]}") — ใช้ลำดับเริ่มต้น (คอลัมน์ 2=BKK, คอลัมน์ 3=UPC) กรุณาตรวจสอบ Rate Card นี้หลัง Import`);
+  }
+
   let prevWeight = 0;
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] || [];
@@ -53,11 +70,11 @@ export function parseWeightZoneSheet(rows, carrierId, serviceId) {
     let weightFrom = round2(prevWeight + 0.01);
     let weightTo = weight;
     if (weightTo < weightFrom) {
-      warnings.push(`${carrierId}${serviceId ? "/" + serviceId : ""}: แถวน้ำหนัก ${weight} kg ไม่เรียงลำดับต่อเนื่องจากแถวก่อนหน้า (${prevWeight} kg) — ปรับช่วงให้ครอบคลุมแทน ต้องตรวจสอบ Rate Card นี้หลัง Import`);
+      warnings.push(`${label}: แถวน้ำหนัก ${weight} kg ไม่เรียงลำดับต่อเนื่องจากแถวก่อนหน้า (${prevWeight} kg) — ปรับช่วงให้ครอบคลุมแทน ต้องตรวจสอบ Rate Card นี้หลัง Import`);
       weightTo = weightFrom;
     }
-    const bkk = num(row[1]);
-    const upc = num(row[2]);
+    const bkk = num(row[bkkCol]);
+    const upc = num(row[upcCol]);
     if (bkk != null) out.push({ carrierId, serviceId: serviceId || null, zone: "BKK", weightFrom, weightTo, rate: bkk });
     if (upc != null) out.push({ carrierId, serviceId: serviceId || null, zone: "UPC", weightFrom, weightTo, rate: upc });
     prevWeight = weightTo;
@@ -65,16 +82,17 @@ export function parseWeightZoneSheet(rows, carrierId, serviceId) {
   return { rows: out, warnings };
 }
 
-// ---------- KEX: single national rate, no zone split ----------
-export function parseKexSheet(rows) {
+// ---------- national flat-rate carriers: KEX and Kerry (verified against the real file —
+// neither has a BKK/UPC split at all, just one nationwide price column) ----------
+export function parseNationalRateSheet(rows, carrierId) {
   const out = [];
   let prevWeight = 0;
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] || [];
     const weight = num(row[0]);
-    const baht = num(row[1]);
-    if (weight == null || baht == null) continue; // skips the trailing "50 KG.+" note rows
-    out.push({ carrierId: "kex", serviceId: null, zone: "ALL", weightFrom: round2(prevWeight + 0.01), weightTo: weight, rate: baht });
+    const rate = num(row[1]);
+    if (weight == null || rate == null) continue; // skips trailing note rows
+    out.push({ carrierId, serviceId: null, zone: "ALL", weightFrom: round2(prevWeight + 0.01), weightTo: weight, rate });
     prevWeight = weight;
   }
   return out;
@@ -260,14 +278,14 @@ export function buildZoneMapDocs(provinceRows) {
         flash: derived,
         kex: "ALL",
         dhl: derived,
-        kerry: derived,
+        kerry: "ALL", // Kerry's own rate sheet has no BKK/UPC split at all — one nationwide price (verified against the real file)
       },
       remoteAreaByCarrier: {
         best: isRemoteLabel(row.bestZoneType),
         dhl: isRemoteLabel(row.dhlZoneRaw),
         kerry: isRemoteLabel(row.kerryZoneRaw),
       },
-      zoneSource: { businessIdea: "exact", best: "exact", flash: "derived", kex: "exact", dhl: "derived", kerry: "derived" },
+      zoneSource: { businessIdea: "exact", best: "exact", flash: "derived", kex: "exact", dhl: "derived", kerry: "exact" },
       districts: [row.district],
     };
     const existing = byZip.get(row.postalCode);
@@ -339,8 +357,8 @@ export function parseWorkbook(sheets) {
   const flash = parseWeightZoneSheet(sheets["Flash"] || [], "flash", null);
   rateCards.push(...flash.rows); warnings.push(...flash.warnings);
 
-  const kerry = parseWeightZoneSheet(sheets["Kerry"] || [], "kerry", null);
-  rateCards.push(...kerry.rows); warnings.push(...kerry.warnings);
+  const kerry = parseNationalRateSheet(sheets["Kerry"] || [], "kerry");
+  rateCards.push(...kerry);
 
   const dhlParcel = parseWeightZoneSheet(sheets["DHLParcel"] || [], "dhl", "parcel");
   rateCards.push(...dhlParcel.rows); warnings.push(...dhlParcel.warnings);
@@ -348,7 +366,7 @@ export function parseWorkbook(sheets) {
   const dhlBulky = parseWeightZoneSheet(sheets["DHL Bulky"] || [], "dhl", "bulky");
   rateCards.push(...dhlBulky.rows); warnings.push(...dhlBulky.warnings);
 
-  const kex = parseKexSheet(sheets["KEX"] || []);
+  const kex = parseNationalRateSheet(sheets["KEX"] || [], "kex");
   rateCards.push(...kex);
 
   const businessIdeaGrid = parseBusinessIdeaSheet(sheets["Business Idea"] || []);
