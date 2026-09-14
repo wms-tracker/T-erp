@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   parseWeightZoneSheet, parseNationalRateSheet, parseBusinessIdeaSheet, parseNimExpressSheet,
   parseSkuNimSheet, parseProductSheet, parseProvinceSheet, buildZoneMapDocs, mergeSkuDimensions,
-  parseWorkbook, summarizeParsedWorkbook,
+  parseWorkbook, summarizeParsedWorkbook, sanitizeId,
 } from "../js/freight-import.js";
 
 describe("parseWeightZoneSheet (Best / Flash / DHLParcel / DHL Bulky)", () => {
@@ -61,19 +61,37 @@ describe("parseWeightZoneSheet (Best / Flash / DHLParcel / DHL Bulky)", () => {
 describe("parseNationalRateSheet (KEX and Kerry — verified against the real file: neither has a BKK/UPC split)", () => {
   test("KEX: stops at the trailing note row and keeps national ('ALL') zone, matching real values", () => {
     const rows = [["Weight (G)", "Baht"], [1, 22], [2, 26], ["50 KG.+ ขึ้นไป", "คิดค่าบริการเพิ่ม"]];
-    const out = parseNationalRateSheet(rows, "kex");
+    const { rows: out, warnings } = parseNationalRateSheet(rows, "kex");
     assert.equal(out.length, 2);
     assert.equal(out[1].rate, 26);
     assert.equal(out[1].zone, "ALL");
+    assert.equal(warnings.length, 0);
   });
   test("Kerry: single nationwide rate column, matching the real sheet's shape and numbers", () => {
     const rows = [
       ["น้ำหนักต่อกล่อง ( กิโลกรัม )*", "อัตราต่อกล่อง ทั่วประเทศ"],
       [20, 280], [21, 330],
     ];
-    const out = parseNationalRateSheet(rows, "kerry");
+    const { rows: out } = parseNationalRateSheet(rows, "kerry");
     assert.equal(out.find((r) => r.weightTo === 21).rate, 330);
     assert.ok(out.every((r) => r.zone === "ALL"));
+  });
+
+  // Real bug caught by code review: a weight row with a blank price was silently skipped
+  // WITHOUT advancing prevWeight, so the next priced row's range quietly absorbed the gap
+  // and priced it at the wrong (next tier's) rate — a "never guess a price" violation.
+  test("a weight row with a blank price is NOT silently absorbed into the next tier's range — it's excluded and warned about", () => {
+    const rows = [["hdr", "Baht"], [1, 30], [2, null], [3, 50]];
+    const { rows: out, warnings } = parseNationalRateSheet(rows, "kex");
+    assert.equal(out.length, 2); // only 1kg and 3kg have real prices
+    assert.equal(out.find((r) => r.weightTo === 1).rate, 30);
+    assert.equal(out.find((r) => r.weightTo === 3).rate, 50);
+    // the 3kg row's range must start right after the *unpriced* 2kg tier, not after 1kg —
+    // so a 2kg parcel matches NEITHER row (falls in the gap) instead of getting priced at 50.
+    const row3 = out.find((r) => r.weightTo === 3);
+    assert.equal(row3.weightFrom, 2.01);
+    assert.ok(!out.some((r) => 2 >= r.weightFrom && 2 <= r.weightTo));
+    assert.equal(warnings.length, 1);
   });
 });
 
@@ -228,6 +246,26 @@ describe("parseProvinceSheet + buildZoneMapDocs", () => {
     const conflicting = [rows[0], rows[1], [10100, "เขต C", "ภาคกลาง", "ภาคใต้", "โซนปกติ", "UPC", "โซนปกติ", "โซนปกติ", "โซนปกติ"]];
     const { conflicts } = buildZoneMapDocs(parseProvinceSheet(conflicting));
     assert.ok(conflicts.length >= 1);
+  });
+});
+
+describe("sanitizeId — must be the single shared rule every SKU-keyed Firestore doc id uses, read or write", () => {
+  // Real data caught by code review: several "ของแถม ..." (free-gift) SKUs in the actual
+  // Business Idea sheet sanitize to a different string than their raw form. The importer
+  // always wrote under sanitizeId(sku); freight-data.js's reads used the raw sku until this
+  // fix — meaning these exact real SKUs imported successfully but were permanently
+  // unreachable from the calculator/compare pages.
+  test("real 'ของแถม ...' SKUs from the actual workbook sanitize to a different id than their raw form", () => {
+    const realSkus = ["ของแถม S", "ของแถม SS", "ของแถม XL-1", "ของแถม L-3"];
+    for (const sku of realSkus) {
+      assert.notEqual(sanitizeId(sku), sku, `expected ${JSON.stringify(sku)} to sanitize differently`);
+    }
+  });
+  test("a bare non-ASCII SKU with nothing else falls back to the 'id' sentinel, not an empty string", () => {
+    assert.equal(sanitizeId("ของแถม"), "id");
+  });
+  test("plain alphanumeric SKUs (the common case) pass through unchanged", () => {
+    assert.equal(sanitizeId("AHM0000000001"), "AHM0000000001");
   });
 });
 

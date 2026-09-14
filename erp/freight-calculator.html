@@ -93,8 +93,12 @@ function itemRowHTML(it) {
   const needsBiFields = currentCarrier?.pricingStrategy === "SKU_ZONE_GRID";
   let typeBracketHTML = "-";
   if (needsBiFields) {
+    // A placeholder option is required here — without one, the browser auto-selects the
+    // first real option visually while `it.variantType` stays "" (no 'change' event ever
+    // fires), so the dropdown LOOKS like a type is chosen but nothing was actually recorded,
+    // and the calculation fails with a confusing "please choose a type" error.
     const typeOptions = it.grid?.variants?.length > 1
-      ? `<select data-field="variantType" data-uid="${it.uid}" style="width:48%;display:inline-block;">${it.grid.variants.map((v) => `<option value="${v.type}" ${v.type === it.variantType ? "selected" : ""}>${v.type}</option>`).join("")}</select>`
+      ? `<select data-field="variantType" data-uid="${it.uid}" style="width:48%;display:inline-block;"><option value="" ${it.variantType === "" ? "selected" : ""}>— เลือกประเภท —</option>${it.grid.variants.map((v) => `<option value="${escAttr(v.type)}" ${v.type === it.variantType ? "selected" : ""}>${v.type}</option>`).join("")}</select>`
       : "";
     const chosenVariant = it.grid?.variants?.find((v) => v.type === (it.variantType || it.grid.variants[0]?.type)) || it.grid?.variants?.[0];
     const brackets = chosenVariant ? [...new Set(chosenVariant.cells.map((c) => c.bracketLabel))] : [];

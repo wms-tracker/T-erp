@@ -327,6 +327,18 @@ describe("SKU_SIZE_CLASS carriers price flat, with no zone dimension (Nim-expres
     assert.equal(result.status, STATUS.RATE_NOT_FOUND);
   });
 
+  // Real bug caught by code review: a SKU can have a freightSkuDimensions doc (e.g. from the
+  // Product sheet) that exists but has no sizeClass assigned. The operator's own explicit
+  // choice (input.sizeClass) must still be honored in that case, not silently discarded just
+  // because *some* skuDim record happens to exist for the SKU.
+  test("an operator-supplied sizeClass is honored even when the SKU's dimension doc exists but has no sizeClass of its own", () => {
+    const skuDim = { sku: "PARTIAL", weightKg: 5, sizeClass: null };
+    const masterData = { carrier: nimCarrier, zoneMapEntry: null, skuDim, rateCards: [], skuGrid: [], sizeClassRates, surcharges: [], codRules: [], bulkyThreshold: null };
+    const result = calculateFreight({ carrierId: "nim", sku: "PARTIAL", sizeClass: "D", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01" }, masterData);
+    assert.equal(result.status, STATUS.CALCULATED);
+    assert.equal(result.baseFreight, 250);
+  });
+
   // Real bug caught while building multi-item order support: a SKU priced purely by size
   // class (this carrier never uses weight to price) still failed with WEIGHT_ERROR if no
   // weight existed anywhere — blocking a perfectly priceable SKU on data the carrier never
@@ -527,5 +539,34 @@ describe("calculateFreightForOrder — multi-item orders (spec §1: an order is 
     const result = runOrderCalculationWithValidation(orderInput, masterData);
     assert.equal(result.status, STATUS.CALCULATED);
     assert.equal(result.totalFreight, calculateFreightForOrder(orderInput, masterData).totalFreight);
+  });
+
+  // Real bug caught by code review: per-item calls run with surcharges suppressed (so the
+  // remote-area-surcharge-not-configured warning fires on every line shipped to a remote
+  // postal code, regardless of whether a real BULKY surcharge condition applies), and the
+  // order used to treat "any warning at all" as isBulky. A small, non-bulky item shipped to a
+  // remote area must never be charged a bulkyOnly surcharge.
+  test("a non-bulky remote-area order is never charged a bulkyOnly surcharge (isBulky must reflect real bulky detection, not just 'any warning fired')", () => {
+    const remoteZoneMap = { carrierZones: { best: "BKK" }, remoteAreaByCarrier: { best: true }, zoneSource: {} };
+    const bulkySurcharge = [{ id: "s1", carrierId: "best", type: "BULKY", calcType: "FIXED", value: 300, appliesWhen: { bulkyOnly: true } }];
+    const masterData = { carrier: bestCarrier, zoneMapEntry: remoteZoneMap, skuDimsBySku: {}, rateCards: bestRateCards(), skuGrid: [], sizeClassRates: [], surcharges: bulkySurcharge, codRules: [], bulkyThreshold: null };
+    const orderInput = { carrierId: "best", postalCode: "99999", province: "remote", shipDate: "2026-03-01", items: [{ actualWeightKg: 1 }] };
+    const result = calculateFreightForOrder(orderInput, masterData);
+    assert.equal(result.status, STATUS.CALCULATED);
+    assert.equal(result.isBulky, false);
+    assert.equal(result.bulkyFee, 0);
+  });
+
+  test("isBulky IS true and the bulkyOnly surcharge DOES apply when a line genuinely exceeds the bulky threshold", () => {
+    const bulkyThreshold = { maxLengthCm: 100 };
+    const bulkySurcharge = [{ id: "s1", carrierId: "best", type: "BULKY", calcType: "FIXED", value: 300, appliesWhen: { bulkyOnly: true } }];
+    const masterData = { carrier: bestCarrier, zoneMapEntry: bkkZoneMap, skuDimsBySku: {}, rateCards: bestRateCards(), skuGrid: [], sizeClassRates: [], surcharges: bulkySurcharge, codRules: [], bulkyThreshold };
+    // L=190 exceeds the 100cm threshold, but dims are kept small enough (volumetric ~1.9kg)
+    // that chargeable weight still rounds to 2kg — within bestRateCards()'s covered range.
+    const orderInput = { carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01", items: [{ actualWeightKg: 1, lengthCm: 190, widthCm: 10, heightCm: 5 }] };
+    const result = calculateFreightForOrder(orderInput, masterData);
+    assert.equal(result.status, STATUS.CALCULATED);
+    assert.equal(result.isBulky, true);
+    assert.equal(result.bulkyFee, 300);
   });
 });

@@ -22,6 +22,7 @@ import {
   runTransaction, writeBatch, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { runCalculationWithValidation, calculateFreightForOrder, runOrderCalculationWithValidation } from "./freight-engine.js";
+import { sanitizeId } from "./freight-import.js";
 
 function stringifyVal(v) {
   if (v === undefined || v === null) return "";
@@ -105,12 +106,12 @@ export async function deleteRateCard(id) {
 // cells: [{ bracketLabel, bracketMin, bracketMax, zone, rate, rateVersion, effectiveFrom, effectiveTo }]
 
 export async function getSkuGrid(sku) {
-  const snap = await getDoc(doc(db, "freightSkuRateGrids", sku));
+  const snap = await getDoc(doc(db, "freightSkuRateGrids", sanitizeId(sku)));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function saveSkuGrid(sku, data, user) {
-  await setDoc(doc(db, "freightSkuRateGrids", sku), { ...data, sku, updatedBy: user.uid, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, "freightSkuRateGrids", sanitizeId(sku)), { ...data, sku, updatedBy: user.uid, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 // gridDoc holds one `variants` entry per shipping Type (see freight-import.js's
@@ -146,12 +147,12 @@ export async function deleteSizeClassRate(id) {
 
 export async function getSkuDimension(sku) {
   if (!sku) return null;
-  const snap = await getDoc(doc(db, "freightSkuDimensions", sku));
+  const snap = await getDoc(doc(db, "freightSkuDimensions", sanitizeId(sku)));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function saveSkuDimension(sku, data, user) {
-  await setDoc(doc(db, "freightSkuDimensions", sku), { ...data, sku, updatedBy: user.uid, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, "freightSkuDimensions", sanitizeId(sku)), { ...data, sku, updatedBy: user.uid, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 // ---------- Surcharges ----------

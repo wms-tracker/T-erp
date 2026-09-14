@@ -26,6 +26,23 @@ function num(v) {
   return Number.isNaN(n) ? null : n;
 }
 
+// Firestore rejects doc IDs matching /__.*__/ (reserved), or "." / "..", or empty, or
+// containing "/". A label with many non-ASCII characters (e.g. a Thai size-class
+// description, or a SKU with a space) turns into long runs of "_" once each disallowed
+// character is replaced — collapsing those runs and trimming leading/trailing "_"/"." avoids
+// ever producing a reserved-looking ID. Exported so every place that turns a SKU (or any
+// other free-text value) into a Firestore doc id uses the exact same rule — freight-data.js's
+// reads must agree with freight-import-write.js's writes, or an imported SKU with any
+// character outside [A-Za-z0-9_.-] becomes permanently unreachable.
+export function sanitizeId(s) {
+  const cleaned = String(s)
+    .replace(/[^A-Za-z0-9_.-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^[_.]+|[_.]+$/g, "")
+    .slice(0, 300);
+  return cleaned || "id";
+}
+
 // The workbook spells the same Business Idea zone two different ways depending on the
 // sheet: the Province sheet uses "และ"/"&" ("...และปริมณฑล", "...& ภาคอีสาน") while the
 // Business Idea rate-grid sheet uses a plain space or a wrapped newline instead. Verified
@@ -86,16 +103,26 @@ export function parseWeightZoneSheet(rows, carrierId, serviceId) {
 // neither has a BKK/UPC split at all, just one nationwide price column) ----------
 export function parseNationalRateSheet(rows, carrierId) {
   const out = [];
+  const warnings = [];
   let prevWeight = 0;
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] || [];
     const weight = num(row[0]);
+    if (weight == null) continue; // not a data row at all (e.g. a trailing text note) — skip silently
     const rate = num(row[1]);
-    if (weight == null || rate == null) continue; // skips trailing note rows
+    if (rate == null) {
+      // A real weight tier with no price — advancing prevWeight past it (rather than leaving
+      // it for the next priced row to silently absorb) means this exact gap becomes
+      // unpriceable (RATE_NOT_FOUND) instead of quietly inheriting the next tier's price —
+      // never guess a rate for a range the sheet didn't actually state one for (spec §15).
+      warnings.push(`${carrierId}: แถวน้ำหนัก ${weight} kg ไม่มีราคา (ช่องราคาว่าง) — ช่วงนี้จะค้นหา Rate ไม่เจอ ต้องตรวจสอบไฟล์ต้นฉบับ`);
+      prevWeight = weight;
+      continue;
+    }
     out.push({ carrierId, serviceId: null, zone: "ALL", weightFrom: round2(prevWeight + 0.01), weightTo: weight, rate });
     prevWeight = weight;
   }
-  return out;
+  return { rows: out, warnings };
 }
 
 // ---------- Business Idea: per-SKU zone/bracket grid ----------
@@ -358,7 +385,7 @@ export function parseWorkbook(sheets) {
   rateCards.push(...flash.rows); warnings.push(...flash.warnings);
 
   const kerry = parseNationalRateSheet(sheets["Kerry"] || [], "kerry");
-  rateCards.push(...kerry);
+  rateCards.push(...kerry.rows); warnings.push(...kerry.warnings);
 
   const dhlParcel = parseWeightZoneSheet(sheets["DHLParcel"] || [], "dhl", "parcel");
   rateCards.push(...dhlParcel.rows); warnings.push(...dhlParcel.warnings);
@@ -367,7 +394,7 @@ export function parseWorkbook(sheets) {
   rateCards.push(...dhlBulky.rows); warnings.push(...dhlBulky.warnings);
 
   const kex = parseNationalRateSheet(sheets["KEX"] || [], "kex");
-  rateCards.push(...kex);
+  rateCards.push(...kex.rows); warnings.push(...kex.warnings);
 
   const businessIdeaGrid = parseBusinessIdeaSheet(sheets["Business Idea"] || []);
   const nimRates = parseNimExpressSheet(sheets["Nim-express"] || []);

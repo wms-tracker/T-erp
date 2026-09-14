@@ -255,7 +255,7 @@ function blank(trace, status, extra) {
     actualWeight: null, volumetricWeight: null, chargeableWeight: null,
     baseFreight: null, fuelSurcharge: null, bulkyFee: null, codFee: null, otherFee: null,
     otherFeeBreakdown: [], totalFreight: null,
-    zone: null, zoneKey: null, rateVersion: null,
+    zone: null, zoneKey: null, rateVersion: null, isBulky: false,
     status, confidence: CONFIDENCE.LOW, warnings: [], errors: [], trace,
     ...extra,
   };
@@ -269,7 +269,9 @@ function blank(trace, status, extra) {
 export function calculateFreight(input, masterData) {
   const trace = [];
   let step = 0;
-  const addTrace = (label, detail, values) => { trace.push({ step: ++step, label, detail, values }); };
+  // Firestore rejects `undefined` field values — a 2-arg call must NOT leave a `values: undefined`
+  // key in the saved trace, or saving any calculation throws.
+  const addTrace = (label, detail, values) => { trace.push(values === undefined ? { step: ++step, label, detail } : { step: ++step, label, detail, values }); };
 
   const errors = validateOrderInput(input);
   if (errors.length) {
@@ -403,7 +405,10 @@ export function calculateFreight(input, masterData) {
     baseFreight = roundMoney(result.rate); rateVersion = result.rateVersion || null;
     addTrace("ค้นหาอัตราค่าขนส่ง (Rate Lookup)", `SKU=${input.sku}, Bracket=${input.weightBracketLabel}, Zone=${zone.zoneKey} → ${baseFreight} บาท`, { baseFreight, rateVersion });
   } else if (carrier.pricingStrategy === "SKU_SIZE_CLASS") {
-    const sizeClass = skuDim ? skuDim.sizeClass : input.sizeClass;
+    // A SKU can have a dimension doc (from the Product sheet) with no sizeClass assigned —
+    // the operator's explicit choice must still be usable in that case, not discarded just
+    // because *some* skuDim record happens to exist.
+    const sizeClass = (skuDim && skuDim.sizeClass) || input.sizeClass || null;
     if (!sizeClass) {
       addTrace("ค้นหาอัตราค่าขนส่ง (Rate Lookup)", `ไม่พบ Size Class ของ SKU='${input.sku || "-"}' ใน Master Data`);
       return blank(trace, STATUS.RATE_NOT_FOUND, { actualWeight: actualWeightKg, chargeableWeight, zone: zone.zoneKey || null, zoneKey: zone.zoneKey || null, errors: [{ code: "SIZE_CLASS_NOT_FOUND", message: "ไม่พบ Size Class ของ SKU นี้ — กรุณากำหนดใน Admin" }] });
@@ -454,7 +459,7 @@ export function calculateFreight(input, masterData) {
     actualWeight: actualWeightKg, volumetricWeight, chargeableWeight,
     baseFreight, fuelSurcharge: surchargeResult.fuelSurcharge, bulkyFee: surchargeResult.bulkyFee,
     codFee: cod.fee, otherFee: surchargeResult.otherFee, otherFeeBreakdown: surchargeResult.otherItems,
-    totalFreight, zone: zone.zoneKey || null, zoneKey: zone.zoneKey || null, rateVersion,
+    totalFreight, zone: zone.zoneKey || null, zoneKey: zone.zoneKey || null, rateVersion, isBulky,
     status: STATUS.CALCULATED, confidence, warnings, errors: [], trace,
   };
 }
@@ -521,13 +526,14 @@ function itemQty(it) {
 function calculatePerItemOrder(orderInput, items, masterData) {
   const trace = [];
   let step = 0;
-  const addTrace = (label, detail, values) => trace.push({ step: ++step, label, detail, values });
+  const addTrace = (label, detail, values) => trace.push(values === undefined ? { step: ++step, label, detail } : { step: ++step, label, detail, values });
 
   const carrier = masterData.carrier;
   const zone = resolveZone(masterData.zoneMapEntry, carrier.id);
   const itemResults = [];
   let combinedBase = 0, combinedChargeableWeight = 0;
   let firstFailed = null;
+  let anyItemBulky = false;
   const allWarnings = [];
 
   for (const it of items) {
@@ -551,6 +557,7 @@ function calculatePerItemOrder(orderInput, items, masterData) {
       combinedBase += result.baseFreight * qty;
       combinedChargeableWeight += (result.chargeableWeight || 0) * qty;
       allWarnings.push(...(result.warnings || []));
+      if (result.isBulky) anyItemBulky = true;
     } else if (!firstFailed) {
       firstFailed = { sku: it.sku, result };
     }
@@ -573,7 +580,7 @@ function calculatePerItemOrder(orderInput, items, masterData) {
   combinedBase = roundMoney(combinedBase);
   addTrace("รวมค่าขนส่งพื้นฐานทุกรายการ", `${combinedBase} บาท`, { combinedBase });
 
-  const surchargeCtx = { carrierId: carrier.id, serviceId: orderInput.serviceId, shipDate: orderInput.shipDate, baseFreight: combinedBase, chargeableWeight: combinedChargeableWeight, isRemoteArea: zone.isRemoteArea || false, isBulky: allWarnings.length > 0 };
+  const surchargeCtx = { carrierId: carrier.id, serviceId: orderInput.serviceId, shipDate: orderInput.shipDate, baseFreight: combinedBase, chargeableWeight: combinedChargeableWeight, isRemoteArea: zone.isRemoteArea || false, isBulky: anyItemBulky };
   const surchargeResult = applySurcharges(masterData.surcharges, surchargeCtx);
   if (surchargeResult.allItems.length) {
     addTrace("ค่าบริการเพิ่มเติม (Surcharges)", surchargeResult.allItems.map((i) => `${i.type}: ${i.amount} บาท`).join(", "));
@@ -602,7 +609,7 @@ function calculatePerItemOrder(orderInput, items, masterData) {
     actualWeight: null, volumetricWeight: null, chargeableWeight: roundMoney(combinedChargeableWeight),
     baseFreight: combinedBase, fuelSurcharge: surchargeResult.fuelSurcharge, bulkyFee: surchargeResult.bulkyFee,
     codFee: cod.fee, otherFee: surchargeResult.otherFee, otherFeeBreakdown: surchargeResult.otherItems,
-    totalFreight, zone: zone.zoneKey || null, zoneKey: zone.zoneKey || null, rateVersion: null,
+    totalFreight, zone: zone.zoneKey || null, zoneKey: zone.zoneKey || null, rateVersion: null, isBulky: anyItemBulky,
     status: STATUS.CALCULATED, confidence, warnings: allWarnings, errors: [], trace,
     items: itemResults,
   };

@@ -12,20 +12,7 @@
 // ===================================================================
 import { db } from "./auth.js";
 import { collection, doc, getDoc, writeBatch, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { DEFAULT_CARRIERS } from "./freight-import.js";
-
-// Firestore rejects doc IDs matching /__.*__/ (reserved), or "." / "..", or empty.
-// A label with many non-ASCII characters (e.g. a Thai size-class description) turns into
-// long runs of "_" once each disallowed character is replaced — collapsing those runs and
-// trimming leading/trailing "_"/"." avoids ever producing a reserved-looking ID.
-function sanitizeId(s) {
-  const cleaned = String(s)
-    .replace(/[^A-Za-z0-9_.-]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^[_.]+|[_.]+$/g, "")
-    .slice(0, 300);
-  return cleaned || "id";
-}
+import { DEFAULT_CARRIERS, sanitizeId } from "./freight-import.js";
 
 function rateCardId(row, effectiveFrom) {
   return sanitizeId(`${row.carrierId}_${row.serviceId || "x"}_${row.zone}_${row.weightFrom}-${row.weightTo}_${effectiveFrom}`);
