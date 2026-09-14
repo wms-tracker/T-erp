@@ -309,19 +309,9 @@ export function calculateFreight(input, masterData) {
     addTrace("น้ำหนักจริง (Actual Weight)", `ไม่ระบุ — Carrier นี้ไม่ใช้น้ำหนักในการคิดราคา (${carrier.pricingStrategy})`);
   }
 
-  // A multi-item order (calculateFreightForOrder below) pre-combines each line's own volume
-  // into one figure before calling in here — summing raw L/W/H across differently-shaped
-  // items would be meaningless, but summing their volumes and re-deriving one volumetric
-  // weight is physically sound.
-  const volumetricWeight = input.volumetricWeightOverride != null
-    ? round2(input.volumetricWeightOverride)
-    : computeVolumetricWeight(lengthCm, widthCm, heightCm, carrier.dimFactor);
+  const volumetricWeight = computeVolumetricWeight(lengthCm, widthCm, heightCm, carrier.dimFactor);
   if (volumetricWeight != null) {
-    if (input.volumetricWeightOverride != null) {
-      addTrace("น้ำหนักปริมาตร (Volumetric Weight)", `รวมจากหลายรายการสินค้า = ${volumetricWeight} kg`, { volumetricWeight });
-    } else {
-      addTrace("น้ำหนักปริมาตร (Volumetric Weight)", `${lengthCm} × ${widthCm} × ${heightCm} ÷ ${carrier.dimFactor} = ${volumetricWeight} kg`, { volumetricWeight });
-    }
+    addTrace("น้ำหนักปริมาตร (Volumetric Weight)", `${lengthCm} × ${widthCm} × ${heightCm} ÷ ${carrier.dimFactor} = ${volumetricWeight} kg`, { volumetricWeight });
   }
 
   const isBulky = detectBulky({ lengthCm, widthCm, heightCm, weightKg: actualWeightKg }, masterData.bulkyThreshold);
@@ -486,27 +476,20 @@ export function runCalculationWithValidation(input, masterData) {
 
 // ===================================================================
 // Multi-item orders (spec §1: "คำนวณค่าขนส่งต่อ Order" — an order is
-// usually several SKUs, not one). One order can genuinely need two very
-// different aggregation rules depending on the carrier's pricing strategy,
-// so this is NOT just "call calculateFreight once with bigger numbers":
+// usually several SKUs, not one). Every line ships as its OWN parcel,
+// priced independently (its own weight/zone/bracket/type/size-class
+// lookup) and multiplied by quantity — this business ships large/heavy
+// items (furniture) as separate packages, never combined into one
+// mega-shipment, and that's true across every carrier pricing strategy,
+// not just the per-SKU ones (Business Idea/Nim-express).
 //
-//   WEIGHT_ZONE_TABLE (Best/Flash/Kerry/KEX/DHL): the whole order ships as
-//   one parcel, priced once by its combined weight — sum each line's
-//   actual weight, sum each line's VOLUME (not raw L/W/H — summing
-//   dimensions across differently-shaped boxes is meaningless, summing
-//   volume and re-deriving one weight is physically sound), then run the
-//   ordinary single-shipment calculation once on the totals.
-//
-//   SKU_ZONE_GRID / SKU_SIZE_CLASS (Business Idea / Nim-express): price is
-//   tied to each specific SKU, so each line is priced independently (its
-//   own zone/bracket/type/size-class lookup) and multiplied by quantity.
-//   Surcharges and COD must NOT be computed per line — a 7% fuel
-//   surcharge applied to each line separately and summed is the same
-//   total as applying it once to the summed base, so it's not wrong by
-//   itself, but a FIXED or PER_SHIPMENT surcharge charged once per line
-//   would double- or triple-charge it — so every line's own
-//   calculateFreight call runs with surcharges suppressed, and
-//   surcharges/COD are applied exactly once on the combined base freight.
+// Surcharges and COD must NOT be computed per line — a 7% fuel surcharge
+// applied to each line separately and summed is the same total as
+// applying it once to the summed base, so it's not wrong by itself, but a
+// FIXED or PER_SHIPMENT surcharge charged once per line would double- or
+// triple-charge it — so every line's own calculateFreight call runs with
+// surcharges suppressed, and surcharges/COD are applied exactly once on
+// the combined base freight.
 // ===================================================================
 
 // orderInput: { carrierId, serviceId, province, postalCode, codAmount, shipDate,
@@ -527,54 +510,12 @@ export function calculateFreightForOrder(orderInput, masterData) {
       errors: [{ code: "CARRIER_NOT_FOUND", message: "ไม่พบ Carrier นี้ในระบบ" }],
     });
   }
-  return carrier.pricingStrategy === "WEIGHT_ZONE_TABLE"
-    ? calculateAggregateWeightOrder(orderInput, items, masterData)
-    : calculatePerItemOrder(orderInput, items, masterData);
+  return calculatePerItemOrder(orderInput, items, masterData);
 }
 
 function itemQty(it) {
   const q = Number(it.quantity);
   return q > 0 ? q : 1;
-}
-
-function calculateAggregateWeightOrder(orderInput, items, masterData) {
-  const trace = [];
-  let step = 0;
-  const addTrace = (label, detail, values) => trace.push({ step: ++step, label, detail, values });
-
-  let totalActualWeight = 0, totalVolume = 0, anyDims = false;
-  const itemLines = [];
-  for (const it of items) {
-    const qty = itemQty(it);
-    const dim = it.sku ? masterData.skuDimsBySku?.[it.sku] : null;
-    const w = it.actualWeightKg != null ? Number(it.actualWeightKg) : (dim ? dim.weightKg : null);
-    const l = it.lengthCm != null ? Number(it.lengthCm) : (dim ? dim.lengthCm : null);
-    const wd = it.widthCm != null ? Number(it.widthCm) : (dim ? dim.widthCm : null);
-    const h = it.heightCm != null ? Number(it.heightCm) : (dim ? dim.heightCm : null);
-    if (w == null || Number.isNaN(w) || w <= 0) {
-      addTrace("น้ำหนักสินค้า", `ไม่มีน้ำหนักของ SKU='${it.sku || "(ไม่ระบุ)"}' (ไม่ได้ระบุ และไม่พบใน SKU Master)`);
-      return blank(trace, STATUS.WEIGHT_ERROR, {
-        errors: [{ code: "WEIGHT_MISSING", message: `ไม่มีน้ำหนักของสินค้า SKU='${it.sku || "(ไม่ระบุ)"}'` }],
-      });
-    }
-    totalActualWeight += w * qty;
-    if (l && wd && h) { totalVolume += l * wd * h * qty; anyDims = true; }
-    itemLines.push({ sku: it.sku || null, quantity: qty, weightKg: w, lengthCm: l || null, widthCm: wd || null, heightCm: h || null });
-    addTrace(`รายการ: ${it.sku || "(ไม่มี SKU)"}`, `น้ำหนัก ${w} kg × ${qty} ชิ้น = ${roundMoney(w * qty)} kg${l && wd && h ? ` · ขนาด ${l}×${wd}×${h} ซม.` : ""}`, { sku: it.sku, qty, weightKg: w });
-  }
-  totalActualWeight = roundMoney(totalActualWeight);
-  addTrace("น้ำหนักจริงรวมทั้งออเดอร์", `${totalActualWeight} kg (${items.length} รายการ)`, { totalActualWeight });
-
-  const volumetricWeightOverride = anyDims && masterData.carrier.dimFactor ? roundMoney(totalVolume / masterData.carrier.dimFactor) : null;
-
-  const combinedInput = {
-    carrierId: orderInput.carrierId, serviceId: orderInput.serviceId,
-    province: orderInput.province, postalCode: orderInput.postalCode,
-    actualWeightKg: totalActualWeight, volumetricWeightOverride,
-    codAmount: orderInput.codAmount, shipDate: orderInput.shipDate,
-  };
-  const result = runCalculationWithValidation(combinedInput, masterData);
-  return { ...result, trace: [...trace, ...(result.trace || [])], items: itemLines };
 }
 
 function calculatePerItemOrder(orderInput, items, masterData) {

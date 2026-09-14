@@ -384,45 +384,45 @@ describe("calculateFreightForOrder — multi-item orders (spec §1: an order is 
     assert.equal(result.status, STATUS.DATA_ERROR);
   });
 
-  describe("WEIGHT_ZONE_TABLE carriers: one combined shipment, weights and volumes summed", () => {
+  describe("WEIGHT_ZONE_TABLE carriers: every line ships as its own parcel, priced independently (not combined into one shipment)", () => {
+    // This business ships large/heavy items (furniture) as separate packages, never combined
+    // into one mega-shipment — true for every carrier, not just the per-SKU ones below.
     function orderMasterData(overrides = {}) {
       return { carrier: bestCarrier, zoneMapEntry: bkkZoneMap, skuDimsBySku: {}, rateCards: bestRateCards(), skuGrid: [], sizeClassRates: [], surcharges: [], codRules: [], bulkyThreshold: null, ...overrides };
     }
 
-    test("sums actual weight across items+quantity, then does ONE rate lookup on the total (Best BKK 1+2kg -> rounds up to 3kg -> 30.4 baht, matching the single-shipment case)", () => {
+    test("each line gets its OWN rate lookup by its own weight (Best BKK 1kg=22.4, 2kg=26.4 — summed, not combined into one 3kg=30.4 lookup)", () => {
       const orderInput = {
         carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
         items: [{ sku: "A", actualWeightKg: 1, quantity: 1 }, { sku: "B", actualWeightKg: 2, quantity: 1 }],
       };
       const result = calculateFreightForOrder(orderInput, orderMasterData());
       assert.equal(result.status, STATUS.CALCULATED);
-      assert.equal(result.chargeableWeight, 3);
-      assert.equal(result.baseFreight, 30.4);
+      assert.equal(result.baseFreight, 22.4 + 26.4);
       assert.equal(result.items.length, 2);
     });
 
-    test("quantity multiplies weight per line, not just counted once", () => {
+    test("quantity multiplies the per-line PRICE, not a combined weight (1kg line x3 -> 22.4x3, not a single 3kg lookup)", () => {
       const orderInput = {
         carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
-        items: [{ sku: "A", actualWeightKg: 1, quantity: 3 }], // 3kg total, same as a single 3kg item
+        items: [{ sku: "A", actualWeightKg: 1, quantity: 3 }],
       };
       const result = calculateFreightForOrder(orderInput, orderMasterData());
-      assert.equal(result.chargeableWeight, 3);
-      assert.equal(result.baseFreight, 30.4);
+      assert.equal(result.baseFreight, roundMoney(22.4 * 3));
     });
 
-    test("sums VOLUME across differently-shaped items (not raw dimensions) before re-deriving one volumetric weight", () => {
-      // Two boxes of 30x20x20 (volume 12000 each) = 24000 total / 5000 DIM = 4.8kg volumetric,
-      // vs. actual weight 1kg each = 2kg total -> volumetric wins -> rounds up to 5kg.
+    test("each line's own dimensions drive its own volumetric weight independently", () => {
+      // 30x20x20 / 5000 DIM = 2.4kg volumetric vs 1kg actual -> that line rounds up to 3kg (30.4);
+      // the other line is a plain 2kg actual-weight line (26.4) — never merged into one shipment.
       const orderInput = {
         carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
         items: [
           { sku: "A", actualWeightKg: 1, lengthCm: 30, widthCm: 20, heightCm: 20, quantity: 1 },
-          { sku: "B", actualWeightKg: 1, lengthCm: 30, widthCm: 20, heightCm: 20, quantity: 1 },
+          { sku: "B", actualWeightKg: 2, quantity: 1 },
         ],
       };
       const result = calculateFreightForOrder(orderInput, orderMasterData());
-      assert.equal(result.chargeableWeight, 5);
+      assert.equal(result.baseFreight, roundMoney(30.4 + 26.4));
     });
 
     test("falls back to each item's own SKU dimension data when not given manually", () => {
@@ -430,9 +430,9 @@ describe("calculateFreightForOrder — multi-item orders (spec §1: an order is 
         carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
         items: [{ sku: "A", quantity: 2 }], // no actualWeightKg given — must come from skuDimsBySku
       };
-      const result = calculateFreightForOrder(orderInput, orderMasterData({ skuDimsBySku: { A: { weightKg: 1.5 } } }));
+      const result = calculateFreightForOrder(orderInput, orderMasterData({ skuDimsBySku: { A: { weightKg: 1 } } }));
       assert.equal(result.status, STATUS.CALCULATED);
-      assert.equal(result.chargeableWeight, 3); // 1.5 * 2 = 3, already whole
+      assert.equal(result.baseFreight, roundMoney(22.4 * 2)); // 1kg line, price doubled by quantity
     });
 
     test("a line with no weight anywhere (not manual, not in SKU master) -> WEIGHT_ERROR for the whole order", () => {
@@ -441,7 +441,7 @@ describe("calculateFreightForOrder — multi-item orders (spec §1: an order is 
       assert.equal(result.status, STATUS.WEIGHT_ERROR);
     });
 
-    test("weight above every rate bracket -> RATE_NOT_FOUND for the combined order, not a guess", () => {
+    test("one line's weight above every rate bracket -> RATE_NOT_FOUND for the whole order, not a guess", () => {
       const orderInput = { carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", items: [{ actualWeightKg: 500 }] };
       const result = calculateFreightForOrder(orderInput, orderMasterData());
       assert.equal(result.status, STATUS.RATE_NOT_FOUND);
