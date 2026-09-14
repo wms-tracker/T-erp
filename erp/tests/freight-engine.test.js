@@ -11,7 +11,7 @@ import {
   STATUS, CONFIDENCE, roundMoney, roundWeight, computeVolumetricWeight,
   validateOrderInput, resolveZone, lookupWeightZoneRate, lookupSkuGridRate,
   lookupSizeClassRate, findOverlappingRateCards, calculateFreight,
-  runCalculationWithValidation,
+  runCalculationWithValidation, calculateFreightForOrder, runOrderCalculationWithValidation,
 } from "../js/freight-engine.js";
 
 // ---------- fixtures ----------
@@ -326,6 +326,40 @@ describe("SKU_SIZE_CLASS carriers price flat, with no zone dimension (Nim-expres
     const result = calculateFreight({ carrierId: "nim", sku: "UNKNOWN", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01" }, masterData);
     assert.equal(result.status, STATUS.RATE_NOT_FOUND);
   });
+
+  // Real bug caught while building multi-item order support: a SKU priced purely by size
+  // class (this carrier never uses weight to price) still failed with WEIGHT_ERROR if no
+  // weight existed anywhere — blocking a perfectly priceable SKU on data the carrier never
+  // reads. Weight should only be REQUIRED for carriers whose weightRule actually uses it.
+  test("prices successfully with NO weight anywhere — this carrier's rate lookup never uses weight", () => {
+    const skuDim = { sku: "NOWEIGHT", sizeClass: "D" }; // no weightKg field at all
+    const masterData = { carrier: nimCarrier, zoneMapEntry: null, skuDim, rateCards: [], skuGrid: [], sizeClassRates, surcharges: [], codRules: [], bulkyThreshold: null };
+    const result = calculateFreight({ carrierId: "nim", sku: "NOWEIGHT", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01" }, masterData);
+    assert.equal(result.status, STATUS.CALCULATED);
+    assert.equal(result.baseFreight, 250);
+    assert.equal(result.actualWeight, null);
+    assert.equal(result.chargeableWeight, null);
+  });
+});
+
+describe("weight is only required for carriers whose weightRule actually uses it", () => {
+  test("a WEIGHT_ZONE_TABLE carrier still requires weight (unchanged behavior)", () => {
+    const masterData = { carrier: bestCarrier, zoneMapEntry: bkkZoneMap, rateCards: bestRateCards(), skuGrid: [], sizeClassRates: [], surcharges: [], codRules: [], bulkyThreshold: null };
+    const result = calculateFreight({ carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ" }, masterData);
+    assert.equal(result.status, STATUS.WEIGHT_ERROR);
+  });
+
+  test("a SKU_ZONE_GRID carrier (Business Idea) prices successfully with no weight anywhere, given an explicit bracket", () => {
+    const biCarrier = { id: "businessIdea", name: "Business Idea", pricingStrategy: "SKU_ZONE_GRID", weightRule: "SKU_GRID", roundingRule: { mode: "NONE" } };
+    const skuGrid = [{ sku: "BI1", zone: "BI_ZONE", bracketLabel: "27.00-29.99", rate: 900 }];
+    const zoneMapEntry = { carrierZones: { businessIdea: "BI_ZONE" } };
+    const result = calculateFreight(
+      { carrierId: "businessIdea", sku: "BI1", weightBracketLabel: "27.00-29.99", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01" },
+      { carrier: biCarrier, zoneMapEntry, skuDim: null, rateCards: [], skuGrid, sizeClassRates: [], surcharges: [], codRules: [], bulkyThreshold: null }
+    );
+    assert.equal(result.status, STATUS.CALCULATED);
+    assert.equal(result.baseFreight, 900);
+  });
 });
 
 describe("double-calculation validation (spec §13)", () => {
@@ -335,5 +369,163 @@ describe("double-calculation validation (spec §13)", () => {
     const result = runCalculationWithValidation(input, masterData);
     assert.equal(result.status, STATUS.CALCULATED);
     assert.equal(result.totalFreight, calculateFreight(input, masterData).totalFreight);
+  });
+});
+
+describe("calculateFreightForOrder — multi-item orders (spec §1: an order is usually several SKUs)", () => {
+  test("empty items array -> DATA_ERROR, never silently computes zero", () => {
+    const result = calculateFreightForOrder({ carrierId: "best", items: [] }, { carrier: bestCarrier });
+    assert.equal(result.status, STATUS.DATA_ERROR);
+    assert.equal(result.errors[0].code, "ITEMS_REQUIRED");
+  });
+
+  test("missing carrier -> DATA_ERROR", () => {
+    const result = calculateFreightForOrder({ carrierId: "nope", items: [{ actualWeightKg: 1 }] }, { carrier: null });
+    assert.equal(result.status, STATUS.DATA_ERROR);
+  });
+
+  describe("WEIGHT_ZONE_TABLE carriers: one combined shipment, weights and volumes summed", () => {
+    function orderMasterData(overrides = {}) {
+      return { carrier: bestCarrier, zoneMapEntry: bkkZoneMap, skuDimsBySku: {}, rateCards: bestRateCards(), skuGrid: [], sizeClassRates: [], surcharges: [], codRules: [], bulkyThreshold: null, ...overrides };
+    }
+
+    test("sums actual weight across items+quantity, then does ONE rate lookup on the total (Best BKK 1+2kg -> rounds up to 3kg -> 30.4 baht, matching the single-shipment case)", () => {
+      const orderInput = {
+        carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
+        items: [{ sku: "A", actualWeightKg: 1, quantity: 1 }, { sku: "B", actualWeightKg: 2, quantity: 1 }],
+      };
+      const result = calculateFreightForOrder(orderInput, orderMasterData());
+      assert.equal(result.status, STATUS.CALCULATED);
+      assert.equal(result.chargeableWeight, 3);
+      assert.equal(result.baseFreight, 30.4);
+      assert.equal(result.items.length, 2);
+    });
+
+    test("quantity multiplies weight per line, not just counted once", () => {
+      const orderInput = {
+        carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
+        items: [{ sku: "A", actualWeightKg: 1, quantity: 3 }], // 3kg total, same as a single 3kg item
+      };
+      const result = calculateFreightForOrder(orderInput, orderMasterData());
+      assert.equal(result.chargeableWeight, 3);
+      assert.equal(result.baseFreight, 30.4);
+    });
+
+    test("sums VOLUME across differently-shaped items (not raw dimensions) before re-deriving one volumetric weight", () => {
+      // Two boxes of 30x20x20 (volume 12000 each) = 24000 total / 5000 DIM = 4.8kg volumetric,
+      // vs. actual weight 1kg each = 2kg total -> volumetric wins -> rounds up to 5kg.
+      const orderInput = {
+        carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
+        items: [
+          { sku: "A", actualWeightKg: 1, lengthCm: 30, widthCm: 20, heightCm: 20, quantity: 1 },
+          { sku: "B", actualWeightKg: 1, lengthCm: 30, widthCm: 20, heightCm: 20, quantity: 1 },
+        ],
+      };
+      const result = calculateFreightForOrder(orderInput, orderMasterData());
+      assert.equal(result.chargeableWeight, 5);
+    });
+
+    test("falls back to each item's own SKU dimension data when not given manually", () => {
+      const orderInput = {
+        carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
+        items: [{ sku: "A", quantity: 2 }], // no actualWeightKg given — must come from skuDimsBySku
+      };
+      const result = calculateFreightForOrder(orderInput, orderMasterData({ skuDimsBySku: { A: { weightKg: 1.5 } } }));
+      assert.equal(result.status, STATUS.CALCULATED);
+      assert.equal(result.chargeableWeight, 3); // 1.5 * 2 = 3, already whole
+    });
+
+    test("a line with no weight anywhere (not manual, not in SKU master) -> WEIGHT_ERROR for the whole order", () => {
+      const orderInput = { carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", items: [{ sku: "GHOST" }] };
+      const result = calculateFreightForOrder(orderInput, orderMasterData());
+      assert.equal(result.status, STATUS.WEIGHT_ERROR);
+    });
+
+    test("weight above every rate bracket -> RATE_NOT_FOUND for the combined order, not a guess", () => {
+      const orderInput = { carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", items: [{ actualWeightKg: 500 }] };
+      const result = calculateFreightForOrder(orderInput, orderMasterData());
+      assert.equal(result.status, STATUS.RATE_NOT_FOUND);
+    });
+  });
+
+  describe("SKU_ZONE_GRID / SKU_SIZE_CLASS carriers: each line priced independently, surcharges/COD applied once at order level", () => {
+    const nimCarrier = { id: "nim", name: "Nim-express", pricingStrategy: "SKU_SIZE_CLASS", weightRule: "SIZE_CLASS", roundingRule: { mode: "NONE" } };
+    const sizeClassRates = [{ sizeClass: "C", rate: 200 }, { sizeClass: "D", rate: 250 }];
+
+    function nimOrderMasterData(overrides = {}) {
+      return {
+        carrier: nimCarrier, zoneMapEntry: null,
+        skuDimsBySku: { SKU1: { weightKg: 1, sizeClass: "C" }, SKU2: { weightKg: 1, sizeClass: "D" } },
+        rateCards: [], skuGrid: [], sizeClassRates, surcharges: [], codRules: [], bulkyThreshold: null, ...overrides,
+      };
+    }
+
+    test("two different SKUs each price via their own size class, and sum correctly with quantity", () => {
+      const orderInput = {
+        carrierId: "nim", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
+        items: [{ sku: "SKU1", quantity: 2 }, { sku: "SKU2", quantity: 1 }],
+      };
+      const result = calculateFreightForOrder(orderInput, nimOrderMasterData());
+      assert.equal(result.status, STATUS.CALCULATED);
+      assert.equal(result.baseFreight, 200 * 2 + 250 * 1); // 650
+      assert.equal(result.items.length, 2);
+    });
+
+    test("a FIXED surcharge is charged ONCE per order, not once per line item", () => {
+      const surcharges = [{ id: "s1", carrierId: "nim", type: "OTHER", calcType: "FIXED", value: 10 }];
+      const orderInput = {
+        carrierId: "nim", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01",
+        items: [{ sku: "SKU1", quantity: 1 }, { sku: "SKU1", quantity: 1 }, { sku: "SKU1", quantity: 1 }], // 3 lines
+      };
+      const result = calculateFreightForOrder(orderInput, nimOrderMasterData({ surcharges }));
+      assert.equal(result.baseFreight, 600); // 200 x 3
+      assert.equal(result.otherFee, 10); // NOT 30 — charged once for the order, not per line
+      assert.equal(result.totalFreight, 610);
+    });
+
+    test("COD is applied once on the order's declared COD amount, not derived per line", () => {
+      const codRules = [{ carrierId: "nim", percent: 0.02, minFee: 5, maxFee: 100 }];
+      const orderInput = {
+        carrierId: "nim", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01", codAmount: 1000,
+        items: [{ sku: "SKU1", quantity: 1 }, { sku: "SKU2", quantity: 1 }],
+      };
+      const result = calculateFreightForOrder(orderInput, nimOrderMasterData({ codRules }));
+      assert.equal(result.codFee, 20); // 1000 * 2%, computed once — not once per line
+    });
+
+    test("one unpriceable line (unknown SKU) fails the whole order rather than silently pricing only the others", () => {
+      const orderInput = {
+        carrierId: "nim", postalCode: "10100", province: "กรุงเทพฯ",
+        items: [{ sku: "SKU1", quantity: 1 }, { sku: "UNKNOWN", quantity: 1, actualWeightKg: 1 }], // has a weight but no assigned size class
+      };
+      const result = calculateFreightForOrder(orderInput, nimOrderMasterData());
+      assert.equal(result.status, STATUS.RATE_NOT_FOUND);
+      assert.equal(result.totalFreight, null);
+      // the specific underlying reason (from the failing item's own error) bubbles up as the
+      // code, so the UI can react to it the same way it would for a single-item calculation —
+      // the message adds which SKU/line it came from.
+      assert.equal(result.errors[0].code, "SIZE_CLASS_NOT_FOUND");
+      assert.match(result.errors[0].message, /UNKNOWN/);
+    });
+
+    test("a Business Idea style line still requires its own bracket/type selection per item — never guessed", () => {
+      const biCarrier = { id: "businessIdea", name: "Business Idea", pricingStrategy: "SKU_ZONE_GRID", weightRule: "SKU_GRID", roundingRule: { mode: "NONE" } };
+      const skuGrid = [{ sku: "BI1", type: "ตัวสินค้า", zone: "BI_ZONE", bracketLabel: "27.00-29.99", rate: 900 }];
+      const zoneMapEntry = { carrierZones: { businessIdea: "BI_ZONE" } };
+      const orderInput = {
+        carrierId: "businessIdea", postalCode: "10100", province: "กรุงเทพฯ",
+        items: [{ sku: "BI1", quantity: 1, actualWeightKg: 30 }], // no weightBracketLabel given
+      };
+      const result = calculateFreightForOrder(orderInput, { carrier: biCarrier, zoneMapEntry, skuDimsBySku: {}, rateCards: [], skuGrid, sizeClassRates: [], surcharges: [], codRules: [], bulkyThreshold: null });
+      assert.equal(result.status, STATUS.MANUAL_REVIEW);
+    });
+  });
+
+  test("runOrderCalculationWithValidation returns the same result as calling calculateFreightForOrder directly on deterministic input", () => {
+    const masterData = { carrier: bestCarrier, zoneMapEntry: bkkZoneMap, skuDimsBySku: {}, rateCards: bestRateCards(), skuGrid: [], sizeClassRates: [], surcharges: [], codRules: [], bulkyThreshold: null };
+    const orderInput = { carrierId: "best", postalCode: "10100", province: "กรุงเทพฯ", shipDate: "2026-03-01", items: [{ actualWeightKg: 2 }] };
+    const result = runOrderCalculationWithValidation(orderInput, masterData);
+    assert.equal(result.status, STATUS.CALCULATED);
+    assert.equal(result.totalFreight, calculateFreightForOrder(orderInput, masterData).totalFreight);
   });
 });

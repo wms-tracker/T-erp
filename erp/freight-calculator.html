@@ -11,7 +11,8 @@
 import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
 import { toast } from "./js/ui.js";
-import { listCarriers, getSkuDimension, getSkuGrid, calculateAndOptionallySave } from "./js/freight-data.js";
+import { listCarriers, getSkuDimension, getSkuGrid, calculateOrderAndOptionallySave } from "./js/freight-data.js";
+import { STATUS } from "./js/freight-engine.js";
 
 const profile = await requireRole(["admin", "warehouse", "sales"]);
 const main = renderShell(profile, "freight-calculator", "🧮 คำนวณค่าขนส่ง (Freight Calculator)");
@@ -29,9 +30,19 @@ const STATUS_BADGE = {
 const CONFIDENCE_LABEL = { HIGH: "🟢 มั่นใจสูง", MEDIUM: "🟡 มั่นใจปานกลาง", LOW: "🔴 มั่นใจต่ำ" };
 
 let carriers = [];
+let currentCarrier = null;
+let nextUid = 1;
+
+// One row per line item — { uid, sku, quantity, weightKg, lengthCm, widthCm, heightCm,
+// variantType, bracketLabel, grid (cached SKU_ZONE_GRID doc for this row's SKU, if any) }
+let items = [newItem()];
+
+function newItem() {
+  return { uid: nextUid++, sku: "", quantity: 1, weightKg: "", lengthCm: "", widthCm: "", heightCm: "", variantType: "", bracketLabel: "", grid: null };
+}
 
 main.innerHTML = `
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start;">
     <div class="card">
       <div class="section-title">ข้อมูล Order</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -44,15 +55,22 @@ main.innerHTML = `
         <div class="field"><label>จังหวัด <span class="req">*</span></label><input id="in-province" /></div>
         <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
       </div>
-      <div class="field"><label>SKU (ถ้ามี — จะดึงขนาด/น้ำหนักอัตโนมัติ)</label><input id="in-sku" /></div>
-      <div id="type-field" class="field" hidden><label>ประเภทการจัดส่ง (Type) — SKU นี้จัดส่งได้มากกว่า 1 แบบ ราคาต่างกัน ต้องเลือกเอง</label><select id="in-type"></select></div>
-      <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) — Carrier นี้กำหนดราคาต่อ SKU ระบบไม่ทราบเกณฑ์อัตโนมัติ ต้องเลือกเอง</label><select id="in-bracket"></select></div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-        <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
-        <div class="field"><label>ยาว (ซม.)</label><input id="in-length" type="number" step="0.1" /></div>
-        <div class="field"><label>กว้าง (ซม.)</label><input id="in-width" type="number" step="0.1" /></div>
-        <div class="field"><label>สูง (ซม.)</label><input id="in-height" type="number" step="0.1" /></div>
+
+      <div class="field">
+        <label>รายการสินค้า <span class="req">*</span></label>
+        <div style="overflow-x:auto;">
+          <table style="min-width:640px;">
+            <thead><tr>
+              <th>SKU</th><th style="width:64px;">จำนวน</th><th style="width:80px;">น้ำหนัก(kg)</th>
+              <th style="width:64px;">ยาว</th><th style="width:64px;">กว้าง</th><th style="width:64px;">สูง</th>
+              <th>ประเภท/ช่วงตัวเลข (เฉพาะ Business Idea)</th><th></th>
+            </tr></thead>
+            <tbody id="items-rows"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-outline" id="btn-add-item" style="width:auto;padding:6px 16px;margin-top:8px;">+ เพิ่มสินค้า</button>
       </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <div class="field"><label>ยอด COD (บาท, ถ้ามี)</label><input id="in-cod" type="number" step="0.01" /></div>
         <div class="field"><label>วันที่จัดส่ง (Ship Date)</label><input id="in-shipdate" type="date" /></div>
@@ -64,6 +82,122 @@ main.innerHTML = `
 `;
 
 document.getElementById("in-shipdate").value = new Date().toISOString().slice(0, 10);
+
+// ---------- item rows ----------
+
+function itemRowHTML(it) {
+  const needsBiFields = currentCarrier?.pricingStrategy === "SKU_ZONE_GRID";
+  let typeBracketHTML = "-";
+  if (needsBiFields) {
+    const typeOptions = it.grid?.variants?.length > 1
+      ? `<select data-field="variantType" data-uid="${it.uid}" style="width:48%;display:inline-block;">${it.grid.variants.map((v) => `<option value="${v.type}" ${v.type === it.variantType ? "selected" : ""}>${v.type}</option>`).join("")}</select>`
+      : "";
+    const chosenVariant = it.grid?.variants?.find((v) => v.type === (it.variantType || it.grid.variants[0]?.type)) || it.grid?.variants?.[0];
+    const brackets = chosenVariant ? [...new Set(chosenVariant.cells.map((c) => c.bracketLabel))] : [];
+    const bracketOptions = brackets.length
+      ? `<select data-field="bracketLabel" data-uid="${it.uid}" style="width:48%;display:inline-block;"><option value="">— เลือกช่วงตัวเลข —</option>${brackets.map((b) => `<option value="${b}" ${b === it.bracketLabel ? "selected" : ""}>${b}</option>`).join("")}</select>`
+      : "";
+    typeBracketHTML = (typeOptions || bracketOptions) ? `${typeOptions}${bracketOptions}` : `<span style="color:#aaa;font-size:0.78rem;">กรอก SKU ก่อน</span>`;
+  }
+  return `
+    <tr data-uid="${it.uid}">
+      <td><input data-field="sku" data-uid="${it.uid}" value="${it.sku}" style="min-width:140px;" /></td>
+      <td><input data-field="quantity" data-uid="${it.uid}" type="number" min="1" value="${it.quantity}" style="width:56px;" /></td>
+      <td><input data-field="weightKg" data-uid="${it.uid}" type="number" step="0.01" value="${it.weightKg}" style="width:72px;" /></td>
+      <td><input data-field="lengthCm" data-uid="${it.uid}" type="number" step="0.1" value="${it.lengthCm}" style="width:56px;" /></td>
+      <td><input data-field="widthCm" data-uid="${it.uid}" type="number" step="0.1" value="${it.widthCm}" style="width:56px;" /></td>
+      <td><input data-field="heightCm" data-uid="${it.uid}" type="number" step="0.1" value="${it.heightCm}" style="width:56px;" /></td>
+      <td>${typeBracketHTML}</td>
+      <td><button type="button" class="btn btn-outline btn-remove-item" data-uid="${it.uid}" style="padding:4px 10px;font-size:0.76rem;" ${items.length <= 1 ? "disabled" : ""}>ลบ</button></td>
+    </tr>`;
+}
+
+function renderItemsRows() {
+  document.getElementById("items-rows").innerHTML = items.map(itemRowHTML).join("");
+}
+
+function findItem(uid) {
+  return items.find((it) => String(it.uid) === String(uid));
+}
+
+document.getElementById("btn-add-item").addEventListener("click", () => {
+  items.push(newItem());
+  renderItemsRows();
+});
+
+document.getElementById("items-rows").addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-remove-item");
+  if (!btn) return;
+  if (items.length <= 1) return;
+  items = items.filter((it) => String(it.uid) !== String(btn.dataset.uid));
+  renderItemsRows();
+});
+
+document.getElementById("items-rows").addEventListener("input", (e) => {
+  const field = e.target.dataset.field;
+  const uid = e.target.dataset.uid;
+  if (!field || !uid) return;
+  const it = findItem(uid);
+  if (!it) return;
+  it[field] = e.target.value;
+});
+
+document.getElementById("items-rows").addEventListener("change", async (e) => {
+  const field = e.target.dataset.field;
+  const uid = e.target.dataset.uid;
+  if (!field || !uid) return;
+  const it = findItem(uid);
+  if (!it) return;
+  it[field] = e.target.value;
+
+  if (field === "sku") {
+    const sku = it.sku.trim();
+    it.grid = null;
+    if (sku) {
+      const dim = await getSkuDimension(sku);
+      if (dim) {
+        if (dim.weightKg != null && !it.weightKg) it.weightKg = dim.weightKg;
+        if (dim.lengthCm != null && !it.lengthCm) it.lengthCm = dim.lengthCm;
+        if (dim.widthCm != null && !it.widthCm) it.widthCm = dim.widthCm;
+        if (dim.heightCm != null && !it.heightCm) it.heightCm = dim.heightCm;
+      }
+      if (currentCarrier?.pricingStrategy === "SKU_ZONE_GRID") {
+        it.grid = await getSkuGrid(sku);
+        it.variantType = ""; it.bracketLabel = "";
+      }
+    }
+    renderItemsRows();
+  } else if (field === "variantType") {
+    it.bracketLabel = "";
+    renderItemsRows();
+  }
+});
+
+// ---------- carrier / service ----------
+
+async function onCarrierChange() {
+  currentCarrier = carriers.find((c) => c.id === document.getElementById("in-carrier").value) || null;
+  const svcField = document.getElementById("service-field");
+  const svcSel = document.getElementById("in-service");
+  if (currentCarrier?.services?.length) {
+    svcField.hidden = false;
+    svcSel.innerHTML = currentCarrier.services.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+  } else {
+    svcField.hidden = true;
+    svcSel.innerHTML = "";
+  }
+  // Business Idea's Type/Bracket columns only matter for this carrier — refresh every row's
+  // grid so switching carriers shows/hides them correctly.
+  if (currentCarrier?.pricingStrategy === "SKU_ZONE_GRID") {
+    await Promise.all(items.filter((it) => it.sku.trim()).map(async (it) => { it.grid = await getSkuGrid(it.sku.trim()); }));
+  } else {
+    items.forEach((it) => { it.grid = null; });
+  }
+  renderItemsRows();
+}
+document.getElementById("in-carrier").addEventListener("change", onCarrierChange);
+
+// ---------- result rendering ----------
 
 function traceHTML(trace) {
   return `<div class="timeline">${(trace || []).map((t) => `
@@ -77,10 +211,29 @@ function breakdownRow(label, value) {
   return `<div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#666;">${label}</span><span>${value == null ? "-" : Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>`;
 }
 
+function itemsBreakdownHTML(resultItems) {
+  if (!resultItems?.length) return "";
+  // Per-item-priced carriers attach a nested `result` per line; aggregate carriers attach
+  // plain weight/dim info instead — render whichever shape is present.
+  const rows = resultItems.map((it) => {
+    if (it.result) {
+      const ok = it.result.status === STATUS.CALCULATED;
+      return `<tr><td>${it.sku || "-"}</td><td>${it.quantity}</td><td>${ok ? (it.result.baseFreight ?? "-") : "-"}</td>
+        <td><span class="badge ${STATUS_BADGE[it.result.status] || "badge-pending"}" style="font-size:0.7rem;">${STATUS_LABEL[it.result.status] || it.result.status}</span></td></tr>`;
+    }
+    return `<tr><td>${it.sku || "-"}</td><td>${it.quantity}</td><td>${it.weightKg ?? "-"} kg</td><td>-</td></tr>`;
+  }).join("");
+  return `
+    <div style="margin-top:14px;">
+      <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;">รายการสินค้า</div>
+      <table><thead><tr><th>SKU</th><th>จำนวน</th><th>ราคา/น้ำหนัก</th><th>สถานะ</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+}
+
 function renderResult(result) {
   const panel = document.getElementById("result-panel");
   const errorsHTML = result.errors?.length
-    ? `<div class="card" style="background:#fdecea;border:1px solid #f6c6c2;margin-top:10px;">${result.errors.map((e) => `<div style="font-size:0.84rem;">⚠️ ${e.message}${e.availableBrackets ? ` (${e.availableBrackets.join(", ")})` : ""}</div>`).join("")}</div>`
+    ? `<div class="card" style="background:#fdecea;border:1px solid #f6c6c2;margin-top:10px;">${result.errors.map((e) => `<div style="font-size:0.84rem;">⚠️ ${e.message}${e.availableBrackets ? ` (${e.availableBrackets.join(", ")})` : ""}${e.availableTypes ? ` (${e.availableTypes.join(", ")})` : ""}</div>`).join("")}</div>`
     : "";
   const warningsHTML = result.warnings?.length
     ? `<div class="card" style="background:#fff8e1;border:1px solid #ffe4a3;margin-top:10px;">${result.warnings.map((w) => `<div style="font-size:0.84rem;">🟡 ${w}</div>`).join("")}</div>`
@@ -108,8 +261,9 @@ function renderResult(result) {
           <div style="display:flex;justify-content:space-between;font-weight:800;font-size:1.15rem;"><span>รวมทั้งหมด</span><span>${result.totalFreight?.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span></div>
           <div style="font-size:0.78rem;color:#888;margin-top:4px;">Zone: ${result.zone || "-"} · Rate Version: ${result.rateVersion || "-"}</div>
         </div>
+        ${itemsBreakdownHTML(result.items)}
         <button class="btn btn-primary" id="btn-save-calc" style="width:auto;padding:8px 20px;margin-top:14px;">💾 บันทึกผลการคำนวณนี้</button>
-      ` : ""}
+      ` : itemsBreakdownHTML(result.items)}
       <details style="margin-top:16px;"><summary style="cursor:pointer;font-weight:700;font-size:0.9rem;">📜 ดูรายละเอียดการคำนวณ (Trace)</summary>
         <div style="margin-top:10px;">${traceHTML(result.trace)}</div>
       </details>
@@ -119,7 +273,7 @@ function renderResult(result) {
   if (saveBtn) saveBtn.addEventListener("click", async () => {
     saveBtn.disabled = true; saveBtn.textContent = "กำลังบันทึก...";
     try {
-      const { savedId } = await calculateAndOptionallySave(buildInput(), profile, { save: true });
+      const { savedId } = await calculateOrderAndOptionallySave(buildOrderInput(), profile, { save: true });
       toast({ title: "บันทึกผลการคำนวณสำเร็จ", desc: savedId });
     } catch (err) {
       toast({ type: "error", title: "บันทึกไม่สำเร็จ", desc: err.message });
@@ -129,7 +283,11 @@ function renderResult(result) {
   });
 }
 
-function buildInput() {
+// ---------- build order input + calculate ----------
+
+function num(v) { return v !== "" && v != null ? Number(v) : null; }
+
+function buildOrderInput() {
   return {
     orderId: document.getElementById("in-order").value.trim(),
     trackingNo: document.getElementById("in-tracking").value.trim(),
@@ -137,98 +295,26 @@ function buildInput() {
     serviceId: document.getElementById("in-service").value || null,
     province: document.getElementById("in-province").value.trim(),
     postalCode: document.getElementById("in-postal").value.trim(),
-    sku: document.getElementById("in-sku").value.trim() || null,
-    variantType: document.getElementById("in-type").value || null,
-    weightBracketLabel: document.getElementById("in-bracket").value || null,
-    actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
-    lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,
-    widthCm: document.getElementById("in-width").value ? Number(document.getElementById("in-width").value) : null,
-    heightCm: document.getElementById("in-height").value ? Number(document.getElementById("in-height").value) : null,
-    codAmount: document.getElementById("in-cod").value ? Number(document.getElementById("in-cod").value) : null,
+    codAmount: num(document.getElementById("in-cod").value),
     shipDate: document.getElementById("in-shipdate").value || null,
+    items: items.map((it) => ({
+      sku: it.sku.trim() || null,
+      quantity: num(it.quantity) || 1,
+      actualWeightKg: num(it.weightKg),
+      lengthCm: num(it.lengthCm), widthCm: num(it.widthCm), heightCm: num(it.heightCm),
+      variantType: it.variantType || null, weightBracketLabel: it.bracketLabel || null,
+    })),
   };
 }
 
-async function onCarrierChange() {
-  const carrier = carriers.find((c) => c.id === document.getElementById("in-carrier").value);
-  const svcField = document.getElementById("service-field");
-  const svcSel = document.getElementById("in-service");
-  if (carrier?.services?.length) {
-    svcField.hidden = false;
-    svcSel.innerHTML = carrier.services.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
-  } else {
-    svcField.hidden = true;
-    svcSel.innerHTML = "";
-  }
-  await maybeLoadSkuVariant(carrier);
-}
-
-let currentSkuGrid = null;
-
-// Business Idea prices by (SKU, Type, Weight Bracket) — Type first (e.g. a mattress ships
-// flat/unfolded vs. boxed at very different prices), then Bracket within that Type. Neither
-// is auto-picked; the system doesn't know the rule, so the user always chooses (spec §15).
-async function maybeLoadSkuVariant(carrier) {
-  const typeField = document.getElementById("type-field");
-  const typeSel = document.getElementById("in-type");
-  const bracketField = document.getElementById("bracket-field");
-  const sku = document.getElementById("in-sku").value.trim();
-  currentSkuGrid = null;
-  if (!carrier || carrier.pricingStrategy !== "SKU_ZONE_GRID" || !sku) {
-    typeField.hidden = true; bracketField.hidden = true;
-    return;
-  }
-  const grid = await getSkuGrid(sku);
-  if (!grid || !grid.variants?.length) { typeField.hidden = true; bracketField.hidden = true; return; }
-  currentSkuGrid = grid;
-
-  if (grid.variants.length > 1) {
-    typeField.hidden = false;
-    typeSel.innerHTML = grid.variants.map((v) => `<option value="${v.type}">${v.type}</option>`).join("");
-  } else {
-    typeField.hidden = true;
-    typeSel.innerHTML = `<option value="${grid.variants[0].type}">${grid.variants[0].type}</option>`;
-  }
-  updateBracketOptions();
-}
-
-function updateBracketOptions() {
-  const bracketField = document.getElementById("bracket-field");
-  const bracketSel = document.getElementById("in-bracket");
-  if (!currentSkuGrid) { bracketField.hidden = true; return; }
-  const chosenType = document.getElementById("in-type").value || currentSkuGrid.variants[0].type;
-  const variant = currentSkuGrid.variants.find((v) => v.type === chosenType) || currentSkuGrid.variants[0];
-  const brackets = [...new Set(variant.cells.map((c) => c.bracketLabel))];
-  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
-  bracketField.hidden = brackets.length === 0;
-}
-
-document.getElementById("in-type").addEventListener("change", updateBracketOptions);
-
-document.getElementById("in-sku").addEventListener("change", async () => {
-  const sku = document.getElementById("in-sku").value.trim();
-  const carrier = carriers.find((c) => c.id === document.getElementById("in-carrier").value);
-  if (sku) {
-    const dim = await getSkuDimension(sku);
-    if (dim) {
-      if (dim.weightKg != null) document.getElementById("in-weight").value = dim.weightKg;
-      if (dim.widthCm != null) document.getElementById("in-width").value = dim.widthCm;
-      if (dim.lengthCm != null) document.getElementById("in-length").value = dim.lengthCm;
-      if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
-    }
-  }
-  await maybeLoadSkuVariant(carrier);
-});
-
-document.getElementById("in-carrier").addEventListener("change", onCarrierChange);
-
 document.getElementById("btn-calc").addEventListener("click", async () => {
-  const input = buildInput();
-  if (!input.carrierId) { toast({ type: "error", title: "กรุณาเลือก Carrier" }); return; }
+  const orderInput = buildOrderInput();
+  if (!orderInput.carrierId) { toast({ type: "error", title: "กรุณาเลือก Carrier" }); return; }
+  if (!orderInput.items.some((it) => it.sku || it.actualWeightKg)) { toast({ type: "error", title: "กรุณากรอก SKU หรือน้ำหนักอย่างน้อย 1 รายการ" }); return; }
   const btn = document.getElementById("btn-calc");
   btn.disabled = true; btn.textContent = "กำลังคำนวณ...";
   try {
-    const { result } = await calculateAndOptionallySave(input, profile, { save: false });
+    const { result } = await calculateOrderAndOptionallySave(orderInput, profile, { save: false });
     renderResult(result);
   } catch (err) {
     toast({ type: "error", title: "คำนวณไม่สำเร็จ", desc: err.message });
@@ -241,6 +327,7 @@ async function load() {
   carriers = await listCarriers();
   const sel = document.getElementById("in-carrier");
   sel.innerHTML = `<option value="">— เลือก Carrier —</option>` + carriers.filter((c) => c.active !== false).map((c) => `<option value="${c.id}">${c.name || c.id}</option>`).join("");
+  renderItemsRows();
 }
 
 await load();

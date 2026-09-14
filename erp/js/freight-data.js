@@ -21,7 +21,7 @@ import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   runTransaction, writeBatch, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { runCalculationWithValidation } from "./freight-engine.js";
+import { runCalculationWithValidation, calculateFreightForOrder, runOrderCalculationWithValidation } from "./freight-engine.js";
 
 function stringifyVal(v) {
   if (v === undefined || v === null) return "";
@@ -116,7 +116,7 @@ export async function saveSkuGrid(sku, data, user) {
 // gridDoc holds one `variants` entry per shipping Type (see freight-import.js's
 // parseBusinessIdeaSheet for why the same SKU can price differently by Type) — flatten all
 // of them into one array of cells, each tagged with its own variant `type`.
-function flattenSkuGrid(gridDoc) {
+export function flattenSkuGrid(gridDoc) {
   if (!gridDoc) return [];
   const out = [];
   for (const v of gridDoc.variants || []) {
@@ -295,5 +295,45 @@ export async function calculateAndOptionallySave(input, user, { save = false } =
   const result = runCalculationWithValidation(input, masterData);
   let savedId = null;
   if (save) savedId = await saveCalculation(input, result, user);
+  return { result, savedId, masterData };
+}
+
+// ---------- Multi-item orders (spec §1: an order is usually several SKUs) ----------
+
+// orderInput: { carrierId, serviceId, province, postalCode, codAmount, shipDate,
+//               items: [{ sku, quantity, actualWeightKg, lengthCm, widthCm, heightCm,
+//                         weightBracketLabel, variantType, sizeClass }] }
+export async function buildMasterDataForOrder(orderInput, carrier) {
+  const zoneMapEntry = orderInput.postalCode ? await getZoneMapEntry(orderInput.postalCode) : null;
+  const items = orderInput.items || [];
+  const uniqueSkus = [...new Set(items.map((it) => it.sku).filter(Boolean))];
+
+  const skuDimsBySku = {};
+  await Promise.all(uniqueSkus.map(async (sku) => { skuDimsBySku[sku] = await getSkuDimension(sku); }));
+
+  // One combined skuGrid covering every SKU in the order — lookupSkuGridRate already
+  // filters by sku internally, so a flat union works the same as a per-sku map.
+  let skuGrid = [];
+  if (carrier?.pricingStrategy === "SKU_ZONE_GRID" && uniqueSkus.length) {
+    const grids = await Promise.all(uniqueSkus.map((sku) => getSkuGrid(sku)));
+    skuGrid = grids.flatMap((g) => flattenSkuGrid(g));
+  }
+
+  const rateCards = carrier ? await listRateCardsForCarrier(carrier.id) : [];
+  const sizeClassRates = carrier?.pricingStrategy === "SKU_SIZE_CLASS" ? await listSizeClassRates() : [];
+  const surcharges = carrier ? await listSurchargesForCarrier(carrier.id) : [];
+  const codRules = carrier ? await listCodRulesForCarrier(carrier.id) : [];
+  const bulkyThreshold = carrier ? await getBulkyThreshold(carrier.id, orderInput.serviceId) : null;
+
+  return { carrier, zoneMapEntry, skuDimsBySku, rateCards, skuGrid, sizeClassRates, surcharges, codRules, bulkyThreshold };
+}
+
+// Fetches all master data for every SKU in the order and runs the double-checked order engine.
+export async function calculateOrderAndOptionallySave(orderInput, user, { save = false } = {}) {
+  const carrier = await getCarrier(orderInput.carrierId);
+  const masterData = await buildMasterDataForOrder(orderInput, carrier);
+  const result = runOrderCalculationWithValidation(orderInput, masterData);
+  let savedId = null;
+  if (save) savedId = await saveCalculation(orderInput, result, user);
   return { result, savedId, masterData };
 }

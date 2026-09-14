@@ -286,42 +286,70 @@ export function calculateFreight(input, masterData) {
 
   // --- weights ---
   const skuDim = masterData.skuDim;
-  const actualWeightKg = input.actualWeightKg != null ? Number(input.actualWeightKg) : (skuDim ? skuDim.weightKg : null);
+  // `?? null` matters here: a SKU genuinely priced without weight data (Business Idea /
+  // Nim-express) has skuDim.weightKg as `undefined`, not `null` — left as `undefined` it
+  // would leak into the result object, and Firestore rejects `undefined` field values.
+  const actualWeightKg = input.actualWeightKg != null ? Number(input.actualWeightKg) : (skuDim && skuDim.weightKg != null ? skuDim.weightKg : null);
   const lengthCm = input.lengthCm != null ? Number(input.lengthCm) : (skuDim ? skuDim.lengthCm : null);
   const widthCm = input.widthCm != null ? Number(input.widthCm) : (skuDim ? skuDim.widthCm : null);
   const heightCm = input.heightCm != null ? Number(input.heightCm) : (skuDim ? skuDim.heightCm : null);
 
-  if (actualWeightKg == null || actualWeightKg <= 0) {
+  // Only WEIGHT_ZONE_TABLE carriers actually price by weight — SKU_GRID (Business Idea) and
+  // SIZE_CLASS (Nim-express) price by SKU/bracket/zone or SKU/size-class alone, so a SKU with
+  // no weight anywhere (not manually given, not in freightSkuDimensions) must still be
+  // priceable rather than blocked on data this carrier never uses.
+  const weightRequired = carrier.weightRule === "ACTUAL" || carrier.weightRule === "MAX_ACTUAL_VOLUMETRIC";
+  if (weightRequired && (actualWeightKg == null || actualWeightKg <= 0)) {
     addTrace("น้ำหนักสินค้า", "ไม่มีน้ำหนักจริง (ไม่ได้ระบุ และไม่พบใน SKU Master)");
     return blank(trace, STATUS.WEIGHT_ERROR, { errors: [{ code: "WEIGHT_MISSING", message: "ไม่มีน้ำหนักสินค้า" }] });
   }
-  addTrace("น้ำหนักจริง (Actual Weight)", `${actualWeightKg} kg`, { actualWeightKg });
+  if (actualWeightKg != null && actualWeightKg > 0) {
+    addTrace("น้ำหนักจริง (Actual Weight)", `${actualWeightKg} kg`, { actualWeightKg });
+  } else {
+    addTrace("น้ำหนักจริง (Actual Weight)", `ไม่ระบุ — Carrier นี้ไม่ใช้น้ำหนักในการคิดราคา (${carrier.pricingStrategy})`);
+  }
 
-  const volumetricWeight = computeVolumetricWeight(lengthCm, widthCm, heightCm, carrier.dimFactor);
+  // A multi-item order (calculateFreightForOrder below) pre-combines each line's own volume
+  // into one figure before calling in here — summing raw L/W/H across differently-shaped
+  // items would be meaningless, but summing their volumes and re-deriving one volumetric
+  // weight is physically sound.
+  const volumetricWeight = input.volumetricWeightOverride != null
+    ? round2(input.volumetricWeightOverride)
+    : computeVolumetricWeight(lengthCm, widthCm, heightCm, carrier.dimFactor);
   if (volumetricWeight != null) {
-    addTrace("น้ำหนักปริมาตร (Volumetric Weight)", `${lengthCm} × ${widthCm} × ${heightCm} ÷ ${carrier.dimFactor} = ${volumetricWeight} kg`, { volumetricWeight });
+    if (input.volumetricWeightOverride != null) {
+      addTrace("น้ำหนักปริมาตร (Volumetric Weight)", `รวมจากหลายรายการสินค้า = ${volumetricWeight} kg`, { volumetricWeight });
+    } else {
+      addTrace("น้ำหนักปริมาตร (Volumetric Weight)", `${lengthCm} × ${widthCm} × ${heightCm} ÷ ${carrier.dimFactor} = ${volumetricWeight} kg`, { volumetricWeight });
+    }
   }
 
   const isBulky = detectBulky({ lengthCm, widthCm, heightCm, weightKg: actualWeightKg }, masterData.bulkyThreshold);
   const warnings = [];
   if (isBulky) warnings.push("ขนาด/น้ำหนักสินค้าเกินเกณฑ์ปกติของ Carrier นี้ — ควรตรวจสอบว่าเลือก Service แบบ Bulky/Oversize แล้วหรือยัง");
 
-  let chargeableWeightRaw;
-  if (carrier.weightRule === "MAX_ACTUAL_VOLUMETRIC" && volumetricWeight != null) {
-    chargeableWeightRaw = Math.max(actualWeightKg, volumetricWeight);
-    addTrace("น้ำหนักคิดค่าขนส่ง (Chargeable Weight)", `MAX(${actualWeightKg}, ${volumetricWeight}) = ${chargeableWeightRaw}`, { chargeableWeightRaw });
-  } else {
-    chargeableWeightRaw = actualWeightKg;
-    addTrace("น้ำหนักคิดค่าขนส่ง (Chargeable Weight)", `ใช้น้ำหนักจริง (Weight Rule = ${carrier.weightRule}) = ${chargeableWeightRaw}`, { chargeableWeightRaw });
+  let chargeableWeightRaw = null;
+  if (actualWeightKg != null && actualWeightKg > 0) {
+    if (carrier.weightRule === "MAX_ACTUAL_VOLUMETRIC" && volumetricWeight != null) {
+      chargeableWeightRaw = Math.max(actualWeightKg, volumetricWeight);
+      addTrace("น้ำหนักคิดค่าขนส่ง (Chargeable Weight)", `MAX(${actualWeightKg}, ${volumetricWeight}) = ${chargeableWeightRaw}`, { chargeableWeightRaw });
+    } else {
+      chargeableWeightRaw = actualWeightKg;
+      addTrace("น้ำหนักคิดค่าขนส่ง (Chargeable Weight)", `ใช้น้ำหนักจริง (Weight Rule = ${carrier.weightRule}) = ${chargeableWeightRaw}`, { chargeableWeightRaw });
+    }
   }
 
-  const chargeableWeight = roundWeight(chargeableWeightRaw, carrier.roundingRule);
-  if (chargeableWeight == null) {
-    addTrace("ปัดน้ำหนัก (Rounding)", `ไม่พบช่วงน้ำหนักที่ตรงกับ ${chargeableWeightRaw} kg ใน Rounding Rule ของ Carrier`);
-    return blank(trace, STATUS.WEIGHT_ERROR, { actualWeight: actualWeightKg, volumetricWeight, errors: [{ code: "ROUNDING_NO_MATCH", message: "ไม่พบกฎการปัดน้ำหนักที่ตรงกับน้ำหนักนี้" }] });
-  }
-  if (chargeableWeight !== chargeableWeightRaw) {
-    addTrace("ปัดน้ำหนัก (Rounding)", `${chargeableWeightRaw} → ${chargeableWeight} kg`, { chargeableWeight });
+  let chargeableWeight = null;
+  if (chargeableWeightRaw != null) {
+    chargeableWeight = roundWeight(chargeableWeightRaw, carrier.roundingRule);
+    if (chargeableWeight == null) {
+      if (weightRequired) {
+        addTrace("ปัดน้ำหนัก (Rounding)", `ไม่พบช่วงน้ำหนักที่ตรงกับ ${chargeableWeightRaw} kg ใน Rounding Rule ของ Carrier`);
+        return blank(trace, STATUS.WEIGHT_ERROR, { actualWeight: actualWeightKg, volumetricWeight, errors: [{ code: "ROUNDING_NO_MATCH", message: "ไม่พบกฎการปัดน้ำหนักที่ตรงกับน้ำหนักนี้" }] });
+      }
+    } else if (chargeableWeight !== chargeableWeightRaw) {
+      addTrace("ปัดน้ำหนัก (Rounding)", `${chargeableWeightRaw} → ${chargeableWeight} kg`, { chargeableWeight });
+    }
   }
 
   const shipDate = input.shipDate || null;
@@ -448,6 +476,203 @@ export function runCalculationWithValidation(input, masterData) {
   const second = calculateFreight(input, masterData);
   const a = { ...first, trace: undefined };
   const b = { ...second, trace: undefined };
+  if (JSON.stringify(a) !== JSON.stringify(b)) {
+    return blank(first.trace, STATUS.CALCULATION_ERROR, {
+      errors: [{ code: "DOUBLE_CALC_MISMATCH", message: "คำนวณซ้ำได้ผลไม่ตรงกัน — ห้ามยืนยันค่านี้ กรุณาตรวจสอบระบบ" }],
+    });
+  }
+  return first;
+}
+
+// ===================================================================
+// Multi-item orders (spec §1: "คำนวณค่าขนส่งต่อ Order" — an order is
+// usually several SKUs, not one). One order can genuinely need two very
+// different aggregation rules depending on the carrier's pricing strategy,
+// so this is NOT just "call calculateFreight once with bigger numbers":
+//
+//   WEIGHT_ZONE_TABLE (Best/Flash/Kerry/KEX/DHL): the whole order ships as
+//   one parcel, priced once by its combined weight — sum each line's
+//   actual weight, sum each line's VOLUME (not raw L/W/H — summing
+//   dimensions across differently-shaped boxes is meaningless, summing
+//   volume and re-deriving one weight is physically sound), then run the
+//   ordinary single-shipment calculation once on the totals.
+//
+//   SKU_ZONE_GRID / SKU_SIZE_CLASS (Business Idea / Nim-express): price is
+//   tied to each specific SKU, so each line is priced independently (its
+//   own zone/bracket/type/size-class lookup) and multiplied by quantity.
+//   Surcharges and COD must NOT be computed per line — a 7% fuel
+//   surcharge applied to each line separately and summed is the same
+//   total as applying it once to the summed base, so it's not wrong by
+//   itself, but a FIXED or PER_SHIPMENT surcharge charged once per line
+//   would double- or triple-charge it — so every line's own
+//   calculateFreight call runs with surcharges suppressed, and
+//   surcharges/COD are applied exactly once on the combined base freight.
+// ===================================================================
+
+// orderInput: { carrierId, serviceId, province, postalCode, codAmount, shipDate,
+//               items: [{ sku, quantity, actualWeightKg, lengthCm, widthCm, heightCm,
+//                         weightBracketLabel, variantType, sizeClass }] }
+// masterData: { carrier, zoneMapEntry, skuDimsBySku: {sku: dim}, rateCards, skuGrid,
+//               sizeClassRates, surcharges, codRules, bulkyThreshold }
+export function calculateFreightForOrder(orderInput, masterData) {
+  const items = orderInput.items || [];
+  if (!items.length) {
+    return blank([{ step: 1, label: "ตรวจสอบข้อมูล Order", detail: "ต้องมีสินค้าอย่างน้อย 1 รายการ" }], STATUS.DATA_ERROR, {
+      errors: [{ code: "ITEMS_REQUIRED", message: "ต้องมีสินค้าอย่างน้อย 1 รายการในออเดอร์" }],
+    });
+  }
+  const carrier = masterData.carrier;
+  if (!carrier) {
+    return blank([{ step: 1, label: "ตรวจสอบ Carrier", detail: `ไม่พบข้อมูล Carrier '${orderInput.carrierId}' ใน Master Data` }], STATUS.DATA_ERROR, {
+      errors: [{ code: "CARRIER_NOT_FOUND", message: "ไม่พบ Carrier นี้ในระบบ" }],
+    });
+  }
+  return carrier.pricingStrategy === "WEIGHT_ZONE_TABLE"
+    ? calculateAggregateWeightOrder(orderInput, items, masterData)
+    : calculatePerItemOrder(orderInput, items, masterData);
+}
+
+function itemQty(it) {
+  const q = Number(it.quantity);
+  return q > 0 ? q : 1;
+}
+
+function calculateAggregateWeightOrder(orderInput, items, masterData) {
+  const trace = [];
+  let step = 0;
+  const addTrace = (label, detail, values) => trace.push({ step: ++step, label, detail, values });
+
+  let totalActualWeight = 0, totalVolume = 0, anyDims = false;
+  const itemLines = [];
+  for (const it of items) {
+    const qty = itemQty(it);
+    const dim = it.sku ? masterData.skuDimsBySku?.[it.sku] : null;
+    const w = it.actualWeightKg != null ? Number(it.actualWeightKg) : (dim ? dim.weightKg : null);
+    const l = it.lengthCm != null ? Number(it.lengthCm) : (dim ? dim.lengthCm : null);
+    const wd = it.widthCm != null ? Number(it.widthCm) : (dim ? dim.widthCm : null);
+    const h = it.heightCm != null ? Number(it.heightCm) : (dim ? dim.heightCm : null);
+    if (w == null || Number.isNaN(w) || w <= 0) {
+      addTrace("น้ำหนักสินค้า", `ไม่มีน้ำหนักของ SKU='${it.sku || "(ไม่ระบุ)"}' (ไม่ได้ระบุ และไม่พบใน SKU Master)`);
+      return blank(trace, STATUS.WEIGHT_ERROR, {
+        errors: [{ code: "WEIGHT_MISSING", message: `ไม่มีน้ำหนักของสินค้า SKU='${it.sku || "(ไม่ระบุ)"}'` }],
+      });
+    }
+    totalActualWeight += w * qty;
+    if (l && wd && h) { totalVolume += l * wd * h * qty; anyDims = true; }
+    itemLines.push({ sku: it.sku || null, quantity: qty, weightKg: w, lengthCm: l || null, widthCm: wd || null, heightCm: h || null });
+    addTrace(`รายการ: ${it.sku || "(ไม่มี SKU)"}`, `น้ำหนัก ${w} kg × ${qty} ชิ้น = ${roundMoney(w * qty)} kg${l && wd && h ? ` · ขนาด ${l}×${wd}×${h} ซม.` : ""}`, { sku: it.sku, qty, weightKg: w });
+  }
+  totalActualWeight = roundMoney(totalActualWeight);
+  addTrace("น้ำหนักจริงรวมทั้งออเดอร์", `${totalActualWeight} kg (${items.length} รายการ)`, { totalActualWeight });
+
+  const volumetricWeightOverride = anyDims && masterData.carrier.dimFactor ? roundMoney(totalVolume / masterData.carrier.dimFactor) : null;
+
+  const combinedInput = {
+    carrierId: orderInput.carrierId, serviceId: orderInput.serviceId,
+    province: orderInput.province, postalCode: orderInput.postalCode,
+    actualWeightKg: totalActualWeight, volumetricWeightOverride,
+    codAmount: orderInput.codAmount, shipDate: orderInput.shipDate,
+  };
+  const result = runCalculationWithValidation(combinedInput, masterData);
+  return { ...result, trace: [...trace, ...(result.trace || [])], items: itemLines };
+}
+
+function calculatePerItemOrder(orderInput, items, masterData) {
+  const trace = [];
+  let step = 0;
+  const addTrace = (label, detail, values) => trace.push({ step: ++step, label, detail, values });
+
+  const carrier = masterData.carrier;
+  const zone = resolveZone(masterData.zoneMapEntry, carrier.id);
+  const itemResults = [];
+  let combinedBase = 0, combinedChargeableWeight = 0;
+  let firstFailed = null;
+  const allWarnings = [];
+
+  for (const it of items) {
+    const qty = itemQty(it);
+    const itemInput = {
+      carrierId: orderInput.carrierId, serviceId: orderInput.serviceId,
+      province: orderInput.province, postalCode: orderInput.postalCode,
+      sku: it.sku, weightBracketLabel: it.weightBracketLabel, variantType: it.variantType, sizeClass: it.sizeClass,
+      actualWeightKg: it.actualWeightKg, lengthCm: it.lengthCm, widthCm: it.widthCm, heightCm: it.heightCm,
+      shipDate: orderInput.shipDate,
+      // codAmount intentionally omitted here — COD is applied once at the order level below,
+      // never per line (see the file-level comment above for why).
+    };
+    const itemMasterData = { ...masterData, skuDim: it.sku ? masterData.skuDimsBySku?.[it.sku] || null : null, surcharges: [] };
+    const result = runCalculationWithValidation(itemInput, itemMasterData);
+    itemResults.push({ sku: it.sku || null, quantity: qty, result });
+    addTrace(`รายการ: ${it.sku || "(ไม่มี SKU)"} × ${qty}`, result.status === STATUS.CALCULATED
+      ? `${result.baseFreight} บาท/ชิ้น × ${qty} = ${roundMoney(result.baseFreight * qty)} บาท`
+      : `คำนวณไม่สำเร็จ (${result.status}): ${result.errors?.[0]?.message || "-"}`);
+    if (result.status === STATUS.CALCULATED) {
+      combinedBase += result.baseFreight * qty;
+      combinedChargeableWeight += (result.chargeableWeight || 0) * qty;
+      allWarnings.push(...(result.warnings || []));
+    } else if (!firstFailed) {
+      firstFailed = { sku: it.sku, result };
+    }
+  }
+
+  if (firstFailed) {
+    // The failing line's own error code/details win (spread last) so the UI can react to it
+    // exactly like a single-item failure (RATE_NOT_FOUND, SIZE_CLASS_NOT_FOUND, ...) — the
+    // message is overridden to add which SKU/line it came from.
+    return blank(trace, firstFailed.result.status, {
+      items: itemResults,
+      errors: [{
+        code: "ITEM_NOT_CALCULATED",
+        ...firstFailed.result.errors?.[0],
+        message: `รายการ SKU='${firstFailed.sku || "(ไม่ระบุ)"}' คำนวณไม่สำเร็จ: ${firstFailed.result.errors?.[0]?.message || "-"}`,
+      }],
+    });
+  }
+
+  combinedBase = roundMoney(combinedBase);
+  addTrace("รวมค่าขนส่งพื้นฐานทุกรายการ", `${combinedBase} บาท`, { combinedBase });
+
+  const surchargeCtx = { carrierId: carrier.id, serviceId: orderInput.serviceId, shipDate: orderInput.shipDate, baseFreight: combinedBase, chargeableWeight: combinedChargeableWeight, isRemoteArea: zone.isRemoteArea || false, isBulky: allWarnings.length > 0 };
+  const surchargeResult = applySurcharges(masterData.surcharges, surchargeCtx);
+  if (surchargeResult.allItems.length) {
+    addTrace("ค่าบริการเพิ่มเติม (Surcharges)", surchargeResult.allItems.map((i) => `${i.type}: ${i.amount} บาท`).join(", "));
+  }
+
+  const cod = computeCodFee(orderInput.codAmount, masterData.codRules, { carrierId: carrier.id, shipDate: orderInput.shipDate });
+  if (orderInput.codAmount > 0) {
+    if (!cod.ruleFound) {
+      addTrace("ค่าธรรมเนียม COD", `ยอด COD ${orderInput.codAmount} บาท แต่ไม่พบ COD Rule ของ Carrier นี้`);
+      return blank(trace, STATUS.MANUAL_REVIEW, {
+        items: itemResults, baseFreight: combinedBase,
+        fuelSurcharge: surchargeResult.fuelSurcharge, bulkyFee: surchargeResult.bulkyFee, otherFee: surchargeResult.otherFee, otherFeeBreakdown: surchargeResult.otherItems,
+        errors: [{ code: "COD_RULE_NOT_FOUND", message: "มียอด COD แต่ไม่พบ COD Rule ของ Carrier นี้ — ไม่คำนวณราคาต่อจนกว่าจะตั้งค่า" }],
+      });
+    }
+    addTrace("ค่าธรรมเนียม COD", `${orderInput.codAmount} × ${(cod.rule.percent * 100).toFixed(2)}% = ${cod.fee} บาท`);
+  }
+
+  const totalFreight = roundMoney(combinedBase + surchargeResult.fuelSurcharge + surchargeResult.bulkyFee + cod.fee + surchargeResult.otherFee);
+  addTrace("รวมค่าขนส่งทั้งหมด (Total Freight)", `${combinedBase} + ${surchargeResult.fuelSurcharge} + ${surchargeResult.bulkyFee} + ${cod.fee} + ${surchargeResult.otherFee} = ${totalFreight} บาท`, { totalFreight });
+
+  let confidence = CONFIDENCE.HIGH;
+  if (zone.source === "derived" || allWarnings.length) confidence = CONFIDENCE.MEDIUM;
+
+  return {
+    actualWeight: null, volumetricWeight: null, chargeableWeight: roundMoney(combinedChargeableWeight),
+    baseFreight: combinedBase, fuelSurcharge: surchargeResult.fuelSurcharge, bulkyFee: surchargeResult.bulkyFee,
+    codFee: cod.fee, otherFee: surchargeResult.otherFee, otherFeeBreakdown: surchargeResult.otherItems,
+    totalFreight, zone: zone.zoneKey || null, zoneKey: zone.zoneKey || null, rateVersion: null,
+    status: STATUS.CALCULATED, confidence, warnings: allWarnings, errors: [], trace,
+    items: itemResults,
+  };
+}
+
+// Same double-calculation guard as runCalculationWithValidation (spec §13), for orders.
+export function runOrderCalculationWithValidation(orderInput, masterData) {
+  const first = calculateFreightForOrder(orderInput, masterData);
+  const second = calculateFreightForOrder(orderInput, masterData);
+  const a = { ...first, trace: undefined, items: undefined };
+  const b = { ...second, trace: undefined, items: undefined };
   if (JSON.stringify(a) !== JSON.stringify(b)) {
     return blank(first.trace, STATUS.CALCULATION_ERROR, {
       errors: [{ code: "DOUBLE_CALC_MISMATCH", message: "คำนวณซ้ำได้ผลไม่ตรงกัน — ห้ามยืนยันค่านี้ กรุณาตรวจสอบระบบ" }],
