@@ -11,7 +11,7 @@
 import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
 import { toast, emptyStateHTML } from "./js/ui.js";
-import { listCarriers, getSkuDimension, getSkuGrid, calculateAndOptionallySave } from "./js/freight-data.js";
+import { listCarriers, getSkuDimension, getSkuGrid, calculateOrderAndOptionallySave } from "./js/freight-data.js";
 
 const profile = await requireRole(["admin", "warehouse", "sales", "manager"]);
 const main = renderShell(profile, "freight-compare", "⚖️ เปรียบเทียบค่าขนส่งระหว่าง Carrier");
@@ -28,6 +28,18 @@ const STATUS_BADGE = {
 };
 
 let carriers = [];
+let nextUid = 1;
+
+// Same item-row model as freight-calculator.html, so the two pages behave identically for
+// multi-SKU orders and for Business Idea's per-item Type/Bracket selection.
+let items = [newItem()];
+function newItem() {
+  return { uid: nextUid++, sku: "", quantity: 1, weightKg: "", lengthCm: "", widthCm: "", heightCm: "", variantType: "", bracketLabel: "", grid: null };
+}
+
+// Business Idea needs its item-row Type/Bracket pickers only if SOME active carrier actually
+// uses SKU_ZONE_GRID — computed once carriers are loaded.
+let anySkuZoneGridCarrier = false;
 
 main.innerHTML = `
   <div class="card">
@@ -36,15 +48,22 @@ main.innerHTML = `
       <div class="field"><label>จังหวัด <span class="req">*</span></label><input id="in-province" /></div>
       <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
     </div>
-    <div class="field"><label>SKU (ถ้ามี — จำเป็นสำหรับ Business Idea / Nim-express)</label><input id="in-sku" /></div>
-    <div id="bracket-field" class="field" hidden><label>ช่วงตัวเลข (Weight Bracket) สำหรับ Business Idea</label><select id="in-bracket"></select></div>
-    <div id="type-note" style="font-size:0.8rem;color:#888;margin:-6px 0 10px;" hidden></div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
-      <div class="field"><label>น้ำหนัก (กก.)</label><input id="in-weight" type="number" step="0.01" /></div>
-      <div class="field"><label>ยาว (ซม.)</label><input id="in-length" type="number" step="0.1" /></div>
-      <div class="field"><label>กว้าง (ซม.)</label><input id="in-width" type="number" step="0.1" /></div>
-      <div class="field"><label>สูง (ซม.)</label><input id="in-height" type="number" step="0.1" /></div>
+
+    <div class="field">
+      <label>รายการสินค้า <span class="req">*</span></label>
+      <div style="overflow-x:auto;">
+        <table style="min-width:640px;">
+          <thead><tr>
+            <th>SKU</th><th style="width:64px;">จำนวน</th><th style="width:80px;">น้ำหนัก(kg)</th>
+            <th style="width:64px;">ยาว</th><th style="width:64px;">กว้าง</th><th style="width:64px;">สูง</th>
+            <th>ประเภท/ช่วงตัวเลข (เฉพาะ Business Idea)</th><th></th>
+          </tr></thead>
+          <tbody id="items-rows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="btn btn-outline" id="btn-add-item" style="width:auto;padding:6px 16px;margin-top:8px;">+ เพิ่มสินค้า</button>
     </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="field"><label>ยอด COD (บาท, ถ้ามี)</label><input id="in-cod" type="number" step="0.01" /></div>
       <div class="field"><label>วันที่จัดส่ง</label><input id="in-shipdate" type="date" /></div>
@@ -57,56 +76,116 @@ main.innerHTML = `
 
 document.getElementById("in-shipdate").value = new Date().toISOString().slice(0, 10);
 
-// Business Idea's shipping "Type" (e.g. a mattress flat/unfolded vs. boxed — genuinely
-// different prices) isn't something to pick once and hide the alternative: it's another
-// priced option, exactly like DHL's separate Parcel/Bulky services already show as two
-// rows. So Compare auto-expands every variant type into its own row instead of making the
-// user choose one upfront. Verified against the real file: every SKU's variants share the
-// same set of weight-bracket labels, so one shared bracket selector is safe.
-let currentSkuGrid = null;
+// ---------- item rows (same pattern as freight-calculator.html) ----------
 
-document.getElementById("in-sku").addEventListener("change", async () => {
-  const sku = document.getElementById("in-sku").value.trim();
-  const bracketField = document.getElementById("bracket-field");
-  const bracketSel = document.getElementById("in-bracket");
-  const typeNote = document.getElementById("type-note");
-  currentSkuGrid = null;
-  if (!sku) { bracketField.hidden = true; typeNote.hidden = true; return; }
-  const dim = await getSkuDimension(sku);
-  if (dim) {
-    if (dim.weightKg != null) document.getElementById("in-weight").value = dim.weightKg;
-    if (dim.widthCm != null) document.getElementById("in-width").value = dim.widthCm;
-    if (dim.lengthCm != null) document.getElementById("in-length").value = dim.lengthCm;
-    if (dim.heightCm != null) document.getElementById("in-height").value = dim.heightCm;
+function itemRowHTML(it) {
+  let typeBracketHTML = "-";
+  if (anySkuZoneGridCarrier) {
+    const typeOptions = it.grid?.variants?.length > 1
+      ? `<select data-field="variantType" data-uid="${it.uid}" style="width:48%;display:inline-block;">${it.grid.variants.map((v) => `<option value="${v.type}" ${v.type === it.variantType ? "selected" : ""}>${v.type}</option>`).join("")}</select>`
+      : "";
+    const chosenVariant = it.grid?.variants?.find((v) => v.type === (it.variantType || it.grid.variants[0]?.type)) || it.grid?.variants?.[0];
+    const brackets = chosenVariant ? [...new Set(chosenVariant.cells.map((c) => c.bracketLabel))] : [];
+    const bracketOptions = brackets.length
+      ? `<select data-field="bracketLabel" data-uid="${it.uid}" style="width:48%;display:inline-block;"><option value="">— เลือกช่วงตัวเลข —</option>${brackets.map((b) => `<option value="${b}" ${b === it.bracketLabel ? "selected" : ""}>${b}</option>`).join("")}</select>`
+      : "";
+    typeBracketHTML = (typeOptions || bracketOptions) ? `${typeOptions}${bracketOptions}` : `<span style="color:#aaa;font-size:0.78rem;">กรอก SKU ก่อน</span>`;
   }
-  const grid = await getSkuGrid(sku);
-  if (!grid || !grid.variants?.length) { bracketField.hidden = true; typeNote.hidden = true; return; }
-  currentSkuGrid = grid;
-  const brackets = [...new Set(grid.variants[0].cells.map((c) => c.bracketLabel))];
-  bracketSel.innerHTML = brackets.map((b) => `<option value="${b}">${b}</option>`).join("");
-  bracketField.hidden = brackets.length === 0;
-  if (grid.variants.length > 1) {
-    typeNote.hidden = false;
-    typeNote.textContent = `ℹ️ SKU นี้จัดส่งได้ ${grid.variants.length} แบบ (${grid.variants.map((v) => v.type).join(", ")}) — จะแสดงราคาของ Business Idea แยกทุกแบบด้านล่าง`;
-  } else {
-    typeNote.hidden = true;
+  return `
+    <tr data-uid="${it.uid}">
+      <td><input data-field="sku" data-uid="${it.uid}" value="${it.sku}" style="min-width:140px;" /></td>
+      <td><input data-field="quantity" data-uid="${it.uid}" type="number" min="1" value="${it.quantity}" style="width:56px;" /></td>
+      <td><input data-field="weightKg" data-uid="${it.uid}" type="number" step="0.01" value="${it.weightKg}" style="width:72px;" /></td>
+      <td><input data-field="lengthCm" data-uid="${it.uid}" type="number" step="0.1" value="${it.lengthCm}" style="width:56px;" /></td>
+      <td><input data-field="widthCm" data-uid="${it.uid}" type="number" step="0.1" value="${it.widthCm}" style="width:56px;" /></td>
+      <td><input data-field="heightCm" data-uid="${it.uid}" type="number" step="0.1" value="${it.heightCm}" style="width:56px;" /></td>
+      <td>${typeBracketHTML}</td>
+      <td><button type="button" class="btn btn-outline btn-remove-item" data-uid="${it.uid}" style="padding:4px 10px;font-size:0.76rem;" ${items.length <= 1 ? "disabled" : ""}>ลบ</button></td>
+    </tr>`;
+}
+
+function renderItemsRows() {
+  document.getElementById("items-rows").innerHTML = items.map(itemRowHTML).join("");
+}
+
+function findItem(uid) {
+  return items.find((it) => String(it.uid) === String(uid));
+}
+
+document.getElementById("btn-add-item").addEventListener("click", () => {
+  items.push(newItem());
+  renderItemsRows();
+});
+
+document.getElementById("items-rows").addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-remove-item");
+  if (!btn) return;
+  if (items.length <= 1) return;
+  items = items.filter((it) => String(it.uid) !== String(btn.dataset.uid));
+  renderItemsRows();
+});
+
+document.getElementById("items-rows").addEventListener("input", (e) => {
+  const field = e.target.dataset.field;
+  const uid = e.target.dataset.uid;
+  if (!field || !uid) return;
+  const it = findItem(uid);
+  if (!it) return;
+  it[field] = e.target.value;
+});
+
+document.getElementById("items-rows").addEventListener("change", async (e) => {
+  const field = e.target.dataset.field;
+  const uid = e.target.dataset.uid;
+  if (!field || !uid) return;
+  const it = findItem(uid);
+  if (!it) return;
+  it[field] = e.target.value;
+
+  if (field === "sku") {
+    const sku = it.sku.trim();
+    it.grid = null;
+    if (sku) {
+      const dim = await getSkuDimension(sku);
+      if (dim) {
+        if (dim.weightKg != null && !it.weightKg) it.weightKg = dim.weightKg;
+        if (dim.lengthCm != null && !it.lengthCm) it.lengthCm = dim.lengthCm;
+        if (dim.widthCm != null && !it.widthCm) it.widthCm = dim.widthCm;
+        if (dim.heightCm != null && !it.heightCm) it.heightCm = dim.heightCm;
+      }
+      if (anySkuZoneGridCarrier) {
+        it.grid = await getSkuGrid(sku);
+        it.variantType = ""; it.bracketLabel = "";
+      }
+    }
+    renderItemsRows();
+  } else if (field === "variantType") {
+    it.bracketLabel = "";
+    renderItemsRows();
   }
 });
 
-function buildBaseInput() {
+// ---------- build shared order input ----------
+
+function num(v) { return v !== "" && v != null ? Number(v) : null; }
+
+function buildSharedInput() {
   return {
     province: document.getElementById("in-province").value.trim(),
     postalCode: document.getElementById("in-postal").value.trim(),
-    sku: document.getElementById("in-sku").value.trim() || null,
-    weightBracketLabel: document.getElementById("in-bracket").value || null,
-    actualWeightKg: document.getElementById("in-weight").value ? Number(document.getElementById("in-weight").value) : null,
-    lengthCm: document.getElementById("in-length").value ? Number(document.getElementById("in-length").value) : null,
-    widthCm: document.getElementById("in-width").value ? Number(document.getElementById("in-width").value) : null,
-    heightCm: document.getElementById("in-height").value ? Number(document.getElementById("in-height").value) : null,
-    codAmount: document.getElementById("in-cod").value ? Number(document.getElementById("in-cod").value) : null,
+    codAmount: num(document.getElementById("in-cod").value),
     shipDate: document.getElementById("in-shipdate").value || null,
+    items: items.map((it) => ({
+      sku: it.sku.trim() || null,
+      quantity: num(it.quantity) || 1,
+      actualWeightKg: num(it.weightKg),
+      lengthCm: num(it.lengthCm), widthCm: num(it.widthCm), heightCm: num(it.heightCm),
+      variantType: it.variantType || null, weightBracketLabel: it.bracketLabel || null,
+    })),
   };
 }
+
+// ---------- compare ----------
 
 function renderResults(rows) {
   const panel = document.getElementById("result-panel");
@@ -124,8 +203,14 @@ function renderResults(rows) {
       </div>
     </div>` : "";
 
+  const failed = rows.filter((r) => r.result.status !== "CALCULATED");
+  const failedHTML = failed.length ? `
+    <div class="card" style="background:#fff8e1;border:1px solid #ffe4a3;">
+      ${failed.map((r) => `<div style="font-size:0.82rem;margin-bottom:4px;">🟡 <strong>${r.label}</strong>: ${r.result.errors?.[0]?.message || STATUS_LABEL[r.result.status]}${r.result.errors?.[0]?.availableTypes ? ` (${r.result.errors[0].availableTypes.join(", ")})` : ""}${r.result.errors?.[0]?.availableBrackets ? ` (${r.result.errors[0].availableBrackets.join(", ")})` : ""}</div>`).join("")}
+    </div>` : "";
+
   panel.innerHTML = `
-    ${summary}
+    ${summary}${failedHTML}
     <div class="card">
       <div class="section-title" style="font-size:0.95rem;">ผลเปรียบเทียบทั้งหมด</div>
       <div style="overflow-x:auto;">
@@ -144,28 +229,18 @@ function renderResults(rows) {
 }
 
 document.getElementById("btn-compare").addEventListener("click", async () => {
-  const base = buildBaseInput();
-  if (!base.province && !base.postalCode) { toast({ type: "error", title: "กรุณาระบุจังหวัดหรือรหัสไปรษณีย์" }); return; }
+  const shared = buildSharedInput();
+  if (!shared.province && !shared.postalCode) { toast({ type: "error", title: "กรุณาระบุจังหวัดหรือรหัสไปรษณีย์" }); return; }
+  if (!shared.items.some((it) => it.sku || it.actualWeightKg)) { toast({ type: "error", title: "กรุณากรอก SKU หรือน้ำหนักอย่างน้อย 1 รายการ" }); return; }
   const btn = document.getElementById("btn-compare");
   btn.disabled = true; btn.textContent = "กำลังคำนวณ...";
   document.getElementById("result-panel").innerHTML = `<div class="card">${emptyStateHTML({ icon: "⏳", title: "กำลังคำนวณทุก Carrier..." })}</div>`;
   try {
     const jobs = [];
     for (const c of carriers.filter((c) => c.active !== false)) {
-      if (c.pricingStrategy === "SKU_ZONE_GRID" && currentSkuGrid?.variants?.length) {
-        // One row per shipping Type — each is a genuinely different price, not a detail to
-        // collapse into one "best guess" row.
-        for (const v of currentSkuGrid.variants) {
-          jobs.push({
-            carrier: c, service: null, label: `${c.name || c.id} (${v.type})`,
-            input: { ...base, carrierId: c.id, serviceId: null, variantType: v.type },
-          });
-        }
-        continue;
-      }
       const services = c.services?.length ? c.services : [null];
       for (const svc of services) {
-        jobs.push({ carrier: c, service: svc, input: { ...base, carrierId: c.id, serviceId: svc?.id || null } });
+        jobs.push({ carrier: c, service: svc, input: { ...shared, carrierId: c.id, serviceId: svc?.id || null } });
       }
     }
     if (!jobs.length) {
@@ -176,9 +251,9 @@ document.getElementById("btn-compare").addEventListener("click", async () => {
       })}</div>`;
       return;
     }
-    const results = await Promise.all(jobs.map((j) => calculateAndOptionallySave(j.input, profile, { save: false })));
+    const results = await Promise.all(jobs.map((j) => calculateOrderAndOptionallySave(j.input, profile, { save: false })));
     const rows = jobs.map((j, i) => ({
-      label: j.label || `${j.carrier.name || j.carrier.id}${j.service ? " — " + j.service.name : ""}`,
+      label: `${j.carrier.name || j.carrier.id}${j.service ? " — " + j.service.name : ""}`,
       result: results[i].result,
     }));
     renderResults(rows);
@@ -191,6 +266,8 @@ document.getElementById("btn-compare").addEventListener("click", async () => {
 
 async function load() {
   carriers = await listCarriers();
+  anySkuZoneGridCarrier = carriers.some((c) => c.active !== false && c.pricingStrategy === "SKU_ZONE_GRID");
+  renderItemsRows();
 }
 
 await load();
