@@ -11,7 +11,7 @@
 import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
 import { toast } from "./js/ui.js";
-import { listCarriers, getSkuDimension, getSkuGrid, calculateOrderAndOptionallySave } from "./js/freight-data.js";
+import { listCarriers, getSkuDimension, getSkuGrid, calculateOrderAndOptionallySave, listZoneMapEntries } from "./js/freight-data.js";
 import { STATUS } from "./js/freight-engine.js";
 
 const profile = await requireRole(["admin", "warehouse", "sales"]);
@@ -28,6 +28,10 @@ const STATUS_BADGE = {
   MANUAL_REVIEW: "badge-pending", CALCULATION_ERROR: "badge-cancel",
 };
 const CONFIDENCE_LABEL = { HIGH: "🟢 มั่นใจสูง", MEDIUM: "🟡 มั่นใจปานกลาง", LOW: "🔴 มั่นใจต่ำ" };
+
+function escAttr(s) {
+  return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
 
 let carriers = [];
 let currentCarrier = null;
@@ -52,7 +56,7 @@ main.innerHTML = `
       <div class="field"><label>Carrier <span class="req">*</span></label><select id="in-carrier"></select></div>
       <div class="field" id="service-field" hidden><label>Service</label><select id="in-service"></select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="field"><label>จังหวัด <span class="req">*</span></label><input id="in-province" /></div>
+        <div class="field"><label>จังหวัด / อำเภอ <span class="req">*</span></label><input id="in-province" list="province-list" placeholder="พิมพ์แล้วเลือกจากรายการ — จะกรอกรหัสไปรษณีย์ให้อัตโนมัติ" /><datalist id="province-list"></datalist></div>
         <div class="field"><label>รหัสไปรษณีย์ <span class="req">*</span></label><input id="in-postal" maxlength="5" /></div>
       </div>
 
@@ -323,11 +327,27 @@ document.getElementById("btn-calc").addEventListener("click", async () => {
   }
 });
 
+// จังหวัด/รหัสไปรษณีย์: `province` is purely informational for the engine (zone lookup only
+// ever uses postalCode — see freight-engine.js resolveZone), and one province covers many
+// postal codes, so there's no honest single postal code to guess from a province name alone.
+// Instead this offers a real, searchable list of (district+province, postal code) pairs from
+// the imported Zone Mapping data — picking one fills the postal code exactly, never a guess.
+document.getElementById("in-province").addEventListener("input", (e) => {
+  const m = e.target.value.match(/—\s*(\d{5})\s*$/);
+  if (m) document.getElementById("in-postal").value = m[1];
+});
+
 async function load() {
   carriers = await listCarriers();
   const sel = document.getElementById("in-carrier");
   sel.innerHTML = `<option value="">— เลือก Carrier —</option>` + carriers.filter((c) => c.active !== false).map((c) => `<option value="${c.id}">${c.name || c.id}</option>`).join("");
   renderItemsRows();
+
+  const zoneEntries = await listZoneMapEntries();
+  document.getElementById("province-list").innerHTML = zoneEntries.map((z) => {
+    const label = (z.districts?.length ? z.districts.join(" / ") : z.province) || "-";
+    return `<option value="${escAttr(label)} — ${z.postalCode}"></option>`;
+  }).join("");
 }
 
 await load();
