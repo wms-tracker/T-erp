@@ -244,8 +244,10 @@ th { color: #888; font-weight: 600; font-size: 0.8rem; text-transform: uppercase
 .upload-drop:hover, .upload-drop.dragover { background: #f0f4ff; border-color: #1a73e8; }
 .upload-drop input[type="file"] { display: none; }
 
-.sev-pill { border: 2px solid transparent; border-radius: 10px; padding: 12px 16px; font-size: 0.9rem; font-weight: 700; cursor: pointer; background: #f4f5fa; color: #666; font-family: inherit; }
+.sev-pill { display: block; width: 100%; text-align: left; border: 2px solid transparent; border-radius: 10px; padding: 12px 16px; font-size: 0.9rem; font-weight: 700; cursor: pointer; background: #f4f5fa; color: #666; font-family: inherit; }
 .sev-pill.active { border-color: currentColor; }
+.sev-pill .sev-pill-desc { display: block; font-size: 0.76rem; font-weight: 400; color: #888; margin-top: 3px; }
+.sev-pill.active .sev-pill-desc { color: inherit; opacity: 0.8; }
 .sev-pill.sev-low.active { background: #e8f5e9; color: #2e7d32; }
 .sev-pill.sev-medium.active { background: #fff8e1; color: #a66a00; }
 .sev-pill.sev-high.active { background: #ffe4d6; color: #c1440e; }

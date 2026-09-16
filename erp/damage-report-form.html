@@ -32,7 +32,7 @@ import { renderShell } from "./js/shell.js";
 import { openAnnotator } from "./js/annotate.js";
 import { toast } from "./js/ui.js";
 import {
-  DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS,
+  DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS, SEVERITY_DESC,
   validateReportData, createReport, updateReport, getReport,
   listImages, uploadImage, deleteImage, setImageSequence, updateImageMeta, setAnnotatedImage,
 } from "./js/damage-reports.js";
@@ -98,9 +98,9 @@ main.innerHTML = `
         <select id="f-type"><option value="">— เลือกประเภท —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
       </div>
       <div class="field">
-        <label>ระดับความรุนแรง <span class="req">*</span></label>
-        <div id="sev-pills" style="display:flex;gap:8px;flex-wrap:wrap;">
-          ${SEVERITY_LIST.map((s) => `<button type="button" class="sev-pill ${SEVERITY_CLASS[s]}" data-sev="${s}">${SEVERITY_LABEL[s]}</button>`).join("")}
+        <label>ระดับความรุนแรง <span class="req">*</span> <span style="font-weight:400;color:#888;">(เกณฑ์ คปอ./จป.)</span></label>
+        <div id="sev-pills" style="display:flex;flex-direction:column;gap:8px;">
+          ${SEVERITY_LIST.map((s) => `<button type="button" class="sev-pill ${SEVERITY_CLASS[s]}" data-sev="${s}">${SEVERITY_LABEL[s]}<span class="sev-pill-desc">${SEVERITY_DESC[s]}</span></button>`).join("")}
         </div>
       </div>
     </div>

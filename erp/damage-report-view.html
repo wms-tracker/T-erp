@@ -252,7 +252,7 @@ showFlashToast();
 // ใช้แพทเทิร์นเดียวกับ __printPackingSlip ใน dashboard-warehouse.html — build HTML string เต็มหน้า
 // เปิดหน้าต่างใหม่ แล้วสั่ง window.print() (ผู้ใช้เลือก "Save as PDF" จาก dialog ของเบราว์เซอร์ได้)
 function sevInline(sev) {
-  const map = { "ต่ำ": "background:#e8f5e9;color:#2e7d32;", "ปานกลาง": "background:#fff8e1;color:#a66a00;", "สูง": "background:#ffe4d6;color:#c1440e;", "Critical": "background:#fdecea;color:#c62828;" };
+  const map = { FAC: "background:#e8f5e9;color:#2e7d32;", MTC: "background:#fff8e1;color:#a66a00;", LTI: "background:#ffe4d6;color:#c1440e;", PTD: "background:#fdecea;color:#c62828;" };
   return map[sev] || "background:#eee;color:#555;";
 }
 function printReport(report, mainImgs, beforeImgs, afterImgs) {

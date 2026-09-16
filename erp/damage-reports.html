@@ -12,7 +12,7 @@ import { requireRole } from "./js/auth.js";
 import { renderShell, renderFAB, renderNotifications } from "./js/shell.js";
 import { toast, emptyStateHTML } from "./js/ui.js";
 import {
-  DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS, STATUS_LIST, STATUS_BADGE,
+  DAMAGE_TYPES, SEVERITY_LIST, SEVERITY_LABEL, SEVERITY_CLASS, SEVERITY_SHORT, SEVERITY_CRITICAL_LEVELS, STATUS_LIST, STATUS_BADGE,
   listReports, computeKPIs, computeMonthOverMonth, computeNotifications, groupCount, periodTrend, toCSV, downloadCSV,
 } from "./js/damage-reports.js";
 
@@ -119,7 +119,7 @@ function renderKPI() {
   const tProgress = computeMonthOverMonth(filtered, (r) => ["รับเรื่องแล้ว", "กำลังตรวจสอบ", "กำลังซ่อม"].includes(r.status));
   const tPending = computeMonthOverMonth(filtered, (r) => r.status === "รอดำเนินการ");
   const tDone = computeMonthOverMonth(filtered, (r) => ["ดำเนินการเสร็จแล้ว", "ปิดรายงาน"].includes(r.status));
-  const tCritical = computeMonthOverMonth(filtered, (r) => r.severity === "Critical");
+  const tCritical = computeMonthOverMonth(filtered, (r) => SEVERITY_CRITICAL_LEVELS.has(r.severity));
 
   document.getElementById("kpi-row").innerHTML =
     kpiCard("all", "📋", k.total, "รายงานทั้งหมด", tAll) +
@@ -127,26 +127,26 @@ function renderKPI() {
     kpiCard("progress", "🔧", k.inProgress, "กำลังดำเนินการ", tProgress) +
     kpiCard("pending", "⏳", k.pending, "รอดำเนินการ", tPending) +
     kpiCard("done", "✅", k.done, "ดำเนินการเสร็จแล้ว", tDone) +
-    kpiCard("critical", "🔴", k.critical, "Critical", tCritical);
+    kpiCard("critical", "🔴", k.critical, "LTI / PTD", tCritical);
 }
 
 function renderBreakdowns() {
   const byZone = groupCount(filtered, (r) => r.zone);
   const byType = groupCount(filtered, (r) => r.damageType);
   const bySeverity = SEVERITY_LIST.map((s) => [s, filtered.filter((r) => r.severity === s).length]);
-  const bar = (label, count, max, colorClass) => `
+  const bar = (label, count, max, colorClass, tooltip) => `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-      <div style="width:110px;font-size:0.82rem;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${label}">${label}</div>
+      <div style="width:110px;font-size:0.82rem;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${tooltip || label}">${label}</div>
       <div style="flex:1;background:#f0f2f8;border-radius:6px;height:16px;overflow:hidden;"><div style="width:${max ? (count / max * 100) : 0}%;background:${colorClass || "#1a73e8"};height:100%;border-radius:6px;"></div></div>
       <div style="width:28px;text-align:right;font-size:0.82rem;font-weight:700;">${count}</div>
     </div>`;
   const maxZone = Math.max(1, ...byZone.map((x) => x[1]));
   const maxType = Math.max(1, ...byType.map((x) => x[1]));
   const maxSev = Math.max(1, ...bySeverity.map((x) => x[1]));
-  const SEV_COLOR = { "ต่ำ": "#2e7d32", "ปานกลาง": "#c98a00", "สูง": "#c1440e", "Critical": "#c62828" };
+  const SEV_COLOR = { FAC: "#2e7d32", MTC: "#c98a00", LTI: "#c1440e", PTD: "#c62828" };
   document.getElementById("by-zone").innerHTML = byZone.length ? byZone.map(([z, c]) => bar(z, c, maxZone)).join("") : emptyStateHTML({ icon: "📍", title: "ไม่มีข้อมูล" });
   document.getElementById("by-type").innerHTML = byType.length ? byType.map(([t, c]) => bar(t, c, maxType)).join("") : emptyStateHTML({ icon: "🏷", title: "ไม่มีข้อมูล" });
-  document.getElementById("by-severity").innerHTML = bySeverity.map(([s, c]) => bar(SEVERITY_LABEL[s], c, maxSev, SEV_COLOR[s])).join("");
+  document.getElementById("by-severity").innerHTML = bySeverity.map(([s, c]) => bar(SEVERITY_SHORT[s], c, maxSev, SEV_COLOR[s], SEVERITY_LABEL[s])).join("");
 }
 
 let trendPeriod = "7d";
@@ -181,7 +181,7 @@ function renderRows() {
       <td>${r.title || "-"}</td>
       <td>${r.zone || "-"}</td>
       <td>${r.damageType || "-"}</td>
-      <td><span class="sev-badge ${SEVERITY_CLASS[r.severity] || ""}">${SEVERITY_LABEL[r.severity] || r.severity || "-"}</span></td>
+      <td><span class="sev-badge ${SEVERITY_CLASS[r.severity] || ""}" title="${SEVERITY_LABEL[r.severity] || ""}">${SEVERITY_SHORT[r.severity] || r.severity || "-"}</span></td>
       <td><span class="badge ${STATUS_BADGE[r.status] || "badge-pending"}">${r.status}</span></td>
       <td>${r.responsiblePerson || "-"}</td>
       <td><a class="btn btn-outline" href="damage-report-view.html?id=${r.id}" style="padding:5px 10px;font-size:0.78rem;">ดู</a></td>

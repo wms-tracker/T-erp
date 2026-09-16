@@ -37,14 +37,30 @@ export const DAMAGE_TYPES = [
   "อุปกรณ์คลังสินค้า", "รถ/เครื่องจักร", "ระบบไฟฟ้า", "ระบบอื่น ๆ", "อื่น ๆ",
 ];
 
-export const SEVERITY_LIST = ["ต่ำ", "ปานกลาง", "สูง", "Critical"];
+// ระดับความรุนแรง — ตามเกณฑ์มาตรฐาน คปอ./จป. (ระดับความรุนแรงอุบัติเหตุ 4 ระดับ ที่ใช้กันทั่วไปในการ
+// รายงานความปลอดภัยของสถานประกอบการไทย): First Aid Case → Medical Treatment Case → Lost Time Injury →
+// Fatality/Permanent Disability — แทนที่สเกล ต่ำ/ปานกลาง/สูง/Critical แบบเดิม
+export const SEVERITY_LIST = ["FAC", "MTC", "LTI", "PTD"];
 export const SEVERITY_LABEL = {
-  "ต่ำ": "ต่ำ", "ปานกลาง": "ปานกลาง", "สูง": "สูง",
-  "Critical": "Critical / ต้องดำเนินการทันที",
+  FAC: "ระดับ 1 — ปฐมพยาบาล (First Aid Case)",
+  MTC: "ระดับ 2 — รักษาพยาบาล (Medical Treatment Case)",
+  LTI: "ระดับ 3 — หยุดงาน (Lost Time Injury)",
+  PTD: "ระดับ 4 — เสียชีวิต/ทุพพลภาพถาวร (Fatality / Permanent Disability)",
+};
+export const SEVERITY_DESC = {
+  FAC: "บาดเจ็บเล็กน้อย ปฐมพยาบาลแล้วทำงานต่อได้ทันที ไม่มีวันหยุดงาน",
+  MTC: "ต้องได้รับการรักษาจากแพทย์ แต่ไม่ถึงขั้นหยุดงาน",
+  LTI: "บาดเจ็บหรือความเสียหายร้ายแรง ถึงขั้นต้องหยุดงานตั้งแต่ 1 วันทำการขึ้นไป",
+  PTD: "เสียชีวิตหรือทุพพลภาพถาวร — ต้องรายงานหน่วยงานราชการตามกฎหมาย",
 };
 export const SEVERITY_CLASS = {
-  "ต่ำ": "sev-low", "ปานกลาง": "sev-medium", "สูง": "sev-high", "Critical": "sev-critical",
+  FAC: "sev-low", MTC: "sev-medium", LTI: "sev-high", PTD: "sev-critical",
 };
+// ป้ายย่อ — ใช้ในที่แคบ เช่น แถวกราฟแท่งสรุป (label เต็มยาวเกินไปสำหรับพื้นที่จำกัด)
+export const SEVERITY_SHORT = { FAC: "ระดับ 1 (FAC)", MTC: "ระดับ 2 (MTC)", LTI: "ระดับ 3 (LTI)", PTD: "ระดับ 4 (PTD)" };
+// ระดับที่ต้องยกระดับความสำคัญ/แจ้งเตือนทันที (ใช้แทนเช็ค === "Critical" แบบเดิม) — LTI ขึ้นไป
+// เพราะกรณีหยุดงาน/เสียชีวิต-ทุพพลภาพ เป็นกรณีที่นายจ้างต้องแจ้งหน่วยงานราชการภายในกำหนดตามกฎหมาย
+export const SEVERITY_CRITICAL_LEVELS = new Set(["LTI", "PTD"]);
 
 export const STATUS_LIST = [
   "New", "รับเรื่องแล้ว", "กำลังตรวจสอบ", "รอดำเนินการ",
@@ -306,7 +322,7 @@ export function computeKPIs(reports) {
     else if (inProgressSet.has(r.status)) k.inProgress++;
     else if (r.status === "รอดำเนินการ") k.pending++;
     else if (doneSet.has(r.status)) k.done++;
-    if (r.severity === "Critical") k.critical++;
+    if (SEVERITY_CRITICAL_LEVELS.has(r.severity)) k.critical++;
   }
   return k;
 }
@@ -340,7 +356,7 @@ export function computeNotifications(reports, maxEach = 5) {
   const soonStr = new Date(now.getTime() + 2 * 86400000).toISOString().slice(0, 10);
   const openStatuses = new Set(STATUS_LIST.filter((s) => s !== "ดำเนินการเสร็จแล้ว" && s !== STATUS_CLOSED));
 
-  const critical = reports.filter((r) => r.severity === "Critical" && openStatuses.has(r.status));
+  const critical = reports.filter((r) => SEVERITY_CRITICAL_LEVELS.has(r.severity) && openStatuses.has(r.status));
   const overdue = reports.filter((r) => r.dueDate && r.dueDate < todayStr && openStatuses.has(r.status));
   const nearDue = reports.filter((r) => r.dueDate && r.dueDate >= todayStr && r.dueDate <= soonStr && openStatuses.has(r.status));
   const doneRecent = [...reports]
@@ -350,7 +366,7 @@ export function computeNotifications(reports, maxEach = 5) {
 
   const items = [];
   const link = (r) => `damage-report-view.html?id=${r.id}`;
-  for (const r of critical.slice(0, maxEach)) items.push({ icon: "🔴", title: `Critical: ${r.title || r.reportNo}`, desc: r.zone || "", href: link(r) });
+  for (const r of critical.slice(0, maxEach)) items.push({ icon: "🔴", title: `${SEVERITY_LABEL[r.severity] || r.severity}: ${r.title || r.reportNo}`, desc: r.zone || "", href: link(r) });
   for (const r of overdue.slice(0, maxEach)) items.push({ icon: "🔴", title: `เกินกำหนด: ${r.title || r.reportNo}`, desc: r.dueDate ? `กำหนด ${r.dueDate}` : "", href: link(r) });
   for (const r of nearDue.slice(0, maxEach)) items.push({ icon: "🟠", title: `ใกล้ครบกำหนด: ${r.title || r.reportNo}`, desc: r.dueDate ? `กำหนด ${r.dueDate}` : "", href: link(r) });
   for (const r of doneRecent) items.push({ icon: "🟢", title: `ซ่อมเสร็จแล้ว: ${r.title || r.reportNo}`, desc: r.zone || "", href: link(r) });
