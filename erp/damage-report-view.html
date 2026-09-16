@@ -12,7 +12,7 @@ import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
 import { toast, confirmModal } from "./js/ui.js";
 import {
-  SEVERITY_LABEL, SEVERITY_CLASS, STATUS_LIST, STATUS_BADGE, STATUS_CLOSED,
+  SEVERITY_LABEL, SEVERITY_CLASS, SEVERITY_DESC, SEVERITY_CRITICAL_LEVELS, STATUS_LIST, STATUS_BADGE, STATUS_CLOSED,
   getReport, listImages, listHistory, changeStatus,
   uploadImage, historyActionLabel,
 } from "./js/damage-reports.js";
@@ -195,7 +195,7 @@ async function load() {
     </div>
   `;
 
-  document.getElementById("btn-print")?.addEventListener("click", () => printReport(report, mainImgs, beforeImgs, afterImgs));
+  document.getElementById("btn-print")?.addEventListener("click", () => printReport(report, mainImgs, beforeImgs, afterImgs, history, user));
   document.getElementById("btn-edit")?.addEventListener("click", () => { location.href = `damage-report-form.html?id=${reportId}`; });
 
   document.getElementById("btn-status-save")?.addEventListener("click", async () => {
@@ -255,16 +255,31 @@ function sevInline(sev) {
   const map = { FAC: "background:#e8f5e9;color:#2e7d32;", MTC: "background:#fff8e1;color:#a66a00;", LTI: "background:#ffe4d6;color:#c1440e;", PTD: "background:#fdecea;color:#c62828;" };
   return map[sev] || "background:#eee;color:#555;";
 }
-function printReport(report, mainImgs, beforeImgs, afterImgs) {
+function histDetail(h) {
+  if (h.action === "change_status") return `${esc(h.oldValue || "-")} → ${esc(h.newValue || "-")}`;
+  if (h.action === "update_field") return `${esc(h.field || "")}: ${esc((h.oldValue || "-").slice(0, 50))} → ${esc((h.newValue || "-").slice(0, 50))}`;
+  if (h.newValue) return esc(h.newValue.slice(0, 80));
+  return "-";
+}
+
+function printReport(report, mainImgs, beforeImgs, afterImgs, history, user) {
+  const isClosed = report.status === STATUS_CLOSED;
+  const isUrgent = SEVERITY_CRITICAL_LEVELS.has(report.severity);
+  const historySorted = [...(history || [])].sort((a, b) => (a.changedAt?.toMillis?.() || 0) - (b.changedAt?.toMillis?.() || 0));
   const html = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8" />
     <title>DAR - ${esc(report.reportNo)}</title>
     <style>
       body{font-family:'Sarabun',Tahoma,sans-serif;margin:16mm;color:#222;font-size:11pt;}
       h1{font-size:16pt;margin:0;}
-      .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1a237e;padding-bottom:10px;margin-bottom:16px;}
+      .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1a237e;padding-bottom:10px;margin-bottom:12px;}
       .brand{font-size:13pt;font-weight:800;color:#1a237e;}
       .doc-meta{text-align:right;font-size:10pt;color:#555;}
+      .banner{border-radius:8px;padding:8px 14px;font-size:10pt;font-weight:700;margin-bottom:8px;}
+      .banner-open{background:#fff8e1;color:#a66a00;border:1px solid #ffe4a8;}
+      .banner-closed{background:#e6f7ee;color:#1a8a3a;border:1px solid #b8e8cd;}
+      .banner-urgent{background:#fdecea;color:#c62828;border:1px solid #f5c2c2;}
       .sev-tag{display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-size:10pt;}
+      .sev-desc{display:block;font-size:8.5pt;font-style:italic;color:#888;margin-top:4px;}
       section{margin-bottom:18px;}
       section h2{font-size:12pt;color:#1a237e;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:8px;}
       table.kv{width:100%;border-collapse:collapse;}
@@ -277,8 +292,12 @@ function printReport(report, mainImgs, beforeImgs, afterImgs) {
       .ba{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
       .ba h4{font-size:10.5pt;margin:0 0 6px;}
       .ba img{width:100%;height:220px;object-fit:cover;border-radius:8px;border:1px solid #ddd;margin-bottom:8px;}
+      table.hist{width:100%;border-collapse:collapse;font-size:9pt;}
+      table.hist th{text-align:left;color:#888;font-weight:600;border-bottom:1px solid #ccc;padding:4px 6px;}
+      table.hist td{padding:5px 6px;border-bottom:1px solid #eee;vertical-align:top;}
       .sign-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:34px;}
       .sign-line{border-top:1px solid #333;margin-top:44px;padding-top:6px;font-size:9.5pt;text-align:center;color:#444;}
+      footer{margin-top:24px;padding-top:10px;border-top:1px solid #ddd;font-size:8.5pt;color:#999;}
       @media print { .no-print{display:none!important;} body{margin:12mm 14mm;} section{page-break-inside:avoid;} }
     </style></head><body>
       <div class="no-print" style="text-align:right;margin-bottom:10px;">
@@ -286,14 +305,21 @@ function printReport(report, mainImgs, beforeImgs, afterImgs) {
       </div>
       <div class="header">
         <div><div class="brand">🏢 WEB ERP — คลังสินค้า</div><h1 style="margin-top:6px;">DAMAGE AREA REPORT</h1></div>
-        <div class="doc-meta">เลขที่: <b>${esc(report.reportNo)}</b><br>วันที่พิมพ์: ${new Date().toLocaleString("th-TH")}<br>สถานะ: <b>${esc(report.status)}</b></div>
+        <div class="doc-meta">เลขที่: <b>${esc(report.reportNo)}</b><br>วันที่พิมพ์: ${new Date().toLocaleString("th-TH")}<br>พิมพ์โดย: ${esc(user?.name || user?.email || "-")}</div>
       </div>
+      ${isClosed
+        ? `<div class="banner banner-closed">✅ ปิดรายงานแล้ว${report.closedAt ? ` เมื่อ ${fmtDateTime(report.closedAt)}` : ""}</div>`
+        : `<div class="banner banner-open">⏳ รายงานนี้ยังไม่ปิด — สถานะปัจจุบัน: ${esc(report.status)}</div>`}
+      ${isUrgent ? `<div class="banner banner-urgent">🔴 กรณี${esc(SEVERITY_LABEL[report.severity] || report.severity)} — เข้าเกณฑ์ที่นายจ้างอาจต้องแจ้งหน่วยงานราชการตามกฎหมาย โปรดตรวจสอบกับ จป./ฝ่ายบุคคล</div>` : ""}
       <section><h2>Section 1 — ข้อมูลทั่วไป</h2>
         <table class="kv">
           <tr><td class="k">ผู้แจ้ง</td><td>${esc(report.reporterName)}</td><td class="k">แผนก</td><td>${esc(report.department) || "-"}</td></tr>
           <tr><td class="k">พื้นที่/โซน</td><td>${esc(report.zone)}</td><td class="k">ประเภทความเสียหาย</td><td>${esc(report.damageType)}</td></tr>
           <tr><td class="k">วันที่พบ</td><td>${fmtDate(report.reportDate)} ${esc(report.reportTime || "")}</td><td class="k">ตำแหน่ง</td><td>${esc(locStr(report.location))}</td></tr>
-          <tr><td class="k">ระดับความรุนแรง</td><td colspan="3"><span class="sev-tag" style="${sevInline(report.severity)}">${esc(SEVERITY_LABEL[report.severity] || report.severity)}</span></td></tr>
+          <tr><td class="k">ระดับความรุนแรง</td><td colspan="3">
+            <span class="sev-tag" style="${sevInline(report.severity)}">${esc(SEVERITY_LABEL[report.severity] || report.severity)}</span>
+            <span class="sev-desc">${esc(SEVERITY_DESC[report.severity] || "")}</span>
+          </td></tr>
         </table>
       </section>
       <section><h2>Section 2 — รายละเอียดความเสียหาย</h2>
@@ -316,17 +342,24 @@ function printReport(report, mainImgs, beforeImgs, afterImgs) {
         </table>
       </section>
       ${beforeImgs.length || afterImgs.length ? `<section><h2>Section 5 — Before / After</h2><div class="ba">
-        <div><h4>ก่อนแก้ไข (Before)</h4>${beforeImgs.map((img) => `<img src="${img.url}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#999;">— ไม่มีรูป —</p>'}</div>
-        <div><h4>หลังแก้ไข (After)</h4>${afterImgs.map((img) => `<img src="${img.url}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#999;">— ไม่มีรูป —</p>'}</div>
+        <div><h4>ก่อนแก้ไข (Before)</h4>${beforeImgs.map((img) => `<img src="${img.annotatedUrl || img.url}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#999;">— ไม่มีรูป —</p>'}</div>
+        <div><h4>หลังแก้ไข (After)</h4>${afterImgs.map((img) => `<img src="${img.annotatedUrl || img.url}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#999;">— ไม่มีรูป —</p>'}</div>
       </div></section>` : ""}
-      <section><h2>Section 6 — การอนุมัติ</h2>
+      <section><h2>Section 6 — ประวัติการดำเนินการ (Audit Trail)</h2>
+        ${historySorted.length ? `<table class="hist">
+          <thead><tr><th style="width:130px;">วันที่/เวลา</th><th style="width:110px;">การกระทำ</th><th>รายละเอียด</th><th style="width:110px;">ผู้ดำเนินการ</th></tr></thead>
+          <tbody>${historySorted.map((h) => `<tr><td>${fmtDateTime(h.changedAt)}</td><td>${esc(historyActionLabel(h.action))}</td><td>${histDetail(h)}</td><td>${esc(h.changedByName || "-")}</td></tr>`).join("")}</tbody>
+        </table>` : `<p style="color:#999;font-size:9pt;">ยังไม่มีประวัติ</p>`}
+      </section>
+      <section><h2>Section 7 — การอนุมัติ</h2>
         <div class="sign-grid">
           <div class="sign-line">ผู้แจ้ง</div>
-          <div class="sign-line">ผู้ตรวจสอบ</div>
-          <div class="sign-line">ผู้อนุมัติ</div>
+          <div class="sign-line">ผู้ตรวจสอบ (จป.)</div>
+          <div class="sign-line">ผู้อนุมัติ (คปอ.)</div>
         </div>
         <div style="margin-top:16px;font-size:9.5pt;color:#666;">วันที่: ________________________</div>
       </section>
+      <footer>เอกสารนี้สร้างจากระบบ Web ERP — โมดูล Damage Area Report · เป็นข้อมูลภายในของบริษัท โปรดใช้ภายในองค์กรเท่านั้น · พิมพ์เมื่อ ${new Date().toLocaleString("th-TH")}</footer>
       <script>window.onload=()=>{setTimeout(()=>window.print(),200);};<\/script>
     </body></html>`;
   const win = window.open("", "_blank");
