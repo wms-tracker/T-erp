@@ -99,37 +99,37 @@ async function load() {
     <div class="card" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;align-items:center;">
       <div>
         <div style="font-size:1.3rem;font-weight:800;color:#1a237e;">${esc(report.reportNo)}</div>
-        <div style="font-size:0.82rem;color:#888;margin-top:4px;">แจ้งเมื่อ ${fmtDateTime(report.createdAt)} โดย ${esc(report.reporterName)}</div>
+        <div style="font-size:0.82rem;color:#5f6368;margin-top:4px;">แจ้งเมื่อ ${fmtDateTime(report.createdAt)} โดย ${esc(report.reporterName)}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span class="sev-badge ${SEVERITY_CLASS[report.severity] || ""}"><span class="sev-dot ${SEVERITY_CLASS[report.severity] || ""}"></span>${SEVERITY_LABEL[report.severity] || report.severity}</span>
         <span class="badge ${STATUS_BADGE[report.status] || "badge-pending"}">${esc(report.status)}</span>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-outline" id="btn-print">🖨 Generate Report / PDF</button>
-        ${canEdit ? `<button class="btn btn-outline" id="btn-edit">✏️ แก้ไข</button>` : ""}
-        <a class="btn btn-outline" href="damage-reports.html">⬅ กลับ</a>
+        <button class="btn btn-outline" id="btn-print" style="min-height:44px;">🖨 Generate Report / PDF</button>
+        ${canEdit ? `<button class="btn btn-outline" id="btn-edit" style="min-height:44px;">✏️ แก้ไข</button>` : ""}
+        <a class="btn btn-outline" href="damage-reports.html" style="min-height:44px;">⬅ กลับ</a>
       </div>
     </div>
 
     <div class="card">
       <div class="section-title">📋 ข้อมูลทั่วไป</div>
       <div class="grid-cards">
-        <div><label style="font-size:0.78rem;color:#888;">ผู้แจ้ง</label><div>${esc(report.reporterName) || "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">แผนก</label><div>${esc(report.department) || "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">พื้นที่/โซน</label><div>${esc(report.zone) || "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">ประเภทความเสียหาย</label><div>${esc(report.damageType) || "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">วันที่พบ</label><div>${fmtDate(report.reportDate)} ${esc(report.reportTime || "")}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">ผู้แจ้ง</label><div>${esc(report.reporterName) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">แผนก</label><div>${esc(report.department) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">พื้นที่/โซน</label><div>${esc(report.zone) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">ประเภทความเสียหาย</label><div>${esc(report.damageType) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">วันที่พบ</label><div>${fmtDate(report.reportDate)} ${esc(report.reportTime || "")}</div></div>
       </div>
-      <div style="margin-top:10px;"><label style="font-size:0.78rem;color:#888;">ตำแหน่งความเสียหาย</label><div>${locStr(report.location)}</div></div>
+      <div style="margin-top:10px;"><label style="font-size:0.78rem;color:#5f6368;">ตำแหน่งความเสียหาย</label><div>${locStr(report.location)}</div></div>
     </div>
 
     <div class="card">
       <div class="section-title">📝 รายละเอียดความเสียหาย</div>
       <p><b>${esc(report.title)}</b></p>
       <p style="white-space:pre-wrap;color:#444;">${esc(report.description)}</p>
-      ${report.cause ? `<p style="margin-top:10px;"><label style="font-size:0.78rem;color:#888;">สาเหตุเบื้องต้น</label><br>${esc(report.cause)}</p>` : ""}
-      ${impactList(report.impact).length || report.impact?.details ? `<p style="margin-top:10px;"><label style="font-size:0.78rem;color:#888;">ผลกระทบ</label><br>
+      ${report.cause ? `<p style="margin-top:10px;"><label style="font-size:0.78rem;color:#5f6368;">สาเหตุเบื้องต้น</label><br>${esc(report.cause)}</p>` : ""}
+      ${impactList(report.impact).length || report.impact?.details ? `<p style="margin-top:10px;"><label style="font-size:0.78rem;color:#5f6368;">ผลกระทบ</label><br>
         ${impactList(report.impact).map((t) => `<span class="badge badge-cancel" style="margin-right:6px;">${t}</span>`).join("")}
         ${report.impact?.details ? `<div style="margin-top:6px;color:#555;">${esc(report.impact.details)}</div>` : ""}
       </p>` : ""}
@@ -143,31 +143,33 @@ async function load() {
           return `
           <div class="img-thumb">
             ${img.annotatedUrl ? `<span class="type-tag" style="background:rgba(224,36,36,0.9);">✏️ วาดแล้ว</span>` : ""}
-            <img src="${displaySrc}" onclick="window.open('${displaySrc}','_blank')" style="cursor:zoom-in;" />
-            <div class="cap">${esc(img.caption) || "<span style=color:#bbb;>ไม่มีคำบรรยาย</span>"}${img.location ? `<div class="meta">📍 ${esc(img.location)}</div>` : ""}
+            <button type="button" class="img-zoom-btn" onclick="window.open('${displaySrc}','_blank')" aria-label="ดูรูปขยาย${img.caption ? `: ${esc(img.caption)}` : ""}">
+              <img src="${displaySrc}" alt="${esc(img.caption) || "รูปหลักฐานความเสียหาย"}" />
+            </button>
+            <div class="cap">${esc(img.caption) || "<span style=color:#767b87;>ไม่มีคำบรรยาย</span>"}${img.location ? `<div class="meta">📍 ${esc(img.location)}</div>` : ""}
               ${img.annotatedUrl ? `<div class="meta"><a href="${img.url}" target="_blank">ดูรูปต้นฉบับ</a></div>` : ""}
             </div>
           </div>`;
-        }).join("") || `<p style="color:#999;">ไม่มีรูปภาพ</p>`}
+        }).join("") || `<p style="color:#6b7280;">ไม่มีรูปภาพ</p>`}
       </div>
-      ${canEdit ? `<p style="font-size:0.8rem;color:#999;margin-top:10px;">แก้ไข/เพิ่ม/ลบ/จัดเรียงรูปหลักได้ที่หน้า <a href="damage-report-form.html?id=${reportId}">✏️ แก้ไขรายงาน</a></p>` : ""}
+      ${canEdit ? `<p style="font-size:0.8rem;color:#6b7280;margin-top:10px;">แก้ไข/เพิ่ม/ลบ/จัดเรียงรูปหลักได้ที่หน้า <a href="damage-report-form.html?id=${reportId}">✏️ แก้ไขรายงาน</a></p>` : ""}
     </div>
 
     <div class="card">
       <div class="section-title">🔧 การประเมินและการแก้ไข</div>
       <div class="grid-cards">
-        <div><label style="font-size:0.78rem;color:#888;">ผู้รับผิดชอบ</label><div>${esc(report.responsiblePerson) || "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">หน่วยงานที่ต้องดำเนินการ</label><div>${esc(report.responsibleDept) || "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">งบประมาณโดยประมาณ</label><div>${report.estimatedCost ? Number(report.estimatedCost).toLocaleString("th-TH") + " บาท" : "-"}</div></div>
-        <div><label style="font-size:0.78rem;color:#888;">วันที่ต้องการให้ดำเนินการ</label><div>${fmtDate(report.dueDate)}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">ผู้รับผิดชอบ</label><div>${esc(report.responsiblePerson) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">หน่วยงานที่ต้องดำเนินการ</label><div>${esc(report.responsibleDept) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">งบประมาณโดยประมาณ</label><div>${report.estimatedCost ? Number(report.estimatedCost).toLocaleString("th-TH") + " บาท" : "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">วันที่ต้องการให้ดำเนินการ</label><div>${fmtDate(report.dueDate)}</div></div>
       </div>
-      ${report.correctiveAction ? `<div style="margin-top:10px;"><label style="font-size:0.78rem;color:#888;">แนวทางแก้ไขเบื้องต้น</label><div style="white-space:pre-wrap;">${esc(report.correctiveAction)}</div></div>` : ""}
+      ${report.correctiveAction ? `<div style="margin-top:10px;"><label style="font-size:0.78rem;color:#5f6368;">แนวทางแก้ไขเบื้องต้น</label><div style="white-space:pre-wrap;">${esc(report.correctiveAction)}</div></div>` : ""}
       ${canEdit ? `
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <label style="font-size:0.85rem;">เปลี่ยนสถานะ:</label>
-        <select id="status-select">${STATUS_LIST.map((s) => `<option value="${s}" ${s === report.status ? "selected" : ""}>${s}</option>`).join("")}</select>
-        <button class="btn btn-primary" id="btn-status-save">💾 บันทึกสถานะ</button>
-        ${report.status !== STATUS_CLOSED ? `<button class="btn btn-danger" id="btn-close">✔ ปิดรายงาน</button>` : ""}
+        <label for="status-select" style="font-size:0.85rem;">เปลี่ยนสถานะ:</label>
+        <select id="status-select" style="min-height:44px;">${STATUS_LIST.map((s) => `<option value="${s}" ${s === report.status ? "selected" : ""}>${s}</option>`).join("")}</select>
+        <button class="btn btn-primary" id="btn-status-save" style="min-height:44px;">💾 บันทึกสถานะ</button>
+        ${report.status !== STATUS_CLOSED ? `<button class="btn btn-danger" id="btn-close" style="min-height:44px;">✔ ปิดรายงาน</button>` : ""}
         <span class="msg" id="status-msg"></span>
       </div>` : ""}
     </div>
@@ -177,12 +179,12 @@ async function load() {
       <div class="ba-compare">
         <div class="ba-col">
           <h4>ก่อนแก้ไข (Before)</h4>
-          <div class="img-gallery">${beforeImgs.map((img) => `<div class="img-thumb"><span class="type-tag">BEFORE</span><img src="${img.url}" onclick="window.open('${img.url}','_blank')" style="cursor:zoom-in;" /><div class="cap">${esc(img.caption) || ""}</div></div>`).join("") || `<p style="color:#999;font-size:0.85rem;">— ยังไม่มีรูป —</p>`}</div>
+          <div class="img-gallery">${beforeImgs.map((img) => `<div class="img-thumb"><span class="type-tag">BEFORE</span><button type="button" class="img-zoom-btn" onclick="window.open('${img.url}','_blank')" aria-label="ดูรูป Before ขยาย"><img src="${img.url}" alt="${esc(img.caption) || "รูปก่อนแก้ไข"}" /></button><div class="cap">${esc(img.caption) || ""}</div></div>`).join("") || `<p style="color:#6b7280;font-size:0.85rem;">— ยังไม่มีรูป —</p>`}</div>
           ${canEdit ? `<label class="upload-drop" style="margin-top:10px;padding:14px;"><div>📷 เพิ่มรูป Before</div><input type="file" id="up-before" accept="image/*" capture="environment" multiple /></label>` : ""}
         </div>
         <div class="ba-col">
           <h4>หลังแก้ไข (After)</h4>
-          <div class="img-gallery">${afterImgs.map((img) => `<div class="img-thumb"><span class="type-tag" style="background:rgba(26,138,58,0.9);">AFTER</span><img src="${img.url}" onclick="window.open('${img.url}','_blank')" style="cursor:zoom-in;" /><div class="cap">${esc(img.caption) || ""}</div></div>`).join("") || `<p style="color:#999;font-size:0.85rem;">— ยังไม่มีรูป —</p>`}</div>
+          <div class="img-gallery">${afterImgs.map((img) => `<div class="img-thumb"><span class="type-tag" style="background:rgba(26,138,58,0.9);">AFTER</span><button type="button" class="img-zoom-btn" onclick="window.open('${img.url}','_blank')" aria-label="ดูรูป After ขยาย"><img src="${img.url}" alt="${esc(img.caption) || "รูปหลังแก้ไข"}" /></button><div class="cap">${esc(img.caption) || ""}</div></div>`).join("") || `<p style="color:#6b7280;font-size:0.85rem;">— ยังไม่มีรูป —</p>`}</div>
           ${canEdit ? `<label class="upload-drop" style="margin-top:10px;padding:14px;"><div>📷 เพิ่มรูป After</div><input type="file" id="up-after" accept="image/*" capture="environment" multiple /></label>` : ""}
         </div>
       </div>
@@ -191,7 +193,7 @@ async function load() {
 
     <div class="card">
       <div class="section-title">🕘 ประวัติการแก้ไข (Activity Timeline)</div>
-      ${history.length ? `<div class="timeline">${[...history].reverse().map((h) => timelineItem(h)).join("")}</div>` : `<p style="color:#999;font-size:0.85rem;">ยังไม่มีประวัติ</p>`}
+      ${history.length ? `<div class="timeline">${[...history].reverse().map((h) => timelineItem(h)).join("")}</div>` : `<p style="color:#6b7280;font-size:0.85rem;">ยังไม่มีประวัติ</p>`}
     </div>
   `;
 
@@ -279,12 +281,12 @@ function printReport(report, mainImgs, beforeImgs, afterImgs, history, user) {
       .banner-closed{background:#e6f7ee;color:#1a8a3a;border:1px solid #b8e8cd;}
       .banner-urgent{background:#fdecea;color:#c62828;border:1px solid #f5c2c2;}
       .sev-tag{display:inline-block;padding:3px 12px;border-radius:20px;font-weight:700;font-size:10pt;}
-      .sev-desc{display:block;font-size:8.5pt;font-style:italic;color:#888;margin-top:4px;}
+      .sev-desc{display:block;font-size:8.5pt;font-style:italic;color:#5f6368;margin-top:4px;}
       section{margin-bottom:18px;}
       section h2{font-size:12pt;color:#1a237e;border-bottom:1px solid #ddd;padding-bottom:4px;margin-bottom:8px;}
       table.kv{width:100%;border-collapse:collapse;}
       table.kv td{padding:4px 6px;font-size:10pt;vertical-align:top;}
-      table.kv td.k{color:#888;width:150px;white-space:nowrap;}
+      table.kv td.k{color:#5f6368;width:150px;white-space:nowrap;}
       .gallery{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
       .gallery figure{margin:0;border:1px solid #ddd;border-radius:8px;overflow:hidden;page-break-inside:avoid;}
       .gallery img{width:100%;height:200px;object-fit:cover;display:block;}
@@ -293,11 +295,11 @@ function printReport(report, mainImgs, beforeImgs, afterImgs, history, user) {
       .ba h4{font-size:10.5pt;margin:0 0 6px;}
       .ba img{width:100%;height:220px;object-fit:cover;border-radius:8px;border:1px solid #ddd;margin-bottom:8px;}
       table.hist{width:100%;border-collapse:collapse;font-size:9pt;}
-      table.hist th{text-align:left;color:#888;font-weight:600;border-bottom:1px solid #ccc;padding:4px 6px;}
+      table.hist th{text-align:left;color:#5f6368;font-weight:600;border-bottom:1px solid #ccc;padding:4px 6px;}
       table.hist td{padding:5px 6px;border-bottom:1px solid #eee;vertical-align:top;}
       .sign-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-top:34px;}
       .sign-line{border-top:1px solid #333;margin-top:44px;padding-top:6px;font-size:9.5pt;text-align:center;color:#444;}
-      footer{margin-top:24px;padding-top:10px;border-top:1px solid #ddd;font-size:8.5pt;color:#999;}
+      footer{margin-top:24px;padding-top:10px;border-top:1px solid #ddd;font-size:8.5pt;color:#6b7280;}
       @media print { .no-print{display:none!important;} body{margin:12mm 14mm;} section{page-break-inside:avoid;} }
     </style></head><body>
       <div class="no-print" style="text-align:right;margin-bottom:10px;">
@@ -331,7 +333,7 @@ function printReport(report, mainImgs, beforeImgs, afterImgs, history, user) {
         </table>
       </section>
       ${mainImgs.length ? `<section><h2>Section 3 — รูปภาพหลักฐาน</h2><div class="gallery">
-        ${mainImgs.map((img, i) => `<figure><img src="${img.annotatedUrl || img.url}" /><figcaption><b>Figure ${i + 1}</b>${img.caption ? " — " + esc(img.caption) : ""}${img.location ? "<br>ตำแหน่ง: " + esc(img.location) : ""}</figcaption></figure>`).join("")}
+        ${mainImgs.map((img, i) => `<figure><img src="${img.annotatedUrl || img.url}" alt="${esc(img.caption) || `รูปหลักฐาน ${i + 1}`}" /><figcaption><b>Figure ${i + 1}</b>${img.caption ? " — " + esc(img.caption) : ""}${img.location ? "<br>ตำแหน่ง: " + esc(img.location) : ""}</figcaption></figure>`).join("")}
       </div></section>` : ""}
       <section><h2>Section 4 — แนวทางแก้ไข</h2>
         <table class="kv">
@@ -342,14 +344,14 @@ function printReport(report, mainImgs, beforeImgs, afterImgs, history, user) {
         </table>
       </section>
       ${beforeImgs.length || afterImgs.length ? `<section><h2>Section 5 — Before / After</h2><div class="ba">
-        <div><h4>ก่อนแก้ไข (Before)</h4>${beforeImgs.map((img) => `<img src="${img.annotatedUrl || img.url}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#999;">— ไม่มีรูป —</p>'}</div>
-        <div><h4>หลังแก้ไข (After)</h4>${afterImgs.map((img) => `<img src="${img.annotatedUrl || img.url}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#999;">— ไม่มีรูป —</p>'}</div>
+        <div><h4>ก่อนแก้ไข (Before)</h4>${beforeImgs.map((img) => `<img src="${img.annotatedUrl || img.url}" alt="${esc(img.caption) || "รูปก่อนแก้ไข"}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#6b7280;">— ไม่มีรูป —</p>'}</div>
+        <div><h4>หลังแก้ไข (After)</h4>${afterImgs.map((img) => `<img src="${img.annotatedUrl || img.url}" alt="${esc(img.caption) || "รูปหลังแก้ไข"}" />${img.caption ? `<div style="font-size:9pt;color:#666;margin:-4px 0 8px;">${esc(img.caption)}</div>` : ""}`).join("") || '<p style="color:#6b7280;">— ไม่มีรูป —</p>'}</div>
       </div></section>` : ""}
       <section><h2>Section 6 — ประวัติการดำเนินการ (Audit Trail)</h2>
         ${historySorted.length ? `<table class="hist">
           <thead><tr><th style="width:130px;">วันที่/เวลา</th><th style="width:110px;">การกระทำ</th><th>รายละเอียด</th><th style="width:110px;">ผู้ดำเนินการ</th></tr></thead>
           <tbody>${historySorted.map((h) => `<tr><td>${fmtDateTime(h.changedAt)}</td><td>${esc(historyActionLabel(h.action))}</td><td>${histDetail(h)}</td><td>${esc(h.changedByName || "-")}</td></tr>`).join("")}</tbody>
-        </table>` : `<p style="color:#999;font-size:9pt;">ยังไม่มีประวัติ</p>`}
+        </table>` : `<p style="color:#6b7280;font-size:9pt;">ยังไม่มีประวัติ</p>`}
       </section>
       <section><h2>Section 7 — การอนุมัติ</h2>
         <div class="sign-grid">

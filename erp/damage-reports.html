@@ -42,14 +42,14 @@ main.innerHTML = `
 
   <div class="card">
     <div class="filter-bar">
-      <div class="field"><label>ค้นหา</label><input id="ft-search" placeholder="เลขที่ / หัวข้อ..." /></div>
-      <div class="field"><label>ตั้งแต่วันที่</label><input id="ft-from" type="date" /></div>
-      <div class="field"><label>ถึงวันที่</label><input id="ft-to" type="date" /></div>
-      <div class="field"><label>Zone</label><select id="ft-zone"><option value="">— ทั้งหมด —</option></select></div>
-      <div class="field"><label>ประเภท</label><select id="ft-type"><option value="">— ทั้งหมด —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select></div>
-      <div class="field"><label>ความรุนแรง</label><select id="ft-severity"><option value="">— ทั้งหมด —</option>${SEVERITY_LIST.map((s) => `<option value="${s}">${SEVERITY_LABEL[s]}</option>`).join("")}</select></div>
-      <div class="field"><label>สถานะ</label><select id="ft-status"><option value="">— ทั้งหมด —</option>${STATUS_LIST.map((s) => `<option value="${s}">${s}</option>`).join("")}</select></div>
-      <div class="field"><label>ผู้รับผิดชอบ</label><input id="ft-resp" placeholder="ชื่อผู้รับผิดชอบ" /></div>
+      <div class="field"><label for="ft-search">ค้นหา</label><input id="ft-search" placeholder="เลขที่ / หัวข้อ..." /></div>
+      <div class="field"><label for="ft-from">ตั้งแต่วันที่</label><input id="ft-from" type="date" /></div>
+      <div class="field"><label for="ft-to">ถึงวันที่</label><input id="ft-to" type="date" /></div>
+      <div class="field"><label for="ft-zone">Zone</label><select id="ft-zone"><option value="">— ทั้งหมด —</option></select></div>
+      <div class="field"><label for="ft-type">ประเภท</label><select id="ft-type"><option value="">— ทั้งหมด —</option>${DAMAGE_TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select></div>
+      <div class="field"><label for="ft-severity">ความรุนแรง</label><select id="ft-severity"><option value="">— ทั้งหมด —</option>${SEVERITY_LIST.map((s) => `<option value="${s}">${SEVERITY_LABEL[s]}</option>`).join("")}</select></div>
+      <div class="field"><label for="ft-status">สถานะ</label><select id="ft-status"><option value="">— ทั้งหมด —</option>${STATUS_LIST.map((s) => `<option value="${s}">${s}</option>`).join("")}</select></div>
+      <div class="field"><label for="ft-resp">ผู้รับผิดชอบ</label><input id="ft-resp" placeholder="ชื่อผู้รับผิดชอบ" /></div>
       <button class="btn btn-outline" id="btn-clear-filter">ล้างตัวกรอง</button>
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -59,7 +59,7 @@ main.innerHTML = `
     </div>
   </div>
 
-  <div class="grid-cards" style="grid-template-columns:1fr 1fr 1fr;">
+  <div class="grid-cards">
     <div class="card"><div class="section-title" style="font-size:0.95rem;">📍 ความเสียหายแยกตาม Zone</div><div id="by-zone"></div></div>
     <div class="card"><div class="section-title" style="font-size:0.95rem;">🏷 ความเสียหายแยกตามประเภท</div><div id="by-type"></div></div>
     <div class="card"><div class="section-title" style="font-size:0.95rem;">🚦 ความเสียหายแยกตามความรุนแรง</div><div id="by-severity"></div></div>
@@ -68,9 +68,9 @@ main.innerHTML = `
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
       <div class="section-title" style="font-size:0.95rem;margin:0;">📈 แนวโน้มจำนวนความเสียหาย</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;" id="trend-period">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;" id="trend-period" role="group" aria-label="ช่วงเวลาแนวโน้ม">
         ${[["today", "วันนี้"], ["7d", "7 วัน"], ["30d", "30 วัน"], ["month", "เดือนนี้"], ["year", "ปีนี้"]]
-          .map(([v, l], i) => `<button type="button" class="btn ${i === 1 ? "btn-primary" : "btn-outline"}" data-period="${v}" style="padding:5px 12px;font-size:0.78rem;">${l}</button>`)
+          .map(([v, l], i) => `<button type="button" class="btn ${i === 1 ? "btn-primary" : "btn-outline"}" data-period="${v}" aria-pressed="${i === 1}" style="padding:9px 14px;font-size:0.8rem;min-height:38px;">${l}</button>`)
           .join("")}
       </div>
     </div>
@@ -80,7 +80,7 @@ main.innerHTML = `
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div class="section-title" style="margin:0;">📋 รายการรายงานความเสียหาย</div>
-      <span id="count-label" style="font-size:0.82rem;color:#888;"></span>
+      <span id="count-label" style="font-size:0.82rem;color:#5f6368;"></span>
     </div>
     <div style="overflow-x:auto;">
       <table>
@@ -157,7 +157,7 @@ function renderTrend() {
     <div style="flex:0 0 auto;min-width:30px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">
       <div style="font-size:0.74rem;font-weight:700;margin-bottom:4px;">${b.count || ""}</div>
       <div style="width:100%;max-width:26px;background:linear-gradient(180deg,#5a8dfb,#1a73e8);border-radius:6px 6px 0 0;height:${(b.count / max * 100) || 2}%;min-height:2px;"></div>
-      <div style="font-size:0.68rem;color:#888;margin-top:6px;white-space:nowrap;">${b.label}</div>
+      <div style="font-size:0.68rem;color:#5f6368;margin-top:6px;white-space:nowrap;">${b.label}</div>
     </div>`).join("");
 }
 
@@ -184,7 +184,7 @@ function renderRows() {
       <td><span class="sev-badge ${SEVERITY_CLASS[r.severity] || ""}" title="${SEVERITY_LABEL[r.severity] || ""}">${SEVERITY_SHORT[r.severity] || r.severity || "-"}</span></td>
       <td><span class="badge ${STATUS_BADGE[r.status] || "badge-pending"}">${r.status}</span></td>
       <td>${r.responsiblePerson || "-"}</td>
-      <td><a class="btn btn-outline" href="damage-report-view.html?id=${r.id}" style="padding:5px 10px;font-size:0.78rem;">ดู</a></td>
+      <td><a class="btn btn-outline" href="damage-report-view.html?id=${r.id}" aria-label="ดูรายงาน ${r.reportNo}" style="padding:9px 14px;font-size:0.8rem;min-height:38px;">ดู</a></td>
     </tr>`).join("");
   tbody.querySelectorAll("tr[data-id]").forEach((tr) => {
     tr.addEventListener("click", (e) => {
@@ -249,6 +249,7 @@ document.getElementById("trend-period").addEventListener("click", (e) => {
   document.querySelectorAll("#trend-period [data-period]").forEach((b) => {
     b.classList.toggle("btn-primary", b === btn);
     b.classList.toggle("btn-outline", b !== btn);
+    b.setAttribute("aria-pressed", String(b === btn));
   });
   renderTrend();
 });

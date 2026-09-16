@@ -225,7 +225,7 @@ export function renderShell(profile, activeKey, title) {
     }
     .nav-sec-role{
       padding:2px 14px 10px;
-      font-size:0.72rem;color:#999;
+      font-size:0.72rem;color:#6b7280;
     }
     .nav-sec-items{padding:4px 8px;flex:1;}
     .nav-sec-item{
@@ -534,8 +534,8 @@ export function renderNotifications(items) {
     .notif-item:hover{background:#f7f9ff;}
     .notif-item .ni-icon{font-size:1.05rem;flex-shrink:0;line-height:1.3;}
     .notif-item .ni-title{font-size:0.84rem;font-weight:600;color:#222;line-height:1.35;}
-    .notif-item .ni-desc{font-size:0.76rem;color:#999;margin-top:1px;}
-    .notif-empty{padding:28px 16px;text-align:center;color:#999;font-size:0.84rem;}
+    .notif-item .ni-desc{font-size:0.76rem;color:#6b7280;margin-top:1px;}
+    .notif-empty{padding:28px 16px;text-align:center;color:#6b7280;font-size:0.84rem;}
     @media(max-width:768px){ .notif-root{top:7px;right:56px;} }
   `;
   document.head.appendChild(style);
