@@ -154,6 +154,11 @@ service cloud.firestore {
         allow create: if hasRole('warehouse') || isAdmin();
         allow update, delete: if false; // audit trail ห้ามแก้/ลบย้อนหลัง
       }
+      match /progressUpdates/{updateId} {
+        allow read: if isSignedIn() && isActive();
+        allow create: if hasRole('warehouse') || isAdmin();
+        allow update, delete: if false; // log ความคืบหน้า ห้ามแก้/ลบย้อนหลัง เหมือน history
+      }
     }
 
     // ----- Freight Cost Calculator: Master Data -----

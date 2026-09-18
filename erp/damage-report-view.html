@@ -15,6 +15,8 @@ import {
   SEVERITY_LABEL, SEVERITY_CLASS, SEVERITY_DESC, SEVERITY_CRITICAL_LEVELS, STATUS_LIST, STATUS_BADGE, STATUS_CLOSED,
   getReport, listImages, listHistory, changeStatus,
   uploadImage, historyActionLabel,
+  WORKFLOW_STEPS, stepIndex, inferLegacyStep, composeExecutiveSummary, computeAgeSLA,
+  addProgressUpdate, listProgressUpdates, uploadProgressAsset,
 } from "./js/damage-reports.js";
 
 const profile = await requireRole(["warehouse", "manager"]);
@@ -53,6 +55,18 @@ function locStr(loc) {
   if (loc.note) s += ` — ${loc.note}`;
   return s;
 }
+function fmtDateShortLocal(ts) {
+  if (!ts) return "";
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+}
+function firstReachedDate(stepKey, progressUpdates, report) {
+  if (stepKey === "reported") return report.createdAt || null;
+  const matches = progressUpdates.filter((u) => u.step === stepKey && u.createdAt);
+  if (!matches.length) return null;
+  return matches.reduce((min, u) => (!min || u.createdAt.toMillis() < min.toMillis() ? u.createdAt : min), null);
+}
 function impactList(impact) {
   if (!impact) return [];
   const list = [];
@@ -78,11 +92,102 @@ function timelineItem(h) {
     </div>`;
 }
 
+function progressUpdateItem(u) {
+  const s = WORKFLOW_STEPS.find((x) => x.key === u.step) || WORKFLOW_STEPS[0];
+  return `
+    <div class="timeline-item tl-status">
+      <div class="timeline-time">${fmtDateTime(u.createdAt)}</div>
+      <div class="timeline-title">${s.icon} ${esc(s.label)} · ${u.progressPercent || 0}%</div>
+      <div class="timeline-detail">${esc(u.text)}</div>
+      ${u.blocker ? `<div class="timeline-detail" style="color:#c62828;font-weight:600;">🔴 ${esc(u.blocker)}</div>` : ""}
+      ${u.nextAction ? `<div class="timeline-detail">➡️ ${esc(u.nextAction)}${u.nextActionDue ? ` (กำหนด ${fmtDate(u.nextActionDue)})` : ""}</div>` : ""}
+      ${u.images?.length ? `<div class="img-gallery" style="margin-top:6px;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px;">${u.images.map((img) => `<div class="img-thumb"><img src="${img.url}" alt="รูปประกอบการอัปเดตความคืบหน้า" style="height:64px;" /></div>`).join("")}</div>` : ""}
+      ${u.attachments?.length ? `<div class="timeline-detail">📎 ${u.attachments.map((a) => `<a href="${a.url}" target="_blank">${esc(a.fileName || "เอกสาร")}</a>`).join(", ")}</div>` : ""}
+      <div class="timeline-detail by">โดย ${esc(u.createdByName || "-")}</div>
+    </div>`;
+}
+
 function showFlashToast() {
   const raw = sessionStorage.getItem("dar-flash");
   if (!raw) return;
   sessionStorage.removeItem("dar-flash");
   try { toast(JSON.parse(raw)); } catch (e) {}
+}
+
+// สเปกข้อ 59: Progress Update modal — ต้องอัปเดตได้จากมือถือภายใน 30–60 วินาที จึงมีแค่ "วันนี้ทำอะไร"
+// เป็นช่องเดียวที่บังคับ ส่วนที่เหลือกรอกเพิ่มได้ถ้ามีเวลา
+function openProgressUpdateModal(report) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal-box modal-wide" role="dialog" aria-modal="true" aria-labelledby="pu-title">
+      <h3 id="pu-title">📝 อัปเดตความคืบหน้า</h3>
+      <div class="field"><label for="pu-text">วันนี้ทำอะไร? <span class="req">*</span></label><textarea id="pu-text" rows="3" placeholder="เช่น ติดต่อวิศวกรเข้าตรวจสอบแล้ว รอนัดหน้างาน"></textarea></div>
+      <div class="field"><label for="pu-step">ตอนนี้ถึงขั้นตอนไหน? <span class="req">*</span></label>
+        <select id="pu-step">${WORKFLOW_STEPS.map((s) => `<option value="${s.key}" ${s.key === inferLegacyStep(report) ? "selected" : ""}>${s.icon} ${esc(s.label)}</option>`).join("")}</select>
+      </div>
+      <div class="field"><label for="pu-progress">ความคืบหน้า (%)</label><input id="pu-progress" type="number" min="0" max="100" value="${report.progressPercent || 0}" /></div>
+      <div class="field"><label for="pu-blocker">ปัญหา/อุปสรรค (ถ้ามี)</label><textarea id="pu-blocker" rows="2" placeholder="เช่น รอ Vendor ยืนยันวันส่งอะไหล่">${esc(report.blockerText || "")}</textarea></div>
+      <div class="field"><label for="pu-next">ขั้นตอนต่อไป</label><textarea id="pu-next" rows="2">${esc(report.nextAction || "")}</textarea></div>
+      <div class="grid-cards">
+        <div class="field"><label for="pu-assignee">ผู้รับผิดชอบขั้นตอนถัดไป</label><input id="pu-assignee" value="${esc(report.nextActionAssignee || "")}" /></div>
+        <div class="field"><label for="pu-due">กำหนดเสร็จ</label><input id="pu-due" type="date" value="${esc(report.nextActionDue || report.dueDate || "")}" /></div>
+      </div>
+      <div class="field"><label for="pu-images">แนบรูปภาพ</label><input id="pu-images" type="file" accept="image/*" capture="environment" multiple /></div>
+      <div class="field"><label for="pu-docs">แนบเอกสาร (PDF/Excel ฯลฯ)</label><input id="pu-docs" type="file" multiple /></div>
+      <div class="msg" id="pu-msg"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" data-act="cancel" style="min-height:44px;">ยกเลิก</button>
+        <button class="btn btn-primary" data-act="save" style="min-height:44px;">บันทึก Update</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  const close = () => { document.removeEventListener("keydown", onKey); backdrop.remove(); };
+  function onKey(e) { if (e.key === "Escape") close(); }
+  document.addEventListener("keydown", onKey);
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('[data-act="cancel"]').addEventListener("click", close);
+  backdrop.querySelector('[data-act="save"]').addEventListener("click", async () => {
+    const text = document.getElementById("pu-text").value.trim();
+    const msg = document.getElementById("pu-msg");
+    msg.className = "msg";
+    if (!text) { msg.classList.add("error"); msg.textContent = "กรุณากรอกว่าวันนี้ทำอะไร"; return; }
+    const saveBtn = backdrop.querySelector('[data-act="save"]');
+    saveBtn.disabled = true;
+    try {
+      const imgFiles = [...(document.getElementById("pu-images").files || [])];
+      const docFiles = [...(document.getElementById("pu-docs").files || [])];
+      const images = [];
+      for (let i = 0; i < imgFiles.length; i++) {
+        msg.textContent = `กำลังอัปโหลดรูป ${i + 1}/${imgFiles.length}...`;
+        images.push(await uploadProgressAsset(reportId, imgFiles[i], "image"));
+      }
+      const attachments = [];
+      for (let i = 0; i < docFiles.length; i++) {
+        msg.textContent = `กำลังอัปโหลดเอกสาร ${i + 1}/${docFiles.length}...`;
+        attachments.push(await uploadProgressAsset(reportId, docFiles[i], "document"));
+      }
+      msg.textContent = "กำลังบันทึก...";
+      await addProgressUpdate(reportId, {
+        text,
+        step: document.getElementById("pu-step").value,
+        progressPercent: document.getElementById("pu-progress").value,
+        blocker: document.getElementById("pu-blocker").value.trim(),
+        nextAction: document.getElementById("pu-next").value.trim(),
+        nextActionAssignee: document.getElementById("pu-assignee").value.trim(),
+        nextActionDue: document.getElementById("pu-due").value,
+        images, attachments,
+      }, user);
+      close();
+      await load();
+      toast({ title: "บันทึกความคืบหน้าแล้ว" });
+    } catch (err) {
+      msg.classList.add("error");
+      msg.textContent = "บันทึกไม่สำเร็จ: " + (err?.message || err);
+      saveBtn.disabled = false;
+    }
+  });
 }
 
 async function load() {
@@ -91,9 +196,16 @@ async function load() {
     main.innerHTML = `<div class="card">ไม่พบรายงานนี้ — <a href="damage-reports.html">กลับไปแดชบอร์ด</a></div>`;
     return;
   }
-  const [mainImgs, beforeImgs, afterImgs, history] = await Promise.all([
+  const [mainImgs, beforeImgs, afterImgs, history, progressUpdates] = await Promise.all([
     listImages(reportId, "main"), listImages(reportId, "before"), listImages(reportId, "after"), listHistory(reportId),
+    listProgressUpdates(reportId),
   ]);
+
+  const curStepKey = inferLegacyStep(report);
+  const curIdx = stepIndex(curStepKey);
+  const curStepObj = WORKFLOW_STEPS[curIdx];
+  const sla = computeAgeSLA(report);
+  const summaryText = composeExecutiveSummary(report);
 
   main.innerHTML = `
     <div class="card" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;align-items:center;">
@@ -109,6 +221,52 @@ async function load() {
         <button class="btn btn-outline" id="btn-print" style="min-height:44px;">🖨 Generate Report / PDF</button>
         ${canEdit ? `<button class="btn btn-outline" id="btn-edit" style="min-height:44px;">✏️ แก้ไข</button>` : ""}
         <a class="btn btn-outline" href="damage-reports.html" style="min-height:44px;">⬅ กลับ</a>
+      </div>
+    </div>
+
+    ${report.blockerText ? `
+    <div class="blocker-banner">
+      <span class="bb-icon">🔴</span>
+      <div>
+        <div>BLOCKER: ${esc(report.blockerText)}</div>
+        <div class="bb-since">${report.blockerSince ? `ติดปัญหานี้ตั้งแต่ ${fmtDateTime(report.blockerSince)}` : ""}</div>
+      </div>
+    </div>` : ""}
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <span class="hero-step-badge">${curStepObj.icon} ${esc(curStepObj.label)} · Step ${curIdx + 1}/${WORKFLOW_STEPS.length}</span>
+        ${canEdit ? `<button class="btn btn-primary btn-lg" id="btn-progress-update">📝 อัปเดตความคืบหน้า</button>` : ""}
+      </div>
+      <div class="progress-track"><div class="progress-fill ${(report.progressPercent || 0) >= 100 ? "done" : ""}" style="width:${report.progressPercent || 0}%;"></div></div>
+      <div style="font-size:0.78rem;color:#6b7280;">${report.progressPercent || 0}% เสร็จสมบูรณ์</div>
+      <div class="hero-summary">
+        ${esc(summaryText)}
+        <span class="tpl-tag">*สรุปนี้ประกอบจากข้อมูลในระบบโดยอัตโนมัติ (template) ไม่ใช่ AI สรุปให้</span>
+      </div>
+      <div class="grid-cards">
+        <div><label style="font-size:0.78rem;color:#5f6368;">ผู้รับผิดชอบ</label><div>${esc(report.responsiblePerson) || "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">กำหนดเสร็จ</label><div>${sla.due ? fmtDate(sla.due) : "-"}${sla.dueDays != null ? ` <span class="age-badge ${sla.isOverdue ? "overdue" : "ok"}">${sla.isOverdue ? `เกินกำหนด ${Math.abs(sla.dueDays)} วัน` : `เหลือ ${sla.dueDays} วัน`}</span>` : ""}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">อายุงาน</label><div>${sla.ageDays != null ? `${sla.ageDays} วัน` : "-"}</div></div>
+        <div><label style="font-size:0.78rem;color:#5f6368;">ขั้นตอนถัดไป</label><div>${esc(report.nextAction) || "-"}${report.nextActionAssignee ? ` <span style="color:#6b7280;">(${esc(report.nextActionAssignee)})</span>` : ""}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="font-size:0.95rem;">🗺️ Workflow Timeline</div>
+      <div class="wf-timeline">
+        ${WORKFLOW_STEPS.map((s, i) => {
+          const done = i < curIdx || (i === curIdx && s.key === "closed");
+          const current = i === curIdx;
+          const reachedDate = firstReachedDate(s.key, progressUpdates, report);
+          return `
+          ${i > 0 ? `<div class="wf-line ${i <= curIdx ? "done" : ""}"></div>` : ""}
+          <div class="wf-step ${done ? "done" : ""} ${current ? "current" : ""}">
+            <div class="wf-dot">${done && !current ? "✓" : s.icon}</div>
+            <div class="wf-label">${esc(s.label)}</div>
+            <div class="wf-date">${reachedDate ? fmtDateShortLocal(reachedDate) : ""}</div>
+          </div>`;
+        }).join("")}
       </div>
     </div>
 
@@ -192,6 +350,11 @@ async function load() {
     </div>
 
     <div class="card">
+      <div class="section-title">📋 บันทึกความคืบหน้า (Progress History)</div>
+      ${progressUpdates.length ? `<div class="timeline">${progressUpdates.map((u) => progressUpdateItem(u)).join("")}</div>` : `<p style="color:#6b7280;font-size:0.85rem;">ยังไม่มีการอัปเดตความคืบหน้า</p>`}
+    </div>
+
+    <div class="card">
       <div class="section-title">🕘 ประวัติการแก้ไข (Activity Timeline)</div>
       ${history.length ? `<div class="timeline">${[...history].reverse().map((h) => timelineItem(h)).join("")}</div>` : `<p style="color:#6b7280;font-size:0.85rem;">ยังไม่มีประวัติ</p>`}
     </div>
@@ -199,6 +362,7 @@ async function load() {
 
   document.getElementById("btn-print")?.addEventListener("click", () => printReport(report, mainImgs, beforeImgs, afterImgs, history, user));
   document.getElementById("btn-edit")?.addEventListener("click", () => { location.href = `damage-report-form.html?id=${reportId}`; });
+  document.getElementById("btn-progress-update")?.addEventListener("click", () => openProgressUpdateModal(report));
 
   document.getElementById("btn-status-save")?.addEventListener("click", async () => {
     const sel = document.getElementById("status-select");

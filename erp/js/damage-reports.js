@@ -13,20 +13,23 @@ import { cloudinaryConfig } from "./cloudinary-config.js";
 // อัปโหลดรูปภาพไป Cloudinary (unsigned upload preset) แทน Firebase Storage
 // เหตุผล: Firebase Storage เปลี่ยนนโยบายให้ต้องอัปเกรดเป็นแผน Blaze (ผูกบัตรเครดิต) ก่อนถึงจะเปิดใช้ได้
 // ดูวิธีตั้งค่าใน cloudinary-config.example.js
-async function cloudinaryUpload(blob, folder) {
+// resourceType: "image" (default, รูปหลักฐาน/รูป annotate) | "auto" (เอกสาร PDF/Excel ของ Progress Update —
+// ถ้า upload preset จำกัด resource type ไว้แค่รูปภาพ การอัปโหลดเอกสารจะ error ชัดเจน ต้องไปเปิดเพิ่มใน
+// Cloudinary Console > Upload preset)
+async function cloudinaryUpload(blob, folder, resourceType = "image") {
   if (cloudinaryConfig.cloudName === "YOUR_CLOUD_NAME" || cloudinaryConfig.uploadPreset === "YOUR_UNSIGNED_UPLOAD_PRESET") {
     throw new Error("ยังไม่ได้ตั้งค่า Cloudinary — ดูวิธีตั้งค่าใน erp/js/cloudinary-config.example.js");
   }
   const form = new FormData();
-  form.append("file", blob, "photo.jpg");
+  form.append("file", blob, blob.name || "photo.jpg");
   form.append("upload_preset", cloudinaryConfig.uploadPreset);
   if (folder) form.append("folder", folder);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`, {
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/${resourceType}/upload`, {
     method: "POST", body: form,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || "อัปโหลดรูปไม่สำเร็จ (Cloudinary)");
+    throw new Error(err?.error?.message || "อัปโหลดไฟล์ไม่สำเร็จ (Cloudinary)");
   }
   return res.json();
 }
@@ -76,8 +79,151 @@ export const STATUS_BADGE = {
 const HISTORY_ACTION_LABEL = {
   create: "สร้างรายงาน", update_field: "แก้ไขข้อมูล", change_status: "เปลี่ยนสถานะ",
   upload_image: "อัปโหลดรูปภาพ", delete_image: "ลบรูปภาพ", close: "ปิดรายงาน",
+  progress_update: "อัปเดตความคืบหน้า",
 };
 export function historyActionLabel(action) { return HISTORY_ACTION_LABEL[action] || action; }
+
+// ---------- Corrective Action & Resolution Tracking — Workflow (Phase 1) ----------
+// 10 ขั้นตอนตามสเปก — แยกจาก STATUS_LIST เดิมโดยเจตนา (ข้อ 71: Report Status ≠ Workflow Step)
+// ไม่แก้ dashboard/KPI เดิมเลย เพราะทุกครั้งที่ currentStep เปลี่ยน จะ map ไปตั้งค่า status (legacy) ให้อัตโนมัติ
+export const WORKFLOW_STEPS = [
+  { key: "reported", icon: "📢", label: "แจ้งปัญหา" },
+  { key: "assigned", icon: "👤", label: "รับเรื่อง/มอบหมาย" },
+  { key: "meeting", icon: "🗣️", label: "ประชุม/สรุปปัญหา" },
+  { key: "engineering_inspection", icon: "🔍", label: "วิศวกรตรวจสอบ" },
+  { key: "cost_estimation", icon: "💰", label: "ประเมินค่าใช้จ่าย" },
+  { key: "approval", icon: "✅", label: "ขออนุมัติ" },
+  { key: "purchase", icon: "🛒", label: "สั่งซื้อ" },
+  { key: "repair", icon: "🔧", label: "ดำเนินการซ่อม" },
+  { key: "verification", icon: "🔎", label: "ตรวจรับงาน" },
+  { key: "closed", icon: "🏁", label: "ปิดงาน" },
+];
+const WORKFLOW_STEP_KEYS = WORKFLOW_STEPS.map((s) => s.key);
+export function stepInfo(key) { return WORKFLOW_STEPS.find((s) => s.key === key) || WORKFLOW_STEPS[0]; }
+export function stepIndex(key) { const i = WORKFLOW_STEP_KEYS.indexOf(key); return i === -1 ? 0 : i; }
+
+// currentStep ใหม่ → status เดิม (เขียนพร้อมกันทุกครั้งที่ addProgressUpdate เพื่อให้ dashboard/KPI/filter/
+// CSV เดิมทำงานถูกต้องโดยไม่ต้องแก้โค้ดที่นั่นเลย)
+export const STEP_TO_LEGACY_STATUS = {
+  reported: "New",
+  assigned: "รับเรื่องแล้ว",
+  meeting: "กำลังตรวจสอบ",
+  engineering_inspection: "กำลังตรวจสอบ",
+  cost_estimation: "กำลังตรวจสอบ",
+  approval: "รอดำเนินการ",
+  purchase: "รอดำเนินการ",
+  repair: "กำลังซ่อม",
+  verification: "กำลังซ่อม",
+  closed: "ปิดรายงาน",
+};
+// ย้อนกลับ — ใช้อนุมาน currentStep ให้รายงานเก่าที่สร้างก่อนมี field นี้ (ไม่เขียนกลับ DB แค่ช่วยแสดงผล)
+const LEGACY_STATUS_TO_STEP = {
+  "New": "reported", "รับเรื่องแล้ว": "assigned", "กำลังตรวจสอบ": "meeting",
+  "รอดำเนินการ": "approval", "กำลังซ่อม": "repair", "ดำเนินการเสร็จแล้ว": "verification",
+  "ปิดรายงาน": "closed",
+};
+export function inferLegacyStep(report) {
+  return report.currentStep || LEGACY_STATUS_TO_STEP[report.status] || "reported";
+}
+
+function fmtDateShort(s) {
+  if (!s) return "";
+  try { return new Date(s).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }); } catch (e) { return s; }
+}
+
+// ประกอบข้อความสรุปสถานการณ์แบบ template ล้วนๆ (ไม่ใช่ AI) จากข้อมูลที่มีอยู่ — บอกผู้ใช้ตรงๆ ว่าเป็น template
+// ไม่ใช่สรุปที่เข้าใจบริบทจริง
+export function composeExecutiveSummary(report) {
+  const step = stepInfo(inferLegacyStep(report));
+  const parts = [];
+  parts.push(`พบ${report.damageType || "ความเสียหาย"}บริเวณ${report.zone ? " " + report.zone : ""}${report.reportDate ? ` เมื่อวันที่ ${fmtDateShort(report.reportDate)}` : ""}`);
+  parts.push(report.currentActivity ? `ปัจจุบัน${report.currentActivity}` : `ขณะนี้อยู่ในขั้นตอน "${step.label}"`);
+  if (report.nextAction) parts.push(`ขั้นตอนถัดไปคือ${report.nextAction}`);
+  if (report.dueDate) parts.push(`คาดว่าจะแล้วเสร็จ ${fmtDateShort(report.dueDate)}`);
+  return parts.join(" ");
+}
+
+// อายุงาน (จากวันสร้าง) และสถานะ SLA เทียบกับกำหนดเสร็จ (ใช้ nextActionDue ถ้ามี ไม่งั้น fallback dueDate เดิม)
+export function computeAgeSLA(report) {
+  const created = report.createdAt?.toDate ? report.createdAt.toDate() : (report.createdAt ? new Date(report.createdAt) : null);
+  const now = new Date();
+  const ageDays = created ? Math.floor((now - created) / 86400000) : null;
+  const due = report.nextActionDue || report.dueDate || "";
+  let dueDays = null, isOverdue = false;
+  if (due) {
+    const dueD = new Date(due + "T23:59:59");
+    dueDays = Math.ceil((dueD - now) / 86400000);
+    isOverdue = dueDays < 0;
+  }
+  return { ageDays, due, dueDays, isOverdue };
+}
+
+// บันทึก Progress Update 1 รายการ + sync ฟิลด์สรุปบน damageReports (denormalized สำหรับ Hero card) +
+// map currentStep → legacy status + log audit trail
+export async function addProgressUpdate(reportId, data, user) {
+  const ref = doc(db, "damageReports", reportId);
+  const snap = await getDoc(ref);
+  const before = snap.exists() ? snap.data() : {};
+  const step = WORKFLOW_STEP_KEYS.includes(data.step) ? data.step : inferLegacyStep(before);
+
+  const updateRef = doc(collection(db, "damageReports", reportId, "progressUpdates"));
+  const payload = {
+    text: data.text || "",
+    step,
+    progressPercent: Math.max(0, Math.min(100, Number(data.progressPercent) || 0)),
+    blocker: data.blocker || "",
+    nextAction: data.nextAction || "",
+    nextActionAssignee: data.nextActionAssignee || "",
+    nextActionDue: data.nextActionDue || "",
+    images: data.images || [],
+    attachments: data.attachments || [],
+    createdBy: user.uid, createdByName: user.name || user.email || "",
+    createdAt: serverTimestamp(),
+  };
+  await setDoc(updateRef, payload);
+
+  const reportChanges = {
+    currentStep: step,
+    progressPercent: payload.progressPercent,
+    currentActivity: payload.text,
+    currentActivityBy: payload.createdByName,
+    currentActivityAt: serverTimestamp(),
+    nextAction: payload.nextAction,
+    nextActionAssignee: payload.nextActionAssignee,
+    nextActionDue: payload.nextActionDue,
+    status: STEP_TO_LEGACY_STATUS[step] || before.status,
+    updatedBy: user.uid, updatedAt: serverTimestamp(),
+  };
+  if (payload.blocker) {
+    reportChanges.blockerText = payload.blocker;
+    reportChanges.blockerSince = before.blockerText ? (before.blockerSince ?? serverTimestamp()) : serverTimestamp();
+  } else {
+    reportChanges.blockerText = "";
+    reportChanges.blockerSince = null;
+  }
+  if (step === "closed" && before.status !== STATUS_CLOSED) reportChanges.closedAt = serverTimestamp();
+  await updateDoc(ref, reportChanges);
+  await logHistory(reportId, "progress_update", "currentStep", inferLegacyStep(before), step, user);
+  return updateRef.id;
+}
+
+export async function listProgressUpdates(reportId) {
+  const snap = await getDocs(collection(db, "damageReports", reportId, "progressUpdates"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+}
+
+// อัปโหลดไฟล์แนบของ Progress Update — kind: "image" (บีบอัดก่อนเหมือนรูปหลักฐานหลัก) | "document" (PDF/Excel ฯลฯ
+// ผ่าน resource type "auto" ของ Cloudinary — ถ้า preset ไม่อนุญาตจะ throw error ชัดเจน)
+export async function uploadProgressAsset(reportId, file, kind = "image") {
+  if (kind === "image") {
+    const blob = await compressImage(file);
+    const uploaded = await cloudinaryUpload(blob, `damage-reports/${reportId}/progress`, "image");
+    return { url: uploaded.secure_url, publicId: uploaded.public_id, caption: "" };
+  }
+  const uploaded = await cloudinaryUpload(file, `damage-reports/${reportId}/progress-docs`, "auto");
+  return { url: uploaded.secure_url, publicId: uploaded.public_id, fileName: file.name || "เอกสาร" };
+}
 
 // ---------- Validation (สเปกข้อ 14) ----------
 export function validateReportData(data, imageCount) {
@@ -150,6 +296,11 @@ export async function createReport(data, user) {
     estimatedCost: Number(data.estimatedCost) || 0, dueDate: data.dueDate || "",
     status: "New",
     mainImageCount: 0, beforeImageCount: 0, afterImageCount: 0,
+    // Corrective Action & Resolution Tracking (Phase 1) — เริ่มที่ขั้นตอนแรกเสมอ
+    currentStep: "reported", progressPercent: 0,
+    currentActivity: "", currentActivityBy: "", currentActivityAt: null,
+    nextAction: "", nextActionAssignee: "", nextActionDue: "",
+    blockerText: "", blockerSince: null,
     createdBy: user.uid, createdByName: user.name || user.email || "",
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   };

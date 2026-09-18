@@ -96,12 +96,24 @@
   "estimatedCost": 0, "dueDate": "2026-09-10",
   "status": "New | รับเรื่องแล้ว | กำลังตรวจสอบ | รอดำเนินการ | กำลังซ่อม | ดำเนินการเสร็จแล้ว | ปิดรายงาน",
   "mainImageCount": 0, "beforeImageCount": 0, "afterImageCount": 0,
+  "currentStep": "reported|assigned|meeting|engineering_inspection|cost_estimation|approval|purchase|repair|verification|closed",
+  "progressPercent": 0,
+  "currentActivity": "...", "currentActivityBy": "...", "currentActivityAt": "timestamp",
+  "nextAction": "...", "nextActionAssignee": "...", "nextActionDue": "2026-09-20",
+  "blockerText": "", "blockerSince": "timestamp | null",
   "createdBy": "uid", "createdByName": "...", "createdAt": "timestamp", "updatedAt": "timestamp", "closedAt": "timestamp"
 }
 ```
+`currentStep`/`progressPercent`/... เป็นฟิลด์ของโมดูล **Corrective Action & Resolution Tracking (Phase 1)** — แยก
+จาก `status` เดิมโดยเจตนา (`status` เป็น field ที่ dashboard/KPI/filter/CSV เดิมใช้อยู่, `currentStep` เป็น 10
+ขั้นตอนละเอียดของ workflow) ทุกครั้งที่มี `progressUpdates` ใหม่ ระบบจะ map `currentStep` → `status` ให้อัตโนมัติ
+ผ่าน `STEP_TO_LEGACY_STATUS` ใน `erp/js/damage-reports.js` เอกสารเก่าที่สร้างก่อนมีฟิลด์นี้จะ infer `currentStep`
+จาก `status` เดิมตอนแสดงผล (ไม่ได้ migrate เขียนกลับ DB) ผ่าน `inferLegacyStep()`
+
 Subcollections:
 - `damageReports/{id}/images/{imageId}` — `{ url, publicId, imageType: "main|before|after", caption, location, capturedAt, sequence, uploadedBy, uploadedAt }` (ไฟล์จริงอัปโหลดไปที่ **Cloudinary** ผ่าน unsigned upload preset — ไม่ใช่ Firebase Storage เพราะ Storage ต้องใช้แผน Blaze/ผูกบัตรเครดิต — ดู `erp/js/cloudinary-config.example.js`)
-- `damageReports/{id}/history/{historyId}` — `{ action, field, oldValue, newValue, changedBy, changedByName, changedAt }` (audit trail)
+- `damageReports/{id}/history/{historyId}` — `{ action, field, oldValue, newValue, changedBy, changedByName, changedAt }` (audit trail อัตโนมัติของระบบ)
+- `damageReports/{id}/progressUpdates/{updateId}` — `{ text, step, progressPercent, blocker, nextAction, nextActionAssignee, nextActionDue, images: [{url,publicId,caption}], attachments: [{url,publicId,fileName}], createdBy, createdByName, createdAt }` (บันทึกความคืบหน้าที่คนพิมพ์เอง — คนละจุดประสงค์กับ history ที่ระบบสร้างอัตโนมัติ)
 
 ### Freight Cost Calculator collections — โมดูล `erp/js/freight-engine.js` + `erp/js/freight-data.js`
 ดูรายละเอียดสถาปัตยกรรมเต็มใน plan ที่อนุมัติไว้ (`freight-engine.js` = pure calculation engine,
