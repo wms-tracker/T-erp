@@ -140,6 +140,37 @@ const NAV = {
   ],
 };
 
+// ไอคอนเส้น (line icon) แบบ Lucide — ใช้แทน emoji ในแถบเมนู เพื่อให้หน้าตาเหมือนกันทุกเครื่องและดูทันสมัย
+// key = groupKey ของ NAV; ใช้ stroke=currentColor เลยเปลี่ยนสีตามธีมได้
+const ICON_PATHS = {
+  'gs-import': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  manifest: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  receive: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  stock: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  'picking-mgmt': '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  pipeline: '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
+  damage: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  freight: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+  orders: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  purchase: '<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  team: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  reports: '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  goto: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  docs: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/>',
+  money: '<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  overview: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
+  finance: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+  brand: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+  fallback: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/>',
+};
+ICON_PATHS.shipping = ICON_PATHS.freight;
+function navIcon(key, size = 24) {
+  const p = ICON_PATHS[key] || ICON_PATHS.fallback;
+  return `<svg class="nav-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+// ตัด emoji นำหน้าข้อความเมนูย่อยออก ให้เหมือนเมนูแบบมินิมอล (ไอคอนอยู่ที่ระดับกลุ่มแล้ว)
+const stripLeadingEmoji = (s) => String(s).replace(/^[\p{Extended_Pictographic}️‍\s]+/u, '');
+
 const PAGE_DEPARTMENT = {
   "dashboard-sales.html":       "sales",
   "dashboard-warehouse.html":   "warehouse",
@@ -173,24 +204,27 @@ export function renderShell(profile, activeKey, title) {
     /* === Primary rail === */
     .nav-primary{
       width:70px;flex-shrink:0;
-      background:linear-gradient(180deg,#1a237e 0%,#283593 100%);
+      background:linear-gradient(180deg,#1170f5 0%,#0a55d0 100%);
       display:flex;flex-direction:column;align-items:center;
       padding:0;overflow-y:auto;overflow-x:hidden;
       scrollbar-width:none;z-index:20;
     }
     .nav-primary::-webkit-scrollbar{display:none;}
-    .nav-brand{padding:14px 0 6px;font-size:1.4rem;line-height:1;}
-    .nav-brand-label{font-size:0.52rem;color:rgba(255,255,255,0.6);text-align:center;padding:0 4px 12px;line-height:1.3;}
+    .nav-brand{padding:16px 0 6px;line-height:1;color:#fff;display:flex;}
+    .nav-brand .nav-svg{width:30px;height:30px;}
+    .nav-brand-label{font-size:0.6rem;color:rgba(255,255,255,0.8);text-align:center;padding:0 4px 12px;line-height:1.3;}
     .nav-group-btn{
       display:flex;flex-direction:column;align-items:center;gap:3px;
       width:56px;padding:9px 4px;border-radius:10px;
       text-decoration:none;cursor:pointer;border:none;background:none;
-      transition:background .15s;margin-bottom:3px;
+      transition:background .15s;margin-bottom:3px;color:#fff;
     }
     .nav-group-btn:hover{background:rgba(255,255,255,0.12);}
-    .nav-group-btn.active{background:rgba(255,255,255,0.22);}
-    .nav-group-btn .g-icon{font-size:1.25rem;line-height:1;}
-    .nav-group-btn .g-label{font-size:0.58rem;color:rgba(255,255,255,0.8);text-align:center;line-height:1.3;word-break:keep-all;}
+    .nav-group-btn.active{background:rgba(255,255,255,0.24);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.18);}
+    .nav-group-btn:focus-visible{outline:2px solid #fff;outline-offset:2px;}
+    .nav-group-btn .g-icon{display:flex;line-height:1;}
+    .nav-group-btn .g-icon .nav-svg{width:24px;height:24px;}
+    .nav-group-btn .g-label{font-size:0.64rem;color:rgba(255,255,255,0.9);text-align:center;line-height:1.3;word-break:keep-all;}
     .nav-group-btn.active .g-label{color:#fff;font-weight:700;}
     .nav-logout{
       margin-top:auto;padding:12px 0 10px;width:100%;
@@ -203,8 +237,8 @@ export function renderShell(profile, activeKey, title) {
       font-size:1rem;color:#fff;font-weight:700;
     }
     .nav-logout-btn{
-      font-size:0.58rem;color:rgba(255,255,255,0.65);
-      background:rgba(255,255,255,0.1);border:none;border-radius:6px;
+      font-size:0.64rem;color:rgba(255,255,255,0.85);
+      background:rgba(255,255,255,0.12);border:none;border-radius:6px;
       padding:5px 8px;cursor:pointer;width:52px;text-align:center;
     }
     .nav-logout-btn:hover{background:rgba(255,255,255,0.2);color:#fff;}
@@ -220,9 +254,10 @@ export function renderShell(profile, activeKey, title) {
     }
     .nav-sec-header{
       padding:16px 14px 4px;
-      font-size:0.95rem;font-weight:700;color:#1a237e;
-      letter-spacing:0.2px;
+      font-size:0.95rem;font-weight:700;color:#0f2a5c;
+      letter-spacing:0.2px;display:flex;align-items:center;gap:8px;
     }
+    .nav-sec-header .nav-svg{width:20px;height:20px;color:#1170f5;flex-shrink:0;}
     .nav-sec-role{
       padding:2px 14px 10px;
       font-size:0.72rem;color:#6b7280;
@@ -338,14 +373,14 @@ export function renderShell(profile, activeKey, title) {
       <div class="nav-drawer" id="nav-drawer">
         <!-- Primary rail -->
         <nav class="nav-primary">
-          <div class="nav-brand">🏢</div>
+          <div class="nav-brand">${navIcon('brand', 30)}</div>
           <div class="nav-brand-label">Web<br>ERP</div>
           <div id="nav-primary-items" style="display:flex;flex-direction:column;align-items:center;width:100%;padding:0 7px;gap:2px;">
             ${groups.map(g => `
               <button class="nav-group-btn ${g.groupKey === initGroupKey ? 'active' : ''}"
                 data-gkey="${g.groupKey}"
                 title="${g.label}">
-                <span class="g-icon">${g.icon}</span>
+                <span class="g-icon">${navIcon(g.groupKey)}</span>
                 <span class="g-label">${g.label}</span>
               </button>
             `).join('')}
@@ -388,14 +423,14 @@ export function renderShell(profile, activeKey, title) {
          </div>`
       : '';
     sec.innerHTML = `
-      <div class="nav-sec-header">${group.icon} ${group.label}</div>
+      <div class="nav-sec-header">${navIcon(group.groupKey, 20)}<span>${group.label}</span></div>
       <div class="nav-sec-role">${ROLE_LABEL[profile.role] || profile.role}</div>
       ${adminBadge}
       <div class="nav-sec-items">
         ${group.items.map(item => `
           <a href="${item.href}"
              class="nav-sec-item ${item.key === activeKey ? 'active' : ''}">
-            ${item.label}
+            ${stripLeadingEmoji(item.label)}
           </a>
         `).join('')}
       </div>
