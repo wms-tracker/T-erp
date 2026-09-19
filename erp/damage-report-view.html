@@ -101,7 +101,7 @@ function progressUpdateItem(u) {
       <div class="timeline-detail">${esc(u.text)}</div>
       ${u.blocker ? `<div class="timeline-detail" style="color:#c62828;font-weight:600;">🔴 ${esc(u.blocker)}</div>` : ""}
       ${u.nextAction ? `<div class="timeline-detail">➡️ ${esc(u.nextAction)}${u.nextActionDue ? ` (กำหนด ${fmtDate(u.nextActionDue)})` : ""}</div>` : ""}
-      ${u.images?.length ? `<div class="img-gallery" style="margin-top:6px;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:6px;">${u.images.map((img) => `<div class="img-thumb"><img src="${img.url}" alt="รูปประกอบการอัปเดตความคืบหน้า" style="height:64px;" /></div>`).join("")}</div>` : ""}
+      ${u.images?.length ? `<div class="img-gallery" style="margin-top:8px;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;">${u.images.map((img, i) => `<div class="img-thumb"><button type="button" class="img-zoom-btn" onclick="window.open('${img.url}','_blank')" aria-label="ดูรูปที่ ${i + 1} ขยาย"><img src="${img.url}" alt="รูปประกอบการอัปเดตความคืบหน้า ${i + 1}" style="height:88px;" /></button></div>`).join("")}</div>` : ""}
       ${u.attachments?.length ? `<div class="timeline-detail">📎 ${u.attachments.map((a) => `<a href="${a.url}" target="_blank">${esc(a.fileName || "เอกสาร")}</a>`).join(", ")}</div>` : ""}
       <div class="timeline-detail by">โดย ${esc(u.createdByName || "-")}</div>
     </div>`;
@@ -116,6 +116,7 @@ function showFlashToast() {
 
 // สเปกข้อ 59: Progress Update modal — ต้องอัปเดตได้จากมือถือภายใน 30–60 วินาที จึงมีแค่ "วันนี้ทำอะไร"
 // เป็นช่องเดียวที่บังคับ ส่วนที่เหลือกรอกเพิ่มได้ถ้ามีเวลา
+const PU_MAX_IMAGES = 10;
 function openProgressUpdateModal(report) {
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
@@ -133,7 +134,14 @@ function openProgressUpdateModal(report) {
         <div class="field"><label for="pu-assignee">ผู้รับผิดชอบขั้นตอนถัดไป</label><input id="pu-assignee" value="${esc(report.nextActionAssignee || "")}" /></div>
         <div class="field"><label for="pu-due">กำหนดเสร็จ</label><input id="pu-due" type="date" value="${esc(report.nextActionDue || report.dueDate || "")}" /></div>
       </div>
-      <div class="field"><label for="pu-images">แนบรูปภาพ</label><input id="pu-images" type="file" accept="image/*" capture="environment" multiple /></div>
+      <div class="field">
+        <label>แนบรูปภาพ <span id="pu-count" style="font-weight:400;color:#5f6368;">(0/${PU_MAX_IMAGES})</span></label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <label class="btn btn-outline" style="min-height:44px;cursor:pointer;">📷 ถ่ายรูป<input id="pu-cam" type="file" accept="image/*" capture="environment" hidden /></label>
+          <label class="btn btn-outline" style="min-height:44px;cursor:pointer;">🖼 เลือกรูปจากเครื่อง (หลายรูปได้)<input id="pu-gallery" type="file" accept="image/*" multiple hidden /></label>
+        </div>
+        <div class="img-gallery" id="pu-preview" style="margin-top:10px;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:8px;"></div>
+      </div>
       <div class="field"><label for="pu-docs">แนบเอกสาร (PDF/Excel ฯลฯ)</label><input id="pu-docs" type="file" multiple /></div>
       <div class="msg" id="pu-msg"></div>
       <div class="modal-actions">
@@ -143,7 +151,35 @@ function openProgressUpdateModal(report) {
     </div>
   `;
   document.body.appendChild(backdrop);
-  const close = () => { document.removeEventListener("keydown", onKey); backdrop.remove(); };
+
+  // รูปสะสมได้ทีละรูป/หลายรูป (ถ่ายเพิ่มได้เรื่อยๆ ไม่ทับรูปเดิม) — input ของ capture เลือกได้ทีละรูปเสมอ
+  // จึงแยกปุ่ม "ถ่ายรูป" กับ "เลือกจากเครื่อง" แล้วสะสมลงลิสต์เดียวกัน
+  let picked = [];
+  const renderPicked = () => {
+    document.getElementById("pu-count").textContent = `(${picked.length}/${PU_MAX_IMAGES})`;
+    document.getElementById("pu-preview").innerHTML = picked.map((p, i) => `
+      <div class="img-thumb">
+        <img src="${p.url}" alt="รูปที่ ${i + 1} ที่จะแนบ" style="height:80px;" />
+        <div class="tools"><button type="button" data-rm="${i}" aria-label="ลบรูปที่ ${i + 1}">✕</button></div>
+      </div>`).join("");
+    document.querySelectorAll("#pu-preview [data-rm]").forEach((b) => b.addEventListener("click", () => {
+      const [gone] = picked.splice(Number(b.dataset.rm), 1);
+      URL.revokeObjectURL(gone.url);
+      renderPicked();
+    }));
+  };
+  const addFiles = (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    const room = PU_MAX_IMAGES - picked.length;
+    if (files.length > room) toast({ type: "info", title: `แนบได้สูงสุด ${PU_MAX_IMAGES} รูปต่อการอัปเดต`, desc: room > 0 ? `เพิ่มให้ ${room} รูปแรก` : "" });
+    files.slice(0, Math.max(0, room)).forEach((file) => picked.push({ file, url: URL.createObjectURL(file) }));
+    renderPicked();
+  };
+  document.getElementById("pu-cam").addEventListener("change", addFiles);
+  document.getElementById("pu-gallery").addEventListener("change", addFiles);
+
+  const close = () => { document.removeEventListener("keydown", onKey); picked.forEach((p) => URL.revokeObjectURL(p.url)); backdrop.remove(); };
   function onKey(e) { if (e.key === "Escape") close(); }
   document.addEventListener("keydown", onKey);
   backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
@@ -156,18 +192,16 @@ function openProgressUpdateModal(report) {
     const saveBtn = backdrop.querySelector('[data-act="save"]');
     saveBtn.disabled = true;
     try {
-      const imgFiles = [...(document.getElementById("pu-images").files || [])];
       const docFiles = [...(document.getElementById("pu-docs").files || [])];
-      const images = [];
-      for (let i = 0; i < imgFiles.length; i++) {
-        msg.textContent = `กำลังอัปโหลดรูป ${i + 1}/${imgFiles.length}...`;
-        images.push(await uploadProgressAsset(reportId, imgFiles[i], "image"));
-      }
-      const attachments = [];
-      for (let i = 0; i < docFiles.length; i++) {
-        msg.textContent = `กำลังอัปโหลดเอกสาร ${i + 1}/${docFiles.length}...`;
-        attachments.push(await uploadProgressAsset(reportId, docFiles[i], "document"));
-      }
+      // อัปโหลดขนานกัน (หลายรูปพร้อมกัน เร็วกว่าทีละรูปมากบน wifi คลัง) พร้อมนับความคืบหน้า
+      const total = picked.length + docFiles.length;
+      let doneCount = 0;
+      const track = (p) => p.then((r) => { doneCount++; msg.textContent = `กำลังอัปโหลดไฟล์ ${doneCount}/${total}...`; return r; });
+      if (total) msg.textContent = `กำลังอัปโหลดไฟล์ 0/${total}...`;
+      const [images, attachments] = await Promise.all([
+        Promise.all(picked.map((p) => track(uploadProgressAsset(reportId, p.file, "image")))),
+        Promise.all(docFiles.map((f) => track(uploadProgressAsset(reportId, f, "document")))),
+      ]);
       msg.textContent = "กำลังบันทึก...";
       await addProgressUpdate(reportId, {
         text,
