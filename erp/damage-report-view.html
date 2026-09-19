@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>รายละเอียดรายงานความเสียหาย — Web ERP</title>
+<title>รายละเอียดรายงาน คปอ — Web ERP</title>
 <link rel="stylesheet" href="css/erp.css" />
 </head>
 <body></body>
@@ -25,7 +25,7 @@ const user = { uid: profile.uid, name: profile.name, email: profile.email };
 const params = new URLSearchParams(location.search);
 const reportId = params.get("id");
 
-const main = renderShell(profile, "damage-dashboard", "📄 รายละเอียดรายงานความเสียหาย");
+const main = renderShell(profile, "damage-dashboard", "📄 รายละเอียดรายงาน คปอ");
 
 if (!reportId) {
   main.innerHTML = `<div class="card">ไม่พบเลขที่รายงาน — <a href="damage-reports.html">กลับไปแดชบอร์ด</a></div>`;
@@ -504,7 +504,7 @@ function printReport(report, mainImgs, beforeImgs, afterImgs, history, user) {
         <button onclick="window.print()" style="padding:8px 18px;border:none;background:#1a73e8;color:#fff;border-radius:8px;cursor:pointer;font-size:12pt;">🖨 พิมพ์ / บันทึกเป็น PDF</button>
       </div>
       <div class="header">
-        <div><div class="brand">🏢 WEB ERP — คลังสินค้า</div><h1 style="margin-top:6px;">DAMAGE AREA REPORT</h1></div>
+        <div><div class="brand">🏢 WEB ERP — คลังสินค้า</div><h1 style="margin-top:6px;">รายงาน คปอ <span style="font-size:11pt;font-weight:400;color:#5f6368;">(DAMAGE AREA REPORT)</span></h1></div>
         <div class="doc-meta">เลขที่: <b>${esc(report.reportNo)}</b><br>วันที่พิมพ์: ${new Date().toLocaleString("th-TH")}<br>พิมพ์โดย: ${esc(user?.name || user?.email || "-")}</div>
       </div>
       ${isClosed

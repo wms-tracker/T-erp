@@ -42,9 +42,9 @@ const NAV = {
       { key: 'verification-scan', label: '📱 สแกน PDA Mode',                  href: 'dashboard-warehouse.html#verification-scan' },
       { key: 'outbound',          label: '🚚 จัดส่งสินค้า (Outbound)',         href: 'dashboard-warehouse.html#outbound' },
     ]},
-    { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
-      { key: 'damage-dashboard', label: '📊 แดชบอร์ดความเสียหาย',  href: 'damage-reports.html' },
-      { key: 'damage-create',    label: '🆕 แจ้งความเสียหาย',       href: 'damage-report-form.html' },
+    { groupKey: 'damage', icon: '🧱', label: 'รายงาน คปอ', items: [
+      { key: 'damage-dashboard', label: '📊 แดชบอร์ดรายงาน คปอ',  href: 'damage-reports.html' },
+      { key: 'damage-create',    label: '🆕 แจ้งรายงาน คปอ',       href: 'damage-report-form.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง',    href: 'freight-dashboard.html' },
@@ -63,9 +63,9 @@ const NAV = {
     { groupKey: 'purchase', icon: '🛒', label: 'จัดซื้อ', items: [
       { key: 'po',         label: 'ใบสั่งซื้อ (PO)',                  href: 'dashboard-admin.html#po' },
     ]},
-    { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
-      { key: 'damage-dashboard', label: '📊 แดชบอร์ดความเสียหาย',  href: 'damage-reports.html' },
-      { key: 'damage-create',    label: '🆕 แจ้งความเสียหาย',       href: 'damage-report-form.html' },
+    { groupKey: 'damage', icon: '🧱', label: 'รายงาน คปอ', items: [
+      { key: 'damage-dashboard', label: '📊 แดชบอร์ดรายงาน คปอ',  href: 'damage-reports.html' },
+      { key: 'damage-create',    label: '🆕 แจ้งรายงาน คปอ',       href: 'damage-report-form.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง',      href: 'freight-dashboard.html' },
@@ -130,8 +130,8 @@ const NAV = {
     { groupKey: 'shipping', icon: '🚚', label: 'ส่งออก', items: [
       { key: 'shipping',   label: 'ยอดส่งออกประจำเดือน',              href: 'dashboard-export-trend.html' },
     ]},
-    { groupKey: 'damage', icon: '🧱', label: 'ความเสียหาย', items: [
-      { key: 'damage-dashboard', label: 'แดชบอร์ดความเสียหาย (ดูอย่างเดียว)', href: 'damage-reports.html' },
+    { groupKey: 'damage', icon: '🧱', label: 'รายงาน คปอ', items: [
+      { key: 'damage-dashboard', label: 'แดชบอร์ดรายงาน คปอ (ดูอย่างเดียว)', href: 'damage-reports.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง (ดูอย่างเดียว)', href: 'freight-dashboard.html' },

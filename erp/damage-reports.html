@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>แดชบอร์ดความเสียหาย — Web ERP</title>
+<title>แดชบอร์ดรายงาน คปอ — Web ERP</title>
 <link rel="stylesheet" href="css/erp.css" />
 </head>
 <body></body>
@@ -18,7 +18,7 @@ import {
 
 const profile = await requireRole(["warehouse", "manager"]);
 const canEdit = profile.role === "warehouse" || profile.role === "admin";
-const main = renderShell(profile, "damage-dashboard", "📊 แดชบอร์ดความเสียหาย (Damage Area Report)");
+const main = renderShell(profile, "damage-dashboard", "📊 แดชบอร์ดรายงาน คปอ (Damage Area Report)");
 if (canEdit) {
   renderFAB([
     { icon: "📷", label: "ถ่ายรูปและสร้างรายงาน", href: "damage-report-form.html?step=3" },
@@ -54,20 +54,20 @@ main.innerHTML = `
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-outline" id="btn-export-csv">⬇️ Export CSV</button>
-      ${canEdit ? `<a class="btn btn-primary" href="damage-report-form.html">🆕 แจ้งความเสียหายใหม่</a>` : ""}
+      ${canEdit ? `<a class="btn btn-primary" href="damage-report-form.html">🆕 แจ้งรายงาน คปอ ใหม่</a>` : ""}
       <button class="btn btn-outline" id="btn-refresh">🔄 รีเฟรช</button>
     </div>
   </div>
 
   <div class="grid-cards">
-    <div class="card"><div class="section-title" style="font-size:0.95rem;">📍 ความเสียหายแยกตาม Zone</div><div id="by-zone"></div></div>
-    <div class="card"><div class="section-title" style="font-size:0.95rem;">🏷 ความเสียหายแยกตามประเภท</div><div id="by-type"></div></div>
-    <div class="card"><div class="section-title" style="font-size:0.95rem;">🚦 ความเสียหายแยกตามความรุนแรง</div><div id="by-severity"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">📍 รายงานแยกตาม Zone</div><div id="by-zone"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">🏷 รายงานแยกตามประเภท</div><div id="by-type"></div></div>
+    <div class="card"><div class="section-title" style="font-size:0.95rem;">🚦 รายงานแยกตามความรุนแรง</div><div id="by-severity"></div></div>
   </div>
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
-      <div class="section-title" style="font-size:0.95rem;margin:0;">📈 แนวโน้มจำนวนความเสียหาย</div>
+      <div class="section-title" style="font-size:0.95rem;margin:0;">📈 แนวโน้มจำนวนรายงาน</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;" id="trend-period" role="group" aria-label="ช่วงเวลาแนวโน้ม">
         ${[["today", "วันนี้"], ["7d", "7 วัน"], ["30d", "30 วัน"], ["month", "เดือนนี้"], ["year", "ปีนี้"]]
           .map(([v, l], i) => `<button type="button" class="btn ${i === 1 ? "btn-primary" : "btn-outline"}" data-period="${v}" aria-pressed="${i === 1}" style="padding:9px 14px;font-size:0.8rem;min-height:38px;">${l}</button>`)
@@ -79,7 +79,7 @@ main.innerHTML = `
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-      <div class="section-title" style="margin:0;">📋 รายการรายงานความเสียหาย</div>
+      <div class="section-title" style="margin:0;">📋 รายการรายงาน คปอ</div>
       <span id="count-label" style="font-size:0.82rem;color:#5f6368;"></span>
     </div>
     <div style="overflow-x:auto;">
@@ -167,8 +167,8 @@ function renderRows() {
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="9">${emptyStateHTML({
       icon: "📋",
-      title: all.length ? "ไม่พบรายงานที่ตรงกับตัวกรอง" : "ยังไม่มีรายงานความเสียหาย",
-      desc: all.length ? "ลองล้างตัวกรองแล้วค้นหาใหม่" : "เริ่มต้นด้วยการแจ้งความเสียหายรายการแรก",
+      title: all.length ? "ไม่พบรายงานที่ตรงกับตัวกรอง" : "ยังไม่มีรายงาน คปอ",
+      desc: all.length ? "ลองล้างตัวกรองแล้วค้นหาใหม่" : "เริ่มต้นด้วยการแจ้งรายงาน คปอ รายการแรก",
       actionLabel: !all.length && canEdit ? "+ สร้างรายงานแรก" : undefined,
       actionHref: !all.length && canEdit ? "damage-report-form.html" : undefined,
     })}</td></tr>`;

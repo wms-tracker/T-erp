@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>แจ้งความเสียหาย — Web ERP</title>
+<title>แจ้งรายงาน คปอ — Web ERP</title>
 <link rel="stylesheet" href="css/erp.css" />
 <style>
   .wizard-progress{display:flex;align-items:center;margin-bottom:20px;overflow-x:auto;padding-bottom:2px;}
@@ -46,7 +46,7 @@ const editId = params.get("id");
 const isEdit = !!editId;
 const user = { uid: profile.uid, name: profile.name, email: profile.email };
 
-const main = renderShell(profile, "damage-create", isEdit ? "✏️ แก้ไขรายงานความเสียหาย" : "🆕 แจ้งความเสียหายใหม่");
+const main = renderShell(profile, "damage-create", isEdit ? "✏️ แก้ไขรายงาน คปอ" : "🆕 แจ้งรายงาน คปอ ใหม่");
 
 let selectedSeverity = "";
 // images: { id?(server), file?(local), previewUrl, caption, location, capturedAt, _removed? }
