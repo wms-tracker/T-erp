@@ -33,18 +33,20 @@ async function fetchSince(colName, sinceDate) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-const OUTBOUND_ZERO = { PICKING: 0, PACKING: 0, QC: 0, READY: 0, SHIPPED: 0, PENDING: 0, CANCELLED: 0, ERROR: 0 };
 const INBOUND_ZERO = { EXPECTED: 0, RECEIVING: 0, QC: 0, PUTAWAY: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 };
 
+// Outbound เป็นยอดสะสมรายวัน (Total/Picked/QC/Shipped/Cancelled) ที่แผนก OB กรอกตรง ๆ — รวมข้ามคลังด้วยการบวกตรง ๆ
 function mergeDailyOutbound(rows) {
   const out = {};
   for (const r of rows) {
-    const cur = out[r.date] || { date: r.date, total: 0, qty: 0, target: 0, ...OUTBOUND_ZERO };
+    const cur = out[r.date] || { date: r.date, total: 0, qty: 0, target: 0, picked: 0, qc: 0, shipped: 0, cancelled: 0 };
     cur.target += Number(r.target) || 0;
     cur.qty += Number(r.qty) || 0;
-    let rowTotal = 0;
-    for (const s of Object.keys(OUTBOUND_ZERO)) { const v = Number(r[s]) || 0; cur[s] += v; rowTotal += v; }
-    cur.total += rowTotal;
+    cur.total += Number(r.total) || 0;
+    cur.picked += Number(r.picked) || 0;
+    cur.qc += Number(r.qc) || 0;
+    cur.shipped += Number(r.shipped) || 0;
+    cur.cancelled += Number(r.cancelled) || 0;
     out[r.date] = cur;
   }
   return out;

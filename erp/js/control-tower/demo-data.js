@@ -30,14 +30,15 @@ export const CHANNELS = ['Shopee', 'Lazada', 'TikTok Shop', 'Website', 'Modern T
 export const CARRIERS = ['Kerry', 'Flash Express', 'J&T Express', 'Best Express', 'DHL', 'Ninja Van', 'ไปรษณีย์ไทย'];
 export const SUPPLIERS = ['บจก. สยามแพ็คเกจจิ้ง', 'บจก. ไทยยูเนี่ยนโลจิสติกส์', 'ห้างหุ้นส่วน ทองไทยซัพพลาย', 'บจก. เอเชียเทรดดิ้ง', 'บจก. โกลบอลพาร์ทส์', 'บจก. เอ็นเนอร์ยี่แพลนท์'];
 
-export const OUTBOUND_STATUSES = ['PICKING', 'PACKING', 'QC', 'READY', 'SHIPPED', 'PENDING', 'CANCELLED', 'ERROR'];
+// สถานะระดับ "รายออเดอร์" (mutually exclusive ต่อออเดอร์ 1 ใบ) — ใช้กับ order-level detail/drill-down เท่านั้น
+// ตัวเลขที่แต่ละแผนกกรอกจริงรายวัน (Total/Picked/QC/Shipped/Cancelled) เป็นยอดสะสม ดู dailyOutbound ใน buildDataset()
+export const OUTBOUND_STATUSES = ['PENDING', 'PICKED', 'QC', 'SHIPPED', 'CANCELLED'];
 export const OUTBOUND_STATUS_LABEL = {
-  PICKING: 'Picking', PACKING: 'Packing', QC: 'QC', READY: 'Ready to Ship',
-  SHIPPED: 'Shipped', PENDING: 'Pending', CANCELLED: 'Cancelled', ERROR: 'Error',
+  PENDING: 'Pending', PICKED: 'หยิบแล้ว (Picked)', QC: 'QC', SHIPPED: 'จัดส่งแล้ว (Shipped)', CANCELLED: 'ยกเลิก (Cancelled)',
 };
 // สัดส่วนโดยประมาณของออเดอร์ที่เสร็จงานไปแล้วในแต่ละวัน (วันที่ผ่านมาแล้วสมมติปิดงานเกือบหมด)
-const OUTBOUND_STATUS_WEIGHTS_TODAY = { PICKING: 10, PACKING: 8, QC: 6, READY: 6, SHIPPED: 58, PENDING: 8, CANCELLED: 2.5, ERROR: 1.5 };
-const OUTBOUND_STATUS_WEIGHTS_PAST  = { PICKING: 0, PACKING: 0, QC: 0.5, READY: 0.5, SHIPPED: 92, PENDING: 3, CANCELLED: 3, ERROR: 1 };
+const OUTBOUND_STATUS_WEIGHTS_TODAY = { PENDING: 14, PICKED: 12, QC: 10, SHIPPED: 60, CANCELLED: 4 };
+const OUTBOUND_STATUS_WEIGHTS_PAST  = { PENDING: 1, PICKED: 0, QC: 0.5, SHIPPED: 95, CANCELLED: 3.5 };
 
 export const INBOUND_STATUSES = ['EXPECTED', 'RECEIVING', 'QC', 'PUTAWAY', 'COMPLETED', 'PENDING', 'REJECTED'];
 export const INBOUND_STATUS_LABEL = {
@@ -126,7 +127,6 @@ function genOutboundOrderRow(rng, id, day, isToday, hour) {
   const status = weightedPick(rng, weights);
   const created = new Date(day.date); created.setHours(hour, randInt(rng, 0, 59), 0, 0);
   const stageTime = (mins) => { const t = new Date(created); t.setMinutes(t.getMinutes() + mins); return t.toISOString(); };
-  const progressed = ['PACKING', 'QC', 'READY', 'SHIPPED'].includes(status);
   return {
     id: `ob-${day.key}-${id}`,
     order_id: `SO${day.key.replace(/-/g, '')}${String(id).padStart(4, '0')}`,
@@ -137,9 +137,8 @@ function genOutboundOrderRow(rng, id, day, isToday, hour) {
     carrier: pick(rng, CARRIERS),
     status,
     created_at: created.toISOString(),
-    picked_at: ['PACKING', 'QC', 'READY', 'SHIPPED'].includes(status) || (status === 'PICKING' && rng() < 0.4) ? stageTime(15) : null,
-    packed_at: ['QC', 'READY', 'SHIPPED'].includes(status) ? stageTime(40) : null,
-    qc_at: ['READY', 'SHIPPED'].includes(status) ? stageTime(65) : null,
+    picked_at: ['PICKED', 'QC', 'SHIPPED'].includes(status) ? stageTime(15) : null,
+    qc_at: ['QC', 'SHIPPED'].includes(status) ? stageTime(65) : null,
     shipped_at: status === 'SHIPPED' ? stageTime(120) : null,
     warehouse: 'TPY',
     shift: hour < 15 ? 'กะเช้า' : hour < 22 ? 'กะบ่าย' : 'กะดึก',
@@ -225,7 +224,7 @@ export function buildDataset(now = new Date()) {
     const obCount = randInt(rng, 620, 980);
     const ibCount = randInt(rng, 180, 340);
 
-    const obBuckets = { PICKING: 0, PACKING: 0, QC: 0, READY: 0, SHIPPED: 0, PENDING: 0, CANCELLED: 0, ERROR: 0 };
+    const obBuckets = { PENDING: 0, PICKED: 0, QC: 0, SHIPPED: 0, CANCELLED: 0 };
     const ibBuckets = { EXPECTED: 0, RECEIVING: 0, QC: 0, PUTAWAY: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 };
     let obQty = 0, ibExpectedQty = 0, ibReceivedQty = 0, ibCarton = 0, ibPallet = 0, ibSkuSet = new Set();
 
@@ -258,7 +257,15 @@ export function buildDataset(now = new Date()) {
       }
     }
 
-    dailyOutbound[key] = { date: key, total: obCount, qty: obQty, target: 900, ...obBuckets };
+    // แปลง bucket ต่อออเดอร์ (mutually exclusive) เป็นยอดสะสมรายวันแบบเดียวกับที่แต่ละแผนกกรอกจริง
+    // (Total/Picked/QC/Shipped/Cancelled) — picked/qc นับรวมออเดอร์ที่ผ่านขั้นนั้นไปแล้วด้วย
+    dailyOutbound[key] = {
+      date: key, total: obCount, qty: obQty, target: 900,
+      picked: obBuckets.PICKED + obBuckets.QC + obBuckets.SHIPPED,
+      qc: obBuckets.QC + obBuckets.SHIPPED,
+      shipped: obBuckets.SHIPPED,
+      cancelled: obBuckets.CANCELLED,
+    };
     dailyInbound[key] = {
       date: key, total: ibCount, target: 260, expected_qty: ibExpectedQty, received_qty: ibReceivedQty,
       total_sku: withinDetailWindow ? ibSkuSet.size : randInt(rng, 80, 160), total_carton: ibCarton, total_pallet: ibPallet, ...ibBuckets,
@@ -275,7 +282,7 @@ export function buildDataset(now = new Date()) {
       const h = new Date(dateVal).getHours();
       if (buckets[h]) {
         buckets[h].created++;
-        if (row.status !== 'PENDING' && row.status !== 'CANCELLED' && row.status !== 'ERROR') buckets[h].processed++;
+        if (row.status !== 'PENDING' && row.status !== 'CANCELLED') buckets[h].processed++;
       }
     }
     return Object.values(buckets);
@@ -354,7 +361,7 @@ export function buildDataset(now = new Date()) {
  */
 export function tickDataset(dataset) {
   const rng = Math.random;
-  const forward = { PICKING: 'PACKING', PACKING: 'QC', QC: 'READY', READY: 'SHIPPED' };
+  const forward = { PENDING: 'PICKED', PICKED: 'QC', QC: 'SHIPPED' };
   const todayKey = dataset.todayKey;
   let moved = 0;
   for (const row of dataset.outboundDetail) {
@@ -381,13 +388,21 @@ export function tickDataset(dataset) {
 
 function recomputeTodayAggregate(dataset) {
   const key = dataset.todayKey;
-  const obBuckets = { PICKING: 0, PACKING: 0, QC: 0, READY: 0, SHIPPED: 0, PENDING: 0, CANCELLED: 0, ERROR: 0 };
+  const obBuckets = { PENDING: 0, PICKED: 0, QC: 0, SHIPPED: 0, CANCELLED: 0 };
   let total = 0, qty = 0;
   for (const row of dataset.outboundDetail) {
     if (!row.created_at.startsWith(key)) continue;
     obBuckets[row.status]++; total++; qty += row.quantity;
   }
-  if (total > 0) dataset.dailyOutbound[key] = { ...dataset.dailyOutbound[key], total, qty, ...obBuckets };
+  if (total > 0) {
+    dataset.dailyOutbound[key] = {
+      ...dataset.dailyOutbound[key], total, qty,
+      picked: obBuckets.PICKED + obBuckets.QC + obBuckets.SHIPPED,
+      qc: obBuckets.QC + obBuckets.SHIPPED,
+      shipped: obBuckets.SHIPPED,
+      cancelled: obBuckets.CANCELLED,
+    };
+  }
 
   const ibBuckets = { EXPECTED: 0, RECEIVING: 0, QC: 0, PUTAWAY: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 };
   let ibTotal = 0, expQty = 0, recQty = 0;

@@ -109,29 +109,32 @@ function applyCommonFilters(rows, filters, dateField) {
 }
 
 // ===================== OUTBOUND =====================
+// ตัวเลขที่แต่ละแผนกกรอก (Total/Picked/QC/Shipped/Cancelled) เป็น "ยอดสะสม" ต่อวัน ไม่ใช่ bucket แยกกัน
+// (เช่น Picked = ออเดอร์ที่หยิบไปแล้วทั้งหมด รวมที่ผ่าน QC/Ship ไปแล้วด้วย) — Pending คำนวณเป็นส่วนที่เหลือ
 export function getOutboundKPIs(filters) {
   const ds = _dataset; const keys = dateKeysInRange(filters.range);
-  const buckets = Object.fromEntries(OUTBOUND_STATUSES.map(s => [s, 0]));
-  let total = 0, qty = 0, targetSum = 0;
-  const withinDetail = keys.every(k => ds.dailyOutbound[k] !== undefined);
+  let total = 0, picked = 0, qc = 0, shipped = 0, cancelled = 0, qty = 0, targetSum = 0;
   for (const k of keys) {
     const day = ds.dailyOutbound[k];
     if (!day) continue;
     targetSum += day.target || 0;
-    total += day.total; qty += day.qty || 0;
-    for (const s of OUTBOUND_STATUSES) buckets[s] += day[s] || 0;
+    total += day.total || 0; qty += day.qty || 0;
+    picked += day.picked || 0; qc += day.qc || 0; shipped += day.shipped || 0; cancelled += day.cancelled || 0;
   }
-  // ถ้ามี filter ระดับแถว (warehouse/channel/carrier/shift/status) ให้คำนวณจาก detail แทนในช่วงที่มี detail
+  // ถ้ามี filter ระดับแถว (warehouse/channel/carrier/shift/status) ให้คำนวณจาก order-level detail แทน (เฉพาะช่วงที่มี detail — โหมด demo)
   const hasRowFilters = ['warehouse', 'channel', 'carrier', 'shift', 'status'].some(f => filters[f] && filters[f] !== 'ALL');
   if (hasRowFilters) {
     const rows = applyCommonFilters(ds.outboundDetail, { ...filters }, 'created_at');
+    const count = s => rows.filter(r => r.status === s).length;
     total = rows.length; qty = rows.reduce((s, r) => s + r.quantity, 0);
-    for (const s of OUTBOUND_STATUSES) buckets[s] = rows.filter(r => r.status === s).length;
+    const pickedC = count('PICKED'), qcC = count('QC'), shippedC = count('SHIPPED');
+    picked = pickedC + qcC + shippedC; qc = qcC + shippedC; shipped = shippedC; cancelled = count('CANCELLED');
   }
-  const processed = total - buckets.PENDING - buckets.CANCELLED - buckets.ERROR;
-  const progressPct = total > 0 ? (processed / total) * 100 : 0;
-  const achievedPct = targetSum > 0 ? (buckets.SHIPPED / targetSum) * 100 : 0;
-  return { total, qty, target: targetSum, buckets, progressPct, achievedPct };
+  const pending = Math.max(0, total - picked - cancelled);
+  const buckets = { PENDING: pending, PICKED: Math.max(0, picked - qc), QC: Math.max(0, qc - shipped), SHIPPED: shipped, CANCELLED: cancelled };
+  const progressPct = total > 0 ? (picked / total) * 100 : 0;
+  const achievedPct = targetSum > 0 ? (shipped / targetSum) * 100 : 0;
+  return { total, picked, qc, shipped, cancelled, pending, qty, target: targetSum, buckets, progressPct, achievedPct };
 }
 
 export function getOutboundHourly(filters) {
@@ -141,7 +144,7 @@ export function getOutboundHourly(filters) {
 
 export function getOutboundTrend(filters) {
   const ds = _dataset; const keys = dateKeysInRange(filters.range);
-  return keys.map(k => ({ date: k, ...(ds.dailyOutbound[k] || { total: 0, target: 0, SHIPPED: 0 }) }));
+  return keys.map(k => ({ date: k, ...(ds.dailyOutbound[k] || { total: 0, target: 0, picked: 0, qc: 0, shipped: 0, cancelled: 0 }) }));
 }
 
 export function listOutboundOrders(filters, opts = {}) {

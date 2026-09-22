@@ -251,7 +251,7 @@ body.tv-mode .kpi, body.tv-mode .status-row { cursor: default; }
         <div id="outboundHourlyChart"></div>
       </div>
       <div class="card">
-        <div class="section-head"><h2 style="font-size:.9rem;">Outbound Status</h2></div>
+        <div class="section-head"><h2 style="font-size:.9rem;">Outbound Status</h2><span class="tag">สถานะปัจจุบันของแต่ละออเดอร์</span></div>
         <div id="outboundStatusList" class="status-list"></div>
       </div>
     </div>
@@ -389,8 +389,8 @@ function fmtDateTime(iso) {
   try { return new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; }
 }
 const STATUS_COLOR_CLASS = {
-  SHIPPED: 'ok', COMPLETED: 'ok', PUTAWAY: 'info', READY: 'info', QC: 'info', PACKING: 'info', PICKING: 'info',
-  RECEIVING: 'info', EXPECTED: 'gray', PENDING: 'warn', CANCELLED: 'bad', ERROR: 'bad', REJECTED: 'bad',
+  SHIPPED: 'ok', COMPLETED: 'ok', PUTAWAY: 'info', QC: 'info', PICKED: 'info',
+  RECEIVING: 'info', EXPECTED: 'gray', PENDING: 'warn', CANCELLED: 'bad', REJECTED: 'bad',
 };
 function colorVar(cls) { return { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', info: 'var(--info)', gray: 'var(--gray)' }[cls] || 'var(--gray)'; }
 function statusClass(status) { return STATUS_COLOR_CLASS[status] || 'gray'; }
@@ -680,15 +680,12 @@ function renderOutbound(kpis) {
   const k = kpis.outbound;
   document.getElementById('outboundRangeTag').textContent = rangeLabel();
   const cards = [
-    kpiEl({ label: 'Total Orders', value: fmtNum(k.total), cls: 'info', big: true, onClick: 'outbound:ALL' }),
-    kpiEl({ label: 'Picking', value: fmtNum(k.buckets.PICKING), cls: 'info', onClick: 'outbound:PICKING' }),
-    kpiEl({ label: 'Packing', value: fmtNum(k.buckets.PACKING), cls: 'info', onClick: 'outbound:PACKING' }),
-    kpiEl({ label: 'QC', value: fmtNum(k.buckets.QC), cls: 'info', onClick: 'outbound:QC' }),
-    kpiEl({ label: 'Ready', value: fmtNum(k.buckets.READY), cls: 'info', onClick: 'outbound:READY' }),
-    kpiEl({ label: 'Shipped', value: fmtNum(k.buckets.SHIPPED), cls: 'ok', onClick: 'outbound:SHIPPED' }),
-    kpiEl({ label: 'Pending', value: fmtNum(k.buckets.PENDING), cls: 'warn', onClick: 'outbound:PENDING' }),
-    kpiEl({ label: 'Cancelled', value: fmtNum(k.buckets.CANCELLED), cls: 'bad', onClick: 'outbound:CANCELLED' }),
-    kpiEl({ label: 'Error', value: fmtNum(k.buckets.ERROR), cls: 'bad', onClick: 'outbound:ERROR' }),
+    kpiEl({ label: 'Total Orders/วัน', value: fmtNum(k.total), cls: 'info', big: true, onClick: 'outbound:ALL' }),
+    kpiEl({ label: 'หยิบแล้ว (Picked)', value: fmtNum(k.picked), sub: 'ยอดสะสม', cls: 'info', onClick: 'outbound:PICKED' }),
+    kpiEl({ label: 'QC', value: fmtNum(k.qc), sub: 'ยอดสะสม', cls: 'info', onClick: 'outbound:QC' }),
+    kpiEl({ label: 'จัดส่งแล้ว (Shipped)', value: fmtNum(k.shipped), cls: 'ok', onClick: 'outbound:SHIPPED' }),
+    kpiEl({ label: 'ยกเลิก (Cancelled)', value: fmtNum(k.cancelled), cls: 'bad', onClick: 'outbound:CANCELLED' }),
+    kpiEl({ label: 'Pending', value: fmtNum(k.pending), sub: 'ยังไม่ได้หยิบ (คำนวณ)', cls: 'warn', onClick: 'outbound:PENDING' }),
   ];
   document.getElementById('outboundKpis').innerHTML = cards.join('') + `
     <div class="kpi c-info" style="cursor:default;grid-column:span 2;">
@@ -744,8 +741,7 @@ function openOutboundDetail(row) {
       ${detailItem('Status', svc.OUTBOUND_STATUS_LABEL[row.status])}${detailItem('Warehouse', row.warehouse)}${detailItem('Shift', row.shift)}
       ${detailItem('ผู้รับผิดชอบ', row.employee)}
       ${detailItem('สร้างเมื่อ', fmtDateTime(row.created_at))}${detailItem('หยิบแล้ว', fmtDateTime(row.picked_at))}
-      ${detailItem('แพ็คแล้ว', fmtDateTime(row.packed_at))}${detailItem('QC แล้ว', fmtDateTime(row.qc_at))}
-      ${detailItem('จัดส่งแล้ว', fmtDateTime(row.shipped_at))}
+      ${detailItem('QC แล้ว', fmtDateTime(row.qc_at))}${detailItem('จัดส่งแล้ว', fmtDateTime(row.shipped_at))}
     </div>`;
   });
 }

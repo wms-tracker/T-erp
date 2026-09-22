@@ -24,7 +24,7 @@
 <script type="module">
 import { requireRole, db } from "./js/auth.js";
 import {
-  DEPARTMENTS, WAREHOUSES, OUTBOUND_STATUSES, OUTBOUND_STATUS_LABEL,
+  DEPARTMENTS, WAREHOUSES,
   INBOUND_STATUSES, INBOUND_STATUS_LABEL, ACCIDENT_SEVERITIES, ACCIDENT_SEVERITY_LABEL,
   ACCIDENT_TYPES, ACCIDENT_STATUSES,
 } from "./js/control-tower/data-service.js";
@@ -116,28 +116,41 @@ async function renderOutboundForm(el) {
         <div class="field"><label>คลัง (Warehouse)</label><select id="ob-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
         <div class="field"><label>เป้าหมาย Orders/วัน</label><input type="number" id="ob-target" value="900" min="0" /></div>
       </div>
-      <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนออเดอร์ตามสถานะ (ณ สิ้นวัน)</h3>
-      <div class="num-grid" id="ob-fields">
-        ${OUTBOUND_STATUSES.map(s => numField(`ob-${s}`, OUTBOUND_STATUS_LABEL[s], 0)).join('')}
+      <h3 style="font-size:.9rem;margin:14px 0 0;">ยอดสะสมวันนี้ (แต่ละช่องคือยอดรวม ไม่ใช่ยอดเฉพาะขั้นนั้น)</h3>
+      <div class="num-grid">
+        ${numField('ob-total', 'ออเดอร์ทั้งหมด/วัน (Total)', 0)}
+        ${numField('ob-picked', 'หยิบแล้ว (Picked)', 0)}
+        ${numField('ob-qc', 'QC', 0)}
+        ${numField('ob-shipped', 'จัดส่งแล้ว (Shipped)', 0)}
+        ${numField('ob-cancelled', 'ยกเลิก (Cancelled)', 0)}
       </div>
       <div class="field" style="max-width:200px;"><label>จำนวนชิ้นรวม (Qty)</label><input type="number" id="ob-qty" value="0" min="0" /></div>
-      <div class="total-badge" id="ob-total"></div>
+      <div class="total-badge" id="ob-total-info"></div>
       <button class="btn btn-primary" id="ob-save" style="width:auto;">💾 บันทึก</button>
       <p class="msg" id="ob-msg"></p>
     </div>`;
-  const recalcTotal = () => {
-    const total = OUTBOUND_STATUSES.reduce((s, k) => s + getNum(`ob-${k}`), 0);
-    document.getElementById('ob-total').textContent = `รวมทั้งหมด (Total Orders) = ${fmtNum(total)}`;
+  const recalcInfo = () => {
+    const total = getNum('ob-total'), picked = getNum('ob-picked'), qc = getNum('ob-qc'), shipped = getNum('ob-shipped'), cancelled = getNum('ob-cancelled');
+    const pending = Math.max(0, total - picked - cancelled);
+    let warn = '';
+    if (picked > total) warn += ' ⚠️ หยิบแล้วมากกว่าออเดอร์ทั้งหมด';
+    if (qc > picked) warn += ' ⚠️ QC มากกว่าหยิบแล้ว';
+    if (shipped > qc) warn += ' ⚠️ จัดส่งแล้วมากกว่า QC';
+    document.getElementById('ob-total-info').innerHTML = `Pending (ยังไม่หยิบ) = <b>${fmtNum(pending)}</b>${warn}`;
   };
-  OUTBOUND_STATUSES.forEach(s => document.getElementById(`ob-${s}`).addEventListener('input', recalcTotal));
+  ['ob-total','ob-picked','ob-qc','ob-shipped','ob-cancelled'].forEach(id => document.getElementById(id).addEventListener('input', recalcInfo));
   const load = async () => {
     const date = document.getElementById('ob-date').value, wh = document.getElementById('ob-wh').value;
     const snap = await getDoc(doc(db, 'wctOutboundDaily', `${date}_${wh}`));
     const d = snap.exists() ? snap.data() : {};
     document.getElementById('ob-target').value = d.target ?? 900;
     document.getElementById('ob-qty').value = d.qty ?? 0;
-    OUTBOUND_STATUSES.forEach(s => document.getElementById(`ob-${s}`).value = d[s] ?? 0);
-    recalcTotal();
+    document.getElementById('ob-total').value = d.total ?? 0;
+    document.getElementById('ob-picked').value = d.picked ?? 0;
+    document.getElementById('ob-qc').value = d.qc ?? 0;
+    document.getElementById('ob-shipped').value = d.shipped ?? 0;
+    document.getElementById('ob-cancelled').value = d.cancelled ?? 0;
+    recalcInfo();
   };
   document.getElementById('ob-date').addEventListener('change', load);
   document.getElementById('ob-wh').addEventListener('change', load);
@@ -145,14 +158,17 @@ async function renderOutboundForm(el) {
     const date = document.getElementById('ob-date').value, wh = document.getElementById('ob-wh').value;
     const msg = document.getElementById('ob-msg'); msg.className = 'msg';
     if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
-    const payload = { date, warehouse: wh, department: 'OB', target: getNum('ob-target'), qty: getNum('ob-qty'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
-    OUTBOUND_STATUSES.forEach(s => payload[s] = getNum(`ob-${s}`));
+    const payload = {
+      date, warehouse: wh, department: 'OB', target: getNum('ob-target'), qty: getNum('ob-qty'),
+      total: getNum('ob-total'), picked: getNum('ob-picked'), qc: getNum('ob-qc'), shipped: getNum('ob-shipped'), cancelled: getNum('ob-cancelled'),
+      updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp(),
+    };
     try {
       await setDoc(doc(db, 'wctOutboundDaily', `${date}_${wh}`), payload, { merge: true });
       msg.textContent = `บันทึกข้อมูล Outbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });
-  recalcTotal();
+  recalcInfo();
 }
 
 // =====================================================================
