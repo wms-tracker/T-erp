@@ -10,6 +10,7 @@
 <script type="module">
   import { requireRole, db } from "./js/auth.js";
   import { renderShell } from "./js/shell.js";
+  import { DEPARTMENTS as WCT_DEPARTMENTS } from "./js/control-tower/data-service.js";
   import {
     collection, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit, runTransaction, serverTimestamp, where
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -768,15 +769,25 @@
               <option value="manager">ผู้บริหาร (manager)</option>
             </select>
           </div>
+          <div class="field"><label>แผนก Control Tower (เฉพาะ role คลังสินค้า)</label>
+            <select id="u-wctdept">
+              <option value="">— ไม่กำหนด —</option>
+              ${WCT_DEPARTMENTS.map(d => `<option value="${d.code}">${d.label}</option>`).join('')}
+            </select>
+          </div>
         </div>
+        <p style="font-size:0.78rem;color:#888;margin-top:-4px;">
+          ⚠️ แผนก Control Tower ใช้กำหนดว่าผู้ใช้คนนี้จะกรอก/แก้ไขข้อมูลของแผนกไหนได้ที่หน้า
+          <a href="control-tower-entry.html" target="_blank">กรอกข้อมูล Control Tower</a> (คลังสินค้าเท่านั้นที่ต้องกำหนด — แอดมินกรอกแทนแผนกใดก็ได้อยู่แล้ว)
+        </p>
         <button class="btn btn-primary" id="btn-add-user" style="width:auto;">+ บันทึกสิทธิ์ผู้ใช้งาน</button>
         <p class="msg" id="user-msg"></p>
       </div>
       <div class="card">
         <h2 style="margin-top:0;font-size:1.05rem;">รายชื่อผู้ใช้งานในระบบ</h2>
         <table>
-          <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>แผนก/สิทธิ์</th><th>สถานะ</th><th>การจัดการ</th></tr></thead>
-          <tbody id="user-rows"><tr><td colspan="5" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+          <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>แผนก/สิทธิ์</th><th>แผนก Control Tower</th><th>สถานะ</th><th>การจัดการ</th></tr></thead>
+          <tbody id="user-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
         </table>
       </div>
     `;
@@ -789,16 +800,18 @@
     const name = document.getElementById('u-name').value.trim();
     const email = document.getElementById('u-email').value.trim();
     const role = document.getElementById('u-role').value;
+    const wctDepartment = document.getElementById('u-wctdept').value || null;
     const msg = document.getElementById('user-msg');
     msg.className = 'msg';
     if (!uid || !name || !email) { msg.textContent = 'กรุณากรอกข้อมูลให้ครบ (UID, ชื่อ, อีเมล)'; msg.classList.add('error'); return; }
     try {
       await setDoc(doc(db, 'users', uid), {
-        name, email, role, department: roleLabel(role), active: true, createdAt: new Date().toISOString()
+        name, email, role, department: roleLabel(role), wctDepartment, active: true, createdAt: new Date().toISOString()
       });
       msg.textContent = `เพิ่มสิทธิ์ให้ ${name} (${role}) สำเร็จแล้ว`;
       msg.classList.add('ok');
       ['u-uid','u-name','u-email'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('u-wctdept').value = '';
       await loadUsers();
     } catch (err) {
       msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
@@ -810,7 +823,7 @@
     const tbody = document.getElementById('user-rows');
     try {
       const snap = await getDocs(collection(db, 'users'));
-      if (snap.empty) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#999;">ยังไม่มีผู้ใช้งานในระบบ</td></tr>`; return; }
+      if (snap.empty) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">ยังไม่มีผู้ใช้งานในระบบ</td></tr>`; return; }
       const rows = [];
       snap.forEach(d => rows.push({ uid: d.id, ...d.data() }));
       tbody.innerHTML = rows.map(u => `
@@ -818,6 +831,7 @@
           <td>${u.name || '-'}</td>
           <td>${u.email || '-'}</td>
           <td>${roleLabel(u.role)}</td>
+          <td>${u.wctDepartment ? (WCT_DEPARTMENTS.find(d=>d.code===u.wctDepartment)?.label || u.wctDepartment) : '<span style="color:#aaa;">—</span>'}</td>
           <td>${u.active ? '<span class="badge badge-done">ใช้งานได้</span>' : '<span class="badge badge-cancel">ระงับ</span>'}</td>
           <td><button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)">${u.active ? 'ระงับสิทธิ์' : 'เปิดใช้งาน'}</button></td>
         </tr>

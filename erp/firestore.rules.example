@@ -20,6 +20,11 @@ service cloud.firestore {
       return isSignedIn() && isActive() && myRole() == role;
     }
     function isAdmin() { return hasRole('admin'); }
+    // แผนก Control Tower ของผู้ใช้ (OB/IB/QA/PACK/... ตาม erp/js/control-tower/demo-data.js#DEPARTMENTS)
+    // กำหนดให้แต่ละคนที่หน้า "จัดการผู้ใช้งาน & สิทธิ์" (dashboard-admin.html#users)
+    function myWctDept() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.wctDepartment;
+    }
 
     // ----- users: อ่าน-เขียนได้เฉพาะแอดมิน, ผู้ใช้อ่านข้อมูลตัวเองได้ -----
     match /users/{uid} {
@@ -214,6 +219,35 @@ service cloud.firestore {
         allow create: if hasRole('warehouse') || hasRole('sales') || isAdmin();
         allow update, delete: if false; // audit trail ห้ามแก้/ลบย้อนหลัง
       }
+    }
+
+    // ----- Warehouse Control Tower: สรุปข้อมูลรายวันที่แต่ละแผนกกรอกเอง (control-tower-entry.html) -----
+    // ทุกคนที่ login อ่านได้หมด (เพราะ Dashboard ต้องรวมทุกแผนกมาแสดง) แต่ "เขียน" ได้เฉพาะแผนกตัวเอง
+    // (เทียบ wctDepartment ของผู้ใช้ กับ department ในเอกสารที่กำลังบันทึก) หรือแอดมินซึ่งกรอกแทนแผนกใดก็ได้
+    // ----- wctOutboundDaily: doc id = {date}_{warehouse}, department ต้องเป็น 'OB' เท่านั้น -----
+    match /wctOutboundDaily/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'OB' && request.resource.data.department == 'OB');
+      allow delete: if isAdmin();
+    }
+    // ----- wctInboundDaily: doc id = {date}_{warehouse}, department ต้องเป็น 'IB' เท่านั้น -----
+    match /wctInboundDaily/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'IB' && request.resource.data.department == 'IB');
+      allow delete: if isAdmin();
+    }
+    // ----- wctManpowerDaily: doc id = {date}_{department} — เขียนได้เฉพาะแผนกตัวเอง -----
+    match /wctManpowerDaily/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == request.resource.data.department);
+      allow delete: if isAdmin();
+    }
+    // ----- wctAccidents: รายงานอุบัติเหตุรายเหตุการณ์ — แจ้ง/แก้ไขได้เฉพาะของแผนกตัวเอง -----
+    match /wctAccidents/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create: if isAdmin() || (hasRole('warehouse') && myWctDept() == request.resource.data.department);
+      allow update: if isAdmin() || (hasRole('warehouse') && myWctDept() == resource.data.department);
+      allow delete: if isAdmin();
     }
   }
 }

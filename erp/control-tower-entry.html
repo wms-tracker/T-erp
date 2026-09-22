@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>กรอกข้อมูล — Warehouse Control Tower</title>
+<link rel="stylesheet" href="css/erp.css" />
+<style>
+  .entry-wrap { max-width: 900px; margin: 0 auto; padding: 20px 18px 60px; }
+  .entry-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+  .entry-head h1 { font-size: 1.2rem; margin: 0; }
+  .entry-head .sub { font-size: .82rem; color: #888; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab-btn { padding: 9px 16px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: .86rem; font-weight: 600; color: #444; }
+  .tab-btn.active { background: #1a2540; color: #fff; border-color: #1a2540; }
+  .num-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 14px 0; }
+  .num-grid .field label { font-size: .78rem; }
+  .num-grid .field input { text-align: right; font-weight: 700; }
+  .total-badge { background: #eef1f7; border-radius: 10px; padding: 10px 14px; font-size: .84rem; margin: 10px 0; }
+  .block-msg { background: #fff8e8; border: 1px solid #ffe6a8; border-radius: 10px; padding: 16px; color: #8a6400; font-size: .88rem; line-height: 1.7; }
+</style>
+</head>
+<body></body>
+<script type="module">
+import { requireRole, db } from "./js/auth.js";
+import {
+  DEPARTMENTS, WAREHOUSES, OUTBOUND_STATUSES, OUTBOUND_STATUS_LABEL,
+  INBOUND_STATUSES, INBOUND_STATUS_LABEL, ACCIDENT_SEVERITIES, ACCIDENT_SEVERITY_LABEL,
+  ACCIDENT_TYPES, ACCIDENT_STATUSES,
+} from "./js/control-tower/data-service.js";
+import {
+  doc, getDoc, setDoc, addDoc, collection, serverTimestamp,
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const profile = await requireRole(['warehouse', 'admin']);
+const isAdmin = profile.role === 'admin';
+const myDept = profile.wctDepartment || null;
+
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function deptLabel(code) { return DEPARTMENTS.find(d => d.code === code)?.label || code; }
+
+const body = document.body;
+
+// ---------------------------------------------------------------
+// Warehouse staff ที่ยังไม่ถูกกำหนดแผนก (wctDepartment) โดยแอดมิน -> บล็อกไว้ก่อน
+// ---------------------------------------------------------------
+if (!isAdmin && !myDept) {
+  body.innerHTML = `
+    <div class="entry-wrap">
+      <div class="entry-head"><h1>📝 กรอกข้อมูล Control Tower</h1></div>
+      <div class="block-msg">
+        ⚠️ บัญชีของคุณ (<b>${escapeHtml(profile.name || profile.email)}</b>) ยังไม่ได้ถูกกำหนด "แผนก" สำหรับกรอกข้อมูล<br/>
+        กรุณาติดต่อแอดมินให้กำหนดแผนกที่หน้า <b>จัดการผู้ใช้งาน & สิทธิ์</b> (dashboard-admin.html#users) ก่อนใช้งานหน้านี้
+      </div>
+      <p style="margin-top:16px;"><a href="warehouse-control-tower.html">← กลับไปหน้า Dashboard</a></p>
+    </div>`;
+  throw new Error('no-department-assigned');
+}
+
+const TABS = [];
+if (isAdmin || myDept === 'OB') TABS.push({ key: 'outbound', label: '📤 Outbound รายวัน' });
+if (isAdmin || myDept === 'IB') TABS.push({ key: 'inbound', label: '📥 Inbound รายวัน' });
+TABS.push({ key: 'manpower', label: '👷 Manpower รายวัน' });
+TABS.push({ key: 'accident', label: '🦺 แจ้งอุบัติเหตุ' });
+
+let activeTab = TABS[0].key;
+
+body.innerHTML = `
+  <div class="entry-wrap">
+    <div class="entry-head">
+      <h1>📝 กรอกข้อมูล Control Tower</h1>
+    </div>
+    <p class="sub">
+      เข้าสู่ระบบเป็น <b>${escapeHtml(profile.name || profile.email)}</b>
+      ${isAdmin ? '(แอดมิน — กรอกแทนแผนกใดก็ได้)' : `— แผนก <b>${escapeHtml(deptLabel(myDept))}</b>`}
+      · <a href="warehouse-control-tower.html">ไปหน้า Dashboard →</a>
+    </p>
+    <div class="tabs" id="tabBar"></div>
+    <div id="tabContent"></div>
+  </div>
+`;
+
+const tabBar = document.getElementById('tabBar');
+tabBar.innerHTML = TABS.map(t => `<button class="tab-btn ${t.key===activeTab?'active':''}" data-tab="${t.key}">${t.label}</button>`).join('');
+tabBar.addEventListener('click', e => {
+  const btn = e.target.closest('[data-tab]');
+  if (!btn) return;
+  activeTab = btn.dataset.tab;
+  tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+  renderTab();
+});
+
+function fmtNum(n) { return Number(n || 0).toLocaleString('th-TH'); }
+function numField(id, label, value = 0) {
+  return `<div class="field"><label>${escapeHtml(label)}</label><input type="number" id="${id}" value="${value}" min="0" /></div>`;
+}
+function getNum(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
+
+function renderTab() {
+  const content = document.getElementById('tabContent');
+  if (activeTab === 'outbound') return renderOutboundForm(content);
+  if (activeTab === 'inbound') return renderInboundForm(content);
+  if (activeTab === 'manpower') return renderManpowerForm(content);
+  if (activeTab === 'accident') return renderAccidentForm(content);
+}
+
+// =====================================================================
+// OUTBOUND DAILY (แผนก OB)
+// =====================================================================
+async function renderOutboundForm(el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>วันที่</label><input type="date" id="ob-date" value="${todayStr()}" /></div>
+        <div class="field"><label>คลัง (Warehouse)</label><select id="ob-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
+        <div class="field"><label>เป้าหมาย Orders/วัน</label><input type="number" id="ob-target" value="900" min="0" /></div>
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนออเดอร์ตามสถานะ (ณ สิ้นวัน)</h3>
+      <div class="num-grid" id="ob-fields">
+        ${OUTBOUND_STATUSES.map(s => numField(`ob-${s}`, OUTBOUND_STATUS_LABEL[s], 0)).join('')}
+      </div>
+      <div class="field" style="max-width:200px;"><label>จำนวนชิ้นรวม (Qty)</label><input type="number" id="ob-qty" value="0" min="0" /></div>
+      <div class="total-badge" id="ob-total"></div>
+      <button class="btn btn-primary" id="ob-save" style="width:auto;">💾 บันทึก</button>
+      <p class="msg" id="ob-msg"></p>
+    </div>`;
+  const recalcTotal = () => {
+    const total = OUTBOUND_STATUSES.reduce((s, k) => s + getNum(`ob-${k}`), 0);
+    document.getElementById('ob-total').textContent = `รวมทั้งหมด (Total Orders) = ${fmtNum(total)}`;
+  };
+  OUTBOUND_STATUSES.forEach(s => document.getElementById(`ob-${s}`).addEventListener('input', recalcTotal));
+  const load = async () => {
+    const date = document.getElementById('ob-date').value, wh = document.getElementById('ob-wh').value;
+    const snap = await getDoc(doc(db, 'wctOutboundDaily', `${date}_${wh}`));
+    const d = snap.exists() ? snap.data() : {};
+    document.getElementById('ob-target').value = d.target ?? 900;
+    document.getElementById('ob-qty').value = d.qty ?? 0;
+    OUTBOUND_STATUSES.forEach(s => document.getElementById(`ob-${s}`).value = d[s] ?? 0);
+    recalcTotal();
+  };
+  document.getElementById('ob-date').addEventListener('change', load);
+  document.getElementById('ob-wh').addEventListener('change', load);
+  document.getElementById('ob-save').addEventListener('click', async () => {
+    const date = document.getElementById('ob-date').value, wh = document.getElementById('ob-wh').value;
+    const msg = document.getElementById('ob-msg'); msg.className = 'msg';
+    if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
+    const payload = { date, warehouse: wh, department: 'OB', target: getNum('ob-target'), qty: getNum('ob-qty'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    OUTBOUND_STATUSES.forEach(s => payload[s] = getNum(`ob-${s}`));
+    try {
+      await setDoc(doc(db, 'wctOutboundDaily', `${date}_${wh}`), payload, { merge: true });
+      msg.textContent = `บันทึกข้อมูล Outbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
+    } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
+  });
+  recalcTotal();
+}
+
+// =====================================================================
+// INBOUND DAILY (แผนก IB)
+// =====================================================================
+async function renderInboundForm(el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>วันที่</label><input type="date" id="ib-date" value="${todayStr()}" /></div>
+        <div class="field"><label>คลัง (Warehouse)</label><select id="ib-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
+        <div class="field"><label>เป้าหมาย Inbound/วัน</label><input type="number" id="ib-target" value="260" min="0" /></div>
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนรายการตามสถานะ (ณ สิ้นวัน)</h3>
+      <div class="num-grid" id="ib-fields">
+        ${INBOUND_STATUSES.map(s => numField(`ib-${s}`, INBOUND_STATUS_LABEL[s], 0)).join('')}
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">รายละเอียดปริมาณ</h3>
+      <div class="num-grid">
+        ${numField('ib-expected_qty', 'Expected Qty', 0)}
+        ${numField('ib-received_qty', 'Received Qty', 0)}
+        ${numField('ib-total_sku', 'Total SKU', 0)}
+        ${numField('ib-total_carton', 'Total Carton', 0)}
+        ${numField('ib-total_pallet', 'Total Pallet', 0)}
+      </div>
+      <div class="total-badge" id="ib-total"></div>
+      <button class="btn btn-primary" id="ib-save" style="width:auto;">💾 บันทึก</button>
+      <p class="msg" id="ib-msg"></p>
+    </div>`;
+  const recalcTotal = () => {
+    const total = INBOUND_STATUSES.reduce((s, k) => s + getNum(`ib-${k}`), 0);
+    document.getElementById('ib-total').textContent = `รวมทั้งหมด (Total Inbound) = ${fmtNum(total)}`;
+  };
+  INBOUND_STATUSES.forEach(s => document.getElementById(`ib-${s}`).addEventListener('input', recalcTotal));
+  const load = async () => {
+    const date = document.getElementById('ib-date').value, wh = document.getElementById('ib-wh').value;
+    const snap = await getDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`));
+    const d = snap.exists() ? snap.data() : {};
+    document.getElementById('ib-target').value = d.target ?? 260;
+    ['expected_qty','received_qty','total_sku','total_carton','total_pallet'].forEach(f => document.getElementById(`ib-${f}`).value = d[f] ?? 0);
+    INBOUND_STATUSES.forEach(s => document.getElementById(`ib-${s}`).value = d[s] ?? 0);
+    recalcTotal();
+  };
+  document.getElementById('ib-date').addEventListener('change', load);
+  document.getElementById('ib-wh').addEventListener('change', load);
+  document.getElementById('ib-save').addEventListener('click', async () => {
+    const date = document.getElementById('ib-date').value, wh = document.getElementById('ib-wh').value;
+    const msg = document.getElementById('ib-msg'); msg.className = 'msg';
+    if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
+    const payload = { date, warehouse: wh, department: 'IB', target: getNum('ib-target'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    ['expected_qty','received_qty','total_sku','total_carton','total_pallet'].forEach(f => payload[f] = getNum(`ib-${f}`));
+    INBOUND_STATUSES.forEach(s => payload[s] = getNum(`ib-${s}`));
+    try {
+      await setDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`), payload, { merge: true });
+      msg.textContent = `บันทึกข้อมูล Inbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
+    } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
+  });
+  recalcTotal();
+}
+
+// =====================================================================
+// MANPOWER DAILY (ทุกแผนก — กรอกได้เฉพาะแผนกตัวเอง เว้นแต่แอดมิน)
+// =====================================================================
+async function renderManpowerForm(el) {
+  const deptOptions = isAdmin ? DEPARTMENTS : DEPARTMENTS.filter(d => d.code === myDept);
+  el.innerHTML = `
+    <div class="card">
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>วันที่</label><input type="date" id="mp-date" value="${todayStr()}" /></div>
+        <div class="field"><label>แผนก</label><select id="mp-dept">${deptOptions.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select></div>
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนคนตามประเภทการจ้าง</h3>
+      <div class="num-grid">
+        ${numField('mp-inHouse', 'In-House', 0)}
+        ${numField('mp-outsource', 'Outsource', 0)}
+        ${numField('mp-partTime', 'Part-Time', 0)}
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">สถานะการมาปฏิบัติงานวันนี้</h3>
+      <div class="num-grid">
+        ${numField('mp-present', 'Present (มาทำงาน)', 0)}
+        ${numField('mp-absent', 'Absent (ขาด)', 0)}
+        ${numField('mp-leave', 'Leave (ลา)', 0)}
+        ${numField('mp-late', 'Late (สาย)', 0)}
+        ${numField('mp-ot', 'OT รวม (ชั่วโมง)', 0)}
+      </div>
+      <div class="total-badge" id="mp-total"></div>
+      <button class="btn btn-primary" id="mp-save" style="width:auto;">💾 บันทึก</button>
+      <p class="msg" id="mp-msg"></p>
+    </div>`;
+  const FIELDS = ['inHouse','outsource','partTime','present','absent','leave','late','ot'];
+  const recalcTotal = () => {
+    const total = getNum('mp-inHouse') + getNum('mp-outsource') + getNum('mp-partTime');
+    const attend = getNum('mp-present') + getNum('mp-absent') + getNum('mp-leave');
+    let warn = '';
+    if (attend && total && attend !== total) warn = ` ⚠️ ผลรวม Present+Absent+Leave (${fmtNum(attend)}) ไม่เท่ากับจำนวนคนทั้งหมด (${fmtNum(total)}) — ตรวจสอบตัวเลขอีกครั้ง`;
+    document.getElementById('mp-total').innerHTML = `จำนวนคนทั้งหมด (Total) = <b>${fmtNum(total)}</b>${warn}`;
+  };
+  FIELDS.forEach(f => document.getElementById(`mp-${f}`).addEventListener('input', recalcTotal));
+  const load = async () => {
+    const date = document.getElementById('mp-date').value, dept = document.getElementById('mp-dept').value;
+    const snap = await getDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`));
+    const d = snap.exists() ? snap.data() : {};
+    FIELDS.forEach(f => document.getElementById(`mp-${f}`).value = d[f] ?? 0);
+    recalcTotal();
+  };
+  document.getElementById('mp-date').addEventListener('change', load);
+  document.getElementById('mp-dept').addEventListener('change', load);
+  document.getElementById('mp-save').addEventListener('click', async () => {
+    const date = document.getElementById('mp-date').value, dept = document.getElementById('mp-dept').value;
+    const msg = document.getElementById('mp-msg'); msg.className = 'msg';
+    if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
+    const total = getNum('mp-inHouse') + getNum('mp-outsource') + getNum('mp-partTime');
+    const payload = { date, department: dept, total, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    FIELDS.forEach(f => payload[f] = getNum(`mp-${f}`));
+    try {
+      await setDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`), payload, { merge: true });
+      msg.textContent = `บันทึกข้อมูล Manpower แผนก ${deptLabel(dept)} วันที่ ${date} สำเร็จ`; msg.classList.add('ok');
+    } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
+  });
+  await load();
+}
+
+// =====================================================================
+// ACCIDENT REPORT (ทุกแผนก — รายเหตุการณ์ ไม่ใช่สรุปรายวัน)
+// =====================================================================
+async function renderAccidentForm(el) {
+  const now = new Date();
+  const deptOptions = isAdmin ? DEPARTMENTS : DEPARTMENTS.filter(d => d.code === myDept);
+  el.innerHTML = `
+    <div class="card">
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>วันที่เกิดเหตุ</label><input type="date" id="ac-date" value="${todayStr()}" /></div>
+        <div class="field"><label>เวลา</label><input type="time" id="ac-time" value="${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}" /></div>
+        <div class="field"><label>แผนก</label><select id="ac-dept">${deptOptions.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select></div>
+        <div class="field"><label>ความรุนแรง</label><select id="ac-severity">${ACCIDENT_SEVERITIES.map(s=>`<option value="${s}">${ACCIDENT_SEVERITY_LABEL[s]}</option>`).join('')}</select></div>
+      </div>
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>พื้นที่เกิดเหตุ</label><input id="ac-location" placeholder="เช่น Zone A, Dock 1" /></div>
+        <div class="field"><label>ประเภทอุบัติเหตุ</label><select id="ac-type">${ACCIDENT_TYPES.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}</select></div>
+        <div class="field"><label>ผู้เกี่ยวข้อง</label><input id="ac-employee" placeholder="ชื่อพนักงาน" /></div>
+        <div class="field"><label>ผู้รับผิดชอบแก้ไข</label><input id="ac-responsible" placeholder="ชื่อผู้รับผิดชอบ" /></div>
+      </div>
+      <div class="field"><label>ลักษณะเหตุการณ์</label><textarea id="ac-description" rows="2" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;"></textarea></div>
+      <div class="field"><label>สาเหตุ</label><textarea id="ac-cause" rows="2" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;"></textarea></div>
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>ความเสียหาย (ถ้ามี)</label><input id="ac-damage" placeholder="เช่น ประมาณ 5,000 บาท หรือ -" /></div>
+        <div class="field"><label>สถานะ</label><select id="ac-status">${ACCIDENT_STATUSES.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label>การแก้ไข</label><textarea id="ac-correctiveaction" rows="2" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;"></textarea></div>
+      <button class="btn btn-primary" id="ac-save" style="width:auto;margin-top:8px;">💾 บันทึกรายงาน</button>
+      <p class="msg" id="ac-msg"></p>
+    </div>`;
+  document.getElementById('ac-save').addEventListener('click', async () => {
+    const date = document.getElementById('ac-date').value;
+    const msg = document.getElementById('ac-msg'); msg.className = 'msg';
+    if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
+    const dept = document.getElementById('ac-dept').value;
+    const accidentNo = `ACC-${date.replace(/-/g,'')}-${Math.random().toString(36).slice(2,6).toUpperCase()}`;
+    const payload = {
+      accident_no: accidentNo, date, time: document.getElementById('ac-time').value,
+      location: document.getElementById('ac-location').value.trim(), department: dept,
+      employee: document.getElementById('ac-employee').value.trim(), type: document.getElementById('ac-type').value,
+      severity: document.getElementById('ac-severity').value, description: document.getElementById('ac-description').value.trim(),
+      cause: document.getElementById('ac-cause').value.trim(), damage: document.getElementById('ac-damage').value.trim() || '-',
+      corrective_action: document.getElementById('ac-correctiveaction').value.trim(),
+      responsible: document.getElementById('ac-responsible').value.trim(), status: document.getElementById('ac-status').value,
+      closed_date: document.getElementById('ac-status').value === 'Closed' ? date : null,
+      createdBy: profile.uid, createdByName: profile.name || profile.email, createdAt: serverTimestamp(),
+    };
+    try {
+      await addDoc(collection(db, 'wctAccidents'), payload);
+      msg.textContent = `บันทึกรายงานอุบัติเหตุ ${accidentNo} สำเร็จ`; msg.classList.add('ok');
+      ['ac-location','ac-employee','ac-responsible','ac-description','ac-cause','ac-damage','ac-correctiveaction'].forEach(id => document.getElementById(id).value = '');
+    } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
+  });
+}
+
+renderTab();
+</script>
+</html>

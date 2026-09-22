@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HORIZON WAREHOUSE — Control Tower</title>
+<style>
+:root {
+  --bg: #eef1f7; --panel: #ffffff; --panel-2: #f5f7fb; --text: #16213e; --text-muted: #5c6584;
+  --border: #dde2ee; --accent: #2e6cf6; --accent-2: #5a8dfb;
+  --ok: #17a673; --ok-bg: rgba(23,166,115,0.12);
+  --warn: #d99a1f; --warn-bg: rgba(217,154,31,0.14);
+  --bad: #e14b4b; --bad-bg: rgba(225,75,75,0.13);
+  --info: #2e6cf6; --info-bg: rgba(46,108,246,0.10);
+  --gray: #8a92ab; --gray-bg: rgba(138,146,171,0.14);
+  --shadow: 0 6px 24px rgba(20,30,60,0.08);
+  --header-h: 64px;
+}
+:root[data-theme="dark"] {
+  --bg: #0b1120; --panel: #141d33; --panel-2: #101728; --text: #e8ecfb; --text-muted: #93a0c4;
+  --border: #253156; --accent: #5a8dfb; --accent-2: #7fa6ff;
+  --ok: #2fd196; --ok-bg: rgba(47,209,150,0.12);
+  --warn: #f0b429; --warn-bg: rgba(240,180,41,0.14);
+  --bad: #ff5c5c; --bad-bg: rgba(255,92,92,0.14);
+  --info: #5a8dfb; --info-bg: rgba(90,141,251,0.12);
+  --gray: #7c88ad; --gray-bg: rgba(124,136,173,0.14);
+  --shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); overflow-x: hidden; }
+body {
+  font-family: 'Segoe UI', 'Sarabun', Tahoma, sans-serif; color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+.wrap { max-width: 1900px; margin: 0 auto; padding: 0 18px 40px; }
+
+/* ---------- Header ---------- */
+header.topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 40; background: linear-gradient(180deg, var(--panel) 0%, var(--panel) 100%);
+  border-bottom: 1px solid var(--border); box-shadow: var(--shadow);
+}
+body { padding-top: var(--header-offset, 64px); }
+.topbar-inner { max-width: 1900px; margin: 0 auto; padding: 10px 18px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand .logo {
+  width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 1.05rem; flex-shrink: 0;
+}
+.brand .titles h1 { font-size: 1.02rem; margin: 0; letter-spacing: 0.4px; }
+.brand .titles p { margin: 0; font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.6px; text-transform: uppercase; }
+.clockbox { display: flex; flex-direction: column; font-size: 0.76rem; color: var(--text-muted); line-height: 1.35; }
+.clockbox b { font-size: 0.98rem; color: var(--text); }
+.topbar-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+select, .datepick {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 0.82rem; font-family: inherit;
+}
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--panel-2);
+  color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  transition: filter .15s, background .15s;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; }
+.btn-icon { padding: 7px 9px; }
+.role-pill { font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: var(--info-bg); color: var(--accent); }
+
+/* ---------- Filter bar ---------- */
+.filterbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 0 2px; }
+.filterbar .fgroup { display: flex; flex-direction: column; gap: 3px; }
+.filterbar label { font-size: 0.66rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.filter-toggle-wrap { display: none; }
+@media (max-width: 980px) {
+  .filterbar { display: none; }
+  .filterbar.open { display: flex; }
+  .filter-toggle-wrap { display: block; }
+}
+
+/* ---------- Section shell ---------- */
+.section { margin-top: 22px; scroll-margin-top: calc(var(--header-offset, 64px) + 12px); }
+.section-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.section-head h2 { font-size: 1.02rem; margin: 0; display: flex; align-items: center; gap: 8px; }
+.section-head .tag { font-size: 0.68rem; color: var(--text-muted); background: var(--panel-2); border: 1px solid var(--border); padding: 3px 9px; border-radius: 20px; }
+.section-sub { font-size: 0.78rem; color: var(--text-muted); margin: -4px 0 10px; }
+
+/* ---------- Cards / KPI ---------- */
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); min-width: 0; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 10px; }
+.kpi {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 13px 14px;
+  cursor: pointer; transition: transform .12s, box-shadow .12s; position: relative; overflow: hidden;
+}
+.kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.kpi .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+.kpi .lbl { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.kpi .val { font-size: 1.5rem; font-weight: 800; margin-top: 3px; letter-spacing: -0.5px; }
+.kpi .sub { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+.kpi.c-ok .bar { background: var(--ok); } .kpi.c-warn .bar { background: var(--warn); }
+.kpi.c-bad .bar { background: var(--bad); } .kpi.c-info .bar { background: var(--info); } .kpi.c-gray .bar { background: var(--gray); }
+.kpi.big .val { font-size: 2rem; }
+
+.progress-track { background: var(--panel-2); border-radius: 20px; height: 9px; overflow: hidden; border: 1px solid var(--border); }
+.progress-fill { height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .4s; }
+
+/* ---------- Grid layout for chart + status ---------- */
+.two-col { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; margin-top: 12px; }
+.two-col > * { min-width: 0; }
+@media (max-width: 1100px) { .two-col { grid-template-columns: 1fr; } }
+
+.status-list { display: flex; flex-direction: column; gap: 7px; }
+.status-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; cursor: pointer;
+  border: 1px solid transparent; transition: background .12s, border-color .12s;
+}
+.status-row:hover { background: var(--panel-2); border-color: var(--border); }
+.status-row .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.status-row .name { flex: 1; font-size: 0.84rem; }
+.status-row .count { font-weight: 700; font-size: 0.88rem; }
+.status-row .pct { font-size: 0.72rem; color: var(--text-muted); width: 42px; text-align: right; }
+
+/* ---------- Alert center ---------- */
+.alert-row { display: flex; gap: 8px; align-items: center; padding: 9px 12px; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+.alert-row + .alert-row { margin-top: 6px; }
+.alert-row.CRITICAL { background: var(--bad-bg); color: var(--bad); }
+.alert-row.WARNING { background: var(--warn-bg); color: var(--warn); }
+.alert-row.NORMAL { background: var(--ok-bg); color: var(--ok); }
+.alert-dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+.health-badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.05rem; padding: 8px 16px; border-radius: 12px; }
+.health-badge.NORMAL { background: var(--ok-bg); color: var(--ok); }
+.health-badge.WARNING { background: var(--warn-bg); color: var(--warn); }
+.health-badge.CRITICAL { background: var(--bad-bg); color: var(--bad); animation: pulse 1.6s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.55;} }
+
+/* ---------- Tables ---------- */
+table.dt { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+table.dt th { text-align: left; padding: 9px 10px; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .3px; cursor: pointer; white-space: nowrap; }
+table.dt th.sorted { color: var(--accent); }
+table.dt td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.dt tbody tr { cursor: pointer; }
+table.dt tbody tr:hover { background: var(--panel-2); }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; }
+.dept-row { cursor: pointer; }
+.dept-row:hover { background: var(--panel-2); }
+
+/* ---------- Modal ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(6,10,24,0.55); backdrop-filter: blur(2px);
+  display: none; align-items: flex-start; justify-content: center; z-index: 100; padding: 40px 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: var(--panel); border-radius: 16px; width: 100%; max-width: 980px; max-height: 88vh;
+  display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.4); border: 1px solid var(--border);
+}
+.modal-head { display: flex; align-items: center; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.modal-head h3 { margin: 0; font-size: 1rem; flex: 1; }
+.modal-body { padding: 16px 20px; overflow: auto; }
+.modal-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.modal-toolbar input[type=text] { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); font-size: 0.82rem; min-width: 200px; }
+.pagination { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 0.8rem; flex-wrap: wrap; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 18px; }
+.detail-grid .di label { display: block; font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 3px; }
+.detail-grid .di div.v { font-size: 0.9rem; }
+
+/* ---------- Footer ---------- */
+footer.appfoot { margin-top: 30px; padding: 16px 0; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; font-size: 0.78rem; color: var(--text-muted); }
+
+/* ---------- Fullscreen / TV mode ---------- */
+body.fullscreen-mode .no-fullscreen { display: none !important; }
+body.tv-mode .kpi, body.tv-mode .status-row { cursor: default; }
+.tv-highlight { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 16px; }
+
+@media print {
+  header.topbar, .no-print { display: none !important; }
+}
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .topbar-inner { gap: 8px; }
+  .topbar-controls { flex-basis: 100%; margin-left: 0; justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="logo">HW</div>
+      <div class="titles">
+        <h1>HORIZON WAREHOUSE</h1>
+        <p>Warehouse Control Tower</p>
+      </div>
+    </div>
+    <div class="clockbox">
+      <b id="clockTime">--:--:--</b>
+      <span id="clockDate">-</span>
+    </div>
+    <div class="topbar-controls">
+      <span class="role-pill" id="rolePill">Manager</span>
+      <a href="control-tower-entry.html" class="btn" title="ไปหน้ากรอกข้อมูลรายวัน">📝 กรอกข้อมูล</a>
+      <select id="warehouseSelect" title="Warehouse"></select>
+      <select id="rangeSelect" title="ช่วงเวลา">
+        <option value="today">วันนี้</option>
+        <option value="yesterday">เมื่อวาน</option>
+        <option value="month">เดือนนี้</option>
+        <option value="year">ปีนี้</option>
+      </select>
+      <div class="filter-toggle-wrap"><button class="btn btn-icon" id="btnToggleFilters" title="ตัวกรอง">🔎</button></div>
+      <button class="btn btn-icon" id="btnRefresh" title="Refresh Data">🔄</button>
+      <button class="btn btn-icon" id="btnTheme" title="สลับธีม">🌙</button>
+      <button class="btn btn-icon no-fullscreen" id="btnTv" title="TV / Control Room Mode">📺</button>
+      <button class="btn btn-icon no-fullscreen" id="btnFullscreen" title="Full Screen">⛶</button>
+      <button class="btn btn-icon no-fullscreen" id="btnSettings" title="Settings">⚙️</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="filterbar no-fullscreen" id="filterBar"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="demoBanner" style="display:none;margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:.84rem;font-weight:600;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span>⚠️ ยังไม่มีข้อมูลจริงในระบบ — กำลังแสดง <b>ข้อมูลตัวอย่าง (Demo)</b> เท่านั้น</span>
+    <a href="control-tower-entry.html" style="color:inherit;text-decoration:underline;margin-left:auto;">ไปกรอกข้อมูลจริง →</a>
+  </div>
+
+  <section class="section" id="sec-overview">
+    <div class="two-col">
+      <div class="card">
+        <div class="section-head"><h2>🏭 WAREHOUSE HEALTH</h2></div>
+        <div id="healthBox"></div>
+      </div>
+      <div class="card">
+        <div class="section-head"><h2>🔔 ALERT CENTER</h2></div>
+        <div id="alertBox"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sec-outbound">
+    <div class="section-head">
+      <h2>📤 OUTBOUND — ยอดออเดอร์ออก</h2>
+      <span class="tag" id="outboundRangeTag"></span>
+    </div>
+    <div class="kpi-grid" id="outboundKpis"></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="section-head"><h2 style="font-size:.9rem;">Order ตามช่วงเวลา (07:00–24:00)</h2></div>
+        <div id="outboundHourlyChart"></div>
+      </div>
+      <div class="card">
+        <div class="section-head"><h2 style="font-size:.9rem;">Outbound Status</h2></div>
+        <div id="outboundStatusList" class="status-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sec-inbound">
+    <div class="section-head">
+      <h2>📥 INBOUND — สินค้าเข้า</h2>
+      <span class="tag" id="inboundRangeTag"></span>
+    </div>
+    <div class="kpi-grid" id="inboundKpis"></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="section-head"><h2 style="font-size:.9rem;">แนวโน้มรับเข้า (Target vs Actual)</h2></div>
+        <div id="inboundTrendChart"></div>
+      </div>
+      <div class="card">
+        <div class="section-head"><h2 style="font-size:.9rem;">Inbound Status</h2></div>
+        <div id="inboundStatusList" class="status-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sec-manpower">
+    <div class="section-head"><h2>👷 MANPOWER</h2></div>
+    <div class="kpi-grid" id="manpowerKpis"></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="section-head"><h2 style="font-size:.9rem;">Manpower by Department</h2></div>
+        <div id="deptTableBox"></div>
+      </div>
+      <div class="card">
+        <div class="section-head">
+          <h2 style="font-size:.9rem;">Attendance Trend</h2>
+          <select id="attendanceRangeSelect" style="margin-left:auto;">
+            <option value="1">วันนี้</option>
+            <option value="7" selected>7 วัน</option>
+            <option value="30">30 วัน</option>
+          </select>
+        </div>
+        <div id="attendanceChart"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sec-safety">
+    <div class="section-head"><h2>🦺 SAFETY & ACCIDENT</h2></div>
+    <div class="kpi-grid" id="safetyKpis"></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="section-head">
+          <h2 style="font-size:.9rem;">Accident รายเดือน</h2>
+          <select id="accidentYearSelect" style="margin-left:auto;"></select>
+        </div>
+        <div id="accidentMonthlyChart"></div>
+      </div>
+      <div class="card">
+        <div class="section-head"><h2 style="font-size:.9rem;">Recent Incidents</h2></div>
+        <div id="recentIncidents"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section no-print">
+    <div class="card">
+      <div class="section-head"><h2 style="font-size:.95rem;">📑 Export Report</h2></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" data-export-report="daily">Export Daily Report</button>
+        <button class="btn" data-export-report="monthly">Export Monthly Report</button>
+        <button class="btn" data-export-report="yearly">Export Yearly Report</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="appfoot no-print">
+    <span>Last Data Update: <b id="lastUpdateFoot">-</b></span>
+    <span>System Status: <b id="sysStatusFoot">Online</b> · Auto Refresh: <span id="autoRefreshFoot">Off</span></span>
+  </footer>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="modalTitle">Detail</h3>
+      <button class="btn btn-icon" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsOverlay">
+  <div class="modal-box" style="max-width:560px;">
+    <div class="modal-head">
+      <h3>⚙️ Settings</h3>
+      <button class="btn btn-icon" id="settingsClose">✕</button>
+    </div>
+    <div class="modal-body" id="settingsBody"></div>
+  </div>
+</div>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import * as svc from './js/control-tower/data-service.js';
+import { exportCsv, exportExcel, printSection } from './js/control-tower/export-utils.js';
+
+const profile = await requireRole(['warehouse', 'admin', 'manager']);
+
+// ===================================================================
+// STATE
+// ===================================================================
+const LS = {
+  theme: 'wct_theme', thresholds: 'wct_thresholds', settings: 'wct_settings',
+};
+const state = {
+  range: 'today',
+  dayPreset: 'today',
+  filters: { warehouse: 'ALL', department: 'ALL', shift: 'ALL', channel: 'ALL', carrier: 'ALL', employeeType: 'ALL', status: 'ALL' },
+  thresholds: { ...svc.DEFAULT_THRESHOLDS, ...safeParse(localStorage.getItem(LS.thresholds)) },
+  settings: { autoRefreshSec: 0, tvMode: false, tvIntervalSec: 60, ...safeParse(localStorage.getItem(LS.settings)) },
+  attendanceDays: 7,
+  accidentYear: new Date().getFullYear(),
+};
+function safeParse(s) { try { return JSON.parse(s) || {}; } catch { return {}; } }
+function saveSettings() { localStorage.setItem(LS.settings, JSON.stringify(state.settings)); }
+function saveThresholds() { localStorage.setItem(LS.thresholds, JSON.stringify(state.thresholds)); }
+
+// ===================================================================
+// HELPERS
+// ===================================================================
+function fmtNum(n) { return Number(n || 0).toLocaleString('th-TH'); }
+function fmtPct(n) { return `${Number(n || 0).toFixed(1)}%`; }
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDateTime(iso) {
+  if (!iso) return '-';
+  try { return new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; }
+}
+const STATUS_COLOR_CLASS = {
+  SHIPPED: 'ok', COMPLETED: 'ok', PUTAWAY: 'info', READY: 'info', QC: 'info', PACKING: 'info', PICKING: 'info',
+  RECEIVING: 'info', EXPECTED: 'gray', PENDING: 'warn', CANCELLED: 'bad', ERROR: 'bad', REJECTED: 'bad',
+};
+function colorVar(cls) { return { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', info: 'var(--info)', gray: 'var(--gray)' }[cls] || 'var(--gray)'; }
+function statusClass(status) { return STATUS_COLOR_CLASS[status] || 'gray'; }
+
+function kpiEl({ label, value, sub, cls = 'info', big = false, onClick }) {
+  return `<div class="kpi ${big ? 'big' : ''} c-${cls}" ${onClick ? `data-action="${onClick}"` : ''}>
+    <div class="bar"></div>
+    <div class="lbl">${escapeHtml(label)}</div>
+    <div class="val">${value}</div>
+    ${sub ? `<div class="sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+// ===================== SVG charts (ไม่พึ่งไลบรารีภายนอก) =====================
+function svgBarChart(items, opts = {}) {
+  const w = opts.width || 760, h = opts.height || 230;
+  const padL = 42, padB = 34, padT = 18, padR = 14;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const max = Math.max(1, ...items.map(i => Number(i.value) || 0), ...items.map(i => Number(i.value2) || 0));
+  const n = Math.max(1, items.length);
+  const barW = innerW / n;
+  const bars = items.map((it, idx) => {
+    const val = Number(it.value) || 0;
+    const bh = (val / max) * innerH;
+    const x = padL + idx * barW + barW * 0.22;
+    const bw = barW * 0.56;
+    const y = padT + (innerH - bh);
+    const color = it.color || 'var(--accent)';
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(bh,1).toFixed(1)}" rx="3" fill="${color}"><title>${escapeHtml(it.label)}: ${fmtNum(val)}</title></rect>`;
+  }).join('');
+  const showEvery = n > 14 ? Math.ceil(n / 14) : 1;
+  const xLabels = items.map((it, idx) => {
+    if (idx % showEvery !== 0) return '';
+    const cx = padL + idx * barW + barW / 2;
+    return `<text x="${cx.toFixed(1)}" y="${(padT + innerH + 16).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">${escapeHtml(it.label)}</text>`;
+  }).join('');
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">
+    <line x1="${padL}" y1="${(padT+innerH).toFixed(1)}" x2="${(w-padR).toFixed(1)}" y2="${(padT+innerH).toFixed(1)}" stroke="var(--border)" stroke-width="1"/>
+    ${bars}${xLabels}</svg></div>`;
+}
+
+function svgDonut(items, opts = {}) {
+  const size = opts.size || 190, stroke = opts.stroke || 26;
+  const r = (size - stroke) / 2, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
+  const total = items.reduce((s, i) => s + i.value, 0) || 1;
+  let offset = 0;
+  const segs = items.filter(i => i.value > 0).map(i => {
+    const frac = i.value / total;
+    const len = frac * circ;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${i.color}" stroke-width="${stroke}"
+      stroke-dasharray="${len.toFixed(2)} ${(circ-len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})">
+      <title>${escapeHtml(i.label)}: ${fmtNum(i.value)} (${(frac*100).toFixed(1)}%)</title></circle>`;
+    offset += len;
+    return seg;
+  }).join('');
+  return `<svg viewBox="0 0 ${size} ${size}" style="width:100%;max-width:${size}px;display:block;margin:0 auto;">
+    ${segs}
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="22" font-weight="800" fill="var(--text)">${fmtNum(total)}</text>
+    <text x="${cx}" y="${cy+16}" text-anchor="middle" font-size="10" fill="var(--text-muted)">Total</text>
+  </svg>`;
+}
+
+function svgLineMulti(labels, series, opts = {}) {
+  const w = opts.width || 760, h = opts.height || 230;
+  const padL = 46, padB = 34, padT = 18, padR = 14;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  const allVals = series.flatMap(s => s.values.map(Number));
+  const max = Math.max(1, ...allVals), min = Math.min(0, ...allVals);
+  const range = (max - min) || 1;
+  const n = Math.max(1, labels.length);
+  const stepX = n > 1 ? innerW / (n - 1) : 0;
+  const xOf = i => padL + i * stepX;
+  const yOf = v => padT + innerH - ((v - min) / range) * innerH;
+  const grid = [0, 0.5, 1].map(f => {
+    const y = padT + innerH * (1 - f);
+    return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(w-padR).toFixed(1)}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1"/>`;
+  }).join('');
+  const lines = series.map(s => {
+    const pts = s.values.map((v, i) => `${xOf(i).toFixed(1)},${yOf(Number(v)).toFixed(1)}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-dasharray="${s.dash || ''}"/>`;
+  }).join('');
+  const showEvery = n > 12 ? Math.ceil(n / 12) : 1;
+  const xLabels = labels.map((lab, i) => i % showEvery === 0 ? `<text x="${xOf(i).toFixed(1)}" y="${(padT+innerH+16).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">${escapeHtml(lab)}</text>` : '').join('');
+  const legend = series.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:0.76rem;color:var(--text-muted);"><span style="width:10px;height:10px;border-radius:3px;background:${s.color};display:inline-block;"></span>${escapeHtml(s.name)}</span>`).join('');
+  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">${grid}${lines}${xLabels}</svg></div><div style="margin-top:4px;">${legend}</div>`;
+}
+
+// ===================================================================
+// GENERIC MODAL
+// ===================================================================
+const modalOverlay = document.getElementById('modalOverlay');
+const modalBody = document.getElementById('modalBody');
+const modalTitle = document.getElementById('modalTitle');
+function openModal(title, renderFn) {
+  modalTitle.textContent = title;
+  modalBody.innerHTML = '';
+  renderFn(modalBody);
+  modalOverlay.classList.add('open');
+}
+function closeModal() { modalOverlay.classList.remove('open'); modalBody.innerHTML = ''; }
+document.getElementById('modalClose').addEventListener('click', closeModal);
+modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+
+// ===================================================================
+// GENERIC DATA TABLE (search + sort + pagination + export)
+// ===================================================================
+function mountDataTable(container, { columns, fetchPage, exportFilename, onRowClick, extraToolbar = '' }) {
+  const localState = { search: '', sort: null, page: 1, pageSize: 25 };
+  function render() {
+    const result = fetchPage({ search: localState.search, sort: localState.sort, page: localState.page, pageSize: localState.pageSize });
+    const rows = result.rows;
+    container.innerHTML = `
+      <div class="modal-toolbar">
+        <input type="text" id="dtSearch" placeholder="🔎 ค้นหา..." value="${escapeHtml(localState.search)}" />
+        <select id="dtPageSize">
+          ${[10,25,50,100].map(n => `<option value="${n}" ${n===localState.pageSize?'selected':''}>${n} / หน้า</option>`).join('')}
+        </select>
+        <button class="btn" id="dtExportCsv">⬇ CSV</button>
+        <button class="btn" id="dtExportXlsx">⬇ Excel</button>
+        ${extraToolbar}
+        <span style="margin-left:auto;font-size:0.78rem;color:var(--text-muted);">พบ ${fmtNum(result.total)} รายการ</span>
+      </div>
+      <div style="overflow:auto;max-height:52vh;border:1px solid var(--border);border-radius:10px;">
+        <table class="dt">
+          <thead><tr>${columns.map(c => `<th data-field="${c.key}" class="${localState.sort && localState.sort.field===c.key ? 'sorted':''}">${escapeHtml(c.label)} ${localState.sort && localState.sort.field===c.key ? (localState.sort.dir==='asc'?'▲':'▼') : ''}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${rows.length ? rows.map((r, i) => `<tr data-idx="${i}">${columns.map(c => `<td>${c.render ? c.render(r) : escapeHtml(r[c.key] ?? '-')}</td>`).join('')}</tr>`).join('')
+              : `<tr><td colspan="${columns.length}" style="text-align:center;color:var(--text-muted);padding:24px;">ไม่พบข้อมูล</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination">
+        <button class="btn btn-icon" id="dtPrev" ${result.page<=1?'disabled':''}>‹</button>
+        <span>หน้า ${result.page} / ${result.totalPages}</span>
+        <button class="btn btn-icon" id="dtNext" ${result.page>=result.totalPages?'disabled':''}>›</button>
+      </div>
+    `;
+    container.querySelector('#dtSearch').addEventListener('input', e => { localState.search = e.target.value; localState.page = 1; render(); });
+    container.querySelector('#dtPageSize').addEventListener('change', e => { localState.pageSize = Number(e.target.value); localState.page = 1; render(); });
+    container.querySelector('#dtPrev').addEventListener('click', () => { localState.page = Math.max(1, localState.page - 1); render(); });
+    container.querySelector('#dtNext').addEventListener('click', () => { localState.page = Math.min(result.totalPages, localState.page + 1); render(); });
+    container.querySelectorAll('th[data-field]').forEach(th => th.addEventListener('click', () => {
+      const field = th.dataset.field;
+      if (localState.sort && localState.sort.field === field) {
+        localState.sort = localState.sort.dir === 'asc' ? { field, dir: 'desc' } : null;
+      } else localState.sort = { field, dir: 'asc' };
+      render();
+    }));
+    if (onRowClick) {
+      container.querySelectorAll('tbody tr[data-idx]').forEach(tr => tr.addEventListener('click', () => onRowClick(rows[Number(tr.dataset.idx)])));
+    }
+    container.querySelector('#dtExportCsv').addEventListener('click', () => {
+      const all = fetchPage({ search: localState.search, sort: localState.sort, page: 1, pageSize: 1000000 });
+      exportCsv(exportFilename, columns.map(c => ({ key: c.key, label: c.label, value: c.exportValue })), all.rows);
+    });
+    container.querySelector('#dtExportXlsx').addEventListener('click', () => {
+      const all = fetchPage({ search: localState.search, sort: localState.sort, page: 1, pageSize: 1000000 });
+      exportExcel(exportFilename, columns.map(c => ({ key: c.key, label: c.label, value: c.exportValue })), all.rows);
+    });
+  }
+  render();
+}
+
+function statusBadge(status, labelMap) {
+  const cls = statusClass(status);
+  return `<span class="badge" style="background:${colorVar(cls)}22;color:${colorVar(cls)};">${escapeHtml(labelMap[status] || status)}</span>`;
+}
+
+// ===================================================================
+// FILTER BAR
+// ===================================================================
+function buildFilterBar() {
+  const bar = document.getElementById('filterBar');
+  const opt = (v, l) => `<option value="${v}">${escapeHtml(l)}</option>`;
+  bar.innerHTML = `
+    <div class="fgroup"><label>Department</label><select id="f-department">${opt('ALL','ทั้งหมด')}${svc.DEPARTMENTS.map(d=>opt(d.code,d.label)).join('')}</select></div>
+    <div class="fgroup"><label>Shift</label><select id="f-shift">${opt('ALL','ทั้งหมด')}${svc.SHIFTS.map(s=>opt(s,s)).join('')}</select></div>
+    <div class="fgroup"><label>Channel</label><select id="f-channel">${opt('ALL','ทั้งหมด')}${svc.CHANNELS.map(s=>opt(s,s)).join('')}</select></div>
+    <div class="fgroup"><label>Carrier</label><select id="f-carrier">${opt('ALL','ทั้งหมด')}${svc.CARRIERS.map(s=>opt(s,s)).join('')}</select></div>
+    <div class="fgroup"><label>Employee Type</label><select id="f-employeeType">${opt('ALL','ทั้งหมด')}${svc.EMPLOYEE_TYPES.map(s=>opt(s,svc.EMPLOYEE_TYPE_LABEL[s])).join('')}</select></div>
+    <div class="fgroup"><label>Outbound Status</label><select id="f-status">${opt('ALL','ทั้งหมด')}${svc.OUTBOUND_STATUSES.map(s=>opt(s,svc.OUTBOUND_STATUS_LABEL[s])).join('')}</select></div>
+    <div class="fgroup"><label>&nbsp;</label><button class="btn" id="f-clear">ล้างตัวกรอง</button></div>
+  `;
+  ['department','shift','channel','carrier','employeeType','status'].forEach(f => {
+    bar.querySelector(`#f-${f}`).addEventListener('change', e => { state.filters[f] = e.target.value; renderAll(); });
+  });
+  bar.querySelector('#f-clear').addEventListener('click', () => {
+    state.filters = { warehouse: state.filters.warehouse, department:'ALL', shift:'ALL', channel:'ALL', carrier:'ALL', employeeType:'ALL', status:'ALL' };
+    buildFilterBar(); renderAll();
+  });
+}
+
+// ===================================================================
+// CLOCK / AUTO REFRESH
+// ===================================================================
+function tickClock() {
+  const now = new Date();
+  document.getElementById('clockTime').textContent = now.toLocaleTimeString('th-TH', { hour12: false });
+  document.getElementById('clockDate').textContent = now.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+setInterval(tickClock, 1000); tickClock();
+
+function syncHeaderOffset() {
+  const h = document.querySelector('header.topbar');
+  if (h) document.documentElement.style.setProperty('--header-offset', h.offsetHeight + 'px');
+}
+new ResizeObserver(syncHeaderOffset).observe(document.querySelector('header.topbar'));
+window.addEventListener('resize', syncHeaderOffset);
+syncHeaderOffset();
+
+let autoRefreshTimer = null;
+function setupAutoRefresh() {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  const sec = state.settings.autoRefreshSec;
+  document.getElementById('autoRefreshFoot').textContent = sec > 0 ? `ทุก ${sec >= 60 ? (sec/60)+' นาที' : sec+' วินาที'}` : 'Off';
+  if (sec > 0) autoRefreshTimer = setInterval(async () => { await svc.refreshDataService(); renderAll(); }, sec * 1000);
+}
+
+// TV rotation
+let tvTimer = null;
+const TV_SECTIONS = ['sec-overview', 'sec-outbound', 'sec-inbound', 'sec-manpower', 'sec-safety'];
+let tvIdx = 0;
+function setupTvMode() {
+  if (tvTimer) clearInterval(tvTimer);
+  document.querySelectorAll('.tv-highlight').forEach(el => el.classList.remove('tv-highlight'));
+  document.body.classList.toggle('tv-mode', state.settings.tvMode);
+  if (!state.settings.tvMode) return;
+  tvIdx = 0;
+  const rotate = () => {
+    document.querySelectorAll('.tv-highlight').forEach(el => el.classList.remove('tv-highlight'));
+    const id = TV_SECTIONS[tvIdx % TV_SECTIONS.length];
+    const el = document.getElementById(id);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('tv-highlight'); }
+    tvIdx++;
+  };
+  rotate();
+  tvTimer = setInterval(rotate, state.settings.tvIntervalSec * 1000);
+}
+
+// ===================================================================
+// RENDER: OVERVIEW (Health + Alerts)
+// ===================================================================
+function currentFilters() {
+  return { ...state.filters, range: svc.resolveRange(state.range), dayPreset: state.dayPreset };
+}
+
+function computeAllKpis() {
+  const f = currentFilters();
+  return {
+    outbound: svc.getOutboundKPIs(f),
+    inbound: svc.getInboundKPIs(f),
+    manpower: svc.getManpowerKPIs(f),
+    safety: svc.getAccidentKPIs({ ...f, range: state.range === 'today' || state.range === 'yesterday' ? svc.resolveRange('year') : f.range }),
+  };
+}
+
+function renderHealthAndAlerts(kpis) {
+  const health = svc.computeHealthStatus(kpis, state.thresholds);
+  const ICON = { NORMAL: '🟢', WARNING: '🟡', CRITICAL: '🔴' };
+  document.getElementById('healthBox').innerHTML = `
+    <div class="health-badge ${health.level}">${ICON[health.level]} ${health.level}</div>
+    <ul style="margin:12px 0 0;padding-left:18px;font-size:0.82rem;color:var(--text-muted);">
+      ${health.reasons.length ? health.reasons.map(r => `<li>${escapeHtml(r)}</li>`).join('') : '<li>ทุกตัวชี้วัดอยู่ในเกณฑ์ปกติ</li>'}
+    </ul>
+    <div style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);">
+      Outbound ${fmtPct(kpis.outbound.achievedPct)} · Inbound ${fmtPct(kpis.inbound.achievedPct)} · Manpower ${fmtPct(kpis.manpower.availabilityPct)} · Open Accidents ${kpis.safety.openCount}
+    </div>`;
+  const alerts = svc.getAlerts(kpis, state.thresholds);
+  document.getElementById('alertBox').innerHTML = alerts.map(a =>
+    `<div class="alert-row ${a.level}" data-alert-target="${a.target || ''}" data-alert-filter='${JSON.stringify(a.filter||{})}'>
+      <span class="alert-dot"></span>${{CRITICAL:'🔴',WARNING:'🟡',NORMAL:'🟢'}[a.level]} ${escapeHtml(a.text)}
+    </div>`).join('');
+  document.querySelectorAll('#alertBox [data-alert-target]').forEach(el => el.addEventListener('click', () => {
+    const target = el.dataset.alertTarget;
+    const filter = JSON.parse(el.dataset.alertFilter || '{}');
+    if (target === 'outbound-status') openOutboundDrilldown(filter.status || 'ALL');
+    else if (target === 'inbound-status') openInboundDrilldown(filter.status || 'ALL');
+    else if (target === 'manpower-dept') openEmployeesDrilldown('ALL');
+    else if (target === 'accident-list') openAccidentsDrilldown();
+  }));
+}
+
+// ===================================================================
+// RENDER: OUTBOUND
+// ===================================================================
+function renderOutbound(kpis) {
+  const k = kpis.outbound;
+  document.getElementById('outboundRangeTag').textContent = rangeLabel();
+  const cards = [
+    kpiEl({ label: 'Total Orders', value: fmtNum(k.total), cls: 'info', big: true, onClick: 'outbound:ALL' }),
+    kpiEl({ label: 'Picking', value: fmtNum(k.buckets.PICKING), cls: 'info', onClick: 'outbound:PICKING' }),
+    kpiEl({ label: 'Packing', value: fmtNum(k.buckets.PACKING), cls: 'info', onClick: 'outbound:PACKING' }),
+    kpiEl({ label: 'QC', value: fmtNum(k.buckets.QC), cls: 'info', onClick: 'outbound:QC' }),
+    kpiEl({ label: 'Ready', value: fmtNum(k.buckets.READY), cls: 'info', onClick: 'outbound:READY' }),
+    kpiEl({ label: 'Shipped', value: fmtNum(k.buckets.SHIPPED), cls: 'ok', onClick: 'outbound:SHIPPED' }),
+    kpiEl({ label: 'Pending', value: fmtNum(k.buckets.PENDING), cls: 'warn', onClick: 'outbound:PENDING' }),
+    kpiEl({ label: 'Cancelled', value: fmtNum(k.buckets.CANCELLED), cls: 'bad', onClick: 'outbound:CANCELLED' }),
+    kpiEl({ label: 'Error', value: fmtNum(k.buckets.ERROR), cls: 'bad', onClick: 'outbound:ERROR' }),
+  ];
+  document.getElementById('outboundKpis').innerHTML = cards.join('') + `
+    <div class="kpi c-info" style="cursor:default;grid-column:span 2;">
+      <div class="lbl">Progress / Target vs Actual</div>
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-muted);margin:6px 0 3px;">
+        <span>Progress ${fmtPct(k.progressPct)}</span><span>เป้า ${fmtNum(k.target)}</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,k.progressPct)}%;"></div></div>
+      <div style="margin-top:8px;font-size:.78rem;">Achieved vs Target: <b>${fmtPct(k.achievedPct)}</b></div>
+    </div>`;
+  document.querySelectorAll('#outboundKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
+    const [, status] = el.dataset.action.split(':'); openOutboundDrilldown(status);
+  }));
+
+  const hourly = svc.getOutboundHourly(currentFilters());
+  document.getElementById('outboundHourlyChart').innerHTML = svgBarChart(
+    hourly.map(h => ({ label: `${h.hour}:00`, value: h.created, value2: h.processed })), { }
+  ) + `<div style="font-size:.72rem;color:var(--text-muted);">แท่ง = จำนวนออเดอร์ที่สร้างในชั่วโมงนั้น</div>`;
+
+  const statusItems = svc.OUTBOUND_STATUSES.map(s => ({ label: svc.OUTBOUND_STATUS_LABEL[s], value: k.buckets[s], color: colorVar(statusClass(s)), key: s }));
+  document.getElementById('outboundStatusList').innerHTML = `
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+      <div style="flex-shrink:0;">${svgDonut(statusItems)}</div>
+      <div style="flex:1;min-width:200px;">
+        ${statusItems.map(it => `<div class="status-row" data-status="${it.key}"><span class="dot" style="background:${it.color};"></span><span class="name">${escapeHtml(it.label)}</span><span class="count">${fmtNum(it.value)}</span><span class="pct">${k.total? ((it.value/k.total)*100).toFixed(0):0}%</span></div>`).join('')}
+      </div>
+    </div>`;
+  document.querySelectorAll('#outboundStatusList .status-row').forEach(el => el.addEventListener('click', () => openOutboundDrilldown(el.dataset.status)));
+}
+
+function openOutboundDrilldown(status) {
+  openModal(`📤 Outbound Orders ${status !== 'ALL' ? '— ' + svc.OUTBOUND_STATUS_LABEL[status] : ''}`, (body) => {
+    const f = { ...currentFilters(), status: status === 'ALL' ? 'ALL' : status };
+    mountDataTable(body, {
+      columns: [
+        { key: 'order_id', label: 'Order ID' }, { key: 'sku', label: 'SKU' }, { key: 'product', label: 'Product' },
+        { key: 'channel', label: 'Channel' }, { key: 'carrier', label: 'Carrier' },
+        { key: 'status', label: 'Status', render: r => statusBadge(r.status, svc.OUTBOUND_STATUS_LABEL), exportValue: r => svc.OUTBOUND_STATUS_LABEL[r.status] },
+        { key: 'created_at', label: 'สร้างเมื่อ', render: r => fmtDateTime(r.created_at) },
+        { key: 'employee', label: 'ผู้รับผิดชอบ' },
+      ],
+      fetchPage: (opts) => svc.listOutboundOrders(f, opts),
+      exportFilename: 'outbound-orders',
+      onRowClick: (row) => openOutboundDetail(row),
+    });
+  });
+}
+function openOutboundDetail(row) {
+  openModal(`Order ${row.order_id}`, (body) => {
+    body.innerHTML = `<div class="detail-grid">
+      ${detailItem('Order ID', row.order_id)}${detailItem('SKU', row.sku)}${detailItem('Product', row.product)}
+      ${detailItem('Quantity', fmtNum(row.quantity))}${detailItem('Channel', row.channel)}${detailItem('Carrier', row.carrier)}
+      ${detailItem('Status', svc.OUTBOUND_STATUS_LABEL[row.status])}${detailItem('Warehouse', row.warehouse)}${detailItem('Shift', row.shift)}
+      ${detailItem('ผู้รับผิดชอบ', row.employee)}
+      ${detailItem('สร้างเมื่อ', fmtDateTime(row.created_at))}${detailItem('หยิบแล้ว', fmtDateTime(row.picked_at))}
+      ${detailItem('แพ็คแล้ว', fmtDateTime(row.packed_at))}${detailItem('QC แล้ว', fmtDateTime(row.qc_at))}
+      ${detailItem('จัดส่งแล้ว', fmtDateTime(row.shipped_at))}
+    </div>`;
+  });
+}
+function detailItem(label, value) { return `<div class="di"><label>${escapeHtml(label)}</label><div class="v">${value ?? '-'}</div></div>`; }
+
+// ===================================================================
+// RENDER: INBOUND
+// ===================================================================
+function renderInbound(kpis) {
+  const k = kpis.inbound;
+  document.getElementById('inboundRangeTag').textContent = rangeLabel();
+  const cards = [
+    kpiEl({ label: 'Total Inbound', value: fmtNum(k.total), cls: 'info', big: true, onClick: 'inbound:ALL' }),
+    kpiEl({ label: 'Expected', value: fmtNum(k.buckets.EXPECTED), cls: 'gray', onClick: 'inbound:EXPECTED' }),
+    kpiEl({ label: 'Receiving', value: fmtNum(k.buckets.RECEIVING), cls: 'info', onClick: 'inbound:RECEIVING' }),
+    kpiEl({ label: 'QC', value: fmtNum(k.buckets.QC), cls: 'info', onClick: 'inbound:QC' }),
+    kpiEl({ label: 'Put Away', value: fmtNum(k.buckets.PUTAWAY), cls: 'info', onClick: 'inbound:PUTAWAY' }),
+    kpiEl({ label: 'Completed', value: fmtNum(k.buckets.COMPLETED), cls: 'ok', onClick: 'inbound:COMPLETED' }),
+    kpiEl({ label: 'Pending', value: fmtNum(k.buckets.PENDING), cls: 'warn', onClick: 'inbound:PENDING' }),
+    kpiEl({ label: 'Rejected', value: fmtNum(k.buckets.REJECTED), cls: 'bad', onClick: 'inbound:REJECTED' }),
+    kpiEl({ label: 'Total SKU', value: fmtNum(k.totalSku ?? '-'), cls: 'gray' }),
+    kpiEl({ label: 'Total Qty', value: fmtNum(k.receivedQty), sub: `จาก ${fmtNum(k.expectedQty)}`, cls: 'gray' }),
+    kpiEl({ label: 'Total Carton', value: fmtNum(k.carton), cls: 'gray' }),
+    kpiEl({ label: 'Total Pallet', value: fmtNum(k.pallet), cls: 'gray' }),
+  ];
+  document.getElementById('inboundKpis').innerHTML = cards.join('');
+  document.querySelectorAll('#inboundKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
+    const [, status] = el.dataset.action.split(':'); openInboundDrilldown(status);
+  }));
+
+  const trend = svc.getInboundTrend(currentFilters()).slice(-30);
+  document.getElementById('inboundTrendChart').innerHTML = svgLineMulti(
+    trend.map(t => t.date.slice(5)),
+    [
+      { name: 'Actual (Completed)', values: trend.map(t => t.COMPLETED || 0), color: 'var(--accent)' },
+      { name: 'Target', values: trend.map(t => t.target || 0), color: 'var(--gray)', dash: '4 3' },
+    ]
+  );
+
+  const statusItems = svc.INBOUND_STATUSES.map(s => ({ label: svc.INBOUND_STATUS_LABEL[s], value: k.buckets[s], color: colorVar(statusClass(s)), key: s }));
+  document.getElementById('inboundStatusList').innerHTML = `
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+      <div style="flex-shrink:0;">${svgDonut(statusItems)}</div>
+      <div style="flex:1;min-width:200px;">
+        ${statusItems.map(it => `<div class="status-row" data-status="${it.key}"><span class="dot" style="background:${it.color};"></span><span class="name">${escapeHtml(it.label)}</span><span class="count">${fmtNum(it.value)}</span><span class="pct">${k.total? ((it.value/k.total)*100).toFixed(0):0}%</span></div>`).join('')}
+      </div>
+    </div>`;
+  document.querySelectorAll('#inboundStatusList .status-row').forEach(el => el.addEventListener('click', () => openInboundDrilldown(el.dataset.status)));
+}
+
+function openInboundDrilldown(status) {
+  openModal(`📥 Inbound ${status !== 'ALL' ? '— ' + svc.INBOUND_STATUS_LABEL[status] : ''}`, (body) => {
+    const f = { ...currentFilters(), status: status === 'ALL' ? 'ALL' : status };
+    mountDataTable(body, {
+      columns: [
+        { key: 'inbound_no', label: 'Inbound No.' }, { key: 'supplier', label: 'Supplier' }, { key: 'sku', label: 'SKU' },
+        { key: 'product', label: 'Product' }, { key: 'expected_qty', label: 'Expected' }, { key: 'received_qty', label: 'Received' },
+        { key: 'status', label: 'Status', render: r => statusBadge(r.status, svc.INBOUND_STATUS_LABEL), exportValue: r => svc.INBOUND_STATUS_LABEL[r.status] },
+        { key: 'qc_status', label: 'QC' }, { key: 'location', label: 'Location' },
+        { key: 'receive_date', label: 'วันที่', render: r => fmtDateTime(r.receive_date) },
+        { key: 'responsible', label: 'ผู้รับผิดชอบ' },
+      ],
+      fetchPage: (opts) => svc.listInboundOrders(f, opts),
+      exportFilename: 'inbound-orders',
+    });
+  });
+}
+
+// ===================================================================
+// RENDER: MANPOWER
+// ===================================================================
+function renderManpower(kpis) {
+  const k = kpis.manpower;
+  document.getElementById('manpowerKpis').innerHTML = [
+    kpiEl({ label: 'Total', value: fmtNum(k.total), sub: `${fmtNum(k.present)} มาปฏิบัติงาน`, cls: 'info', big: true, onClick: 'emp:ALL' }),
+    kpiEl({ label: 'In-House', value: fmtNum(k.byType.IN_HOUSE), cls: 'ok', onClick: 'emp:IN_HOUSE' }),
+    kpiEl({ label: 'Outsource', value: fmtNum(k.byType.OUTSOURCE), cls: 'info', onClick: 'emp:OUTSOURCE' }),
+    kpiEl({ label: 'Part-Time', value: fmtNum(k.byType.PART_TIME), cls: 'gray', onClick: 'emp:PART_TIME' }),
+    kpiEl({ label: 'Availability', value: fmtPct(k.availabilityPct), cls: k.availabilityPct >= state.thresholds.manpowerWarningPct ? 'ok' : k.availabilityPct >= state.thresholds.manpowerCriticalPct ? 'warn' : 'bad' }),
+  ].join('');
+  document.querySelectorAll('#manpowerKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
+    const [, type] = el.dataset.action.split(':'); openEmployeesDrilldown(type);
+  }));
+
+  const deptRows = svc.getManpowerByDepartment(currentFilters());
+  document.getElementById('deptTableBox').innerHTML = `
+    <div style="overflow:auto;max-height:340px;">
+      <table class="dt">
+        <thead><tr><th>Department</th><th>In-House</th><th>Outsource</th><th>Part-Time</th><th>Present</th><th>Absent</th><th>OT (ชม.)</th></tr></thead>
+        <tbody>${deptRows.map(d => `<tr class="dept-row" data-dept="${d.department}">
+          <td><b>${escapeHtml(d.label)}</b></td><td>${fmtNum(d.inHouse)}</td><td>${fmtNum(d.outsource)}</td><td>${fmtNum(d.partTime)}</td>
+          <td>${fmtNum(d.present)}/${fmtNum(d.total)}</td><td>${fmtNum(d.absent)}</td><td>${fmtNum(d.ot)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  document.querySelectorAll('#deptTableBox .dept-row').forEach(el => el.addEventListener('click', () => openEmployeesDrilldown('ALL', el.dataset.dept)));
+
+  renderAttendanceChart();
+}
+function renderAttendanceChart() {
+  const trend = svc.getAttendanceTrend(currentFilters(), state.attendanceDays);
+  document.getElementById('attendanceChart').innerHTML = svgLineMulti(
+    trend.map(t => t.date.slice(5)),
+    [
+      { name: 'Present', values: trend.map(t => t.present), color: 'var(--ok)' },
+      { name: 'Absent', values: trend.map(t => t.absent), color: 'var(--bad)' },
+      { name: 'Leave', values: trend.map(t => t.leave), color: 'var(--gray)' },
+      { name: 'Late', values: trend.map(t => t.late), color: 'var(--warn)' },
+      { name: 'OT', values: trend.map(t => t.ot), color: 'var(--accent)' },
+    ]
+  );
+}
+function openEmployeesDrilldown(employeeType, department) {
+  openModal(`👷 พนักงาน ${employeeType !== 'ALL' ? '— ' + svc.EMPLOYEE_TYPE_LABEL[employeeType] : ''}`, (body) => {
+    const f = { ...currentFilters(), employeeType: employeeType === 'ALL' ? 'ALL' : employeeType, department: department || currentFilters().department };
+    mountDataTable(body, {
+      columns: [
+        { key: 'employee_code', label: 'รหัส' }, { key: 'name', label: 'ชื่อ' },
+        { key: 'department', label: 'แผนก', render: r => svc.DEPARTMENTS.find(d=>d.code===r.department)?.label || r.department },
+        { key: 'employee_type', label: 'ประเภท', render: r => svc.EMPLOYEE_TYPE_LABEL[r.employee_type] },
+        { key: 'shift', label: 'กะ' },
+        { key: 'attendance', label: 'สถานะวันนี้', render: r => statusBadge(r.attendance, { PRESENT:'มาปฏิบัติงาน', ABSENT:'ขาด', LEAVE:'ลา', LATE:'สาย' }) },
+        { key: 'check_in', label: 'เข้างาน' }, { key: 'ot', label: 'OT (ชม.)' },
+      ],
+      fetchPage: (opts) => svc.listEmployees(f, opts),
+      exportFilename: 'employees',
+    });
+  });
+}
+
+// ===================================================================
+// RENDER: SAFETY / ACCIDENT
+// ===================================================================
+function renderSafety(kpis) {
+  const k = kpis.safety;
+  document.getElementById('safetyKpis').innerHTML = [
+    kpiEl({ label: 'Total Accident', value: fmtNum(k.yearTotal), sub: 'สะสมปีนี้', cls: k.yearTotal ? 'warn' : 'ok', big: true, onClick: 'acc:ALL' }),
+    kpiEl({ label: 'Lost Time Injury', value: fmtNum(k.bySeverity.LTI), cls: k.bySeverity.LTI ? 'bad' : 'ok', onClick: 'acc:LTI' }),
+    kpiEl({ label: 'First Aid', value: fmtNum(k.bySeverity.FIRST_AID), cls: 'warn', onClick: 'acc:FIRST_AID' }),
+    kpiEl({ label: 'Near Miss', value: fmtNum(k.bySeverity.NEAR_MISS), cls: 'info', onClick: 'acc:NEAR_MISS' }),
+    kpiEl({ label: 'Property Damage', value: fmtNum(k.bySeverity.PROPERTY_DAMAGE), cls: 'gray', onClick: 'acc:PROPERTY_DAMAGE' }),
+    kpiEl({ label: 'Fatality', value: fmtNum(k.bySeverity.FATALITY), cls: k.bySeverity.FATALITY ? 'bad' : 'ok', onClick: 'acc:FATALITY' }),
+    kpiEl({ label: 'วันทำงานไม่มีอุบัติเหตุ', value: fmtNum(k.daysWithoutAccident), cls: 'ok' }),
+  ].join('');
+  document.querySelectorAll('#safetyKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
+    const [, sev] = el.dataset.action.split(':'); openAccidentsDrilldown(sev);
+  }));
+
+  const yearSel = document.getElementById('accidentYearSelect');
+  if (!yearSel.dataset.init) {
+    const thisYear = new Date().getFullYear();
+    yearSel.innerHTML = [thisYear, thisYear - 1].map(y => `<option value="${y}">${y}</option>`).join('');
+    yearSel.value = state.accidentYear;
+    yearSel.dataset.init = '1';
+    yearSel.addEventListener('change', () => { state.accidentYear = Number(yearSel.value); renderSafety(computeAllKpis()); });
+  }
+  const monthly = svc.getAccidentMonthly(currentFilters(), state.accidentYear);
+  const MONTH_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  document.getElementById('accidentMonthlyChart').innerHTML = svgLineMulti(
+    monthly.map(m => MONTH_TH[m.month]),
+    [
+      { name: 'Accident', values: monthly.map(m => m.accident), color: 'var(--bad)' },
+      { name: 'Near Miss', values: monthly.map(m => m.nearMiss), color: 'var(--info)' },
+      { name: 'Property Damage', values: monthly.map(m => m.propertyDamage), color: 'var(--warn)' },
+    ]
+  );
+
+  const dataset = svc.getDataset();
+  const recent = [...dataset.accidents].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+  document.getElementById('recentIncidents').innerHTML = recent.length ? recent.map(a => `
+    <div class="status-row" data-acc-id="${a.id}">
+      <span class="dot" style="background:${colorVar(a.severity==='LTI'||a.severity==='FATALITY'?'bad':a.severity==='FIRST_AID'||a.severity==='PROPERTY_DAMAGE'?'warn':'info')};"></span>
+      <span class="name">${escapeHtml(a.accident_no)} · ${escapeHtml(a.department)} · ${escapeHtml(a.type)}</span>
+      <span class="pct" style="width:auto;">${escapeHtml(a.date)}</span>
+    </div>`).join('') : '<div style="color:var(--text-muted);font-size:.82rem;">ไม่มีข้อมูล</div>';
+  document.querySelectorAll('#recentIncidents [data-acc-id]').forEach(el => el.addEventListener('click', () => {
+    const acc = dataset.accidents.find(a => a.id === el.dataset.accId);
+    if (acc) openAccidentDetail(acc);
+  }));
+}
+
+function openAccidentsDrilldown(severity) {
+  openModal(`🦺 Accident Report ${severity && severity !== 'ALL' ? '— ' + svc.ACCIDENT_SEVERITY_LABEL[severity] : ''}`, (body) => {
+    const f = { ...currentFilters(), severity: severity || 'ALL', range: svc.resolveRange('year', new Date(), null), department: currentFilters().department };
+    mountDataTable(body, {
+      columns: [
+        { key: 'accident_no', label: 'Accident No.' }, { key: 'date', label: 'วันที่' }, { key: 'time', label: 'เวลา' },
+        { key: 'department', label: 'แผนก' }, { key: 'type', label: 'ประเภท' },
+        { key: 'severity', label: 'ความรุนแรง', render: r => statusBadge(r.severity, svc.ACCIDENT_SEVERITY_LABEL), exportValue: r => svc.ACCIDENT_SEVERITY_LABEL[r.severity] },
+        { key: 'status', label: 'สถานะ' }, { key: 'responsible', label: 'ผู้รับผิดชอบ' },
+      ],
+      fetchPage: (opts) => svc.listAccidents(f, opts),
+      exportFilename: 'accidents',
+      onRowClick: (row) => openAccidentDetail(row),
+    });
+  });
+}
+function openAccidentDetail(row) {
+  openModal(`อุบัติเหตุ ${row.accident_no}`, (body) => {
+    body.innerHTML = `<div class="detail-grid">
+      ${detailItem('วันที่เกิดเหตุ', row.date)}${detailItem('เวลา', row.time)}${detailItem('พื้นที่', row.location)}
+      ${detailItem('แผนก', row.department)}${detailItem('ประเภทอุบัติเหตุ', row.type)}${detailItem('ผู้เกี่ยวข้อง', row.employee)}
+      ${detailItem('ความรุนแรง', svc.ACCIDENT_SEVERITY_LABEL[row.severity])}${detailItem('สถานะ', row.status)}
+      ${detailItem('สาเหตุ', row.cause)}${detailItem('ความเสียหาย', row.damage)}
+      ${detailItem('ผู้รับผิดชอบ', row.responsible)}${detailItem('ปิดงานเมื่อ', row.closed_date || '-')}
+    </div>
+    <div style="margin-top:14px;"><label style="font-size:.68rem;color:var(--text-muted);text-transform:uppercase;">ลักษณะเหตุการณ์</label><p style="font-size:.86rem;">${escapeHtml(row.description)}</p></div>
+    <div><label style="font-size:.68rem;color:var(--text-muted);text-transform:uppercase;">การแก้ไข</label><p style="font-size:.86rem;">${escapeHtml(row.corrective_action)}</p></div>
+    <div style="font-size:.76rem;color:var(--text-muted);">📎 รูปภาพแนบ: ${row.main_image_count || 0} รูป</div>`;
+  });
+}
+
+// ===================================================================
+// RANGE / SETTINGS / THEME / FULLSCREEN
+// ===================================================================
+function rangeLabel() { return { today: 'วันนี้', yesterday: 'เมื่อวาน', month: 'เดือนนี้', year: 'ปีนี้' }[state.range] || state.range; }
+
+document.getElementById('rangeSelect').addEventListener('change', e => { state.range = e.target.value; state.dayPreset = e.target.value; renderAll(); });
+document.getElementById('attendanceRangeSelect').addEventListener('change', e => { state.attendanceDays = Number(e.target.value); renderAttendanceChart(); });
+document.getElementById('btnRefresh').addEventListener('click', async () => { await svc.refreshDataService(); renderAll(true); });
+document.getElementById('btnToggleFilters').addEventListener('click', () => document.getElementById('filterBar').classList.toggle('open'));
+
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', cur);
+  localStorage.setItem(LS.theme, cur);
+  document.getElementById('btnTheme').textContent = cur === 'dark' ? '☀️' : '🌙';
+});
+(function initTheme() {
+  const saved = localStorage.getItem(LS.theme) || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  document.getElementById('btnTheme').textContent = saved === 'dark' ? '☀️' : '🌙';
+})();
+
+document.getElementById('btnFullscreen').addEventListener('click', () => {
+  if (!document.fullscreenElement) { document.documentElement.requestFullscreen?.(); document.body.classList.add('fullscreen-mode'); }
+  else { document.exitFullscreen?.(); document.body.classList.remove('fullscreen-mode'); }
+});
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) document.body.classList.remove('fullscreen-mode'); });
+
+document.getElementById('btnTv').addEventListener('click', () => { state.settings.tvMode = !state.settings.tvMode; saveSettings(); setupTvMode(); });
+
+const settingsOverlay = document.getElementById('settingsOverlay');
+document.getElementById('btnSettings').addEventListener('click', () => { renderSettings(); settingsOverlay.classList.add('open'); });
+document.getElementById('settingsClose').addEventListener('click', () => settingsOverlay.classList.remove('open'));
+settingsOverlay.addEventListener('click', e => { if (e.target === settingsOverlay) settingsOverlay.classList.remove('open'); });
+
+const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', warehouse: 'คลังสินค้า', sales: 'ฝ่ายขาย', accounting: 'บัญชี' };
+const canEditThresholds = () => profile.role === 'admin' || profile.role === 'manager';
+
+function renderSettings() {
+  const t = state.thresholds, s = state.settings;
+  document.getElementById('settingsBody').innerHTML = `
+    <h4 style="margin:0 0 8px;font-size:.85rem;">บัญชีที่ login</h4>
+    <p style="font-size:.82rem;color:var(--text-muted);margin:0 0 16px;">
+      ${escapeHtml(profile.name || profile.email)} — ${ROLE_LABEL[profile.role] || profile.role}${profile.wctDepartment ? ` · แผนก ${svc.DEPARTMENTS.find(d=>d.code===profile.wctDepartment)?.label || profile.wctDepartment}` : ''}
+      <br/><a href="control-tower-entry.html" style="color:var(--accent);">📝 ไปหน้ากรอกข้อมูล →</a>
+    </p>
+    <h4 style="margin:0 0 8px;font-size:.85rem;">Auto Refresh</h4>
+    <select id="st-refresh" style="width:100%;margin-bottom:16px;">
+      <option value="0" ${s.autoRefreshSec===0?'selected':''}>Off</option>
+      <option value="60" ${s.autoRefreshSec===60?'selected':''}>ทุก 1 นาที</option>
+      <option value="120" ${s.autoRefreshSec===120?'selected':''}>ทุก 2 นาที</option>
+      <option value="300" ${s.autoRefreshSec===300?'selected':''}>ทุก 5 นาที</option>
+    </select>
+    <h4 style="margin:0 0 8px;font-size:.85rem;">TV / Control Room Mode</h4>
+    <select id="st-tvsec" style="width:100%;margin-bottom:16px;">
+      <option value="30" ${s.tvIntervalSec===30?'selected':''}>สลับทุก 30 วินาที</option>
+      <option value="60" ${s.tvIntervalSec===60?'selected':''}>สลับทุก 60 วินาที</option>
+      <option value="120" ${s.tvIntervalSec===120?'selected':''}>สลับทุก 120 วินาที</option>
+    </select>
+    ${canEditThresholds() ? `
+    <h4 style="margin:0 0 8px;font-size:.85rem;">Warehouse Health Thresholds</h4>
+    <div class="detail-grid" style="margin-bottom:16px;">
+      ${thNum('outboundWarningPct','Outbound Warning %',t.outboundWarningPct)}${thNum('outboundCriticalPct','Outbound Critical %',t.outboundCriticalPct)}
+      ${thNum('inboundWarningPct','Inbound Warning %',t.inboundWarningPct)}${thNum('inboundCriticalPct','Inbound Critical %',t.inboundCriticalPct)}
+      ${thNum('manpowerWarningPct','Manpower Warning %',t.manpowerWarningPct)}${thNum('manpowerCriticalPct','Manpower Critical %',t.manpowerCriticalPct)}
+    </div>` : ''}
+    <button class="btn btn-primary" id="st-save" style="width:100%;">บันทึก Settings</button>
+  `;
+  function thNum(key, label, val) { return `<div class="di"><label>${label}</label><input type="number" id="th-${key}" value="${val}" style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--panel-2);color:var(--text);"/></div>`; }
+  document.getElementById('st-save').addEventListener('click', () => {
+    state.settings.autoRefreshSec = Number(document.getElementById('st-refresh').value);
+    state.settings.tvIntervalSec = Number(document.getElementById('st-tvsec').value);
+    if (canEditThresholds()) {
+      ['outboundWarningPct','outboundCriticalPct','inboundWarningPct','inboundCriticalPct','manpowerWarningPct','manpowerCriticalPct'].forEach(k => {
+        state.thresholds[k] = Number(document.getElementById(`th-${k}`).value);
+      });
+      saveThresholds();
+    }
+    saveSettings();
+    setupAutoRefresh(); setupTvMode();
+    settingsOverlay.classList.remove('open');
+    renderAll();
+  });
+}
+function applyRole() {
+  document.getElementById('rolePill').textContent = ROLE_LABEL[profile.role] || profile.role;
+}
+
+// ===================================================================
+// EXPORT REPORT
+// ===================================================================
+document.querySelectorAll('[data-export-report]').forEach(btn => btn.addEventListener('click', () => {
+  const period = btn.dataset.exportReport;
+  const rangeMap = { daily: 'today', monthly: 'month', yearly: 'year' };
+  const f = { ...state.filters, range: svc.resolveRange(rangeMap[period]) };
+  const ob = svc.getOutboundKPIs(f), ib = svc.getInboundKPIs(f), mp = svc.getManpowerKPIs(f), sf = svc.getAccidentKPIs({ ...f, range: svc.resolveRange('year') });
+  const rows = [
+    { metric: 'Outbound Total', value: ob.total }, { metric: 'Outbound Shipped', value: ob.buckets.SHIPPED },
+    { metric: 'Outbound Pending', value: ob.buckets.PENDING }, { metric: 'Inbound Total', value: ib.total },
+    { metric: 'Inbound Completed', value: ib.buckets.COMPLETED }, { metric: 'Manpower Total', value: mp.total },
+    { metric: 'Manpower Present', value: mp.present }, { metric: 'Accident (Year)', value: sf.yearTotal },
+  ];
+  exportCsv(`warehouse-${period}-report`, [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }], rows);
+}));
+
+// ===================================================================
+// INIT / RENDER ALL
+// ===================================================================
+function populateWarehouseSelect() {
+  const sel = document.getElementById('warehouseSelect');
+  sel.innerHTML = `<option value="ALL">ทุกคลัง</option>` + svc.WAREHOUSES.map(w => `<option value="${w.code}">${w.label}</option>`).join('');
+  sel.addEventListener('change', () => { state.filters.warehouse = sel.value; renderAll(); });
+}
+
+function renderAll(fromManualRefresh = false) {
+  const kpis = computeAllKpis();
+  renderHealthAndAlerts(kpis);
+  renderOutbound(kpis);
+  renderInbound(kpis);
+  renderManpower(kpis);
+  renderSafety(kpis);
+  const ds = svc.getDataset();
+  document.getElementById('lastUpdateFoot').textContent = new Date(ds.generatedAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' });
+  document.getElementById('sysStatusFoot').textContent = 'Online';
+  document.getElementById('demoBanner').style.display = svc.isDemoMode ? 'flex' : 'none';
+}
+
+async function boot() {
+  populateWarehouseSelect();
+  buildFilterBar();
+  await svc.initDataService();
+  applyRole();
+  setupAutoRefresh();
+  setupTvMode();
+  renderAll();
+}
+boot();
+</script>
+</body>
+</html>
