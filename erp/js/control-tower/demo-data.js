@@ -6,17 +6,17 @@
 // ===================================================================
 
 export const DEPARTMENTS = [
-  { code: 'OB',    label: 'Outbound' },
-  { code: 'IB',    label: 'Inbound' },
-  { code: 'QA',    label: 'QA' },
-  { code: 'PACK',  label: 'Packing' },
-  { code: 'PICK',  label: 'Picking' },
-  { code: 'TRANS', label: 'Transport' },
-  { code: 'INV',   label: 'Inventory' },
-  { code: 'LOG',   label: 'Logistics' },
-  { code: 'ADMIN', label: 'Admin' },
-  { code: 'MAINT', label: 'Maintenance' },
-  { code: 'OTHER', label: 'อื่น ๆ' },
+  { code: 'OB',        label: 'Outbound' },
+  { code: 'IB',        label: 'IB' },
+  { code: 'TS',        label: 'TS' },
+  { code: 'INV',       label: 'Inventory' },
+  { code: 'LOG',       label: 'Logistics' },
+  { code: 'QA',        label: 'QA' },
+  { code: 'RETURN',    label: 'Return' },
+  { code: 'HK',        label: 'แม่บ้าน' },
+  { code: 'ACC',       label: 'บัญชี' },
+  { code: 'LP',        label: 'LP' },
+  { code: 'AUDIT',     label: 'ออดิท' },
 ];
 
 export const EMPLOYEE_TYPES = ['IN_HOUSE', 'OUTSOURCE', 'PART_TIME'];
@@ -95,7 +95,7 @@ const PRODUCT_CATS = ['เสื้อผ้า', 'เครื่องใช�
 function genEmployees(rng, count) {
   const employees = [];
   for (let i = 1; i <= count; i++) {
-    const dept = pick(rng, DEPARTMENTS.filter(d => d.code !== 'OTHER' || rng() < 0.05));
+    const dept = weightedPick(rng, { OB: 18, IB: 14, TS: 8, INV: 10, LOG: 8, QA: 10, RETURN: 6, HK: 6, ACC: 5, LP: 5, AUDIT: 4 });
     const type = weightedPick(rng, { IN_HOUSE: 45, OUTSOURCE: 40, PART_TIME: 15 });
     const attendanceRoll = rng();
     const attendance = attendanceRoll < 0.87 ? 'PRESENT' : attendanceRoll < 0.93 ? 'LATE' : attendanceRoll < 0.97 ? 'LEAVE' : 'ABSENT';
@@ -108,7 +108,7 @@ function genEmployees(rng, count) {
       id: `EMP-${String(i).padStart(4, '0')}`,
       employee_code: `WH${String(i).padStart(5, '0')}`,
       name: `${pick(rng, THAI_FIRST)} ${pick(rng, THAI_LAST)}`,
-      department: dept.code,
+      department: dept,
       employee_type: type,
       shift: pick(rng, SHIFTS),
       warehouse: rng() < 0.82 ? 'WH01' : 'WH02',
@@ -175,7 +175,7 @@ function genInboundOrderRow(rng, id, day, isToday) {
 
 function genAccident(rng, id, date) {
   const severity = weightedPick(rng, { NEAR_MISS: 55, FIRST_AID: 28, PROPERTY_DAMAGE: 13, LTI: 3.7, FATALITY: 0.0 });
-  const dept = pick(rng, DEPARTMENTS.filter(d => !['ADMIN'].includes(d.code)));
+  const dept = pick(rng, DEPARTMENTS.filter(d => !['ACC', 'AUDIT'].includes(d.code)));
   const isClosed = rng() < 0.7;
   const status = isClosed ? 'Closed' : pick(rng, ['Open', 'Investigating', 'Corrective Action', 'Completed']);
   const time = `${pad2(randInt(rng, 6, 22))}:${pad2(randInt(rng, 0, 59))}`;

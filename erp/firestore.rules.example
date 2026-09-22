@@ -20,7 +20,7 @@ service cloud.firestore {
       return isSignedIn() && isActive() && myRole() == role;
     }
     function isAdmin() { return hasRole('admin'); }
-    // แผนก Control Tower ของผู้ใช้ (OB/IB/QA/PACK/... ตาม erp/js/control-tower/demo-data.js#DEPARTMENTS)
+    // แผนก Control Tower ของผู้ใช้ (OB/IB/TS/INV/LOG/QA/RETURN/HK/ACC/LP/AUDIT ตาม erp/js/control-tower/demo-data.js#DEPARTMENTS)
     // กำหนดให้แต่ละคนที่หน้า "จัดการผู้ใช้งาน & สิทธิ์" (dashboard-admin.html#users)
     function myWctDept() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.wctDepartment;
