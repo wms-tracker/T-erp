@@ -7,16 +7,16 @@
 
 export const DEPARTMENTS = [
   { code: 'OB',        label: 'Outbound' },
-  { code: 'IB',        label: 'IB' },
-  { code: 'TS',        label: 'TS' },
+  { code: 'IB',        label: 'Inbound' },
+  { code: 'TS',        label: 'Transportation' },
   { code: 'INV',       label: 'Inventory' },
   { code: 'LOG',       label: 'Logistics' },
-  { code: 'QA',        label: 'QA' },
+  { code: 'QA',        label: 'Quality Assurance' },
   { code: 'RETURN',    label: 'Return' },
-  { code: 'HK',        label: 'แม่บ้าน' },
-  { code: 'ACC',       label: 'บัญชี' },
-  { code: 'LP',        label: 'LP' },
-  { code: 'AUDIT',     label: 'ออดิท' },
+  { code: 'HK',        label: 'Housekeeping' },
+  { code: 'ACC',       label: 'Accounting' },
+  { code: 'LP',        label: 'Loss Prevention' },
+  { code: 'AUDIT',     label: 'Audit' },
 ];
 
 export const EMPLOYEE_TYPES = ['IN_HOUSE', 'OUTSOURCE', 'PART_TIME'];
