@@ -24,8 +24,7 @@ export const EMPLOYEE_TYPE_LABEL = { IN_HOUSE: 'In-House', OUTSOURCE: 'Outsource
 
 export const SHIFTS = ['กะเช้า', 'กะบ่าย', 'กะดึก'];
 export const WAREHOUSES = [
-  { code: 'WH01', label: 'WH01 — คลังหลัก บางนา' },
-  { code: 'WH02', label: 'WH02 — สาขา วังน้อย' },
+  { code: 'TPY', label: 'TPY Estate' },
 ];
 export const CHANNELS = ['Shopee', 'Lazada', 'TikTok Shop', 'Website', 'Modern Trade', 'B2B'];
 export const CARRIERS = ['Kerry', 'Flash Express', 'J&T Express', 'Best Express', 'DHL', 'Ninja Van', 'ไปรษณีย์ไทย'];
@@ -111,7 +110,7 @@ function genEmployees(rng, count) {
       department: dept,
       employee_type: type,
       shift: pick(rng, SHIFTS),
-      warehouse: rng() < 0.82 ? 'WH01' : 'WH02',
+      warehouse: 'TPY',
       status: rng() < 0.985 ? 'ACTIVE' : 'INACTIVE',
       attendance,
       check_in: checkIn,
@@ -142,7 +141,7 @@ function genOutboundOrderRow(rng, id, day, isToday, hour) {
     packed_at: ['QC', 'READY', 'SHIPPED'].includes(status) ? stageTime(40) : null,
     qc_at: ['READY', 'SHIPPED'].includes(status) ? stageTime(65) : null,
     shipped_at: status === 'SHIPPED' ? stageTime(120) : null,
-    warehouse: rng() < 0.82 ? 'WH01' : 'WH02',
+    warehouse: 'TPY',
     shift: hour < 15 ? 'กะเช้า' : hour < 22 ? 'กะบ่าย' : 'กะดึก',
     employee: `${pick(rng, THAI_FIRST)} ${pick(rng, THAI_LAST)}`,
   };
@@ -166,7 +165,7 @@ function genInboundOrderRow(rng, id, day, isToday) {
     receive_date: receiveDate.toISOString(),
     qc_status: ['COMPLETED', 'PUTAWAY'].includes(status) ? 'ผ่าน' : status === 'REJECTED' ? 'ไม่ผ่าน' : 'รอตรวจสอบ',
     location: `${pick(rng, ['A', 'B', 'C', 'D'])}-${randInt(rng, 1, 20)}-${randInt(rng, 1, 9)}`,
-    warehouse: rng() < 0.82 ? 'WH01' : 'WH02',
+    warehouse: 'TPY',
     carton: randInt(rng, 5, 120),
     pallet: randInt(rng, 1, 20),
     responsible: `${pick(rng, THAI_FIRST)} ${pick(rng, THAI_LAST)}`,
