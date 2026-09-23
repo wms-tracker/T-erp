@@ -25,7 +25,7 @@
 import { requireRole, db } from "./js/auth.js";
 import {
   DEPARTMENTS, WAREHOUSES,
-  INBOUND_STATUSES, INBOUND_STATUS_LABEL, ACCIDENT_SEVERITIES, ACCIDENT_SEVERITY_LABEL,
+  ACCIDENT_SEVERITIES, ACCIDENT_SEVERITY_LABEL,
   ACCIDENT_TYPES, ACCIDENT_STATUSES,
 } from "./js/control-tower/data-service.js";
 import {
@@ -180,37 +180,37 @@ async function renderInboundForm(el) {
       <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
         <div class="field"><label>วันที่</label><input type="date" id="ib-date" value="${todayStr()}" /></div>
         <div class="field"><label>คลัง (Warehouse)</label><select id="ib-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
-        <div class="field"><label>เป้าหมาย Inbound/วัน</label><input type="number" id="ib-target" value="260" min="0" /></div>
+        <div class="field"><label>เป้าหมาย ตู้/วัน</label><input type="number" id="ib-target" value="12" min="0" /></div>
       </div>
-      <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนรายการตามสถานะ (ณ สิ้นวัน)</h3>
-      <div class="num-grid" id="ib-fields">
-        ${INBOUND_STATUSES.map(s => numField(`ib-${s}`, INBOUND_STATUS_LABEL[s], 0)).join('')}
-      </div>
-      <h3 style="font-size:.9rem;margin:14px 0 0;">รายละเอียดปริมาณ</h3>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">ยอดสะสมวันนี้ (แต่ละช่องคือยอดรวม ไม่ใช่ยอดเฉพาะขั้นนั้น)</h3>
       <div class="num-grid">
-        ${numField('ib-expected_qty', 'Expected Qty', 0)}
-        ${numField('ib-received_qty', 'Received Qty', 0)}
-        ${numField('ib-total_sku', 'Total SKU', 0)}
-        ${numField('ib-total_carton', 'Total Carton', 0)}
-        ${numField('ib-total_pallet', 'Total Pallet', 0)}
+        ${numField('ib-total', 'จำนวนตู้ที่มาประจำวัน (Total)', 0)}
+        ${numField('ib-arrived', 'รถมาถึงแล้วกี่คัน (Arrived)', 0)}
+        ${numField('ib-unloaded', 'ลงเสร็จแล้วเท่าไหร่ (Unloaded)', 0)}
+        ${numField('ib-putaway', 'จัดเก็บเรียบร้อย (Put Away)', 0)}
       </div>
-      <div class="total-badge" id="ib-total"></div>
+      <div class="total-badge" id="ib-total-info"></div>
       <button class="btn btn-primary" id="ib-save" style="width:auto;">💾 บันทึก</button>
       <p class="msg" id="ib-msg"></p>
     </div>`;
-  const recalcTotal = () => {
-    const total = INBOUND_STATUSES.reduce((s, k) => s + getNum(`ib-${k}`), 0);
-    document.getElementById('ib-total').textContent = `รวมทั้งหมด (Total Inbound) = ${fmtNum(total)}`;
+  const FIELDS = ['total', 'arrived', 'unloaded', 'putaway'];
+  const recalcInfo = () => {
+    const total = getNum('ib-total'), arrived = getNum('ib-arrived'), unloaded = getNum('ib-unloaded'), putaway = getNum('ib-putaway');
+    const pending = Math.max(0, total - arrived);
+    let warn = '';
+    if (arrived > total) warn += ' ⚠️ มาถึงมากกว่าจำนวนตู้ทั้งหมด';
+    if (unloaded > arrived) warn += ' ⚠️ ลงเสร็จมากกว่ามาถึง';
+    if (putaway > unloaded) warn += ' ⚠️ จัดเก็บมากกว่าลงเสร็จ';
+    document.getElementById('ib-total-info').innerHTML = `Pending (ยังไม่มาถึง) = <b>${fmtNum(pending)}</b>${warn}`;
   };
-  INBOUND_STATUSES.forEach(s => document.getElementById(`ib-${s}`).addEventListener('input', recalcTotal));
+  FIELDS.forEach(f => document.getElementById(`ib-${f}`).addEventListener('input', recalcInfo));
   const load = async () => {
     const date = document.getElementById('ib-date').value, wh = document.getElementById('ib-wh').value;
     const snap = await getDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`));
     const d = snap.exists() ? snap.data() : {};
-    document.getElementById('ib-target').value = d.target ?? 260;
-    ['expected_qty','received_qty','total_sku','total_carton','total_pallet'].forEach(f => document.getElementById(`ib-${f}`).value = d[f] ?? 0);
-    INBOUND_STATUSES.forEach(s => document.getElementById(`ib-${s}`).value = d[s] ?? 0);
-    recalcTotal();
+    document.getElementById('ib-target').value = d.target ?? 12;
+    FIELDS.forEach(f => document.getElementById(`ib-${f}`).value = d[f] ?? 0);
+    recalcInfo();
   };
   document.getElementById('ib-date').addEventListener('change', load);
   document.getElementById('ib-wh').addEventListener('change', load);
@@ -219,14 +219,13 @@ async function renderInboundForm(el) {
     const msg = document.getElementById('ib-msg'); msg.className = 'msg';
     if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
     const payload = { date, warehouse: wh, department: 'IB', target: getNum('ib-target'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
-    ['expected_qty','received_qty','total_sku','total_carton','total_pallet'].forEach(f => payload[f] = getNum(`ib-${f}`));
-    INBOUND_STATUSES.forEach(s => payload[s] = getNum(`ib-${s}`));
+    FIELDS.forEach(f => payload[f] = getNum(`ib-${f}`));
     try {
       await setDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`), payload, { merge: true });
       msg.textContent = `บันทึกข้อมูล Inbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });
-  recalcTotal();
+  recalcInfo();
 }
 
 // =====================================================================

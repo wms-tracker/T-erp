@@ -49,7 +49,8 @@ Demo data ใช้ shape ตรงตามสเปกทุกฟิลด์
 |---|---|
 | `outbound_orders` (order-level, โหมด demo เท่านั้น) | `id, order_id, sku, product, quantity, channel, carrier, status (Pending/Picked/QC/Shipped/Cancelled), created_at, picked_at, qc_at, shipped_at, warehouse, shift, employee` |
 | `wctOutboundDaily` (ยอดสะสมรายวันที่แผนก Outbound กรอกจริง) | `date, warehouse, department:'OB', target, total, picked, qc, shipped, cancelled, qty` |
-| `inbound_orders` | `id, inbound_no, supplier, sku, product, expected_qty, received_qty, status, receive_date, qc_status, location, warehouse, carton, pallet` |
+| `inbound_orders` (container-level, โหมด demo เท่านั้น) | `id, container_no, supplier, carrier, status (Pending/Arrived/Unloaded/Stored), scheduled_at, arrived_at, unloaded_at, putaway_at, warehouse, responsible` |
+| `wctInboundDaily` (ยอดสะสมรายวัน "ตู้/รถ" ที่แผนก Inbound กรอกจริง) | `date, warehouse, department:'IB', target, total, arrived, unloaded, putaway` |
 | `employees` (โหมด demo เท่านั้น — ไม่มี roster รายบุคคลจริง) | `id, employee_code, name, department, employee_type (REGULAR/OUTSOURCE_REGULAR/OUTSOURCE_EXTRA), shift, status, attendance, check_in, check_out, ot` |
 | `wctManpowerDaily` (สรุปกำลังคนรายวันต่อแผนกที่กรอกจริง) | `date, department, total, regular, outsourceRegular, outsourceExtra, present, absent, leave, late, ot` |
 | `accidents` | `id, accident_no, date, time, location, department, employee, type, severity, description, cause, damage, corrective_action, responsible, status, closed_date` |

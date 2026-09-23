@@ -40,13 +40,14 @@ export const OUTBOUND_STATUS_LABEL = {
 const OUTBOUND_STATUS_WEIGHTS_TODAY = { PENDING: 14, PICKED: 12, QC: 10, SHIPPED: 60, CANCELLED: 4 };
 const OUTBOUND_STATUS_WEIGHTS_PAST  = { PENDING: 1, PICKED: 0, QC: 0.5, SHIPPED: 95, CANCELLED: 3.5 };
 
-export const INBOUND_STATUSES = ['EXPECTED', 'RECEIVING', 'QC', 'PUTAWAY', 'COMPLETED', 'PENDING', 'REJECTED'];
+// สถานะระดับ "รายตู้/รถ" (mutually exclusive ต่อ 1 คัน) — ใช้กับ container-level detail/drill-down เท่านั้น
+// ตัวเลขที่แผนก Inbound กรอกจริงรายวัน (Total/Arrived/Unloaded/PutAway) เป็นยอดสะสม ดู dailyInbound ใน buildDataset()
+export const INBOUND_STATUSES = ['PENDING', 'ARRIVED', 'UNLOADED', 'STORED'];
 export const INBOUND_STATUS_LABEL = {
-  EXPECTED: 'Expected', RECEIVING: 'Receiving', QC: 'QC', PUTAWAY: 'Put Away',
-  COMPLETED: 'Completed', PENDING: 'Pending', REJECTED: 'Rejected',
+  PENDING: 'รอเข้า', ARRIVED: 'รถมาถึงแล้ว', UNLOADED: 'ลงเสร็จแล้ว', STORED: 'จัดเก็บเรียบร้อย',
 };
-const INBOUND_STATUS_WEIGHTS_TODAY = { EXPECTED: 14, RECEIVING: 10, QC: 8, PUTAWAY: 8, COMPLETED: 52, PENDING: 6, REJECTED: 2 };
-const INBOUND_STATUS_WEIGHTS_PAST  = { EXPECTED: 0, RECEIVING: 0, QC: 0.5, PUTAWAY: 0.5, COMPLETED: 94, PENDING: 3, REJECTED: 2 };
+const INBOUND_STATUS_WEIGHTS_TODAY = { PENDING: 16, ARRIVED: 12, UNLOADED: 10, STORED: 62 };
+const INBOUND_STATUS_WEIGHTS_PAST  = { PENDING: 1, ARRIVED: 0, UNLOADED: 1, STORED: 98 };
 
 export const ATTENDANCE_STATUSES = ['PRESENT', 'ABSENT', 'LEAVE', 'LATE'];
 export const ACCIDENT_SEVERITIES = ['NEAR_MISS', 'FIRST_AID', 'PROPERTY_DAMAGE', 'LTI', 'FATALITY'];
@@ -146,27 +147,23 @@ function genOutboundOrderRow(rng, id, day, isToday, hour) {
   };
 }
 
+// แถวระดับ "ตู้/รถ 1 คัน" (ไม่ใช่ระดับ SKU) — ใช้แสดงตาราง drill-down/กราฟรายชั่วโมงในโหมด demo เท่านั้น
 function genInboundOrderRow(rng, id, day, isToday) {
   const weights = isToday || day.isRecentOpen ? INBOUND_STATUS_WEIGHTS_TODAY : INBOUND_STATUS_WEIGHTS_PAST;
   const status = weightedPick(rng, weights);
-  const receiveDate = new Date(day.date); receiveDate.setHours(randInt(rng, 7, 18), randInt(rng, 0, 59), 0, 0);
-  const expected = randInt(rng, 50, 2000);
-  const receivedRatio = status === 'EXPECTED' ? 0 : status === 'RECEIVING' ? rng() * 0.6 : status === 'PENDING' ? rng() * 0.5 : 1;
+  const scheduled = new Date(day.date); scheduled.setHours(randInt(rng, 7, 18), randInt(rng, 0, 59), 0, 0);
+  const stageTime = (mins) => { const t = new Date(scheduled); t.setMinutes(t.getMinutes() + mins); return t.toISOString(); };
   return {
     id: `ib-${day.key}-${id}`,
-    inbound_no: `IB${day.key.replace(/-/g, '')}${String(id).padStart(4, '0')}`,
+    container_no: `CTN${day.key.replace(/-/g, '')}${String(id).padStart(4, '0')}`,
     supplier: pick(rng, SUPPLIERS),
-    sku: `SKU-${randInt(rng, 1000, 9999)}`,
-    product: `${pick(rng, PRODUCT_CATS)} รุ่น ${randInt(rng, 100, 999)}`,
-    expected_qty: expected,
-    received_qty: Math.round(expected * receivedRatio),
+    carrier: pick(rng, CARRIERS),
     status,
-    receive_date: receiveDate.toISOString(),
-    qc_status: ['COMPLETED', 'PUTAWAY'].includes(status) ? 'ผ่าน' : status === 'REJECTED' ? 'ไม่ผ่าน' : 'รอตรวจสอบ',
-    location: `${pick(rng, ['A', 'B', 'C', 'D'])}-${randInt(rng, 1, 20)}-${randInt(rng, 1, 9)}`,
+    scheduled_at: scheduled.toISOString(),
+    arrived_at: ['ARRIVED', 'UNLOADED', 'STORED'].includes(status) ? stageTime(20) : null,
+    unloaded_at: ['UNLOADED', 'STORED'].includes(status) ? stageTime(90) : null,
+    putaway_at: status === 'STORED' ? stageTime(180) : null,
     warehouse: 'TPY',
-    carton: randInt(rng, 5, 120),
-    pallet: randInt(rng, 1, 20),
     responsible: `${pick(rng, THAI_FIRST)} ${pick(rng, THAI_LAST)}`,
   };
 }
@@ -222,11 +219,11 @@ export function buildDataset(now = new Date()) {
     const day = { date, key, isRecentOpen: offset < 3 };
 
     const obCount = randInt(rng, 620, 980);
-    const ibCount = randInt(rng, 180, 340);
+    const ibCount = randInt(rng, 4, 18);
 
     const obBuckets = { PENDING: 0, PICKED: 0, QC: 0, SHIPPED: 0, CANCELLED: 0 };
-    const ibBuckets = { EXPECTED: 0, RECEIVING: 0, QC: 0, PUTAWAY: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 };
-    let obQty = 0, ibExpectedQty = 0, ibReceivedQty = 0, ibCarton = 0, ibPallet = 0, ibSkuSet = new Set();
+    const ibBuckets = { PENDING: 0, ARRIVED: 0, UNLOADED: 0, STORED: 0 };
+    let obQty = 0;
 
     for (let i = 1; i <= obCount; i++) {
       const hour = Math.min(23, Math.max(7, Math.round(randInt(rng, 700, 2359) / 100)));
@@ -246,19 +243,14 @@ export function buildDataset(now = new Date()) {
         const row = genInboundOrderRow(rng, i, day, isToday);
         inboundDetail.push(row);
         ibBuckets[row.status]++;
-        ibExpectedQty += row.expected_qty; ibReceivedQty += row.received_qty;
-        ibCarton += row.carton; ibPallet += row.pallet; ibSkuSet.add(row.sku);
       } else {
         const weights = day.isRecentOpen ? INBOUND_STATUS_WEIGHTS_TODAY : INBOUND_STATUS_WEIGHTS_PAST;
         ibBuckets[weightedPick(rng, weights)]++;
-        const exp = randInt(rng, 50, 2000);
-        ibExpectedQty += exp; ibReceivedQty += Math.round(exp * (0.85 + rng() * 0.15));
-        ibCarton += randInt(rng, 5, 120); ibPallet += randInt(rng, 1, 20);
       }
     }
 
-    // แปลง bucket ต่อออเดอร์ (mutually exclusive) เป็นยอดสะสมรายวันแบบเดียวกับที่แต่ละแผนกกรอกจริง
-    // (Total/Picked/QC/Shipped/Cancelled) — picked/qc นับรวมออเดอร์ที่ผ่านขั้นนั้นไปแล้วด้วย
+    // แปลง bucket ต่อออเดอร์/ตู้ (mutually exclusive) เป็นยอดสะสมรายวันแบบเดียวกับที่แต่ละแผนกกรอกจริง
+    // Outbound: Total/Picked/QC/Shipped/Cancelled — Inbound: Total/Arrived/Unloaded/PutAway (นับรวมขั้นที่ผ่านไปแล้วด้วย)
     dailyOutbound[key] = {
       date: key, total: obCount, qty: obQty, target: 900,
       picked: obBuckets.PICKED + obBuckets.QC + obBuckets.SHIPPED,
@@ -267,8 +259,10 @@ export function buildDataset(now = new Date()) {
       cancelled: obBuckets.CANCELLED,
     };
     dailyInbound[key] = {
-      date: key, total: ibCount, target: 260, expected_qty: ibExpectedQty, received_qty: ibReceivedQty,
-      total_sku: withinDetailWindow ? ibSkuSet.size : randInt(rng, 80, 160), total_carton: ibCarton, total_pallet: ibPallet, ...ibBuckets,
+      date: key, total: ibCount, target: 12,
+      arrived: ibBuckets.ARRIVED + ibBuckets.UNLOADED + ibBuckets.STORED,
+      unloaded: ibBuckets.UNLOADED + ibBuckets.STORED,
+      putaway: ibBuckets.STORED,
     };
   }
 
@@ -348,7 +342,7 @@ export function buildDataset(now = new Date()) {
     dailyInbound,
     hourlyOutboundToday: hourlyFor(todayKey, outboundDetail, 'created_at'),
     hourlyOutboundYesterday: hourlyFor(dateStr(addDays(now, -1)), outboundDetail, 'created_at'),
-    hourlyInboundToday: hourlyFor(todayKey, inboundDetail, 'receive_date'),
+    hourlyInboundToday: hourlyFor(todayKey, inboundDetail, 'scheduled_at'),
     accidents,
     attendanceHistory,
     meta: { orderDetailDays: ORDER_DETAIL_DAYS, dailyAggregateDays: DAILY_AGGREGATE_DAYS },
@@ -371,10 +365,10 @@ export function tickDataset(dataset) {
       moved++;
     }
   }
-  const ibForward = { EXPECTED: 'RECEIVING', RECEIVING: 'QC', QC: 'PUTAWAY', PUTAWAY: 'COMPLETED' };
+  const ibForward = { PENDING: 'ARRIVED', ARRIVED: 'UNLOADED', UNLOADED: 'STORED' };
   let movedIb = 0;
   for (const row of dataset.inboundDetail) {
-    if (!row.receive_date.startsWith(todayKey)) continue;
+    if (!row.scheduled_at.startsWith(todayKey)) continue;
     if (ibForward[row.status] && rng() < 0.04 && movedIb < 8) {
       row.status = ibForward[row.status];
       movedIb++;
@@ -404,11 +398,18 @@ function recomputeTodayAggregate(dataset) {
     };
   }
 
-  const ibBuckets = { EXPECTED: 0, RECEIVING: 0, QC: 0, PUTAWAY: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 };
-  let ibTotal = 0, expQty = 0, recQty = 0;
+  const ibBuckets = { PENDING: 0, ARRIVED: 0, UNLOADED: 0, STORED: 0 };
+  let ibTotal = 0;
   for (const row of dataset.inboundDetail) {
-    if (!row.receive_date.startsWith(key)) continue;
-    ibBuckets[row.status]++; ibTotal++; expQty += row.expected_qty; recQty += row.received_qty;
+    if (!row.scheduled_at.startsWith(key)) continue;
+    ibBuckets[row.status]++; ibTotal++;
   }
-  if (ibTotal > 0) dataset.dailyInbound[key] = { ...dataset.dailyInbound[key], total: ibTotal, expected_qty: expQty, received_qty: recQty, ...ibBuckets };
+  if (ibTotal > 0) {
+    dataset.dailyInbound[key] = {
+      ...dataset.dailyInbound[key], total: ibTotal,
+      arrived: ibBuckets.ARRIVED + ibBuckets.UNLOADED + ibBuckets.STORED,
+      unloaded: ibBuckets.UNLOADED + ibBuckets.STORED,
+      putaway: ibBuckets.STORED,
+    };
+  }
 }

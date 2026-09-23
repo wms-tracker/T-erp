@@ -162,32 +162,29 @@ export function listOutboundOrders(filters, opts = {}) {
 }
 
 // ===================== INBOUND =====================
+// ตัวเลขที่แผนก Inbound กรอก (Total/Arrived/Unloaded/PutAway) นับเป็น "ตู้/รถ" ไม่ใช่รายการ/SKU และเป็นยอดสะสม
+// เหมือน Outbound (Arrived = ตู้ที่มาถึงแล้วทั้งหมด รวมที่ลง/จัดเก็บไปแล้วด้วย) — Pending คำนวณเป็นส่วนที่เหลือ
 export function getInboundKPIs(filters) {
   const ds = _dataset; const keys = dateKeysInRange(filters.range);
-  const buckets = Object.fromEntries(INBOUND_STATUSES.map(s => [s, 0]));
-  let total = 0, expectedQty = 0, receivedQty = 0, carton = 0, pallet = 0, targetSum = 0, skuSet = new Set();
+  let total = 0, arrived = 0, unloaded = 0, putaway = 0, targetSum = 0;
   for (const k of keys) {
     const day = ds.dailyInbound[k];
     if (!day) continue;
     targetSum += day.target || 0;
-    total += day.total; expectedQty += day.expected_qty || 0; receivedQty += day.received_qty || 0;
-    carton += day.total_carton || 0; pallet += day.total_pallet || 0;
-    for (const s of INBOUND_STATUSES) buckets[s] += day[s] || 0;
+    total += day.total || 0; arrived += day.arrived || 0; unloaded += day.unloaded || 0; putaway += day.putaway || 0;
   }
   const hasRowFilters = ['warehouse', 'status'].some(f => filters[f] && filters[f] !== 'ALL');
-  const detailRows = applyCommonFilters(ds.inboundDetail, filters, 'receive_date');
   if (hasRowFilters) {
-    total = detailRows.length;
-    expectedQty = detailRows.reduce((s, r) => s + r.expected_qty, 0);
-    receivedQty = detailRows.reduce((s, r) => s + r.received_qty, 0);
-    carton = detailRows.reduce((s, r) => s + r.carton, 0);
-    pallet = detailRows.reduce((s, r) => s + r.pallet, 0);
-    for (const s of INBOUND_STATUSES) buckets[s] = detailRows.filter(r => r.status === s).length;
+    const rows = applyCommonFilters(ds.inboundDetail, filters, 'scheduled_at');
+    const count = s => rows.filter(r => r.status === s).length;
+    total = rows.length;
+    const arrivedC = count('ARRIVED'), unloadedC = count('UNLOADED'), storedC = count('STORED');
+    arrived = arrivedC + unloadedC + storedC; unloaded = unloadedC + storedC; putaway = storedC;
   }
-  // Total SKU: นับจาก order-level detail ที่มีอยู่ในช่วง (ครอบคลุมเต็มเมื่อช่วงที่เลือกอยู่ในหน้าต่าง detail — ดู demo-data.js)
-  detailRows.forEach(r => skuSet.add(r.sku));
-  const achievedPct = targetSum > 0 ? ((buckets.COMPLETED + buckets.PUTAWAY) / targetSum) * 100 : 0;
-  return { total, expectedQty, receivedQty, carton, pallet, target: targetSum, buckets, achievedPct, totalSku: skuSet.size };
+  const pending = Math.max(0, total - arrived);
+  const buckets = { PENDING: pending, ARRIVED: Math.max(0, arrived - unloaded), UNLOADED: Math.max(0, unloaded - putaway), STORED: putaway };
+  const achievedPct = targetSum > 0 ? (putaway / targetSum) * 100 : 0;
+  return { total, arrived, unloaded, putaway, pending, target: targetSum, buckets, achievedPct };
 }
 
 // แนวโน้มย้อนหลังแบบ rolling window (ไม่ผูกกับ range ที่เลือกบน Filter bar — เพื่อให้เห็นเทรนด์เสมอแม้เลือก "วันนี้")
@@ -196,13 +193,13 @@ export function getInboundTrend(filters, days = 30) {
   const base = new Date(); base.setHours(0, 0, 0, 0);
   const keys = [];
   for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); keys.push(localDateStr(d)); }
-  return keys.map(k => ({ date: k, ...(ds.dailyInbound[k] || { total: 0, target: 0, COMPLETED: 0 }) }));
+  return keys.map(k => ({ date: k, ...(ds.dailyInbound[k] || { total: 0, target: 0, arrived: 0, unloaded: 0, putaway: 0 }) }));
 }
 
 export function listInboundOrders(filters, opts = {}) {
   const ds = _dataset;
-  const rows = applyCommonFilters(ds.inboundDetail, filters, 'receive_date');
-  return paginate(rows, opts, ['inbound_no', 'sku', 'product', 'supplier', 'location']);
+  const rows = applyCommonFilters(ds.inboundDetail, filters, 'scheduled_at');
+  return paginate(rows, opts, ['container_no', 'supplier', 'carrier']);
 }
 
 // ===================== MANPOWER =====================
@@ -338,8 +335,8 @@ export function getAlerts(kpis, thresholds) {
   if (outbound.buckets.PENDING > outbound.total * thresholds.pendingAlertRatio && outbound.total > 0) {
     alerts.push({ level: 'CRITICAL', text: `Outbound Pending สูงกว่าเป้า (${outbound.buckets.PENDING.toLocaleString('th-TH')} รายการ)`, target: 'outbound-status', filter: { status: 'PENDING' } });
   }
-  if (inbound.buckets.RECEIVING > 0 && inbound.achievedPct < thresholds.inboundWarningPct) {
-    alerts.push({ level: 'WARNING', text: 'Inbound Receiving ล่าช้ากว่าเป้าที่ตั้งไว้', target: 'inbound-status', filter: { status: 'RECEIVING' } });
+  if (inbound.pending > 0 && inbound.achievedPct < thresholds.inboundWarningPct) {
+    alerts.push({ level: 'WARNING', text: `Inbound มีตู้ที่ยังไม่เข้า ${inbound.pending.toLocaleString('th-TH')} ตู้ ล่าช้ากว่าเป้าที่ตั้งไว้`, target: 'inbound-status', filter: { status: 'PENDING' } });
   }
   const shortage = manpower.total - manpower.present;
   if (shortage > 0 && manpower.availabilityPct < thresholds.manpowerWarningPct) {

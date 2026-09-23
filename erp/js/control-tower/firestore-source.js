@@ -33,8 +33,6 @@ async function fetchSince(colName, sinceDate) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-const INBOUND_ZERO = { EXPECTED: 0, RECEIVING: 0, QC: 0, PUTAWAY: 0, COMPLETED: 0, PENDING: 0, REJECTED: 0 };
-
 // Outbound เป็นยอดสะสมรายวัน (Total/Picked/QC/Shipped/Cancelled) ที่แผนก OB กรอกตรง ๆ — รวมข้ามคลังด้วยการบวกตรง ๆ
 function mergeDailyOutbound(rows) {
   const out = {};
@@ -51,19 +49,16 @@ function mergeDailyOutbound(rows) {
   }
   return out;
 }
+// Inbound เป็นยอดสะสมรายวัน (Total/Arrived/Unloaded/PutAway) นับเป็น "ตู้/รถ" ที่แผนก IB กรอกตรง ๆ
 function mergeDailyInbound(rows) {
   const out = {};
   for (const r of rows) {
-    const cur = out[r.date] || { date: r.date, total: 0, expected_qty: 0, received_qty: 0, total_sku: 0, total_carton: 0, total_pallet: 0, target: 0, ...INBOUND_ZERO };
+    const cur = out[r.date] || { date: r.date, total: 0, target: 0, arrived: 0, unloaded: 0, putaway: 0 };
     cur.target += Number(r.target) || 0;
-    cur.expected_qty += Number(r.expected_qty) || 0;
-    cur.received_qty += Number(r.received_qty) || 0;
-    cur.total_carton += Number(r.total_carton) || 0;
-    cur.total_pallet += Number(r.total_pallet) || 0;
-    cur.total_sku = Math.max(cur.total_sku, Number(r.total_sku) || 0); // นับซ้ำข้ามคลังได้ยาก ใช้ค่ามากสุดเป็นค่าประมาณ
-    let rowTotal = 0;
-    for (const s of Object.keys(INBOUND_ZERO)) { const v = Number(r[s]) || 0; cur[s] += v; rowTotal += v; }
-    cur.total += rowTotal;
+    cur.total += Number(r.total) || 0;
+    cur.arrived += Number(r.arrived) || 0;
+    cur.unloaded += Number(r.unloaded) || 0;
+    cur.putaway += Number(r.putaway) || 0;
     out[r.date] = cur;
   }
   return out;

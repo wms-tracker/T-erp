@@ -389,8 +389,8 @@ function fmtDateTime(iso) {
   try { return new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' }); } catch { return iso; }
 }
 const STATUS_COLOR_CLASS = {
-  SHIPPED: 'ok', COMPLETED: 'ok', PUTAWAY: 'info', QC: 'info', PICKED: 'info',
-  RECEIVING: 'info', EXPECTED: 'gray', PENDING: 'warn', CANCELLED: 'bad', REJECTED: 'bad',
+  SHIPPED: 'ok', STORED: 'ok', QC: 'info', PICKED: 'info', ARRIVED: 'info', UNLOADED: 'info',
+  PENDING: 'warn', CANCELLED: 'bad',
 };
 function colorVar(cls) { return { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', info: 'var(--info)', gray: 'var(--gray)' }[cls] || 'var(--gray)'; }
 function statusClass(status) { return STATUS_COLOR_CLASS[status] || 'gray'; }
@@ -754,18 +754,11 @@ function renderInbound(kpis) {
   const k = kpis.inbound;
   document.getElementById('inboundRangeTag').textContent = rangeLabel();
   const cards = [
-    kpiEl({ label: 'Total Inbound', value: fmtNum(k.total), cls: 'info', big: true, onClick: 'inbound:ALL' }),
-    kpiEl({ label: 'Expected', value: fmtNum(k.buckets.EXPECTED), cls: 'gray', onClick: 'inbound:EXPECTED' }),
-    kpiEl({ label: 'Receiving', value: fmtNum(k.buckets.RECEIVING), cls: 'info', onClick: 'inbound:RECEIVING' }),
-    kpiEl({ label: 'QC', value: fmtNum(k.buckets.QC), cls: 'info', onClick: 'inbound:QC' }),
-    kpiEl({ label: 'Put Away', value: fmtNum(k.buckets.PUTAWAY), cls: 'info', onClick: 'inbound:PUTAWAY' }),
-    kpiEl({ label: 'Completed', value: fmtNum(k.buckets.COMPLETED), cls: 'ok', onClick: 'inbound:COMPLETED' }),
-    kpiEl({ label: 'Pending', value: fmtNum(k.buckets.PENDING), cls: 'warn', onClick: 'inbound:PENDING' }),
-    kpiEl({ label: 'Rejected', value: fmtNum(k.buckets.REJECTED), cls: 'bad', onClick: 'inbound:REJECTED' }),
-    kpiEl({ label: 'Total SKU', value: fmtNum(k.totalSku ?? '-'), cls: 'gray' }),
-    kpiEl({ label: 'Total Qty', value: fmtNum(k.receivedQty), sub: `จาก ${fmtNum(k.expectedQty)}`, cls: 'gray' }),
-    kpiEl({ label: 'Total Carton', value: fmtNum(k.carton), cls: 'gray' }),
-    kpiEl({ label: 'Total Pallet', value: fmtNum(k.pallet), cls: 'gray' }),
+    kpiEl({ label: 'จำนวนตู้ที่มาประจำวัน', value: fmtNum(k.total), cls: 'info', big: true, onClick: 'inbound:ALL' }),
+    kpiEl({ label: 'รถมาถึงแล้ว (Arrived)', value: fmtNum(k.arrived), sub: 'ยอดสะสม', cls: 'info', onClick: 'inbound:ARRIVED' }),
+    kpiEl({ label: 'ลงเสร็จแล้ว (Unloaded)', value: fmtNum(k.unloaded), sub: 'ยอดสะสม', cls: 'info', onClick: 'inbound:UNLOADED' }),
+    kpiEl({ label: 'จัดเก็บเรียบร้อย (Stored)', value: fmtNum(k.putaway), cls: 'ok', onClick: 'inbound:STORED' }),
+    kpiEl({ label: 'Pending', value: fmtNum(k.pending), sub: 'ยังไม่มาถึง (คำนวณ)', cls: 'warn', onClick: 'inbound:PENDING' }),
   ];
   document.getElementById('inboundKpis').innerHTML = cards.join('');
   document.querySelectorAll('#inboundKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
@@ -776,7 +769,7 @@ function renderInbound(kpis) {
   document.getElementById('inboundTrendChart').innerHTML = svgLineMulti(
     trend.map(t => t.date.slice(5)),
     [
-      { name: 'Actual (Completed)', values: trend.map(t => t.COMPLETED || 0), color: 'var(--accent)' },
+      { name: 'จัดเก็บเรียบร้อย (Stored)', values: trend.map(t => t.putaway || 0), color: 'var(--accent)' },
       { name: 'Target', values: trend.map(t => t.target || 0), color: 'var(--gray)', dash: '4 3' },
     ]
   );
@@ -797,11 +790,11 @@ function openInboundDrilldown(status) {
     const f = { ...currentFilters(), status: status === 'ALL' ? 'ALL' : status };
     mountDataTable(body, {
       columns: [
-        { key: 'inbound_no', label: 'Inbound No.' }, { key: 'supplier', label: 'Supplier' }, { key: 'sku', label: 'SKU' },
-        { key: 'product', label: 'Product' }, { key: 'expected_qty', label: 'Expected' }, { key: 'received_qty', label: 'Received' },
+        { key: 'container_no', label: 'เลขตู้/รถ' }, { key: 'supplier', label: 'Supplier' }, { key: 'carrier', label: 'Carrier' },
         { key: 'status', label: 'Status', render: r => statusBadge(r.status, svc.INBOUND_STATUS_LABEL), exportValue: r => svc.INBOUND_STATUS_LABEL[r.status] },
-        { key: 'qc_status', label: 'QC' }, { key: 'location', label: 'Location' },
-        { key: 'receive_date', label: 'วันที่', render: r => fmtDateTime(r.receive_date) },
+        { key: 'scheduled_at', label: 'กำหนดเข้า', render: r => fmtDateTime(r.scheduled_at) },
+        { key: 'arrived_at', label: 'มาถึงเมื่อ', render: r => fmtDateTime(r.arrived_at) },
+        { key: 'putaway_at', label: 'จัดเก็บเมื่อ', render: r => fmtDateTime(r.putaway_at) },
         { key: 'responsible', label: 'ผู้รับผิดชอบ' },
       ],
       fetchPage: (opts) => svc.listInboundOrders(f, opts),
@@ -1053,7 +1046,7 @@ document.querySelectorAll('[data-export-report]').forEach(btn => btn.addEventLis
   const rows = [
     { metric: 'Outbound Total', value: ob.total }, { metric: 'Outbound Shipped', value: ob.buckets.SHIPPED },
     { metric: 'Outbound Pending', value: ob.buckets.PENDING }, { metric: 'Inbound Total', value: ib.total },
-    { metric: 'Inbound Completed', value: ib.buckets.COMPLETED }, { metric: 'Manpower Total', value: mp.total },
+    { metric: 'Inbound Stored', value: ib.putaway }, { metric: 'Manpower Total', value: mp.total },
     { metric: 'Manpower Present', value: mp.present }, { metric: 'Accident (Year)', value: sf.yearTotal },
   ];
   exportCsv(`warehouse-${period}-report`, [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }], rows);
