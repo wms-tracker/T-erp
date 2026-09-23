@@ -169,8 +169,22 @@ footer.appfoot { margin-top: 30px; padding: 16px 0; border-top: 1px solid var(--
 
 /* ---------- Fullscreen / TV mode ---------- */
 body.fullscreen-mode .no-fullscreen { display: none !important; }
+.dept-table-scroll { max-height: 340px; }
 body.tv-mode .kpi, body.tv-mode .status-row { cursor: default; }
 .tv-highlight { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 16px; }
+
+/* TV mode: บีบระยะห่าง/ขนาดให้ทั้งฉากพอดีจอเดียว ไม่ต้องเลื่อน — ระหว่างสลับฉากอัตโนมัติทุกฉากควรเห็นครบในเฟรมเดียว */
+body.tv-mode .section { margin-top: 12px; }
+body.tv-mode .card { padding: 10px 14px; }
+body.tv-mode .kpi { padding: 9px 10px; }
+body.tv-mode .kpi .val { font-size: 1.15rem; }
+body.tv-mode .kpi .lbl { font-size: 0.66rem; }
+body.tv-mode .kpi-grid { gap: 7px; }
+body.tv-mode .two-col { gap: 8px; margin-top: 8px; }
+body.tv-mode .dept-table-scroll { max-height: 190px; }
+body.tv-mode table.dt th, body.tv-mode table.dt td { padding: 5px 8px; font-size: 0.76rem; }
+body.tv-mode .section-head { margin-bottom: 6px; }
+body.tv-mode .status-row { padding: 5px 8px; }
 
 @media print {
   header.topbar, .no-print { display: none !important; }
@@ -868,7 +882,7 @@ function renderManpower(kpis) {
 
   const deptRows = svc.getManpowerByDepartment(currentFilters());
   document.getElementById('deptTableBox').innerHTML = `
-    <div style="overflow:auto;max-height:340px;">
+    <div class="dept-table-scroll" style="overflow:auto;">
       <table class="dt">
         <thead><tr><th>Department</th><th>ประจำ</th><th>Outsource ประจำ</th><th>Outsource เสริม</th><th>มาจริง</th><th>ขาด</th><th>OT (ชม.)</th></tr></thead>
         <tbody>${deptRows.map(d => `<tr class="dept-row" data-dept="${d.department}">
