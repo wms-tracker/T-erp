@@ -382,7 +382,7 @@ const state = {
   dayPreset: 'today',
   filters: { warehouse: 'ALL', department: 'ALL', shift: 'ALL', channel: 'ALL', carrier: 'ALL', employeeType: 'ALL', status: 'ALL' },
   thresholds: { ...svc.DEFAULT_THRESHOLDS, ...safeParse(localStorage.getItem(LS.thresholds)) },
-  settings: { autoRefreshSec: 0, tvMode: false, tvIntervalSec: 60, ...safeParse(localStorage.getItem(LS.settings)) },
+  settings: { autoRefreshSec: 0, tvMode: false, tvIntervalSec: 10, ...safeParse(localStorage.getItem(LS.settings)) },
   attendanceDays: 7,
   accidentYear: new Date().getFullYear(),
 };
@@ -623,7 +623,7 @@ function setupAutoRefresh() {
 
 // TV rotation
 let tvTimer = null;
-const TV_SECTIONS = ['sec-overview', 'sec-outbound', 'sec-inbound', 'sec-transport', 'sec-manpower', 'sec-safety'];
+const TV_SECTIONS = ['sec-outbound', 'sec-inbound', 'sec-transport', 'sec-safety'];
 let tvIdx = 0;
 function setupTvMode() {
   if (tvTimer) clearInterval(tvTimer);
@@ -1049,6 +1049,7 @@ function renderSettings() {
     </select>
     <h4 style="margin:0 0 8px;font-size:.85rem;">TV / Control Room Mode</h4>
     <select id="st-tvsec" style="width:100%;margin-bottom:16px;">
+      <option value="10" ${s.tvIntervalSec===10?'selected':''}>สลับทุก 10 วินาที</option>
       <option value="30" ${s.tvIntervalSec===30?'selected':''}>สลับทุก 30 วินาที</option>
       <option value="60" ${s.tvIntervalSec===60?'selected':''}>สลับทุก 60 วินาที</option>
       <option value="120" ${s.tvIntervalSec===120?'selected':''}>สลับทุก 120 วินาที</option>
