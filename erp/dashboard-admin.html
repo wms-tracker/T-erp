@@ -11,6 +11,9 @@
   import { requireRole, db } from "./js/auth.js";
   import { renderShell } from "./js/shell.js";
   import { DEPARTMENTS as WCT_DEPARTMENTS } from "./js/control-tower/data-service.js";
+  import { firebaseConfig } from "./js/firebase-config.js";
+  import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import {
     collection, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit, runTransaction, serverTimestamp, where
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -750,16 +753,16 @@
   async function renderUserManagement() {
     main.innerHTML = `
       <div class="card">
-        <h2 style="margin-top:0;font-size:1.05rem;">เพิ่มผู้ใช้งานใหม่ (กำหนดสิทธิ์)</h2>
+        <h2 style="margin-top:0;font-size:1.05rem;">เพิ่มผู้ใช้งานใหม่</h2>
         <p style="font-size:0.82rem;color:#888;line-height:1.6;">
-          ⚠️ หน้านี้จัดการ "ระดับสิทธิ์ในระบบ" (Firestore <code>users/&lt;uid&gt;</code>) เท่านั้น<br/>
-          การสร้าง<b>บัญชีเข้าสู่ระบบ (อีเมล/รหัสผ่าน)</b> จริงๆ ต้องสร้างผ่าน Firebase Authentication Console
-          (Authentication → Users → Add user) แล้วคัดลอก <b>UID</b> มากรอกที่นี่ เพื่อผูก role ให้ตรงกับบัญชีนั้น
+          กรอก <b>อีเมล + รหัสผ่าน</b> ด้านล่างเพื่อให้ระบบสร้างบัญชี login ให้อัตโนมัติ (ไม่ต้องเข้า Firebase Console เอง)<br/>
+          หรือถ้าเคยสร้างบัญชีไว้ใน Firebase Console แล้ว ให้เว้นช่องรหัสผ่านว่างไว้ แล้วกรอก <b>UID</b> แทน
         </p>
         <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
-          <div class="field"><label>UID (จาก Firebase Auth)</label><input id="u-uid" placeholder="เช่น aB12cD34..." /></div>
           <div class="field"><label>ชื่อพนักงาน</label><input id="u-name" placeholder="ชื่อ-นามสกุล" /></div>
           <div class="field"><label>อีเมล</label><input id="u-email" placeholder="name@company.com" /></div>
+          <div class="field"><label>รหัสผ่าน (สร้างบัญชีใหม่)</label><input id="u-password" type="text" placeholder="อย่างน้อย 6 ตัวอักษร" /></div>
+          <div class="field"><label>หรือ UID (บัญชีที่มีอยู่แล้ว)</label><input id="u-uid" placeholder="เช่น aB12cD34..." /></div>
           <div class="field"><label>แผนก/สิทธิ์ (Role)</label>
             <select id="u-role">
               <option value="sales">ฝ่ายขาย (sales)</option>
@@ -780,7 +783,7 @@
           ⚠️ แผนก Control Tower ใช้กำหนดว่าผู้ใช้คนนี้จะกรอก/แก้ไขข้อมูลของแผนกไหนได้ที่หน้า
           <a href="control-tower-entry.html" target="_blank">กรอกข้อมูล Control Tower</a> (คลังสินค้าเท่านั้นที่ต้องกำหนด — แอดมินกรอกแทนแผนกใดก็ได้อยู่แล้ว)
         </p>
-        <button class="btn btn-primary" id="btn-add-user" style="width:auto;">+ บันทึกสิทธิ์ผู้ใช้งาน</button>
+        <button class="btn btn-primary" id="btn-add-user" style="width:auto;">+ เพิ่มผู้ใช้งาน</button>
         <p class="msg" id="user-msg"></p>
       </div>
       <div class="card">
@@ -795,26 +798,48 @@
     await loadUsers();
   }
 
+  // สร้างบัญชี Firebase Auth ผ่าน secondary app instance แยกต่างหาก เพื่อไม่ให้กระทบ session ของแอดมินที่ login อยู่
+  // (createUserWithEmailAndPassword บน auth หลักจะ sign-in เป็นบัญชีใหม่ทันทีและเด้งแอดมินออกจากระบบ)
+  async function createAuthUser(email, password) {
+    const secondaryApp = initializeApp(firebaseConfig, `secondary-${Date.now()}`);
+    const secondaryAuth = getAuth(secondaryApp);
+    try {
+      const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+      const uid = cred.user.uid;
+      await signOut(secondaryAuth);
+      return uid;
+    } finally {
+      await deleteApp(secondaryApp).catch(() => {});
+    }
+  }
+
   async function addUser() {
-    const uid = document.getElementById('u-uid').value.trim();
+    let uid = document.getElementById('u-uid').value.trim();
     const name = document.getElementById('u-name').value.trim();
     const email = document.getElementById('u-email').value.trim();
+    const password = document.getElementById('u-password').value;
     const role = document.getElementById('u-role').value;
     const wctDepartment = document.getElementById('u-wctdept').value || null;
     const msg = document.getElementById('user-msg');
     msg.className = 'msg';
-    if (!uid || !name || !email) { msg.textContent = 'กรุณากรอกข้อมูลให้ครบ (UID, ชื่อ, อีเมล)'; msg.classList.add('error'); return; }
+    if (!name || !email) { msg.textContent = 'กรุณากรอกชื่อและอีเมลให้ครบ'; msg.classList.add('error'); return; }
+    if (!uid && !password) { msg.textContent = 'กรุณากรอกรหัสผ่าน (เพื่อสร้างบัญชีใหม่) หรือกรอก UID (ถ้ามีบัญชีอยู่แล้ว)'; msg.classList.add('error'); return; }
+    if (password && password.length < 6) { msg.textContent = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'; msg.classList.add('error'); return; }
     try {
+      if (!uid && password) {
+        msg.textContent = 'กำลังสร้างบัญชี...'; msg.className = 'msg';
+        uid = await createAuthUser(email, password);
+      }
       await setDoc(doc(db, 'users', uid), {
         name, email, role, department: roleLabel(role), wctDepartment, active: true, createdAt: new Date().toISOString()
       });
-      msg.textContent = `เพิ่มสิทธิ์ให้ ${name} (${role}) สำเร็จแล้ว`;
+      msg.textContent = `เพิ่มผู้ใช้งาน ${name} (${role}) สำเร็จแล้ว${password ? ' — login ด้วยอีเมล/รหัสผ่านที่ตั้งไว้ได้เลย' : ''}`;
       msg.classList.add('ok');
-      ['u-uid','u-name','u-email'].forEach(id => document.getElementById(id).value = '');
+      ['u-uid','u-name','u-email','u-password'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('u-wctdept').value = '';
       await loadUsers();
     } catch (err) {
-      msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message;
+      msg.textContent = 'เกิดข้อผิดพลาด: ' + (err.code === 'auth/email-already-in-use' ? 'อีเมลนี้มีบัญชีอยู่แล้ว — ลองเว้นรหัสผ่านแล้วกรอก UID แทน' : err.message);
       msg.classList.add('error');
     }
   }
