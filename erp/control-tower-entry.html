@@ -4,20 +4,69 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>กรอกข้อมูล — Warehouse Control Tower</title>
-<link rel="stylesheet" href="css/erp.css" />
 <style>
-  .entry-wrap { max-width: 900px; margin: 0 auto; padding: 20px 18px 60px; }
-  .entry-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
-  .entry-head h1 { font-size: 1.2rem; margin: 0; }
-  .entry-head .sub { font-size: .82rem; color: #888; }
-  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-  .tab-btn { padding: 9px 16px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: .86rem; font-weight: 600; color: #444; }
-  .tab-btn.active { background: #1a2540; color: #fff; border-color: #1a2540; }
-  .num-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 14px 0; }
-  .num-grid .field label { font-size: .78rem; }
-  .num-grid .field input { text-align: right; font-weight: 700; }
-  .total-badge { background: #eef1f7; border-radius: 10px; padding: 10px 14px; font-size: .84rem; margin: 10px 0; }
-  .block-msg { background: #fff8e8; border: 1px solid #ffe6a8; border-radius: 10px; padding: 16px; color: #8a6400; font-size: .88rem; line-height: 1.7; }
+:root {
+  --bg: #eef1f7; --panel: #ffffff; --panel-2: #f5f7fb; --text: #16213e; --text-muted: #5c6584;
+  --border: #dde2ee; --accent: #2e6cf6; --accent-2: #5a8dfb;
+  --ok: #17a673; --ok-bg: rgba(23,166,115,0.12);
+  --warn: #d99a1f; --warn-bg: rgba(217,154,31,0.14);
+  --bad: #e14b4b; --bad-bg: rgba(225,75,75,0.13);
+  --shadow: 0 6px 24px rgba(20,30,60,0.08);
+}
+:root[data-theme="dark"] {
+  --bg: #0b1120; --panel: #141d33; --panel-2: #101728; --text: #e8ecfb; --text-muted: #93a0c4;
+  --border: #253156; --accent: #5a8dfb; --accent-2: #7fa6ff;
+  --ok: #2fd196; --ok-bg: rgba(47,209,150,0.12);
+  --warn: #f0b429; --warn-bg: rgba(240,180,41,0.14);
+  --bad: #ff5c5c; --bad-bg: rgba(255,92,92,0.14);
+  --shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body { font-family: 'Segoe UI', 'Sarabun', Tahoma, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+.entry-topbar {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel) 100%); border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10;
+}
+.entry-topbar-inner { max-width: 960px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.entry-logo { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 1rem; flex-shrink: 0; }
+.entry-titles h1 { font-size: 0.98rem; margin: 0; letter-spacing: .3px; }
+.entry-titles p { margin: 0; font-size: .68rem; color: var(--text-muted); letter-spacing: .5px; text-transform: uppercase; }
+.entry-topbar-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.role-pill { font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: var(--accent); color: #fff; opacity: .9; }
+.entry-wrap { max-width: 960px; margin: 0 auto; padding: 20px 18px 60px; }
+.entry-sub { font-size: .8rem; color: var(--text-muted); margin: 0 0 16px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.tab-btn { padding: 9px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); cursor: pointer; font-size: .86rem; font-weight: 600; color: var(--text-muted); transition: all .15s; }
+.tab-btn:hover { color: var(--text); border-color: var(--accent); }
+.tab-btn.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border-color: transparent; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 16px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 6px; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem;
+  background: var(--panel-2); color: var(--text); font-family: inherit; color-scheme: light dark;
+}
+.field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 18px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  font-size: 0.9rem; font-weight: 600; transition: filter 0.15s, background 0.15s; background: var(--panel-2); color: var(--text);
+}
+.btn:hover { filter: brightness(1.05); }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; border: none; }
+.btn-icon { padding: 8px 10px; }
+.msg { font-size: 0.85rem; margin-top: 12px; min-height: 18px; }
+.msg.error { color: var(--bad); }
+.msg.ok { color: var(--ok); }
+.num-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 14px 0; }
+.num-grid .field label { font-size: .78rem; }
+.num-grid .field input { text-align: right; font-weight: 700; }
+.total-badge { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: .84rem; margin: 10px 0; }
+.block-msg { background: var(--warn-bg); border: 1px solid var(--warn); border-radius: 10px; padding: 16px; color: var(--warn); font-size: .88rem; line-height: 1.7; }
+h3 { color: var(--text); }
 </style>
 </head>
 <body></body>
@@ -41,20 +90,48 @@ function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'
 function deptLabel(code) { return DEPARTMENTS.find(d => d.code === code)?.label || code; }
 
 const body = document.body;
+const ROLE_LABEL = { admin: 'Admin', manager: 'Manager', warehouse: 'คลังสินค้า', sales: 'ฝ่ายขาย', accounting: 'บัญชี' };
+
+function headerHtml() {
+  return `
+    <header class="entry-topbar">
+      <div class="entry-topbar-inner">
+        <div class="entry-logo">HW</div>
+        <div class="entry-titles">
+          <h1>HORIZON WAREHOUSE</h1>
+          <p>กรอกข้อมูลรายวัน</p>
+        </div>
+        <div class="entry-topbar-controls">
+          <span class="role-pill">${escapeHtml(ROLE_LABEL[profile.role] || profile.role)}</span>
+          <a href="warehouse-control-tower.html" class="btn">📊 ไปหน้า Dashboard</a>
+          <button class="btn btn-icon" id="entryThemeBtn" title="สลับธีม">🌙</button>
+        </div>
+      </div>
+    </header>`;
+}
+function initThemeToggle() {
+  const KEY = 'wct_theme';
+  const apply = (t) => { document.documentElement.setAttribute('data-theme', t); document.getElementById('entryThemeBtn').textContent = t === 'dark' ? '☀️' : '🌙'; };
+  apply(localStorage.getItem(KEY) || 'light');
+  document.getElementById('entryThemeBtn').addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(KEY, next); apply(next);
+  });
+}
 
 // ---------------------------------------------------------------
 // Warehouse staff ที่ยังไม่ถูกกำหนดแผนก (wctDepartment) โดยแอดมิน -> บล็อกไว้ก่อน
 // ---------------------------------------------------------------
 if (!isAdmin && !myDept) {
   body.innerHTML = `
+    ${headerHtml()}
     <div class="entry-wrap">
-      <div class="entry-head"><h1>📝 กรอกข้อมูล Control Tower</h1></div>
-      <div class="block-msg">
+      <div class="block-msg" style="margin-top:20px;">
         ⚠️ บัญชีของคุณ (<b>${escapeHtml(profile.name || profile.email)}</b>) ยังไม่ได้ถูกกำหนด "แผนก" สำหรับกรอกข้อมูล<br/>
         กรุณาติดต่อแอดมินให้กำหนดแผนกที่หน้า <b>จัดการผู้ใช้งาน & สิทธิ์</b> (dashboard-admin.html#users) ก่อนใช้งานหน้านี้
       </div>
-      <p style="margin-top:16px;"><a href="warehouse-control-tower.html">← กลับไปหน้า Dashboard</a></p>
     </div>`;
+  initThemeToggle();
   throw new Error('no-department-assigned');
 }
 
@@ -68,14 +145,11 @@ TABS.push({ key: 'accident', label: '🦺 แจ้งอุบัติเห�
 let activeTab = TABS[0].key;
 
 body.innerHTML = `
+  ${headerHtml()}
   <div class="entry-wrap">
-    <div class="entry-head">
-      <h1>📝 กรอกข้อมูล Control Tower</h1>
-    </div>
-    <p class="sub">
+    <p class="entry-sub" style="margin-top:20px;">
       เข้าสู่ระบบเป็น <b>${escapeHtml(profile.name || profile.email)}</b>
       ${isAdmin ? '(แอดมิน — กรอกแทนแผนกใดก็ได้)' : `— แผนก <b>${escapeHtml(deptLabel(myDept))}</b>`}
-      · <a href="warehouse-control-tower.html">ไปหน้า Dashboard →</a>
     </p>
     <div class="tabs" id="tabBar"></div>
     <div id="tabContent"></div>
@@ -83,6 +157,7 @@ body.innerHTML = `
 `;
 
 const tabBar = document.getElementById('tabBar');
+initThemeToggle();
 tabBar.innerHTML = TABS.map(t => `<button class="tab-btn ${t.key===activeTab?'active':''}" data-tab="${t.key}">${t.label}</button>`).join('');
 tabBar.addEventListener('click', e => {
   const btn = e.target.closest('[data-tab]');
