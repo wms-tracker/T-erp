@@ -171,7 +171,15 @@ footer.appfoot { margin-top: 30px; padding: 16px 0; border-top: 1px solid var(--
 body.fullscreen-mode .no-fullscreen { display: none !important; }
 .dept-table-scroll { max-height: 340px; }
 body.tv-mode .kpi, body.tv-mode .status-row { cursor: default; }
-.tv-highlight { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 16px; }
+/* TV mode: แสดงทีละฉากเต็มจอ — ซ่อนฉากอื่นทั้งหมด แสดงเฉพาะฉากที่กำลังหมุนถึง */
+body.tv-mode #demoBanner, body.tv-mode footer.appfoot { display: none !important; }
+body.tv-mode .section { display: none; }
+body.tv-mode .section.tv-active {
+  display: flex; flex-direction: column; justify-content: center;
+  min-height: calc(100vh - var(--header-offset, 64px) - 20px);
+  animation: tv-fade-in .4s ease;
+}
+@keyframes tv-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* TV mode: บีบระยะห่าง/ขนาดให้ทั้งฉากพอดีจอเดียว ไม่ต้องเลื่อน — ระหว่างสลับฉากอัตโนมัติทุกฉากควรเห็นครบในเฟรมเดียว */
 body.tv-mode .section { margin-top: 12px; }
@@ -635,26 +643,38 @@ function setupAutoRefresh() {
   if (sec > 0) autoRefreshTimer = setInterval(async () => { await svc.refreshDataService(); renderAll(); }, sec * 1000);
 }
 
-// TV rotation
+// TV rotation — แสดงทีละฉากเต็มจอ (ฉากอื่นซ่อนไว้) แทนการเลื่อนหน้าจอ
 let tvTimer = null;
 const TV_SECTIONS = ['sec-outbound', 'sec-inbound', 'sec-transport', 'sec-manpower', 'sec-safety'];
 let tvIdx = 0;
 function setupTvMode() {
   if (tvTimer) clearInterval(tvTimer);
-  document.querySelectorAll('.tv-highlight').forEach(el => el.classList.remove('tv-highlight'));
+  document.querySelectorAll('.tv-active').forEach(el => el.classList.remove('tv-active'));
   document.body.classList.toggle('tv-mode', state.settings.tvMode);
-  if (!state.settings.tvMode) return;
+  if (!state.settings.tvMode) {
+    document.body.classList.remove('fullscreen-mode');
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    return;
+  }
+  document.documentElement.requestFullscreen?.().catch(() => {});
+  document.body.classList.add('fullscreen-mode');
+  window.scrollTo({ top: 0 });
   tvIdx = 0;
   const rotate = () => {
-    document.querySelectorAll('.tv-highlight').forEach(el => el.classList.remove('tv-highlight'));
+    document.querySelectorAll('.tv-active').forEach(el => el.classList.remove('tv-active'));
     const id = TV_SECTIONS[tvIdx % TV_SECTIONS.length];
     const el = document.getElementById(id);
-    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('tv-highlight'); }
+    if (el) el.classList.add('tv-active');
     tvIdx++;
   };
   rotate();
   tvTimer = setInterval(rotate, state.settings.tvIntervalSec * 1000);
 }
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && state.settings.tvMode) {
+    state.settings.tvMode = false; saveSettings(); setupTvMode();
+  }
+});
 
 // ===================================================================
 // RENDER: OVERVIEW (Health + Alerts)
