@@ -86,11 +86,18 @@ export function resolveRange(preset, now = new Date(), custom = null) {
   return { from: start, to: end, days: 1 };
 }
 
+// ห้ามใช้ toISOString().slice(0,10) กับวันที่ล้วน ๆ — มันแปลงเป็น UTC ก่อน ทำให้วันที่ "เลื่อน" ไป 1 วัน
+// สำหรับ timezone ที่ไม่ใช่ UTC (เช่น ไทย UTC+7 เที่ยงคืนท้องถิ่นจะกลายเป็นเมื่อวานตาม UTC) ต้องใช้ค่า local เสมอ
+// เพื่อให้ date-key ตรงกับ dateStr() ใน demo-data.js/firestore-source.js ที่ใช้ local date components เหมือนกัน
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function dateKeysInRange(range) {
   const keys = [];
   let d = new Date(range.from); d.setHours(0, 0, 0, 0);
   const end = new Date(range.to);
-  while (d <= end) { keys.push(d.toISOString().slice(0, 10)); d.setDate(d.getDate() + 1); }
+  while (d <= end) { keys.push(localDateStr(d)); d.setDate(d.getDate() + 1); }
   return keys;
 }
 
@@ -188,7 +195,7 @@ export function getInboundTrend(filters, days = 30) {
   const ds = _dataset;
   const base = new Date(); base.setHours(0, 0, 0, 0);
   const keys = [];
-  for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); keys.push(d.toISOString().slice(0, 10)); }
+  for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); keys.push(localDateStr(d)); }
   return keys.map(k => ({ date: k, ...(ds.dailyInbound[k] || { total: 0, target: 0, COMPLETED: 0 }) }));
 }
 
@@ -240,7 +247,7 @@ export function getAttendanceTrend(filters, days = 7) {
   const ds = _dataset;
   const keys = [];
   const base = new Date(); base.setHours(0, 0, 0, 0);
-  for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); keys.push(d.toISOString().slice(0, 10)); }
+  for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); keys.push(localDateStr(d)); }
   return keys.map(k => {
     const perDept = ds.attendanceHistory[k] || {};
     const dep = filters.department && filters.department !== 'ALL' ? [filters.department] : DEPARTMENTS.map(d => d.code);
