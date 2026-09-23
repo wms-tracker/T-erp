@@ -236,6 +236,12 @@ service cloud.firestore {
       allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'IB' && request.resource.data.department == 'IB');
       allow delete: if isAdmin();
     }
+    // ----- wctTransportDaily: doc id = {date}_{warehouse}, department ต้องเป็น 'TS' เท่านั้น -----
+    match /wctTransportDaily/{id} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'TS' && request.resource.data.department == 'TS');
+      allow delete: if isAdmin();
+    }
     // ----- wctManpowerDaily: doc id = {date}_{department} — เขียนได้เฉพาะแผนกตัวเอง -----
     match /wctManpowerDaily/{id} {
       allow read: if isSignedIn() && isActive();

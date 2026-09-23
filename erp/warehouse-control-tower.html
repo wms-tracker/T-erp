@@ -275,6 +275,18 @@ body.tv-mode .kpi, body.tv-mode .status-row { cursor: default; }
     </div>
   </section>
 
+  <section class="section" id="sec-transport">
+    <div class="section-head">
+      <h2>🚚 TRANSPORTATION — รถและจุดส่ง</h2>
+      <span class="tag" id="transportRangeTag"></span>
+    </div>
+    <div class="kpi-grid" id="transportKpis"></div>
+    <div class="card" style="margin-top:12px;">
+      <div class="section-head"><h2 style="font-size:.9rem;">แนวโน้มจุดส่ง (Target vs Delivered)</h2></div>
+      <div id="transportTrendChart"></div>
+    </div>
+  </section>
+
   <section class="section" id="sec-manpower">
     <div class="section-head"><h2>👷 MANPOWER</h2></div>
     <div class="kpi-grid" id="manpowerKpis"></div>
@@ -611,7 +623,7 @@ function setupAutoRefresh() {
 
 // TV rotation
 let tvTimer = null;
-const TV_SECTIONS = ['sec-overview', 'sec-outbound', 'sec-inbound', 'sec-manpower', 'sec-safety'];
+const TV_SECTIONS = ['sec-overview', 'sec-outbound', 'sec-inbound', 'sec-transport', 'sec-manpower', 'sec-safety'];
 let tvIdx = 0;
 function setupTvMode() {
   if (tvTimer) clearInterval(tvTimer);
@@ -642,6 +654,7 @@ function computeAllKpis() {
   return {
     outbound: svc.getOutboundKPIs(f),
     inbound: svc.getInboundKPIs(f),
+    transport: svc.getTransportKPIs(f),
     manpower: svc.getManpowerKPIs(f),
     safety: svc.getAccidentKPIs({ ...f, range: state.range === 'today' || state.range === 'yesterday' ? svc.resolveRange('year') : f.range }),
   };
@@ -801,6 +814,40 @@ function openInboundDrilldown(status) {
       exportFilename: 'inbound-orders',
     });
   });
+}
+
+// ===================================================================
+// RENDER: TRANSPORTATION (TS)
+// ===================================================================
+function renderTransport(kpis) {
+  const k = kpis.transport;
+  document.getElementById('transportRangeTag').textContent = rangeLabel();
+  const cards = [
+    kpiEl({ label: 'รถทั้งหมดวันนี้', value: fmtNum(k.totalVehicles), cls: 'info', big: true }),
+    kpiEl({ label: 'รถบริษัท', value: fmtNum(k.companyVehicles), cls: 'ok' }),
+    kpiEl({ label: 'รถขนส่ง Outsource', value: fmtNum(k.outsourceVehicles), cls: 'info' }),
+    kpiEl({ label: 'จำนวนจุดส่ง', value: fmtNum(k.deliveryPoints), cls: 'info', big: true }),
+    kpiEl({ label: 'ส่งสำเร็จแล้ว', value: fmtNum(k.delivered), cls: 'ok' }),
+    kpiEl({ label: 'คงเหลือ/รอส่ง', value: fmtNum(k.pending), sub: 'คำนวณ', cls: 'warn' }),
+  ];
+  document.getElementById('transportKpis').innerHTML = cards.join('') + `
+    <div class="kpi c-info" style="cursor:default;grid-column:span 2;">
+      <div class="lbl">Target vs Actual</div>
+      <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-muted);margin:6px 0 3px;">
+        <span>ส่งสำเร็จ ${fmtNum(k.delivered)}</span><span>เป้า ${fmtNum(k.target)}</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,k.achievedPct)}%;"></div></div>
+      <div style="margin-top:8px;font-size:.78rem;">Achieved vs Target: <b>${fmtPct(k.achievedPct)}</b></div>
+    </div>`;
+
+  const trend = svc.getTransportTrend(currentFilters());
+  document.getElementById('transportTrendChart').innerHTML = svgLineMulti(
+    trend.map(t => t.date.slice(5)),
+    [
+      { name: 'ส่งสำเร็จ (Delivered)', values: trend.map(t => t.delivered || 0), color: 'var(--accent)' },
+      { name: 'จำนวนจุดส่ง (Total)', values: trend.map(t => t.deliveryPoints || 0), color: 'var(--gray)', dash: '4 3' },
+    ]
+  );
 }
 
 // ===================================================================
@@ -1066,6 +1113,7 @@ function renderAll(fromManualRefresh = false) {
   renderHealthAndAlerts(kpis);
   renderOutbound(kpis);
   renderInbound(kpis);
+  renderTransport(kpis);
   renderManpower(kpis);
   renderSafety(kpis);
   const ds = svc.getDataset();

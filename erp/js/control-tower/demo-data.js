@@ -210,6 +210,7 @@ export function buildDataset(now = new Date()) {
   const inboundDetail = [];
   const dailyOutbound = {};
   const dailyInbound = {};
+  const dailyTransport = {};
 
   for (let offset = DAILY_AGGREGATE_DAYS - 1; offset >= 0; offset--) {
     const date = addDays(now, -offset);
@@ -263,6 +264,17 @@ export function buildDataset(now = new Date()) {
       arrived: ibBuckets.ARRIVED + ibBuckets.UNLOADED + ibBuckets.STORED,
       unloaded: ibBuckets.UNLOADED + ibBuckets.STORED,
       putaway: ibBuckets.STORED,
+    };
+
+    // Transportation (TS): รถที่ใช้วันนี้ + จุดส่ง — ยอดสะสมรายวันเหมือนแผนกอื่น ไม่มี order-level detail
+    const companyVehicles = randInt(rng, 3, 8);
+    const outsourceVehicles = randInt(rng, 2, 10);
+    const deliveryPoints = randInt(rng, 40, 120);
+    const deliveredRatio = day.isRecentOpen ? 0.5 + rng() * 0.35 : 0.93 + rng() * 0.07;
+    dailyTransport[key] = {
+      date: key, target: 100,
+      companyVehicles, outsourceVehicles,
+      deliveryPoints, delivered: Math.min(deliveryPoints, Math.round(deliveryPoints * deliveredRatio)),
     };
   }
 
@@ -340,6 +352,7 @@ export function buildDataset(now = new Date()) {
     inboundDetail,
     dailyOutbound,
     dailyInbound,
+    dailyTransport,
     hourlyOutboundToday: hourlyFor(todayKey, outboundDetail, 'created_at'),
     hourlyOutboundYesterday: hourlyFor(dateStr(addDays(now, -1)), outboundDetail, 'created_at'),
     hourlyInboundToday: hourlyFor(todayKey, inboundDetail, 'scheduled_at'),
@@ -373,6 +386,11 @@ export function tickDataset(dataset) {
       row.status = ibForward[row.status];
       movedIb++;
     }
+  }
+  // Transport ไม่มี order-level detail — จำลองแค่ยอดส่งสำเร็จขยับขึ้นเล็กน้อย
+  const todayTransport = dataset.dailyTransport[todayKey];
+  if (todayTransport && todayTransport.delivered < todayTransport.deliveryPoints && rng() < 0.5) {
+    todayTransport.delivered = Math.min(todayTransport.deliveryPoints, todayTransport.delivered + randInt(rng, 1, 3));
   }
   // sync daily aggregate ของวันนี้ให้ตรงกับ detail หลังขยับสถานะ
   recomputeTodayAggregate(dataset);

@@ -5,6 +5,7 @@
 // คอลเลกชันที่ใช้ (เขียนโดยแต่ละแผนกผ่าน control-tower-entry.html):
 //   wctOutboundDaily/{date}_{warehouse}   — สรุปยอด Outbound ต่อวันต่อคลัง (กรอกโดยแผนก OB)
 //   wctInboundDaily/{date}_{warehouse}    — สรุปยอด Inbound ต่อวันต่อคลัง (กรอกโดยแผนก IB)
+//   wctTransportDaily/{date}_{warehouse}  — สรุปรถ/จุดส่งต่อวันต่อคลัง (กรอกโดยแผนก TS)
 //   wctManpowerDaily/{date}_{department}  — สรุปกำลังคนต่อวันต่อแผนก (กรอกโดยหัวหน้าแต่ละแผนก)
 //   wctAccidents/{autoId}                 — รายงานอุบัติเหตุรายเหตุการณ์ (กรอกโดยแผนกที่เกิดเหตุ)
 //
@@ -63,6 +64,20 @@ function mergeDailyInbound(rows) {
   }
   return out;
 }
+// Transportation เป็นยอดสะสมรายวัน (รถบริษัท/รถ Outsource/จุดส่ง/ส่งสำเร็จ) ที่แผนก TS กรอกตรง ๆ
+function mergeDailyTransport(rows) {
+  const out = {};
+  for (const r of rows) {
+    const cur = out[r.date] || { date: r.date, target: 0, companyVehicles: 0, outsourceVehicles: 0, deliveryPoints: 0, delivered: 0 };
+    cur.target += Number(r.target) || 0;
+    cur.companyVehicles += Number(r.companyVehicles) || 0;
+    cur.outsourceVehicles += Number(r.outsourceVehicles) || 0;
+    cur.deliveryPoints += Number(r.deliveryPoints) || 0;
+    cur.delivered += Number(r.delivered) || 0;
+    out[r.date] = cur;
+  }
+  return out;
+}
 function mergeAttendance(rows) {
   const out = {};
   for (const r of rows) {
@@ -82,15 +97,17 @@ export async function loadFromFirestore(now = new Date()) {
   const accidentSince = addDays(now, -ACCIDENT_DAYS);
   const todayKey = dateStr(now);
 
-  const [outboundRows, inboundRows, manpowerRows, accidentRows] = await Promise.all([
+  const [outboundRows, inboundRows, transportRows, manpowerRows, accidentRows] = await Promise.all([
     fetchSince('wctOutboundDaily', since),
     fetchSince('wctInboundDaily', since),
+    fetchSince('wctTransportDaily', since),
     fetchSince('wctManpowerDaily', accidentSince), // โหลดยาวกว่าเพื่อให้ Attendance Trend/Manpower snapshot ย้อนหลังได้พอ
     fetchSince('wctAccidents', accidentSince),
   ]);
 
   const dailyOutbound = mergeDailyOutbound(outboundRows);
   const dailyInbound = mergeDailyInbound(inboundRows);
+  const dailyTransport = mergeDailyTransport(transportRows);
   const attendanceHistory = mergeAttendance(manpowerRows);
 
   const accidents = accidentRows.map(a => ({
@@ -111,6 +128,7 @@ export async function loadFromFirestore(now = new Date()) {
     inboundDetail: [],
     dailyOutbound,
     dailyInbound,
+    dailyTransport,
     hourlyOutboundToday: emptyHourly,
     hourlyOutboundYesterday: emptyHourly,
     hourlyInboundToday: emptyHourly,

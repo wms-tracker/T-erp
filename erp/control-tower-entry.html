@@ -61,6 +61,7 @@ if (!isAdmin && !myDept) {
 const TABS = [];
 if (isAdmin || myDept === 'OB') TABS.push({ key: 'outbound', label: '📤 Outbound รายวัน' });
 if (isAdmin || myDept === 'IB') TABS.push({ key: 'inbound', label: '📥 Inbound รายวัน' });
+if (isAdmin || myDept === 'TS') TABS.push({ key: 'transport', label: '🚚 TS รายวัน' });
 TABS.push({ key: 'manpower', label: '👷 Manpower รายวัน' });
 TABS.push({ key: 'accident', label: '🦺 แจ้งอุบัติเหตุ' });
 
@@ -101,6 +102,7 @@ function renderTab() {
   const content = document.getElementById('tabContent');
   if (activeTab === 'outbound') return renderOutboundForm(content);
   if (activeTab === 'inbound') return renderInboundForm(content);
+  if (activeTab === 'transport') return renderTransportForm(content);
   if (activeTab === 'manpower') return renderManpowerForm(content);
   if (activeTab === 'accident') return renderAccidentForm(content);
 }
@@ -223,6 +225,65 @@ async function renderInboundForm(el) {
     try {
       await setDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`), payload, { merge: true });
       msg.textContent = `บันทึกข้อมูล Inbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
+    } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
+  });
+  recalcInfo();
+}
+
+// =====================================================================
+// TRANSPORTATION DAILY (แผนก TS)
+// =====================================================================
+async function renderTransportForm(el) {
+  el.innerHTML = `
+    <div class="card">
+      <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+        <div class="field"><label>วันที่</label><input type="date" id="ts-date" value="${todayStr()}" /></div>
+        <div class="field"><label>คลัง (Warehouse)</label><select id="ts-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
+        <div class="field"><label>เป้าหมายจุดส่ง/วัน</label><input type="number" id="ts-target" value="100" min="0" /></div>
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนรถที่ใช้วันนี้</h3>
+      <div class="num-grid">
+        ${numField('ts-companyVehicles', 'รถบริษัท (คัน)', 0)}
+        ${numField('ts-outsourceVehicles', 'รถขนส่ง Outsource (คัน)', 0)}
+      </div>
+      <h3 style="font-size:.9rem;margin:14px 0 0;">จุดส่ง</h3>
+      <div class="num-grid">
+        ${numField('ts-deliveryPoints', 'จำนวนจุดส่ง', 0)}
+        ${numField('ts-delivered', 'ส่งสำเร็จแล้ว', 0)}
+      </div>
+      <div class="total-badge" id="ts-total-info"></div>
+      <button class="btn btn-primary" id="ts-save" style="width:auto;">💾 บันทึก</button>
+      <p class="msg" id="ts-msg"></p>
+    </div>`;
+  const FIELDS = ['companyVehicles', 'outsourceVehicles', 'deliveryPoints', 'delivered'];
+  const recalcInfo = () => {
+    const totalVehicles = getNum('ts-companyVehicles') + getNum('ts-outsourceVehicles');
+    const deliveryPoints = getNum('ts-deliveryPoints'), delivered = getNum('ts-delivered');
+    const pending = Math.max(0, deliveryPoints - delivered);
+    let warn = '';
+    if (delivered > deliveryPoints) warn = ' ⚠️ ส่งสำเร็จมากกว่าจำนวนจุดส่งทั้งหมด — ตรวจสอบตัวเลขอีกครั้ง';
+    document.getElementById('ts-total-info').innerHTML = `รถทั้งหมดวันนี้ = <b>${fmtNum(totalVehicles)}</b> คัน · คงเหลือ/รอส่ง (คำนวณ) = <b>${fmtNum(pending)}</b>${warn}`;
+  };
+  FIELDS.forEach(f => document.getElementById(`ts-${f}`).addEventListener('input', recalcInfo));
+  const load = async () => {
+    const date = document.getElementById('ts-date').value, wh = document.getElementById('ts-wh').value;
+    const snap = await getDoc(doc(db, 'wctTransportDaily', `${date}_${wh}`));
+    const d = snap.exists() ? snap.data() : {};
+    document.getElementById('ts-target').value = d.target ?? 100;
+    FIELDS.forEach(f => document.getElementById(`ts-${f}`).value = d[f] ?? 0);
+    recalcInfo();
+  };
+  document.getElementById('ts-date').addEventListener('change', load);
+  document.getElementById('ts-wh').addEventListener('change', load);
+  document.getElementById('ts-save').addEventListener('click', async () => {
+    const date = document.getElementById('ts-date').value, wh = document.getElementById('ts-wh').value;
+    const msg = document.getElementById('ts-msg'); msg.className = 'msg';
+    if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
+    const payload = { date, warehouse: wh, department: 'TS', target: getNum('ts-target'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    FIELDS.forEach(f => payload[f] = getNum(`ts-${f}`));
+    try {
+      await setDoc(doc(db, 'wctTransportDaily', `${date}_${wh}`), payload, { merge: true });
+      msg.textContent = `บันทึกข้อมูล TS วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });
   recalcInfo();

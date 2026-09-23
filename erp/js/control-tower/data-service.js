@@ -28,7 +28,7 @@ async function loadRawDataset() {
     const { loadFromFirestore } = await import('./firestore-source.js');
     const real = await loadFromFirestore(new Date());
     const hasAnyRealData = Object.keys(real.dailyOutbound).length || Object.keys(real.dailyInbound).length
-      || Object.keys(real.attendanceHistory).length || real.accidents.length;
+      || Object.keys(real.dailyTransport).length || Object.keys(real.attendanceHistory).length || real.accidents.length;
     if (hasAnyRealData) { isDemoMode = false; return real; }
   } catch (err) {
     console.warn('[control-tower] โหลดข้อมูลจริงจาก Firestore ไม่สำเร็จ — ใช้ demo data แทน:', err.message);
@@ -200,6 +200,33 @@ export function listInboundOrders(filters, opts = {}) {
   const ds = _dataset;
   const rows = applyCommonFilters(ds.inboundDetail, filters, 'scheduled_at');
   return paginate(rows, opts, ['container_no', 'supplier', 'carrier']);
+}
+
+// ===================== TRANSPORTATION (TS) =====================
+// ไม่มี order-level detail (ไม่มีรายเที่ยว/รายคัน) — เป็นยอดสะสมรายวันล้วน ๆ ตามที่แผนก TS กรอกจริง
+export function getTransportKPIs(filters) {
+  const ds = _dataset; const keys = dateKeysInRange(filters.range);
+  let companyVehicles = 0, outsourceVehicles = 0, deliveryPoints = 0, delivered = 0, targetSum = 0;
+  for (const k of keys) {
+    const day = ds.dailyTransport[k];
+    if (!day) continue;
+    targetSum += day.target || 0;
+    companyVehicles += day.companyVehicles || 0; outsourceVehicles += day.outsourceVehicles || 0;
+    deliveryPoints += day.deliveryPoints || 0; delivered += day.delivered || 0;
+  }
+  const totalVehicles = companyVehicles + outsourceVehicles;
+  const pending = Math.max(0, deliveryPoints - delivered);
+  const achievedPct = targetSum > 0 ? (delivered / targetSum) * 100 : 0;
+  return { totalVehicles, companyVehicles, outsourceVehicles, deliveryPoints, delivered, pending, target: targetSum, achievedPct };
+}
+
+// แนวโน้มย้อนหลังแบบ rolling window (ไม่ผูกกับ range ที่เลือกบน Filter bar — เพื่อให้เห็นเทรนด์เสมอแม้เลือก "วันนี้")
+export function getTransportTrend(filters, days = 30) {
+  const ds = _dataset;
+  const base = new Date(); base.setHours(0, 0, 0, 0);
+  const keys = [];
+  for (let i = days - 1; i >= 0; i--) { const d = new Date(base); d.setDate(d.getDate() - i); keys.push(localDateStr(d)); }
+  return keys.map(k => ({ date: k, ...(ds.dailyTransport[k] || { deliveryPoints: 0, delivered: 0, target: 0 }) }));
 }
 
 // ===================== MANPOWER =====================
