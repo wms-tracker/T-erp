@@ -231,7 +231,7 @@ body.tv-mode .status-row { padding: 5px 8px; }
       <div class="filter-toggle-wrap"><button class="btn btn-icon" id="btnToggleFilters" title="ตัวกรอง">🔎</button></div>
       <button class="btn btn-icon" id="btnRefresh" title="Refresh Data">🔄</button>
       <button class="btn btn-icon" id="btnTheme" title="สลับธีม">🌙</button>
-      <button class="btn btn-icon no-fullscreen" id="btnTv" title="TV / Control Room Mode">📺</button>
+      <button class="btn btn-icon" id="btnTv" title="TV / Control Room Mode (Esc เพื่อออก)">📺</button>
       <button class="btn btn-icon no-fullscreen" id="btnFullscreen" title="Full Screen">⛶</button>
       <button class="btn btn-icon no-fullscreen" id="btnSettings" title="Settings">⚙️</button>
     </div>
@@ -404,12 +404,14 @@ const state = {
   dayPreset: 'today',
   filters: { warehouse: 'ALL', department: 'ALL', shift: 'ALL', channel: 'ALL', carrier: 'ALL', employeeType: 'ALL', status: 'ALL' },
   thresholds: { ...svc.DEFAULT_THRESHOLDS, ...safeParse(localStorage.getItem(LS.thresholds)) },
-  settings: { autoRefreshSec: 0, tvMode: false, tvIntervalSec: 10, ...safeParse(localStorage.getItem(LS.settings)) },
+  // tvMode ตั้งใจไม่ persist ข้ามการโหลดหน้าใหม่ — ต้อง requestFullscreen() จาก user gesture เสมอ (browser บล็อกถ้าไม่มี)
+  // ถ้าเคย save ไว้ตอน tvMode:true ค้างอยู่ จะโดน .tvMode = false ทับด้านล่างเสมอ กัน "fullscreen หลอก" ที่ Esc ออกไม่ได้
+  settings: { autoRefreshSec: 0, tvIntervalSec: 10, ...safeParse(localStorage.getItem(LS.settings)), tvMode: false },
   attendanceDays: 7,
   accidentYear: new Date().getFullYear(),
 };
 function safeParse(s) { try { return JSON.parse(s) || {}; } catch { return {}; } }
-function saveSettings() { localStorage.setItem(LS.settings, JSON.stringify(state.settings)); }
+function saveSettings() { const { tvMode, ...persisted } = state.settings; localStorage.setItem(LS.settings, JSON.stringify(persisted)); }
 function saveThresholds() { localStorage.setItem(LS.thresholds, JSON.stringify(state.thresholds)); }
 
 // ===================================================================
@@ -672,6 +674,13 @@ function setupTvMode() {
 }
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && state.settings.tvMode) {
+    state.settings.tvMode = false; saveSettings(); setupTvMode();
+  }
+});
+// ทางออกสำรอง: เผื่อ requestFullscreen() ไม่ทำงาน (เช่น ถูก browser บล็อกเพราะไม่มี user gesture ตรง ๆ)
+// ทำให้ fullscreenchange ไม่มีวันยิง — ปุ่ม Esc ต้องปิด TV mode ได้เสมอไม่ว่า fullscreen จริงจะเข้าสำเร็จหรือไม่
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state.settings.tvMode) {
     state.settings.tvMode = false; saveSettings(); setupTvMode();
   }
 });
