@@ -19,8 +19,8 @@ export const DEPARTMENTS = [
   { code: 'AUDIT',     label: 'Audit' },
 ];
 
-export const EMPLOYEE_TYPES = ['IN_HOUSE', 'OUTSOURCE', 'PART_TIME'];
-export const EMPLOYEE_TYPE_LABEL = { IN_HOUSE: 'In-House', OUTSOURCE: 'Outsource', PART_TIME: 'Part-Time' };
+export const EMPLOYEE_TYPES = ['REGULAR', 'OUTSOURCE_REGULAR', 'OUTSOURCE_EXTRA'];
+export const EMPLOYEE_TYPE_LABEL = { REGULAR: 'พนักงานประจำ', OUTSOURCE_REGULAR: 'Outsource ประจำ', OUTSOURCE_EXTRA: 'Outsource เสริม' };
 
 export const SHIFTS = ['กะเช้า', 'กะบ่าย', 'กะดึก'];
 export const WAREHOUSES = [
@@ -96,7 +96,7 @@ function genEmployees(rng, count) {
   const employees = [];
   for (let i = 1; i <= count; i++) {
     const dept = weightedPick(rng, { OB: 18, IB: 14, TS: 8, INV: 10, LOG: 8, QA: 10, RETURN: 6, HK: 6, ACC: 5, LP: 5, AUDIT: 4 });
-    const type = weightedPick(rng, { IN_HOUSE: 45, OUTSOURCE: 40, PART_TIME: 15 });
+    const type = weightedPick(rng, { REGULAR: 50, OUTSOURCE_REGULAR: 30, OUTSOURCE_EXTRA: 20 });
     const attendanceRoll = rng();
     const attendance = attendanceRoll < 0.87 ? 'PRESENT' : attendanceRoll < 0.93 ? 'LATE' : attendanceRoll < 0.97 ? 'LEAVE' : 'ABSENT';
     const present = attendance === 'PRESENT' || attendance === 'LATE';
@@ -311,10 +311,10 @@ export function buildDataset(now = new Date()) {
       const late = Math.round(total * (rng() * 0.08));
       const present = Math.max(0, total - absent - leave);
       const ot = randInt(rng, 0, Math.round(total * 0.3));
-      const inHouse = Math.round(total * 0.45);
-      const outsource = Math.round(total * 0.40);
-      const partTime = Math.max(0, total - inHouse - outsource);
-      perDept[d.code] = { total, inHouse, outsource, partTime, present, absent, leave, late, ot };
+      const regular = Math.round(total * 0.5);
+      const outsourceRegular = Math.round(total * 0.3);
+      const outsourceExtra = Math.max(0, total - regular - outsourceRegular);
+      perDept[d.code] = { total, regular, outsourceRegular, outsourceExtra, present, absent, leave, late, ot };
     }
     attendanceHistory[key] = perDept;
   }
@@ -325,9 +325,9 @@ export function buildDataset(now = new Date()) {
       const deptEmp = employees.filter(e => e.department === d.code && e.status === 'ACTIVE');
       perDept[d.code] = {
         total: deptEmp.length,
-        inHouse: deptEmp.filter(e => e.employee_type === 'IN_HOUSE').length,
-        outsource: deptEmp.filter(e => e.employee_type === 'OUTSOURCE').length,
-        partTime: deptEmp.filter(e => e.employee_type === 'PART_TIME').length,
+        regular: deptEmp.filter(e => e.employee_type === 'REGULAR').length,
+        outsourceRegular: deptEmp.filter(e => e.employee_type === 'OUTSOURCE_REGULAR').length,
+        outsourceExtra: deptEmp.filter(e => e.employee_type === 'OUTSOURCE_EXTRA').length,
         present: deptEmp.filter(e => e.attendance === 'PRESENT' || e.attendance === 'LATE').length,
         absent: deptEmp.filter(e => e.attendance === 'ABSENT').length,
         leave: deptEmp.filter(e => e.attendance === 'LEAVE').length,

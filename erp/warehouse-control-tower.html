@@ -816,10 +816,10 @@ function openInboundDrilldown(status) {
 function renderManpower(kpis) {
   const k = kpis.manpower;
   document.getElementById('manpowerKpis').innerHTML = [
-    kpiEl({ label: 'Total', value: fmtNum(k.total), sub: `${fmtNum(k.present)} มาปฏิบัติงาน`, cls: 'info', big: true, onClick: 'emp:ALL' }),
-    kpiEl({ label: 'In-House', value: fmtNum(k.byType.IN_HOUSE), cls: 'ok', onClick: 'emp:IN_HOUSE' }),
-    kpiEl({ label: 'Outsource', value: fmtNum(k.byType.OUTSOURCE), cls: 'info', onClick: 'emp:OUTSOURCE' }),
-    kpiEl({ label: 'Part-Time', value: fmtNum(k.byType.PART_TIME), cls: 'gray', onClick: 'emp:PART_TIME' }),
+    kpiEl({ label: 'Total', value: fmtNum(k.total), sub: `${fmtNum(k.present)} มาจริง`, cls: 'info', big: true, onClick: 'emp:ALL' }),
+    kpiEl({ label: 'พนักงานประจำ', value: fmtNum(k.byType.REGULAR), cls: 'ok', onClick: 'emp:REGULAR' }),
+    kpiEl({ label: 'Outsource ประจำ', value: fmtNum(k.byType.OUTSOURCE_REGULAR), cls: 'info', onClick: 'emp:OUTSOURCE_REGULAR' }),
+    kpiEl({ label: 'Outsource เสริม', value: fmtNum(k.byType.OUTSOURCE_EXTRA), cls: 'gray', onClick: 'emp:OUTSOURCE_EXTRA' }),
     kpiEl({ label: 'Availability', value: fmtPct(k.availabilityPct), cls: k.availabilityPct >= state.thresholds.manpowerWarningPct ? 'ok' : k.availabilityPct >= state.thresholds.manpowerCriticalPct ? 'warn' : 'bad' }),
   ].join('');
   document.querySelectorAll('#manpowerKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
@@ -830,9 +830,9 @@ function renderManpower(kpis) {
   document.getElementById('deptTableBox').innerHTML = `
     <div style="overflow:auto;max-height:340px;">
       <table class="dt">
-        <thead><tr><th>Department</th><th>In-House</th><th>Outsource</th><th>Part-Time</th><th>Present</th><th>Absent</th><th>OT (ชม.)</th></tr></thead>
+        <thead><tr><th>Department</th><th>ประจำ</th><th>Outsource ประจำ</th><th>Outsource เสริม</th><th>มาจริง</th><th>ขาด</th><th>OT (ชม.)</th></tr></thead>
         <tbody>${deptRows.map(d => `<tr class="dept-row" data-dept="${d.department}">
-          <td><b>${escapeHtml(d.label)}</b></td><td>${fmtNum(d.inHouse)}</td><td>${fmtNum(d.outsource)}</td><td>${fmtNum(d.partTime)}</td>
+          <td><b>${escapeHtml(d.label)}</b></td><td>${fmtNum(d.regular)}</td><td>${fmtNum(d.outsourceRegular)}</td><td>${fmtNum(d.outsourceExtra)}</td>
           <td>${fmtNum(d.present)}/${fmtNum(d.total)}</td><td>${fmtNum(d.absent)}</td><td>${fmtNum(d.ot)}</td>
         </tr>`).join('')}</tbody>
       </table>

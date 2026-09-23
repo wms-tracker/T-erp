@@ -73,8 +73,8 @@ function mergeAttendance(rows) {
   for (const r of rows) {
     const perDept = out[r.date] || {};
     perDept[r.department] = {
-      total: Number(r.total) || 0, inHouse: Number(r.inHouse) || 0, outsource: Number(r.outsource) || 0,
-      partTime: Number(r.partTime) || 0, present: Number(r.present) || 0, absent: Number(r.absent) || 0,
+      total: Number(r.total) || 0, regular: Number(r.regular) || 0, outsourceRegular: Number(r.outsourceRegular) || 0,
+      outsourceExtra: Number(r.outsourceExtra) || 0, present: Number(r.present) || 0, absent: Number(r.absent) || 0,
       leave: Number(r.leave) || 0, late: Number(r.late) || 0, ot: Number(r.ot) || 0,
     };
     out[r.date] = perDept;

@@ -50,7 +50,8 @@ Demo data ใช้ shape ตรงตามสเปกทุกฟิลด์
 | `outbound_orders` (order-level, โหมด demo เท่านั้น) | `id, order_id, sku, product, quantity, channel, carrier, status (Pending/Picked/QC/Shipped/Cancelled), created_at, picked_at, qc_at, shipped_at, warehouse, shift, employee` |
 | `wctOutboundDaily` (ยอดสะสมรายวันที่แผนก Outbound กรอกจริง) | `date, warehouse, department:'OB', target, total, picked, qc, shipped, cancelled, qty` |
 | `inbound_orders` | `id, inbound_no, supplier, sku, product, expected_qty, received_qty, status, receive_date, qc_status, location, warehouse, carton, pallet` |
-| `employees` | `id, employee_code, name, department, employee_type (IN_HOUSE/OUTSOURCE/PART_TIME), shift, status, attendance, check_in, check_out, ot` |
+| `employees` (โหมด demo เท่านั้น — ไม่มี roster รายบุคคลจริง) | `id, employee_code, name, department, employee_type (REGULAR/OUTSOURCE_REGULAR/OUTSOURCE_EXTRA), shift, status, attendance, check_in, check_out, ot` |
+| `wctManpowerDaily` (สรุปกำลังคนรายวันต่อแผนกที่กรอกจริง) | `date, department, total, regular, outsourceRegular, outsourceExtra, present, absent, leave, late, ot` |
 | `accidents` | `id, accident_no, date, time, location, department, employee, type, severity, description, cause, damage, corrective_action, responsible, status, closed_date` |
 
 **ความสอดคล้องของตัวเลข (สเปกข้อ 34):** `wctOutboundDaily` เก็บเป็น "ยอดสะสม" ตามที่แผนก Outbound กรอกจริง (`picked` = ออเดอร์ที่หยิบไปแล้วทั้งหมด รวมที่ผ่าน QC/Ship ไปแล้วด้วย ไม่ใช่ bucket แยกกัน) — `Pending = Total - Picked - Cancelled` คำนวณอัตโนมัติ ไม่ต้องกรอก (ดู `getOutboundKPIs()` ใน `data-service.js` ซึ่งยัง derive มุมมอง "สถานะปัจจุบันต่อออเดอร์" มาให้ Donut Chart ด้วย เพื่อให้ Total ยังเท่ากับผลรวมของ breakdown เสมอ) หลักการเดียวกันใช้กับ `inbound_orders` (7 สถานะ mutually-exclusive)

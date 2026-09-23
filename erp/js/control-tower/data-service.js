@@ -214,7 +214,7 @@ function latestSnapshotKey(range) {
   const keys = dateKeysInRange(range).filter(k => ds.attendanceHistory[k]);
   return keys.length ? keys[keys.length - 1] : ds.todayKey;
 }
-const EMPTY_DEPT_SNAPSHOT = { total: 0, inHouse: 0, outsource: 0, partTime: 0, present: 0, absent: 0, leave: 0, late: 0, ot: 0 };
+const EMPTY_DEPT_SNAPSHOT = { total: 0, regular: 0, outsourceRegular: 0, outsourceExtra: 0, present: 0, absent: 0, leave: 0, late: 0, ot: 0 };
 
 export function getManpowerByDepartment(filters) {
   const ds = _dataset;
@@ -230,9 +230,9 @@ export function getManpowerKPIs(filters) {
   const total = rows.reduce((s, r) => s + r.total, 0);
   const present = rows.reduce((s, r) => s + r.present, 0);
   const byType = {
-    IN_HOUSE: rows.reduce((s, r) => s + r.inHouse, 0),
-    OUTSOURCE: rows.reduce((s, r) => s + r.outsource, 0),
-    PART_TIME: rows.reduce((s, r) => s + r.partTime, 0),
+    REGULAR: rows.reduce((s, r) => s + r.regular, 0),
+    OUTSOURCE_REGULAR: rows.reduce((s, r) => s + r.outsourceRegular, 0),
+    OUTSOURCE_EXTRA: rows.reduce((s, r) => s + r.outsourceExtra, 0),
   };
   return { total, byType, present, availabilityPct: total ? (present / total) * 100 : 0 };
 }
