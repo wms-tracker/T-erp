@@ -28,10 +28,17 @@ function pad2(n) { return String(n).padStart(2, '0'); }
 function dateStr(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 function addDays(base, n) { const d = new Date(base); d.setDate(d.getDate() + n); return d; }
 
+// จับ error รายคอลเลกชัน ไม่ให้คอลเลกชันเดียวที่อ่านไม่ได้ (เช่น ยังไม่ publish security rules ของคอลเลกชันใหม่)
+// ทำให้ข้อมูลจริงของคอลเลกชันอื่นที่อ่านได้ปกติ หายไปด้วย (เดิมใช้ Promise.all ซึ่ง fail-fast ทั้งชุด)
 async function fetchSince(colName, sinceDate) {
-  const q = query(collection(db, colName), where('date', '>=', dateStr(sinceDate)), orderBy('date', 'asc'), limit(5000));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  try {
+    const q = query(collection(db, colName), where('date', '>=', dateStr(sinceDate)), orderBy('date', 'asc'), limit(5000));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.warn(`[control-tower] อ่าน ${colName} ไม่สำเร็จ (ข้ามไปก่อน):`, err.message);
+    return [];
+  }
 }
 
 // Outbound เป็นยอดสะสมรายวัน (Total/Picked/QC/Shipped/Cancelled) ที่แผนก OB กรอกตรง ๆ — รวมข้ามคลังด้วยการบวกตรง ๆ
