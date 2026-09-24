@@ -181,18 +181,24 @@ body.tv-mode .section.tv-active {
 }
 @keyframes tv-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* TV mode: บีบระยะห่าง/ขนาดให้ทั้งฉากพอดีจอเดียว ไม่ต้องเลื่อน — ระหว่างสลับฉากอัตโนมัติทุกฉากควรเห็นครบในเฟรมเดียว */
-body.tv-mode .section { margin-top: 12px; }
-body.tv-mode .card { padding: 10px 14px; }
-body.tv-mode .kpi { padding: 9px 10px; }
-body.tv-mode .kpi .val { font-size: 1.15rem; }
-body.tv-mode .kpi .lbl { font-size: 0.66rem; }
-body.tv-mode .kpi-grid { gap: 7px; }
-body.tv-mode .two-col { gap: 8px; margin-top: 8px; }
+/* TV mode: ขยายทุกอย่างให้เต็มจอ (มีแค่ฉากเดียวโชว์ ไม่ต้องบีบเล็กแล้ว) — แต่ตาราง Manpower by Department (11 แผนก) ยังต้องพอดีจอไม่ต้องเลื่อน */
+body.tv-mode .section { margin-top: 16px; }
+body.tv-mode .card { padding: 20px 24px; }
+body.tv-mode .kpi { padding: 18px 20px; }
+body.tv-mode .kpi .val { font-size: 2.4rem; }
+body.tv-mode .kpi .lbl { font-size: 0.9rem; }
+body.tv-mode .kpi .sub { font-size: 0.82rem; }
+body.tv-mode .kpi-grid { gap: 16px; }
+body.tv-mode .two-col { gap: 20px; margin-top: 20px; flex: 1; min-height: 0; align-items: stretch; }
+body.tv-mode .two-col .card { display: flex; flex-direction: column; height: 100%; }
+body.tv-mode .two-col .card > div:last-child { flex: 1; display: flex; flex-direction: column; }
 body.tv-mode .dept-table-scroll { max-height: none; }
-body.tv-mode table.dt th, body.tv-mode table.dt td { padding: 5px 8px; font-size: 0.76rem; }
-body.tv-mode .section-head { margin-bottom: 6px; }
-body.tv-mode .status-row { padding: 5px 8px; }
+body.tv-mode table.dt th, body.tv-mode table.dt td { padding: 8px 12px; font-size: 0.86rem; }
+body.tv-mode .section-head { margin-bottom: 10px; }
+body.tv-mode .section-head h2 { font-size: 1.15rem; }
+body.tv-mode .status-row { padding: 10px 12px; }
+body.tv-mode .status-row .name { font-size: 0.98rem; }
+body.tv-mode .status-row .count { font-size: 1.05rem; }
 
 @media print {
   header.topbar, .no-print { display: none !important; }
@@ -452,8 +458,10 @@ function deptManpowerCard(deptCode) {
 }
 
 // ===================== SVG charts (ไม่พึ่งไลบรารีภายนอก) =====================
+function isTvMode() { return document.body.classList.contains('tv-mode'); }
+
 function svgBarChart(items, opts = {}) {
-  const w = opts.width || 760, h = opts.height || 230;
+  const w = opts.width || 760, h = opts.height || (isTvMode() ? 420 : 230);
   const padL = 42, padB = 34, padT = 18, padR = 14;
   const innerW = w - padL - padR, innerH = h - padT - padB;
   const max = Math.max(1, ...items.map(i => Number(i.value) || 0), ...items.map(i => Number(i.value2) || 0));
@@ -474,13 +482,13 @@ function svgBarChart(items, opts = {}) {
     const cx = padL + idx * barW + barW / 2;
     return `<text x="${cx.toFixed(1)}" y="${(padT + innerH + 16).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">${escapeHtml(it.label)}</text>`;
   }).join('');
-  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">
+  return `<div style="overflow-x:auto;${isTvMode()?'flex:1;display:flex;align-items:stretch;':''}"><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;${isTvMode()?'':'max-width:'+w+'px;'}">
     <line x1="${padL}" y1="${(padT+innerH).toFixed(1)}" x2="${(w-padR).toFixed(1)}" y2="${(padT+innerH).toFixed(1)}" stroke="var(--border)" stroke-width="1"/>
     ${bars}${xLabels}</svg></div>`;
 }
 
 function svgDonut(items, opts = {}) {
-  const size = opts.size || 190, stroke = opts.stroke || 26;
+  const size = opts.size || (isTvMode() ? 280 : 190), stroke = opts.stroke || (isTvMode() ? 36 : 26);
   const r = (size - stroke) / 2, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
   const total = items.reduce((s, i) => s + i.value, 0) || 1;
   let offset = 0;
@@ -501,7 +509,7 @@ function svgDonut(items, opts = {}) {
 }
 
 function svgLineMulti(labels, series, opts = {}) {
-  const w = opts.width || 760, h = opts.height || 230;
+  const w = opts.width || 760, h = opts.height || (isTvMode() ? 420 : 230);
   const padL = 46, padB = 34, padT = 18, padR = 14;
   const innerW = w - padL - padR, innerH = h - padT - padB;
   const allVals = series.flatMap(s => s.values.map(Number));
@@ -522,7 +530,7 @@ function svgLineMulti(labels, series, opts = {}) {
   const showEvery = n > 12 ? Math.ceil(n / 12) : 1;
   const xLabels = labels.map((lab, i) => i % showEvery === 0 ? `<text x="${xOf(i).toFixed(1)}" y="${(padT+innerH+16).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="var(--text-muted)">${escapeHtml(lab)}</text>` : '').join('');
   const legend = series.map(s => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:14px;font-size:0.76rem;color:var(--text-muted);"><span style="width:10px;height:10px;border-radius:3px;background:${s.color};display:inline-block;"></span>${escapeHtml(s.name)}</span>`).join('');
-  return `<div style="overflow-x:auto;"><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;max-width:${w}px;">${grid}${lines}${xLabels}</svg></div><div style="margin-top:4px;">${legend}</div>`;
+  return `<div style="overflow-x:auto;${isTvMode()?'flex:1;display:flex;align-items:stretch;':''}"><svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;${isTvMode()?'':'max-width:'+w+'px;'}">${grid}${lines}${xLabels}</svg></div><div style="margin-top:4px;">${legend}</div>`;
 }
 
 // ===================================================================
