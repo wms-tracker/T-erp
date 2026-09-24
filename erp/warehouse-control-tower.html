@@ -99,6 +99,10 @@ select, .datepick {
 .kpi.c-ok .bar { background: var(--ok); } .kpi.c-warn .bar { background: var(--warn); }
 .kpi.c-bad .bar { background: var(--bad); } .kpi.c-info .bar { background: var(--info); } .kpi.c-gray .bar { background: var(--gray); }
 .kpi.big .val { font-size: 2rem; }
+.kpi.mp-card .val { font-size: 1.3rem; }
+.mp-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; margin-top: 8px; }
+.mp-detail-grid .mp-d-lbl { display: block; font-size: 0.62rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-detail-grid .mp-d-val { display: block; font-size: 0.95rem; font-weight: 700; margin-top: 1px; }
 
 .progress-track { background: var(--panel-2); border-radius: 20px; height: 9px; overflow: hidden; border: 1px solid var(--border); }
 .progress-fill { height: 100%; border-radius: 20px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .4s; }
@@ -199,6 +203,10 @@ body.tv-mode .section-head h2 { font-size: 1.15rem; }
 body.tv-mode .status-row { padding: 10px 12px; }
 body.tv-mode .status-row .name { font-size: 0.98rem; }
 body.tv-mode .status-row .count { font-size: 1.05rem; }
+body.tv-mode .kpi.mp-card .val { font-size: 1.9rem; }
+body.tv-mode .mp-detail-grid { gap: 10px 18px; margin-top: 10px; }
+body.tv-mode .mp-detail-grid .mp-d-lbl { font-size: 0.8rem; }
+body.tv-mode .mp-detail-grid .mp-d-val { font-size: 1.5rem; }
 
 @media print {
   header.topbar, .no-print { display: none !important; }
@@ -447,14 +455,26 @@ function kpiEl({ label, value, sub, cls = 'info', big = false, onClick }) {
 }
 
 // การ์ดกำลังพลของแผนกเดียว — ใช้แสดงในฉาก Outbound/Inbound/TS ของ TV mode เพื่อให้เห็นกำลังคนของแผนกนั้นในหน้าเดียวกันเลย
+// แสดงรายละเอียดแบบเดียวกับตาราง Manpower by Department (ประจำ/Outsource ประจำ/Outsource เสริม/มาจริง/ขาด/OT)
 function deptManpowerCard(deptCode) {
   const row = svc.getManpowerByDepartment({ ...currentFilters(), department: deptCode })[0];
   if (!row || row.total === 0) return '';
   const shortage = Math.max(0, row.total - row.present);
-  return kpiEl({
-    label: `กำลังพล ${row.label}`, value: `${fmtNum(row.present)}/${fmtNum(row.total)}`,
-    sub: shortage > 0 ? `ขาด ${fmtNum(shortage)} คน` : 'มาครบ', cls: shortage > 0 ? 'warn' : 'ok',
-  });
+  const cls = shortage > 0 ? 'warn' : 'ok';
+  const stat = (lbl, val) => `<div><span class="mp-d-lbl">${escapeHtml(lbl)}</span><span class="mp-d-val">${fmtNum(val)}</span></div>`;
+  return `<div class="kpi mp-card c-${cls}" style="grid-column:span 2;cursor:default;">
+    <div class="bar"></div>
+    <div class="lbl">กำลังพล ${escapeHtml(row.label)}</div>
+    <div class="val">${fmtNum(row.present)}/${fmtNum(row.total)} <span style="font-size:.68rem;font-weight:600;">${shortage > 0 ? `ขาด ${fmtNum(shortage)} คน` : 'มาครบ'}</span></div>
+    <div class="mp-detail-grid">
+      ${stat('ประจำ', row.regular)}
+      ${stat('Outsource ประจำ', row.outsourceRegular)}
+      ${stat('Outsource เสริม', row.outsourceExtra)}
+      ${stat('มาจริง', row.present)}
+      ${stat('ขาด', row.absent)}
+      ${stat('OT (ชม.)', row.ot)}
+    </div>
+  </div>`;
 }
 
 // ===================== SVG charts (ไม่พึ่งไลบรารีภายนอก) =====================
