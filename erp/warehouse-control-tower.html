@@ -440,6 +440,17 @@ function kpiEl({ label, value, sub, cls = 'info', big = false, onClick }) {
   </div>`;
 }
 
+// การ์ดกำลังพลของแผนกเดียว — ใช้แสดงในฉาก Outbound/Inbound/TS ของ TV mode เพื่อให้เห็นกำลังคนของแผนกนั้นในหน้าเดียวกันเลย
+function deptManpowerCard(deptCode) {
+  const row = svc.getManpowerByDepartment({ ...currentFilters(), department: deptCode })[0];
+  if (!row || row.total === 0) return '';
+  const shortage = Math.max(0, row.total - row.present);
+  return kpiEl({
+    label: `กำลังพล ${row.label}`, value: `${fmtNum(row.present)}/${fmtNum(row.total)}`,
+    sub: shortage > 0 ? `ขาด ${fmtNum(shortage)} คน` : 'มาครบ', cls: shortage > 0 ? 'warn' : 'ok',
+  });
+}
+
 // ===================== SVG charts (ไม่พึ่งไลบรารีภายนอก) =====================
 function svgBarChart(items, opts = {}) {
   const w = opts.width || 760, h = opts.height || 230;
@@ -742,6 +753,7 @@ function renderOutbound(kpis) {
     kpiEl({ label: 'จัดส่งแล้ว (Shipped)', value: fmtNum(k.shipped), cls: 'ok', onClick: 'outbound:SHIPPED' }),
     kpiEl({ label: 'ยกเลิก (Cancelled)', value: fmtNum(k.cancelled), cls: 'bad', onClick: 'outbound:CANCELLED' }),
     kpiEl({ label: 'Pending', value: fmtNum(k.pending), sub: 'ยังไม่ได้หยิบ (คำนวณ)', cls: 'warn', onClick: 'outbound:PENDING' }),
+    deptManpowerCard('OB'),
   ];
   document.getElementById('outboundKpis').innerHTML = cards.join('') + `
     <div class="kpi c-info" style="cursor:default;grid-column:span 2;">
@@ -815,6 +827,7 @@ function renderInbound(kpis) {
     kpiEl({ label: 'ลงเสร็จแล้ว (Unloaded)', value: fmtNum(k.unloaded), sub: 'ยอดสะสม', cls: 'info', onClick: 'inbound:UNLOADED' }),
     kpiEl({ label: 'จัดเก็บเรียบร้อย (Stored)', value: fmtNum(k.putaway), cls: 'ok', onClick: 'inbound:STORED' }),
     kpiEl({ label: 'Pending', value: fmtNum(k.pending), sub: 'ยังไม่มาถึง (คำนวณ)', cls: 'warn', onClick: 'inbound:PENDING' }),
+    deptManpowerCard('IB'),
   ];
   document.getElementById('inboundKpis').innerHTML = cards.join('');
   document.querySelectorAll('#inboundKpis .kpi[data-action]').forEach(el => el.addEventListener('click', () => {
@@ -872,6 +885,7 @@ function renderTransport(kpis) {
     kpiEl({ label: 'จำนวนจุดส่ง', value: fmtNum(k.deliveryPoints), cls: 'info', big: true }),
     kpiEl({ label: 'ส่งสำเร็จแล้ว', value: fmtNum(k.delivered), cls: 'ok' }),
     kpiEl({ label: 'คงเหลือ/รอส่ง', value: fmtNum(k.pending), sub: 'คำนวณ', cls: 'warn' }),
+    deptManpowerCard('TS'),
   ];
   document.getElementById('transportKpis').innerHTML = cards.join('') + `
     <div class="kpi c-info" style="cursor:default;grid-column:span 2;">
