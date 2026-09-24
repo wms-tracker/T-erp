@@ -137,6 +137,10 @@ export function getOutboundKPIs(filters) {
     const pickedC = count('PICKED'), qcC = count('QC'), shippedC = count('SHIPPED');
     picked = pickedC + qcC + shippedC; qc = qcC + shippedC; shipped = shippedC; cancelled = count('CANCELLED');
   }
+  // ป้องกันข้อมูลกรอกไม่ครบ (เช่น อัปเดตแค่ Shipped แต่ลืมอัปเดต Picked/QC) ทำให้ Pending เพี้ยน —
+  // ออเดอร์ที่ถึงสถานะถัดไปแล้วต้องผ่านสถานะก่อนหน้ามาแล้วเสมอ (Shipped ⊆ QC ⊆ Picked)
+  picked = Math.max(picked, qc, shipped);
+  qc = Math.max(qc, shipped);
   const pending = Math.max(0, total - picked - cancelled);
   const buckets = { PENDING: pending, PICKED: Math.max(0, picked - qc), QC: Math.max(0, qc - shipped), SHIPPED: shipped, CANCELLED: cancelled };
   const progressPct = total > 0 ? (picked / total) * 100 : 0;
@@ -181,6 +185,9 @@ export function getInboundKPIs(filters) {
     const arrivedC = count('ARRIVED'), unloadedC = count('UNLOADED'), storedC = count('STORED');
     arrived = arrivedC + unloadedC + storedC; unloaded = unloadedC + storedC; putaway = storedC;
   }
+  // ป้องกันข้อมูลกรอกไม่ครบ (เช่น อัปเดตแค่ Stored แต่ลืมอัปเดต Arrived/Unloaded) ทำให้ Pending เพี้ยน
+  arrived = Math.max(arrived, unloaded, putaway);
+  unloaded = Math.max(unloaded, putaway);
   const pending = Math.max(0, total - arrived);
   const buckets = { PENDING: pending, ARRIVED: Math.max(0, arrived - unloaded), UNLOADED: Math.max(0, unloaded - putaway), STORED: putaway };
   const achievedPct = targetSum > 0 ? (putaway / targetSum) * 100 : 0;
