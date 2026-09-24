@@ -383,7 +383,9 @@ async function renderManpowerForm(el) {
       </div>
       <h3 style="font-size:.9rem;margin:14px 0 0;">สถานะการมาปฏิบัติงานวันนี้</h3>
       <div class="num-grid">
-        ${numField('mp-present', 'มาจริง (คน)', 0)}
+        ${numField('mp-presentRegular', 'พนักงานประจำมาจริง (คน)', 0)}
+        ${numField('mp-presentOutsourceRegular', 'Outsource ประจำมาจริง (คน)', 0)}
+        ${numField('mp-presentOutsourceExtra', 'Outsource เสริมมาจริง (คน)', 0)}
         ${numField('mp-leave', 'Leave (ลา)', 0)}
         ${numField('mp-late', 'Late (สาย)', 0)}
         ${numField('mp-ot', 'OT รวม (ชั่วโมง)', 0)}
@@ -393,21 +395,23 @@ async function renderManpowerForm(el) {
       <p class="msg" id="mp-msg"></p>
     </div>`;
   const HEADCOUNT_FIELDS = ['regular', 'outsourceRegular', 'outsourceExtra'];
-  const OTHER_FIELDS = ['present', 'leave', 'late', 'ot'];
+  const PRESENT_FIELDS = ['presentRegular', 'presentOutsourceRegular', 'presentOutsourceExtra'];
+  const OTHER_FIELDS = ['leave', 'late', 'ot'];
   const recalcTotal = () => {
     const total = HEADCOUNT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
-    const present = getNum('mp-present'), leave = getNum('mp-leave');
+    const present = PRESENT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
+    const leave = getNum('mp-leave');
     const absent = Math.max(0, total - present - leave);
     let warn = '';
     if (present + leave > total) warn = ' ⚠️ มาจริง + ลา มากกว่าจำนวนพนักงานทั้งหมด — ตรวจสอบตัวเลขอีกครั้ง';
-    document.getElementById('mp-total').innerHTML = `จำนวนพนักงานทั้งหมด = <b>${fmtNum(total)}</b> · ขาด (คำนวณ) = <b>${fmtNum(absent)}</b>${warn}`;
+    document.getElementById('mp-total').innerHTML = `จำนวนพนักงานทั้งหมด = <b>${fmtNum(total)}</b> · มาจริงรวม = <b>${fmtNum(present)}</b> · ขาด (คำนวณ) = <b>${fmtNum(absent)}</b>${warn}`;
   };
-  [...HEADCOUNT_FIELDS, ...OTHER_FIELDS].forEach(f => document.getElementById(`mp-${f}`).addEventListener('input', recalcTotal));
+  [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => document.getElementById(`mp-${f}`).addEventListener('input', recalcTotal));
   const load = async () => {
     const date = document.getElementById('mp-date').value, dept = document.getElementById('mp-dept').value;
     const snap = await getDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`));
     const d = snap.exists() ? snap.data() : {};
-    [...HEADCOUNT_FIELDS, ...OTHER_FIELDS].forEach(f => document.getElementById(`mp-${f}`).value = d[f] ?? 0);
+    [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => document.getElementById(`mp-${f}`).value = d[f] ?? 0);
     recalcTotal();
   };
   document.getElementById('mp-date').addEventListener('change', load);
@@ -417,9 +421,10 @@ async function renderManpowerForm(el) {
     const msg = document.getElementById('mp-msg'); msg.className = 'msg';
     if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
     const total = HEADCOUNT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
-    const absent = Math.max(0, total - getNum('mp-present') - getNum('mp-leave'));
-    const payload = { date, department: dept, total, absent, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
-    [...HEADCOUNT_FIELDS, ...OTHER_FIELDS].forEach(f => payload[f] = getNum(`mp-${f}`));
+    const present = PRESENT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
+    const absent = Math.max(0, total - present - getNum('mp-leave'));
+    const payload = { date, department: dept, total, present, absent, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => payload[f] = getNum(`mp-${f}`));
     try {
       await setDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`), payload, { merge: true });
       msg.textContent = `บันทึกข้อมูล Manpower แผนก ${deptLabel(dept)} วันที่ ${date} สำเร็จ`; msg.classList.add('ok');
