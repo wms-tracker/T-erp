@@ -173,6 +173,15 @@ function numField(id, label, value = 0) {
 }
 function getNum(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
 
+// บาง browser/เครื่อง คลิกช่อง <input type=date> แล้ว calendar popup ไม่เด้งขึ้นมาเอง (เจอปัญหานี้กับผู้ใช้จริง) —
+// บังคับเปิด picker เองด้วย showPicker() ทุกครั้งที่คลิก เพื่อไม่ต้องพึ่งพฤติกรรม native ล้วนๆ ของแต่ละ browser
+document.addEventListener('click', (e) => {
+  const input = e.target.closest('input[type="date"]');
+  if (input && typeof input.showPicker === 'function') {
+    try { input.showPicker(); } catch (err) { /* ไม่ต้องทำอะไร เช่น เปิดอยู่แล้ว หรือ browser ไม่รองรับในบริบทนี้ */ }
+  }
+});
+
 // บันทึกประวัติการแก้ไขทุกครั้งที่กรอก/แก้ข้อมูลรายวัน — ใช้ collection กลาง auditLog ที่มี rule
 // write-once (สร้างได้อย่างเดียว ห้ามแก้/ลบ) และอ่านได้เฉพาะ admin/manager อยู่แล้วจาก firestore.rules.example
 // ไม่ block การบันทึกหลักถ้า log ล้มเหลว เพราะเป็นแค่ audit trail ไม่ใช่ข้อมูลหลัก

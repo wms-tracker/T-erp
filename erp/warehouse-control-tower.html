@@ -1114,6 +1114,13 @@ document.getElementById('rangeSelect').addEventListener('change', e => {
   renderAll();
 });
 function todayInputStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+// บาง browser/เครื่อง คลิกช่อง <input type=date> แล้ว calendar popup ไม่เด้งขึ้นมาเอง — บังคับเปิดเองด้วย showPicker()
+document.addEventListener('click', (e) => {
+  const input = e.target.closest('input[type="date"]');
+  if (input && typeof input.showPicker === 'function') {
+    try { input.showPicker(); } catch (err) { /* ไม่ต้องทำอะไร */ }
+  }
+});
 ['customFrom', 'customTo'].forEach(id => document.getElementById(id).addEventListener('change', () => {
   const from = document.getElementById('customFrom').value, to = document.getElementById('customTo').value;
   if (!from || !to) return;
