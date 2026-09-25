@@ -25,6 +25,14 @@ service cloud.firestore {
     function myWctDept() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.wctDepartment;
     }
+    // Control Tower daily records มีสถานะ DRAFT/CONFIRMED/LOCKED — เอกสารที่ LOCKED แล้ว
+    // ห้ามแผนก (non-admin) แก้ไขอีก และห้ามแผนกตั้งสถานะเป็น LOCKED เอง (ต้องแอดมินเท่านั้น)
+    function wctNotLockedExisting() {
+      return !('status' in resource.data) || resource.data.status != 'LOCKED';
+    }
+    function wctNotSettingLocked() {
+      return !('status' in request.resource.data) || request.resource.data.status != 'LOCKED';
+    }
 
     // ----- users: อ่าน-เขียนได้เฉพาะแอดมิน, ผู้ใช้อ่านข้อมูลตัวเองได้ -----
     match /users/{uid} {
@@ -227,25 +235,29 @@ service cloud.firestore {
     // ----- wctOutboundDaily: doc id = {date}_{warehouse}, department ต้องเป็น 'OB' เท่านั้น -----
     match /wctOutboundDaily/{id} {
       allow read: if isSignedIn() && isActive();
-      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'OB' && request.resource.data.department == 'OB');
+      allow create: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'OB' && request.resource.data.department == 'OB' && wctNotSettingLocked());
+      allow update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'OB' && request.resource.data.department == 'OB' && wctNotLockedExisting() && wctNotSettingLocked());
       allow delete: if isAdmin();
     }
     // ----- wctInboundDaily: doc id = {date}_{warehouse}, department ต้องเป็น 'IB' เท่านั้น -----
     match /wctInboundDaily/{id} {
       allow read: if isSignedIn() && isActive();
-      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'IB' && request.resource.data.department == 'IB');
+      allow create: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'IB' && request.resource.data.department == 'IB' && wctNotSettingLocked());
+      allow update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'IB' && request.resource.data.department == 'IB' && wctNotLockedExisting() && wctNotSettingLocked());
       allow delete: if isAdmin();
     }
     // ----- wctTransportDaily: doc id = {date}_{warehouse}, department ต้องเป็น 'TS' เท่านั้น -----
     match /wctTransportDaily/{id} {
       allow read: if isSignedIn() && isActive();
-      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'TS' && request.resource.data.department == 'TS');
+      allow create: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'TS' && request.resource.data.department == 'TS' && wctNotSettingLocked());
+      allow update: if isAdmin() || (hasRole('warehouse') && myWctDept() == 'TS' && request.resource.data.department == 'TS' && wctNotLockedExisting() && wctNotSettingLocked());
       allow delete: if isAdmin();
     }
     // ----- wctManpowerDaily: doc id = {date}_{department} — เขียนได้เฉพาะแผนกตัวเอง -----
     match /wctManpowerDaily/{id} {
       allow read: if isSignedIn() && isActive();
-      allow create, update: if isAdmin() || (hasRole('warehouse') && myWctDept() == request.resource.data.department);
+      allow create: if isAdmin() || (hasRole('warehouse') && myWctDept() == request.resource.data.department && wctNotSettingLocked());
+      allow update: if isAdmin() || (hasRole('warehouse') && myWctDept() == request.resource.data.department && wctNotLockedExisting() && wctNotSettingLocked());
       allow delete: if isAdmin();
     }
     // ----- wctAccidents: รายงานอุบัติเหตุรายเหตุการณ์ — แจ้ง/แก้ไขได้เฉพาะของแผนกตัวเอง -----

@@ -173,6 +173,30 @@ function numField(id, label, value = 0) {
 }
 function getNum(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
 
+// ===== Data Status: DRAFT/CONFIRMED/LOCKED — ปิดงวดแล้วห้ามแผนกแก้ไข (แอดมินปลดล็อกได้เท่านั้น) =====
+const WCT_STATUS_LABEL = { DRAFT: '📝 แบบร่าง (Draft)', CONFIRMED: '✅ ยืนยันแล้ว (Confirmed)', LOCKED: '🔒 ปิดงวด (Locked)' };
+function statusFieldHtml(prefix) {
+  // ตัวเลือก LOCKED แสดงไว้เสมอ (เพื่อโชว์สถานะจริงถูกต้องแม้ผู้ใช้ไม่ใช่แอดมิน) แต่ non-admin เลือกไม่ได้
+  const opts = ['DRAFT', 'CONFIRMED', 'LOCKED'];
+  return `<div class="field" style="max-width:220px;"><label>สถานะข้อมูล (Data Status)</label>
+    <select id="${prefix}-status">${opts.map(s => `<option value="${s}" ${(!isAdmin && s === 'LOCKED') ? 'disabled' : ''}>${WCT_STATUS_LABEL[s]}</option>`).join('')}</select></div>`;
+}
+function lockMsgHtml(prefix) {
+  return `<p id="${prefix}-lock-msg" style="display:none;color:#b45309;font-weight:700;background:#fef3c7;padding:8px 12px;border-radius:8px;margin:10px 0 0;">🔒 ข้อมูลวันที่นี้ถูกปิดงวด (Locked) แล้ว — ต้องให้แอดมินปลดล็อกก่อนจึงจะแก้ไขได้</p>`;
+}
+// เรียกหลัง load() ทุกครั้ง — sync ค่า status ที่โหลดมา + ล็อกฟอร์มถ้าจำเป็น
+// (เป็นแค่ UX กันกรอกโดยไม่รู้ตัว ด่านความปลอดภัยจริงคือ Firestore rules)
+function applyWctLock(prefix, editableIds, status) {
+  const sel = document.getElementById(`${prefix}-status`);
+  const validValue = sel && [...sel.options].some(o => o.value === status) ? status : 'DRAFT';
+  if (sel) sel.value = validValue;
+  const locked = status === 'LOCKED' && !isAdmin;
+  editableIds.forEach(id => { const elx = document.getElementById(id); if (elx) elx.disabled = locked; });
+  if (sel) sel.disabled = locked;
+  const saveBtn = document.getElementById(`${prefix}-save`); if (saveBtn) saveBtn.disabled = locked;
+  const msg = document.getElementById(`${prefix}-lock-msg`); if (msg) msg.style.display = locked ? 'block' : 'none';
+}
+
 function renderTab() {
   const content = document.getElementById('tabContent');
   if (activeTab === 'outbound') return renderOutboundForm(content);
@@ -192,7 +216,9 @@ async function renderOutboundForm(el) {
         <div class="field"><label>วันที่</label><input type="date" id="ob-date" value="${todayStr()}" /></div>
         <div class="field"><label>คลัง (Warehouse)</label><select id="ob-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
         <div class="field"><label>เป้าหมาย Orders/วัน</label><input type="number" id="ob-target" value="900" min="0" /></div>
+        ${statusFieldHtml('ob')}
       </div>
+      ${lockMsgHtml('ob')}
       <h3 style="font-size:.9rem;margin:14px 0 0;">ยอดสะสมวันนี้ (แต่ละช่องคือยอดรวม ไม่ใช่ยอดเฉพาะขั้นนั้น)</h3>
       <div class="num-grid">
         ${numField('ob-total', 'ออเดอร์ทั้งหมด/วัน (Total)', 0)}
@@ -227,6 +253,7 @@ async function renderOutboundForm(el) {
     document.getElementById('ob-qc').value = d.qc ?? 0;
     document.getElementById('ob-shipped').value = d.shipped ?? 0;
     document.getElementById('ob-cancelled').value = d.cancelled ?? 0;
+    applyWctLock('ob', ['ob-target', 'ob-qty', 'ob-total', 'ob-picked', 'ob-qc', 'ob-shipped', 'ob-cancelled'], d.status || 'DRAFT');
     recalcInfo();
   };
   document.getElementById('ob-date').addEventListener('change', load);
@@ -238,6 +265,7 @@ async function renderOutboundForm(el) {
     const payload = {
       date, warehouse: wh, department: 'OB', target: getNum('ob-target'), qty: getNum('ob-qty'),
       total: getNum('ob-total'), picked: getNum('ob-picked'), qc: getNum('ob-qc'), shipped: getNum('ob-shipped'), cancelled: getNum('ob-cancelled'),
+      status: document.getElementById('ob-status').value,
       updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp(),
     };
     try {
@@ -258,7 +286,9 @@ async function renderInboundForm(el) {
         <div class="field"><label>วันที่</label><input type="date" id="ib-date" value="${todayStr()}" /></div>
         <div class="field"><label>คลัง (Warehouse)</label><select id="ib-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
         <div class="field"><label>เป้าหมาย ตู้/วัน</label><input type="number" id="ib-target" value="12" min="0" /></div>
+        ${statusFieldHtml('ib')}
       </div>
+      ${lockMsgHtml('ib')}
       <h3 style="font-size:.9rem;margin:14px 0 0;">ยอดสะสมวันนี้ (แต่ละช่องคือยอดรวม ไม่ใช่ยอดเฉพาะขั้นนั้น)</h3>
       <div class="num-grid">
         ${numField('ib-total', 'จำนวนตู้ที่มาประจำวัน (Total)', 0)}
@@ -287,6 +317,7 @@ async function renderInboundForm(el) {
     const d = snap.exists() ? snap.data() : {};
     document.getElementById('ib-target').value = d.target ?? 12;
     FIELDS.forEach(f => document.getElementById(`ib-${f}`).value = d[f] ?? 0);
+    applyWctLock('ib', ['ib-target', ...FIELDS.map(f => `ib-${f}`)], d.status || 'DRAFT');
     recalcInfo();
   };
   document.getElementById('ib-date').addEventListener('change', load);
@@ -295,7 +326,7 @@ async function renderInboundForm(el) {
     const date = document.getElementById('ib-date').value, wh = document.getElementById('ib-wh').value;
     const msg = document.getElementById('ib-msg'); msg.className = 'msg';
     if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
-    const payload = { date, warehouse: wh, department: 'IB', target: getNum('ib-target'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    const payload = { date, warehouse: wh, department: 'IB', target: getNum('ib-target'), status: document.getElementById('ib-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     FIELDS.forEach(f => payload[f] = getNum(`ib-${f}`));
     try {
       await setDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`), payload, { merge: true });
@@ -315,7 +346,9 @@ async function renderTransportForm(el) {
         <div class="field"><label>วันที่</label><input type="date" id="ts-date" value="${todayStr()}" /></div>
         <div class="field"><label>คลัง (Warehouse)</label><select id="ts-wh">${WAREHOUSES.map(w=>`<option value="${w.code}">${w.label}</option>`).join('')}</select></div>
         <div class="field"><label>เป้าหมายจุดส่ง/วัน</label><input type="number" id="ts-target" value="100" min="0" /></div>
+        ${statusFieldHtml('ts')}
       </div>
+      ${lockMsgHtml('ts')}
       <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนรถที่ใช้วันนี้</h3>
       <div class="num-grid">
         ${numField('ts-companyVehicles', 'รถบริษัท (คัน)', 0)}
@@ -346,6 +379,7 @@ async function renderTransportForm(el) {
     const d = snap.exists() ? snap.data() : {};
     document.getElementById('ts-target').value = d.target ?? 100;
     FIELDS.forEach(f => document.getElementById(`ts-${f}`).value = d[f] ?? 0);
+    applyWctLock('ts', ['ts-target', ...FIELDS.map(f => `ts-${f}`)], d.status || 'DRAFT');
     recalcInfo();
   };
   document.getElementById('ts-date').addEventListener('change', load);
@@ -354,7 +388,7 @@ async function renderTransportForm(el) {
     const date = document.getElementById('ts-date').value, wh = document.getElementById('ts-wh').value;
     const msg = document.getElementById('ts-msg'); msg.className = 'msg';
     if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
-    const payload = { date, warehouse: wh, department: 'TS', target: getNum('ts-target'), updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    const payload = { date, warehouse: wh, department: 'TS', target: getNum('ts-target'), status: document.getElementById('ts-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     FIELDS.forEach(f => payload[f] = getNum(`ts-${f}`));
     try {
       await setDoc(doc(db, 'wctTransportDaily', `${date}_${wh}`), payload, { merge: true });
@@ -374,7 +408,9 @@ async function renderManpowerForm(el) {
       <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
         <div class="field"><label>วันที่</label><input type="date" id="mp-date" value="${todayStr()}" /></div>
         <div class="field"><label>แผนก</label><select id="mp-dept">${deptOptions.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select></div>
+        ${statusFieldHtml('mp')}
       </div>
+      ${lockMsgHtml('mp')}
       <h3 style="font-size:.9rem;margin:14px 0 0;">จำนวนพนักงานตามประเภท</h3>
       <div class="num-grid">
         ${numField('mp-regular', 'จำนวนพนักงานประจำ (คน)', 0)}
@@ -412,6 +448,7 @@ async function renderManpowerForm(el) {
     const snap = await getDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`));
     const d = snap.exists() ? snap.data() : {};
     [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => document.getElementById(`mp-${f}`).value = d[f] ?? 0);
+    applyWctLock('mp', [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].map(f => `mp-${f}`), d.status || 'DRAFT');
     recalcTotal();
   };
   document.getElementById('mp-date').addEventListener('change', load);
@@ -423,7 +460,7 @@ async function renderManpowerForm(el) {
     const total = HEADCOUNT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
     const present = PRESENT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
     const absent = Math.max(0, total - present - getNum('mp-leave'));
-    const payload = { date, department: dept, total, present, absent, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
+    const payload = { date, department: dept, total, present, absent, status: document.getElementById('mp-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => payload[f] = getNum(`mp-${f}`));
     try {
       await setDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`), payload, { merge: true });
