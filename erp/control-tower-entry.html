@@ -173,6 +173,22 @@ function numField(id, label, value = 0) {
 }
 function getNum(id) { return Math.max(0, Number(document.getElementById(id).value) || 0); }
 
+// บันทึกประวัติการแก้ไขทุกครั้งที่กรอก/แก้ข้อมูลรายวัน — ใช้ collection กลาง auditLog ที่มี rule
+// write-once (สร้างได้อย่างเดียว ห้ามแก้/ลบ) และอ่านได้เฉพาะ admin/manager อยู่แล้วจาก firestore.rules.example
+// ไม่ block การบันทึกหลักถ้า log ล้มเหลว เพราะเป็นแค่ audit trail ไม่ใช่ข้อมูลหลัก
+async function logAudit(module, docId, before, after) {
+  try {
+    await addDoc(collection(db, 'auditLog'), {
+      module, docId, action: before ? 'update' : 'create', before: before || null, after,
+      changedBy: profile.uid, changedByName: profile.name || profile.email, changedAt: serverTimestamp(),
+    });
+  } catch (err) { console.warn('[audit] เขียนประวัติไม่สำเร็จ (ข้ามไป):', err.message); }
+}
+async function getBeforeSnapshot(collectionName, docId) {
+  const snap = await getDoc(doc(db, collectionName, docId));
+  return snap.exists() ? snap.data() : null;
+}
+
 // ===== Data Status: DRAFT/CONFIRMED/LOCKED — ปิดงวดแล้วห้ามแผนกแก้ไข (แอดมินปลดล็อกได้เท่านั้น) =====
 const WCT_STATUS_LABEL = { DRAFT: '📝 แบบร่าง (Draft)', CONFIRMED: '✅ ยืนยันแล้ว (Confirmed)', LOCKED: '🔒 ปิดงวด (Locked)' };
 function statusFieldHtml(prefix) {
@@ -269,7 +285,10 @@ async function renderOutboundForm(el) {
       updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp(),
     };
     try {
-      await setDoc(doc(db, 'wctOutboundDaily', `${date}_${wh}`), payload, { merge: true });
+      const docId = `${date}_${wh}`;
+      const before = await getBeforeSnapshot('wctOutboundDaily', docId);
+      await setDoc(doc(db, 'wctOutboundDaily', docId), payload, { merge: true });
+      logAudit('OB', docId, before, payload);
       msg.textContent = `บันทึกข้อมูล Outbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });
@@ -329,7 +348,10 @@ async function renderInboundForm(el) {
     const payload = { date, warehouse: wh, department: 'IB', target: getNum('ib-target'), status: document.getElementById('ib-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     FIELDS.forEach(f => payload[f] = getNum(`ib-${f}`));
     try {
-      await setDoc(doc(db, 'wctInboundDaily', `${date}_${wh}`), payload, { merge: true });
+      const docId = `${date}_${wh}`;
+      const before = await getBeforeSnapshot('wctInboundDaily', docId);
+      await setDoc(doc(db, 'wctInboundDaily', docId), payload, { merge: true });
+      logAudit('IB', docId, before, payload);
       msg.textContent = `บันทึกข้อมูล Inbound วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });
@@ -391,7 +413,10 @@ async function renderTransportForm(el) {
     const payload = { date, warehouse: wh, department: 'TS', target: getNum('ts-target'), status: document.getElementById('ts-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     FIELDS.forEach(f => payload[f] = getNum(`ts-${f}`));
     try {
-      await setDoc(doc(db, 'wctTransportDaily', `${date}_${wh}`), payload, { merge: true });
+      const docId = `${date}_${wh}`;
+      const before = await getBeforeSnapshot('wctTransportDaily', docId);
+      await setDoc(doc(db, 'wctTransportDaily', docId), payload, { merge: true });
+      logAudit('TS', docId, before, payload);
       msg.textContent = `บันทึกข้อมูล TS วันที่ ${date} (${wh}) สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });
@@ -463,7 +488,10 @@ async function renderManpowerForm(el) {
     const payload = { date, department: dept, total, present, absent, status: document.getElementById('mp-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => payload[f] = getNum(`mp-${f}`));
     try {
-      await setDoc(doc(db, 'wctManpowerDaily', `${date}_${dept}`), payload, { merge: true });
+      const docId = `${date}_${dept}`;
+      const before = await getBeforeSnapshot('wctManpowerDaily', docId);
+      await setDoc(doc(db, 'wctManpowerDaily', docId), payload, { merge: true });
+      logAudit('MANPOWER', docId, before, payload);
       msg.textContent = `บันทึกข้อมูล Manpower แผนก ${deptLabel(dept)} วันที่ ${date} สำเร็จ`; msg.classList.add('ok');
     } catch (err) { msg.textContent = 'เกิดข้อผิดพลาด: ' + err.message; msg.classList.add('error'); }
   });

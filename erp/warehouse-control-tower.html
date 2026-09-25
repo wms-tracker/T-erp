@@ -235,6 +235,7 @@ body.tv-mode .mp-detail-grid .mp-d-val { font-size: 1.5rem; }
     <div class="topbar-controls">
       <span class="role-pill" id="rolePill">Manager</span>
       <a href="control-tower-entry.html" class="btn" title="ไปหน้ากรอกข้อมูลรายวัน">📝 กรอกข้อมูล</a>
+      <a href="control-tower-audit.html" class="btn" id="btnAuditLog" title="ประวัติการแก้ไขข้อมูล" style="display:none;">📜 Audit Log</a>
       <select id="warehouseSelect" title="Warehouse"></select>
       <select id="rangeSelect" title="ช่วงเวลา">
         <option value="today">วันนี้</option>
@@ -1200,6 +1201,7 @@ function renderSettings() {
 }
 function applyRole() {
   document.getElementById('rolePill').textContent = ROLE_LABEL[profile.role] || profile.role;
+  document.getElementById('btnAuditLog').style.display = canEditThresholds() ? 'inline-flex' : 'none';
 }
 
 // ===================================================================

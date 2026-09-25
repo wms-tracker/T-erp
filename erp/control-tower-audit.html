@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Audit Log — Warehouse Control Tower</title>
+<style>
+:root {
+  --bg: #eef1f7; --panel: #ffffff; --panel-2: #f5f7fb; --text: #16213e; --text-muted: #5c6584;
+  --border: #dde2ee; --accent: #2e6cf6; --accent-2: #5a8dfb;
+  --ok: #17a673; --ok-bg: rgba(23,166,115,0.12);
+  --warn: #d99a1f; --warn-bg: rgba(217,154,31,0.14);
+  --bad: #e14b4b; --bad-bg: rgba(225,75,75,0.13);
+  --shadow: 0 6px 24px rgba(20,30,60,0.08);
+}
+:root[data-theme="dark"] {
+  --bg: #0b1120; --panel: #141d33; --panel-2: #101728; --text: #e8ecfb; --text-muted: #93a0c4;
+  --border: #253156; --accent: #5a8dfb; --accent-2: #7fa6ff;
+  --ok: #2fd196; --ok-bg: rgba(47,209,150,0.12);
+  --warn: #f0b429; --warn-bg: rgba(240,180,41,0.14);
+  --bad: #ff5c5c; --bad-bg: rgba(255,92,92,0.14);
+  --shadow: 0 8px 28px rgba(0,0,0,0.35);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); }
+body { font-family: 'Segoe UI', 'Sarabun', Tahoma, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); }
+.entry-topbar {
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel) 100%); border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow); position: sticky; top: 0; z-index: 10;
+}
+.entry-topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.entry-logo { width: 36px; height: 36px; border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 1rem; flex-shrink: 0; }
+.entry-titles h1 { font-size: 0.98rem; margin: 0; letter-spacing: .3px; }
+.entry-titles p { margin: 0; font-size: .68rem; color: var(--text-muted); letter-spacing: .5px; text-transform: uppercase; }
+.entry-topbar-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.role-pill { font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: var(--accent); color: #fff; opacity: .9; }
+.entry-wrap { max-width: 1200px; margin: 0 auto; padding: 20px 18px 60px; }
+.entry-sub { font-size: .8rem; color: var(--text-muted); margin: 0 0 16px; }
+select, .btn {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px; font-size: 0.82rem; font-family: inherit;
+}
+.btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; transition: filter .15s; }
+.btn:hover { filter: brightness(1.08); }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+.toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+table.dt { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+table.dt th { text-align: left; padding: 9px 10px; border-bottom: 2px solid var(--border); color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .3px; white-space: nowrap; }
+table.dt td { padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.dt tbody tr { cursor: pointer; }
+table.dt tbody tr:hover { background: var(--panel-2); }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; }
+.badge.create { background: var(--ok-bg); color: var(--ok); }
+.badge.update { background: var(--warn-bg); color: var(--warn); }
+.empty-msg { padding: 30px; text-align: center; color: var(--text-muted); font-size: .88rem; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(6,10,24,.55); display: none; align-items: flex-start; justify-content: center; z-index: 100; padding: 40px 16px; }
+.modal-overlay.open { display: flex; }
+.modal-box { background: var(--panel); border-radius: 14px; width: 100%; max-width: 820px; max-height: 88vh; overflow: auto; border: 1px solid var(--border); box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+.modal-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); }
+.modal-head h3 { margin: 0; font-size: .95rem; flex: 1; }
+.modal-body { padding: 16px 18px; }
+.diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; font-size: .82rem; }
+.diff-grid .h { font-weight: 700; color: var(--text-muted); padding-bottom: 6px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.diff-row { display: contents; }
+.diff-row > div { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+.diff-row.changed > div { background: var(--warn-bg); }
+.diff-key { grid-column: 1 / -1; font-weight: 700; font-size: .74rem; color: var(--text-muted); text-transform: uppercase; margin-top: 8px; }
+</style>
+</head>
+<body></body>
+<script type="module">
+import { requireRole, db } from "./js/auth.js";
+import { collection, query, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const profile = await requireRole(['admin', 'manager']);
+const body = document.body;
+const ROLE_LABEL = { admin: 'Admin', manager: 'Manager' };
+const MODULE_LABEL = { OB: 'Outbound', IB: 'Inbound', TS: 'Transportation', MANPOWER: 'Manpower' };
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDateTime(ts) {
+  if (!ts) return '-';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' });
+}
+
+function initThemeToggle() {
+  const KEY = 'wct_theme';
+  const apply = (t) => { document.documentElement.setAttribute('data-theme', t); document.getElementById('entryThemeBtn').textContent = t === 'dark' ? '☀️' : '🌙'; };
+  apply(localStorage.getItem(KEY) || 'light');
+  document.getElementById('entryThemeBtn').addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    localStorage.setItem(KEY, next); apply(next);
+  });
+}
+
+body.innerHTML = `
+  <header class="entry-topbar">
+    <div class="entry-topbar-inner">
+      <div class="entry-logo">HW</div>
+      <div class="entry-titles">
+        <h1>HORIZON WAREHOUSE</h1>
+        <p>Audit Log — ประวัติการแก้ไขข้อมูล</p>
+      </div>
+      <div class="entry-topbar-controls">
+        <span class="role-pill">${escapeHtml(ROLE_LABEL[profile.role] || profile.role)}</span>
+        <a href="warehouse-control-tower.html" class="btn">📊 ไปหน้า Dashboard</a>
+        <button class="btn" id="entryThemeBtn" title="สลับธีม">🌙</button>
+      </div>
+    </div>
+  </header>
+  <div class="entry-wrap">
+    <p class="entry-sub" style="margin-top:20px;">
+      แสดงประวัติการเพิ่ม/แก้ไขข้อมูลรายวันของ Warehouse Control Tower ล่าสุด 200 รายการ (ทุกครั้งที่บันทึกจากหน้ากรอกข้อมูล ระบบจะเก็บค่าก่อน-หลังไว้อัตโนมัติ)
+    </p>
+    <div class="card">
+      <div class="toolbar">
+        <select id="moduleFilter">
+          <option value="ALL">ทุก Module</option>
+          <option value="OB">Outbound</option>
+          <option value="IB">Inbound</option>
+          <option value="TS">Transportation</option>
+          <option value="MANPOWER">Manpower</option>
+        </select>
+        <button class="btn" id="btnReload">🔄 รีเฟรช</button>
+        <span id="countInfo" style="margin-left:auto;font-size:.8rem;color:var(--text-muted);"></span>
+      </div>
+      <div id="tableBox"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box">
+      <div class="modal-head"><h3 id="modalTitle"></h3><button class="btn" id="modalClose">✕ ปิด</button></div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+`;
+initThemeToggle();
+
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target.id === 'modalOverlay') closeModal(); });
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+let allEntries = [];
+async function loadEntries() {
+  document.getElementById('tableBox').innerHTML = `<div class="empty-msg">กำลังโหลด...</div>`;
+  try {
+    const q = query(collection(db, 'auditLog'), orderBy('changedAt', 'desc'), limit(200));
+    const snap = await getDocs(q);
+    allEntries = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(e => MODULE_LABEL[e.module]);
+  } catch (err) {
+    document.getElementById('tableBox').innerHTML = `<div class="empty-msg">โหลดไม่สำเร็จ: ${escapeHtml(err.message)}</div>`;
+    return;
+  }
+  render();
+}
+
+function render() {
+  const filter = document.getElementById('moduleFilter').value;
+  const rows = filter === 'ALL' ? allEntries : allEntries.filter(e => e.module === filter);
+  document.getElementById('countInfo').textContent = `${rows.length} รายการ`;
+  if (!rows.length) {
+    document.getElementById('tableBox').innerHTML = `<div class="empty-msg">ยังไม่มีประวัติการแก้ไข</div>`;
+    return;
+  }
+  document.getElementById('tableBox').innerHTML = `
+    <table class="dt">
+      <thead><tr><th>เวลา</th><th>Module</th><th>Doc ID</th><th>การกระทำ</th><th>ผู้แก้ไข</th></tr></thead>
+      <tbody>${rows.map((e, i) => `
+        <tr data-idx="${i}">
+          <td>${fmtDateTime(e.changedAt)}</td>
+          <td>${escapeHtml(MODULE_LABEL[e.module] || e.module)}</td>
+          <td>${escapeHtml(e.docId || '-')}</td>
+          <td><span class="badge ${e.action}">${e.action === 'create' ? 'สร้างใหม่' : 'แก้ไข'}</span></td>
+          <td>${escapeHtml(e.changedByName || e.changedBy || '-')}</td>
+        </tr>`).join('')}</tbody>
+    </table>`;
+  document.querySelectorAll('#tableBox tbody tr').forEach(tr => tr.addEventListener('click', () => openDetail(rows[Number(tr.dataset.idx)])));
+}
+
+function openDetail(entry) {
+  document.getElementById('modalTitle').textContent = `${MODULE_LABEL[entry.module] || entry.module} — ${entry.docId} (${fmtDateTime(entry.changedAt)})`;
+  const before = entry.before || {};
+  const after = entry.after || {};
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(k => !['updatedAt', 'updatedBy', 'updatedByName'].includes(k)).sort();
+  const fmtVal = v => (v === undefined || v === null) ? '-' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+  document.getElementById('modalBody').innerHTML = `
+    <p style="font-size:.82rem;color:var(--text-muted);margin-top:0;">แก้ไขโดย <b>${escapeHtml(entry.changedByName || entry.changedBy || '-')}</b> · ${entry.action === 'create' ? 'สร้างข้อมูลใหม่' : 'แก้ไขข้อมูลเดิม'}</p>
+    <div class="diff-grid">
+      <div class="h">ค่าก่อนแก้ไข (Before)</div><div class="h">ค่าหลังแก้ไข (After)</div>
+      ${keys.map(k => {
+        const bv = fmtVal(before[k]), av = fmtVal(after[k]);
+        const changed = bv !== av;
+        return `<div class="diff-key">${escapeHtml(k)}</div><div class="diff-row ${changed ? 'changed' : ''}"><div>${escapeHtml(bv)}</div><div>${escapeHtml(av)}</div></div>`;
+      }).join('')}
+    </div>`;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+document.getElementById('moduleFilter').addEventListener('change', render);
+document.getElementById('btnReload').addEventListener('click', loadEntries);
+await loadEntries();
+</script>
+</html>
