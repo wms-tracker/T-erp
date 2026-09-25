@@ -58,7 +58,7 @@ function inRange(dateVal, from, to) {
   return t >= from.getTime() && t <= to.getTime();
 }
 
-/** ช่วงเวลาตาม preset: today | yesterday | month | year | custom({from,to}) */
+/** ช่วงเวลาตาม preset: today | yesterday | 7d | 30d | month | year | custom({from,to}) */
 export function resolveRange(preset, now = new Date(), custom = null) {
   const start = new Date(now); start.setHours(0, 0, 0, 0);
   const end = new Date(now); end.setHours(23, 59, 59, 999);
@@ -67,6 +67,11 @@ export function resolveRange(preset, now = new Date(), custom = null) {
     const y0 = new Date(start); y0.setDate(y0.getDate() - 1);
     const y1 = new Date(end); y1.setDate(y1.getDate() - 1);
     return { from: y0, to: y1, days: 1 };
+  }
+  if (preset === '7d' || preset === '30d') {
+    const days = preset === '7d' ? 7 : 30;
+    const from = new Date(start); from.setDate(from.getDate() - (days - 1));
+    return { from, to: end, days };
   }
   if (preset === 'month') {
     const from = new Date(now.getFullYear(), now.getMonth(), 1);

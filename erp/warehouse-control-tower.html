@@ -176,7 +176,7 @@ body.fullscreen-mode .no-fullscreen { display: none !important; }
 .dept-table-scroll { max-height: none; }
 body.tv-mode .kpi, body.tv-mode .status-row { cursor: default; }
 /* TV mode: แสดงทีละฉากเต็มจอ — ซ่อนฉากอื่นทั้งหมด แสดงเฉพาะฉากที่กำลังหมุนถึง */
-body.tv-mode #demoBanner, body.tv-mode footer.appfoot { display: none !important; }
+body.tv-mode #demoBanner, body.tv-mode #dateStatusBanner, body.tv-mode footer.appfoot { display: none !important; }
 body.tv-mode .section { display: none; }
 body.tv-mode .section.tv-active {
   display: flex; flex-direction: column; justify-content: flex-start;
@@ -239,9 +239,17 @@ body.tv-mode .mp-detail-grid .mp-d-val { font-size: 1.5rem; }
       <select id="rangeSelect" title="ช่วงเวลา">
         <option value="today">วันนี้</option>
         <option value="yesterday">เมื่อวาน</option>
+        <option value="7d">ย้อนหลัง 7 วัน</option>
+        <option value="30d">ย้อนหลัง 30 วัน</option>
         <option value="month">เดือนนี้</option>
         <option value="year">ปีนี้</option>
+        <option value="custom">กำหนดเอง...</option>
       </select>
+      <span id="customRangeWrap" style="display:none;align-items:center;gap:4px;">
+        <input type="date" id="customFrom" class="datepick" title="จากวันที่" />
+        <span style="color:var(--text-muted);">–</span>
+        <input type="date" id="customTo" class="datepick" title="ถึงวันที่" />
+      </span>
       <div class="filter-toggle-wrap"><button class="btn btn-icon" id="btnToggleFilters" title="ตัวกรอง">🔎</button></div>
       <button class="btn btn-icon" id="btnRefresh" title="Refresh Data">🔄</button>
       <button class="btn btn-icon" id="btnTheme" title="สลับธีม">🌙</button>
@@ -261,6 +269,8 @@ body.tv-mode .mp-detail-grid .mp-d-val { font-size: 1.5rem; }
     <span>⚠️ ยังไม่มีข้อมูลจริงในระบบ — กำลังแสดง <b>ข้อมูลตัวอย่าง (Demo)</b> เท่านั้น</span>
     <a href="control-tower-entry.html" style="color:inherit;text-decoration:underline;margin-left:auto;">ไปกรอกข้อมูลจริง →</a>
   </div>
+
+  <div id="dateStatusBanner" style="display:flex;margin-top:16px;padding:8px 16px;border-radius:10px;font-size:.82rem;font-weight:700;align-items:center;gap:8px;flex-wrap:wrap;"></div>
 
   <section class="section" id="sec-overview">
     <div class="two-col">
@@ -416,6 +426,7 @@ const LS = {
 const state = {
   range: 'today',
   dayPreset: 'today',
+  customRange: null, // { from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' } — ใช้ตอนเลือก "กำหนดเอง" รวมถึงดูแผนล่วงหน้า (future plan)
   filters: { warehouse: 'ALL', department: 'ALL', shift: 'ALL', channel: 'ALL', carrier: 'ALL', employeeType: 'ALL', status: 'ALL' },
   thresholds: { ...svc.DEFAULT_THRESHOLDS, ...safeParse(localStorage.getItem(LS.thresholds)) },
   // tvMode ตั้งใจไม่ persist ข้ามการโหลดหน้าใหม่ — ต้อง requestFullscreen() จาก user gesture เสมอ (browser บล็อกถ้าไม่มี)
@@ -728,7 +739,7 @@ document.addEventListener('keydown', (e) => {
 // RENDER: OVERVIEW (Health + Alerts)
 // ===================================================================
 function currentFilters() {
-  return { ...state.filters, range: svc.resolveRange(state.range), dayPreset: state.dayPreset };
+  return { ...state.filters, range: svc.resolveRange(state.range, new Date(), state.customRange), dayPreset: state.dayPreset };
 }
 
 function computeAllKpis() {
@@ -1082,9 +1093,32 @@ function openAccidentDetail(row) {
 // ===================================================================
 // RANGE / SETTINGS / THEME / FULLSCREEN
 // ===================================================================
-function rangeLabel() { return { today: 'วันนี้', yesterday: 'เมื่อวาน', month: 'เดือนนี้', year: 'ปีนี้' }[state.range] || state.range; }
+function rangeLabel() {
+  if (state.range === 'custom' && state.customRange) return `${state.customRange.from} – ${state.customRange.to}`;
+  return { today: 'วันนี้', yesterday: 'เมื่อวาน', '7d': 'ย้อนหลัง 7 วัน', '30d': 'ย้อนหลัง 30 วัน', month: 'เดือนนี้', year: 'ปีนี้' }[state.range] || state.range;
+}
 
-document.getElementById('rangeSelect').addEventListener('change', e => { state.range = e.target.value; state.dayPreset = e.target.value; renderAll(); });
+document.getElementById('rangeSelect').addEventListener('change', e => {
+  state.range = e.target.value; state.dayPreset = e.target.value;
+  const wrap = document.getElementById('customRangeWrap');
+  if (state.range === 'custom') {
+    wrap.style.display = 'inline-flex';
+    const today = todayInputStr();
+    if (!state.customRange) state.customRange = { from: today, to: today };
+    document.getElementById('customFrom').value = state.customRange.from;
+    document.getElementById('customTo').value = state.customRange.to;
+  } else {
+    wrap.style.display = 'none';
+  }
+  renderAll();
+});
+function todayInputStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+['customFrom', 'customTo'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+  const from = document.getElementById('customFrom').value, to = document.getElementById('customTo').value;
+  if (!from || !to) return;
+  state.customRange = { from, to };
+  renderAll();
+}));
 document.getElementById('attendanceRangeSelect').addEventListener('change', e => { state.attendanceDays = Number(e.target.value); renderAttendanceChart(); });
 document.getElementById('btnRefresh').addEventListener('click', async () => { await svc.refreshDataService(); renderAll(true); });
 document.getElementById('btnToggleFilters').addEventListener('click', () => document.getElementById('filterBar').classList.toggle('open'));
@@ -1206,6 +1240,28 @@ function renderAll(fromManualRefresh = false) {
   document.getElementById('lastUpdateFoot').textContent = new Date(ds.generatedAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'medium' });
   document.getElementById('sysStatusFoot').textContent = 'Online';
   document.getElementById('demoBanner').style.display = svc.isDemoMode ? 'flex' : 'none';
+  renderDateStatusBanner();
+}
+
+// บอกชัดเจนว่าข้อมูลที่กำลังดูเป็นข้อมูลจริงวันนี้ / ย้อนหลัง / หรือแผนล่วงหน้า กันสับสนระหว่างข้อมูลจริงกับแผน
+function renderDateStatusBanner() {
+  const { from, to } = svc.resolveRange(state.range, new Date(), state.customRange);
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const el = document.getElementById('dateStatusBanner');
+  const label = rangeLabel();
+  let icon, text, bg, color;
+  if (from.getTime() > todayEnd.getTime()) {
+    icon = '🔵'; text = `FUTURE PLAN — ${label}`; bg = 'var(--info-bg, rgba(90,141,251,.15))'; color = 'var(--info)';
+  } else if (to.getTime() > todayEnd.getTime()) {
+    icon = '🔵'; text = `FUTURE PLAN (รวมข้อมูลจริงบางส่วน) — ${label}`; bg = 'var(--info-bg, rgba(90,141,251,.15))'; color = 'var(--info)';
+  } else if (from.getTime() >= todayStart.getTime() && to.getTime() <= todayEnd.getTime()) {
+    icon = '🟢'; text = `ACTUAL DATA — ${label}`; bg = 'var(--ok-bg)'; color = 'var(--ok)';
+  } else {
+    icon = '⚪'; text = `HISTORICAL DATA — ${label}`; bg = 'var(--panel-2)'; color = 'var(--text-muted)';
+  }
+  el.style.background = bg; el.style.color = color;
+  el.innerHTML = `<span>${icon} ${escapeHtml(text)}</span>`;
 }
 
 async function boot() {
