@@ -1,15 +1,17 @@
-import { History, Plus, X } from 'lucide-react';
+import { History, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '../store';
 import { ACTION_LABEL, fmtDateTime, MEMBER_STATUS_LABEL } from '../lib/view';
 import { Button, MemberStatusBadge, Modal, SportStatusBadge } from './ui';
 import { useRegistrationActions } from './useRegistrationActions';
+import { EditMemberModal } from '../pages/Management';
 
 /** Member detail: sports registered + add/cancel per sport + this member's history. */
 export function MemberDetailModal({ memberId, onClose }: { memberId: string | null; onClose: () => void }) {
   const { view, snapshot } = useStore();
-  const { register, cancel } = useRegistrationActions();
+  const { register, cancel, removeMember } = useRegistrationActions();
   const [busySport, setBusySport] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
   const mv = view?.members.find((m) => m.member.id === memberId);
   if (!memberId || !view || !mv) return null;
 
@@ -29,14 +31,22 @@ export function MemberDetailModal({ memberId, onClose }: { memberId: string | nu
     <Modal
       open
       onClose={onClose}
-      busy={!!busySport}
+      busy={!!busySport || editing}
       title={mv.member.full_name}
       subtitle={
         <span className="flex flex-wrap items-center gap-2">
           รหัส {mv.member.member_code} · ลงแข่ง {mv.count} ประเภท <MemberStatusBadge status={mv.status} label={MEMBER_STATUS_LABEL[mv.status]} />
         </span>
       }
-      footer={<Button variant="outline" onClick={onClose} disabled={!!busySport}>ปิด</Button>}
+      footer={
+        <>
+          <Button variant="ghost" className="mr-auto text-red-600" disabled={!!busySport} onClick={async () => { if (await removeMember(mv.member)) onClose(); }}>
+            <Trash2 className="h-4 w-4" /> ลบสมาชิก
+          </Button>
+          <Button variant="outline" disabled={!!busySport} onClick={() => setEditing(true)}><Pencil className="h-4 w-4" /> แก้ไขชื่อ</Button>
+          <Button variant="dark" onClick={onClose} disabled={!!busySport}>เสร็จสิ้น</Button>
+        </>
+      }
     >
       <h3 className="mb-2 text-sm font-semibold text-gray-700">ประเภทกีฬา (กดเพิ่ม หรือ ยกเลิก)</h3>
       <ul className="space-y-2">
@@ -81,6 +91,7 @@ export function MemberDetailModal({ memberId, onClose }: { memberId: string | nu
           ))}
         </ul>
       )}
+      {editing && <EditMemberModal member={mv.member} onClose={() => setEditing(false)} />}
     </Modal>
   );
 }

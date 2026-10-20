@@ -60,6 +60,7 @@ export function createDemoSource(): DataSource {
     addMember: (name, actor) => mutate((s) => E.addMember(s, { actor }, name)),
     updateMember: (id, name, actor) => mutate((s) => E.updateMember(s, { actor }, id, name)),
     setMemberActive: (id, active, actor) => mutate((s) => E.setMemberActive(s, { actor }, id, active)),
+    deleteMember: (id, actor) => mutate((s) => E.deleteMember(s, { actor }, id)),
     addSport: (name, target, actor) => mutate((s) => E.addSport(s, { actor }, name, target)),
     updateSport: (id, name, target, actor) => mutate((s) => E.updateSport(s, { actor }, id, name, target)),
     setSportActive: (id, active, actor) => mutate((s) => E.setSportActive(s, { actor }, id, active)),

@@ -1,12 +1,14 @@
 import type { Session } from '@supabase/supabase-js';
-import { AlertTriangle, BarChart3, FileText, LayoutDashboard, LogOut, RefreshCw, UserCog } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { AlertTriangle, BarChart3, FileText, LayoutDashboard, LogOut, RefreshCw, UserCog, Wifi } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { AssignModal } from './components/AssignModal';
 import { MemberDetailModal } from './components/MemberDetailModal';
 import { SportListModal } from './components/SportListModal';
 import { Button, cx, Modal, Spinner } from './components/ui';
 import { createDemoSource } from './lib/demoSource';
+import { createServerSource, detectServer } from './lib/serverSource';
 import { createSupabaseSource, getClient, isSupabaseConfigured, signOut } from './lib/supabaseSource';
+import type { DataSource } from './lib/types';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Management } from './pages/Management';
@@ -17,7 +19,8 @@ const useSupabase = isSupabaseConfigured();
 const requireLogin = useSupabase && (import.meta.env.VITE_AUTH_MODE ?? 'login') !== 'none';
 
 export function App() {
-  const source = useMemo(() => (useSupabase ? createSupabaseSource() : createDemoSource()), []);
+  const [source, setSource] = useState<DataSource | null>(() => (useSupabase ? createSupabaseSource() : null));
+  const [shareUrls, setShareUrls] = useState<string[]>([]);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!requireLogin);
 
@@ -29,11 +32,21 @@ export function App() {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  // no Supabase configured → use the office LAN server if this page comes from it, else Demo
+  useEffect(() => {
+    if (useSupabase) return;
+    detectServer().then((info) => {
+      if (info) setShareUrls(info.urls);
+      setSource(info ? createServerSource() : createDemoSource());
+    });
+  }, []);
+
+  if (!source) return <Spinner label="กำลังเชื่อมต่อ…" />;
   if (!authReady) return <Spinner label="กำลังตรวจสอบการเข้าสู่ระบบ…" />;
   if (requireLogin && !session) return <Login />;
   return (
     <StoreProvider source={source} defaultActor={session?.user.email ?? undefined} key={session?.user.id ?? 'anon'}>
-      <Shell signedInAs={session?.user.email ?? null} />
+      <Shell signedInAs={session?.user.email ?? null} shareUrls={shareUrls} />
     </StoreProvider>
   );
 }
@@ -49,7 +62,7 @@ const pageFromHash = (): Page => {
   return PAGES.some((p) => p.key === h) ? (h as Page) : 'dashboard';
 };
 
-function Shell({ signedInAs }: { signedInAs: string | null }) {
+function Shell({ signedInAs, shareUrls }: { signedInAs: string | null; shareUrls: string[] }) {
   const { loading, loadError, view, source, actor, refresh } = useStore();
   const [page, setPage] = useState<Page>(pageFromHash);
   const [assign, setAssign] = useState<{ open: boolean; sportId?: string }>({ open: false });
@@ -106,6 +119,18 @@ function Shell({ signedInAs }: { signedInAs: string | null }) {
           <div className="mx-auto flex max-w-7xl items-start gap-2 px-4 py-2 text-sm text-orange-900">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span><b>โหมด Demo</b> — ข้อมูลบันทึกในเบราว์เซอร์เครื่องนี้เท่านั้น <b>ไม่ซิงก์ระหว่างอุปกรณ์</b> (เชื่อม Supabase ตามคู่มือ README เพื่อใช้งานจริงหลายเครื่อง)</span>
+          </div>
+        </div>
+      )}
+
+      {source.mode === 'server' && shareUrls.length > 0 && (
+        <div className="no-print border-b border-green-200 bg-green-50">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 text-sm text-green-900">
+            <Wifi className="h-4 w-4 shrink-0" />
+            <span>ใช้งานร่วมกันใน Wi-Fi บริษัท — ส่งลิงก์นี้ให้เพื่อนเปิดลงชื่อเองได้:</span>
+            {shareUrls.map((u) => (
+              <b key={u} className="select-all rounded bg-white px-1.5 py-0.5 font-mono ring-1 ring-green-200">{u}</b>
+            ))}
           </div>
         </div>
       )}

@@ -220,6 +220,19 @@ begin
     case when v_n > 0 then ' (ยกเลิกการสมัคร ' || v_n || ' รายการ)' else '' end, public._actor(p_actor));
 end $$;
 
+create or replace function public.delete_member(p_id uuid, p_actor text)
+returns void language plpgsql security definer set search_path = public as $$
+declare v_m public.members%rowtype; v_n int;
+begin
+  select * into v_m from public.members where id = p_id for update;
+  if not found then raise exception 'MEMBER_NOT_FOUND'; end if;
+  select count(*) into v_n from public.registrations where member_id = p_id and registration_status = 'registered';
+  delete from public.registrations where member_id = p_id;
+  delete from public.members where id = p_id;   -- audit_logs.member_id becomes null (on delete set null)
+  perform public._log('MEMBER_DELETE', null, null, 'ลบสมาชิก ' || v_m.member_code || ' ' || v_m.full_name ||
+    case when v_n > 0 then ' (ยกเลิกการสมัคร ' || v_n || ' รายการ)' else '' end, public._actor(p_actor));
+end $$;
+
 create or replace function public.add_sport(p_name text, p_target integer, p_actor text)
 returns uuid language plpgsql security definer set search_path = public as $$
 declare v_name text := regexp_replace(btrim(p_name), '\s+', ' ', 'g'); v_id uuid;
@@ -291,7 +304,7 @@ begin
   foreach f in array array[
     'register_members(uuid, uuid[], text, boolean)', 'cancel_registration(uuid, uuid, text)',
     'move_registration(uuid, uuid, uuid, text, boolean)', 'add_member(text, text)', 'update_member(uuid, text, text)',
-    'set_member_active(uuid, boolean, text)', 'add_sport(text, integer, text)', 'update_sport(uuid, text, integer, text)',
+    'set_member_active(uuid, boolean, text)', 'delete_member(uuid, text)', 'add_sport(text, integer, text)', 'update_sport(uuid, text, integer, text)',
     'set_sport_active(uuid, boolean, text)', 'reset_registrations(text)']
   loop
     execute format('revoke all on function public.%s from public, anon', f);
@@ -355,5 +368,5 @@ on conflict (sport_name) do nothing;
 -- create policy "anon read audit" on public.audit_logs for select to anon using (true);
 -- grant execute on function public.register_members(uuid, uuid[], text, boolean), public.cancel_registration(uuid, uuid, text),
 --   public.move_registration(uuid, uuid, uuid, text, boolean), public.add_member(text, text), public.update_member(uuid, text, text),
---   public.set_member_active(uuid, boolean, text), public.add_sport(text, integer, text), public.update_sport(uuid, text, integer, text),
+--   public.set_member_active(uuid, boolean, text), public.delete_member(uuid, text), public.add_sport(text, integer, text), public.update_sport(uuid, text, integer, text),
 --   public.set_sport_active(uuid, boolean, text), public.reset_registrations(text) to anon;

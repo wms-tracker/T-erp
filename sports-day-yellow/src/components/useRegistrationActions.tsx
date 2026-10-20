@@ -93,5 +93,29 @@ export function useRegistrationActions() {
     [run, view, confirm],
   );
 
-  return { register, cancel, move };
+  const removeMember = useCallback(
+    async (member: Member) => {
+      const n = view?.members.find((m) => m.member.id === member.id)?.count ?? 0;
+      const ok = await confirm({
+        title: 'ลบสมาชิกออกจากรายชื่อ',
+        danger: true,
+        confirmText: 'ลบสมาชิก',
+        message: (
+          <>
+            <p>
+              ลบ <b>{member.full_name}</b> ({member.member_code}) ออกจากรายชื่อสีเหลืองใช่หรือไม่?
+            </p>
+            {n > 0 && <p className="text-red-600">การสมัครกีฬา {n} รายการของคนนี้จะถูกลบไปด้วย</p>}
+            <p className="text-gray-500">ประวัติการเปลี่ยนแปลงจะบันทึกไว้ว่าใครเป็นผู้ลบ หากลบผิดสามารถเพิ่มชื่อกลับได้ที่หน้า จัดการนักกีฬา</p>
+          </>
+        ),
+      });
+      if (!ok) return false;
+      const res = await run((src, actor) => src.deleteMember(member.id, actor), `ลบ ${member.full_name} แล้ว`);
+      return res.ok;
+    },
+    [run, view, confirm],
+  );
+
+  return { register, cancel, move, removeMember };
 }

@@ -63,6 +63,7 @@ export function createSupabaseSource(): DataSource {
     addMember: (name, actor) => rpc('add_member', { p_full_name: name, p_actor: actor }).then(() => undefined),
     updateMember: (id, name, actor) => rpc('update_member', { p_id: id, p_full_name: name, p_actor: actor }).then(() => undefined),
     setMemberActive: (id, active, actor) => rpc('set_member_active', { p_id: id, p_active: active, p_actor: actor }).then(() => undefined),
+    deleteMember: (id, actor) => rpc('delete_member', { p_id: id, p_actor: actor }).then(() => undefined),
     addSport: (name, target, actor) => rpc('add_sport', { p_name: name, p_target: target, p_actor: actor }).then(() => undefined),
     updateSport: (id, name, target, actor) =>
       rpc('update_sport', { p_id: id, p_name: name, p_target: target, p_actor: actor }).then(() => undefined),

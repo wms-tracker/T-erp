@@ -1,4 +1,4 @@
-import { CheckCircle2, ClipboardList, Eye, ListChecks, Printer, Search, Trophy, UserPlus, Users, UserX } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Eye, Hand, ListChecks, Printer, Search, Trophy, UserPlus, Users, UserX } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useStore } from '../store';
 import { printSport } from '../lib/reports';
@@ -20,6 +20,8 @@ export function Dashboard({ onAssign, onMember, onSportList }: { onAssign: (spor
   const s = view.summary;
   return (
     <div className="space-y-6">
+      <SelfRegister members={view.members} onMember={onMember} />
+
       {/* A: summary */}
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard icon={<Users />} label="สมาชิกสีเหลืองทั้งหมด" value={s.totalMembers} unit="คน" dark />
@@ -51,6 +53,43 @@ export function Dashboard({ onAssign, onMember, onSportList }: { onAssign: (spor
         )}
       </section>
     </div>
+  );
+}
+
+/** Self-service entry: a member types their own name, taps it, then ticks sports in the detail window. */
+function SelfRegister({ members, onMember }: { members: MemberView[]; onMember: (id: string) => void }) {
+  const [q, setQ] = useState('');
+  const hits = q.trim() ? members.filter((m) => matchesName(m.member.full_name, m.member.member_code, q)).slice(0, 8) : [];
+  return (
+    <section className="rounded-2xl bg-brand-400 p-4 shadow-sm sm:p-5">
+      <div className="flex items-center gap-2">
+        <Hand className="h-6 w-6 text-ink" />
+        <h2 className="text-xl font-extrabold text-ink">ลงชื่อแข่งขันด้วยตัวเอง</h2>
+      </div>
+      <p className="mt-0.5 text-sm text-ink/80">พิมพ์ชื่อของคุณ แล้วแตะที่ชื่อเพื่อเลือกกีฬาที่ต้องการลง — เพิ่ม ยกเลิก หรือแก้ไขชื่อได้เอง</p>
+      <div className="relative mt-3">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+        <input className="input border-ink/20 pl-9" placeholder="พิมพ์ชื่อหรือนามสกุลของคุณ…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      {q.trim() && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {hits.length === 0 ? (
+            <span className="text-sm text-ink/80">ไม่พบชื่อนี้ — เพิ่มชื่อใหม่ได้ที่เมนู “จัดการนักกีฬา”</span>
+          ) : (
+            hits.map((m) => (
+              <button
+                key={m.member.id}
+                onClick={() => { onMember(m.member.id); setQ(''); }}
+                className="rounded-xl bg-ink px-3 py-2 text-left text-sm font-semibold text-white shadow hover:bg-gray-800"
+              >
+                {m.member.full_name}
+                <span className="ml-2 text-xs font-normal text-brand-300">{m.count ? `ลงแล้ว ${m.count} ประเภท` : 'ยังไม่ได้ลง'}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -131,6 +131,22 @@ describe('registration rules', () => {
   });
 });
 
+describe('delete member', () => {
+  it('removes the member and their registrations, keeps a log entry', () => {
+    const s = fresh();
+    E.registerMembers(s, ctx, 's-1', ['m-Y001', 'm-Y002'], false);
+    E.deleteMember(s, ctx, 'm-Y001');
+    expect(s.members).toHaveLength(22);
+    expect(s.registrations.some((r) => r.member_id === 'm-Y001')).toBe(false);
+    expect(buildView(s).sports[0].count).toBe(1);
+    expect(s.logs[0]).toMatchObject({ action: 'MEMBER_DELETE', member_id: null });
+    expect(s.logs.every((l) => l.member_id !== 'm-Y001')).toBe(true);
+    expect(code(() => E.deleteMember(s, ctx, 'm-Y001'))).toBe('MEMBER_NOT_FOUND');
+    E.addMember(s, ctx, 'นางสาววรารัตน์ พรหมสาขา ณ สกลนคร'); // can be added back
+    expect(s.members.at(-1)!.member_code).toBe('Y024');
+  });
+});
+
 describe('search & export', () => {
   it('TC9: Thai name search ignores spaces, matches surname and code', () => {
     expect(matchesName('นายกันต์พงศ์ แก้วแกมทอง', 'Y003', 'แก้วแกม')).toBe(true);

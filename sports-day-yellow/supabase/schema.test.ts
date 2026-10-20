@@ -95,6 +95,18 @@ describe('schema.sql on PostgreSQL', () => {
     expect((await one<{ n: number }>("select count(*)::int n from registrations where registration_status = 'registered'")).n).toBe(0);
   });
 
+  it('deletes a member with their registrations', async () => {
+    const dragon = await sportId('มังกรยักษ์');
+    const [y20] = await memberIds('Y020');
+    await db.query('select register_members($1, $2, $3, false)', [dragon, [y20], 'F']);
+    await db.query("select delete_member($1, 'F')", [y20]);
+    expect((await one<{ n: number }>('select count(*)::int n from members where id = $1', [y20])).n).toBe(0);
+    expect((await one<{ n: number }>('select count(*)::int n from registrations where member_id = $1', [y20])).n).toBe(0);
+    expect((await one<{ n: number }>('select count(*)::int n from audit_logs where member_id = $1', [y20])).n).toBe(0);
+    expect((await one<{ detail: string }>("select detail from audit_logs where action = 'MEMBER_DELETE'")).detail).toContain('Y020');
+    expect(await err(db.query("select delete_member($1, 'F')", [y20]))).toContain('MEMBER_NOT_FOUND');
+  });
+
   it('locks writes down to the functions (RLS + grants)', async () => {
     const rls = await db.query<{ relname: string; relrowsecurity: boolean }>(
       "select relname, relrowsecurity from pg_class where relname in ('members','sports','registrations','audit_logs') order by relname",

@@ -37,6 +37,7 @@ export type AuditAction =
   | 'MEMBER_ADD'
   | 'MEMBER_UPDATE'
   | 'MEMBER_ACTIVE'
+  | 'MEMBER_DELETE'
   | 'SPORT_ADD'
   | 'SPORT_UPDATE'
   | 'SPORT_ACTIVE'
@@ -66,7 +67,7 @@ export interface RegisterResult {
 
 /** Every write goes through this interface — implemented by Demo (localStorage) and Supabase. */
 export interface DataSource {
-  readonly mode: 'demo' | 'supabase';
+  readonly mode: 'demo' | 'server' | 'supabase';
   load(): Promise<Snapshot>;
   /** Calls onChange when data changed elsewhere (other tab / other user). Returns unsubscribe. */
   subscribe(onChange: () => void, onStatus?: (online: boolean) => void): () => void;
@@ -76,6 +77,8 @@ export interface DataSource {
   addMember(fullName: string, actor: string): Promise<void>;
   updateMember(id: string, fullName: string, actor: string): Promise<void>;
   setMemberActive(id: string, active: boolean, actor: string): Promise<void>;
+  /** Permanently removes a member and their registrations (history text is kept). */
+  deleteMember(id: string, actor: string): Promise<void>;
   addSport(name: string, target: number, actor: string): Promise<void>;
   updateSport(id: string, name: string, target: number, actor: string): Promise<void>;
   setSportActive(id: string, active: boolean, actor: string): Promise<void>;

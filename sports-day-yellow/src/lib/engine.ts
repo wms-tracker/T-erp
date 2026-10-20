@@ -167,6 +167,16 @@ export function setMemberActive(s: Snapshot, c: Ctx, id: string, active: boolean
   log(s, c, 'MEMBER_ACTIVE', `${active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} ${m.full_name}${cancelled ? ` (ยกเลิกการสมัคร ${cancelled} รายการ)` : ''}`, id);
 }
 
+/** Hard delete: removes the member and all their registration rows. Log entries keep the name in their text. */
+export function deleteMember(s: Snapshot, c: Ctx, id: string) {
+  const m = findMember(s, id);
+  const n = s.registrations.filter((r) => r.member_id === id && r.registration_status === 'registered').length;
+  s.members = s.members.filter((x) => x.id !== id);
+  s.registrations = s.registrations.filter((r) => r.member_id !== id);
+  for (const l of s.logs) if (l.member_id === id) l.member_id = null;
+  log(s, c, 'MEMBER_DELETE', `ลบสมาชิก ${m.member_code} ${m.full_name}${n ? ` (ยกเลิกการสมัคร ${n} รายการ)` : ''}`);
+}
+
 function validSport(name: string, target: number) {
   if (norm(name).length < 2) throw new AppError('INVALID_INPUT', 'กรุณากรอกชื่อกีฬา');
   if (!Number.isInteger(target) || target < 1 || target > 500) throw new AppError('INVALID_INPUT', 'จำนวนเป้าหมายต้องเป็นจำนวนเต็ม 1–500');

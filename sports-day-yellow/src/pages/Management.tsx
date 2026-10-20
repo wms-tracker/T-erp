@@ -1,4 +1,4 @@
-import { ArrowRightLeft, History, ListChecks, Pencil, Plus, Power, RotateCcw, Search, Trophy, Users } from 'lucide-react';
+import { ArrowRightLeft, History, ListChecks, Pencil, Plus, Power, RotateCcw, Search, Trash2, Trophy, Users } from 'lucide-react';
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useStore } from '../store';
 import { ACTION_LABEL, fmtDateTime, matchesName } from '../lib/view';
@@ -60,6 +60,7 @@ const Card = ({ title, children, right }: { title: ReactNode; children: ReactNod
 function MembersPanel({ onMember }: { onMember: (id: string) => void }) {
   const { snapshot, view, run } = useStore();
   const confirm = useConfirm();
+  const { removeMember } = useRegistrationActions();
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
   const [q, setQ] = useState('');
@@ -133,6 +134,9 @@ function MembersPanel({ onMember }: { onMember: (id: string) => void }) {
                 <Button size="sm" variant="ghost" className={m.is_active ? 'text-red-600' : 'text-green-700'} onClick={() => toggleActive(m)}>
                   <Power className="h-3.5 w-3.5" /> {m.is_active ? 'ปิด' : 'เปิด'}
                 </Button>
+                <Button size="sm" variant="ghost" className="text-red-600" onClick={() => removeMember(m)} title="ลบออกจากรายชื่อ">
+                  <Trash2 className="h-3.5 w-3.5" /> ลบ
+                </Button>
               </div>
             </li>
           ))}
@@ -144,7 +148,7 @@ function MembersPanel({ onMember }: { onMember: (id: string) => void }) {
   );
 }
 
-function EditMemberModal({ member, onClose }: { member: Member; onClose: () => void }) {
+export function EditMemberModal({ member, onClose }: { member: Member; onClose: () => void }) {
   const { run } = useStore();
   const [name, setName] = useState(member.full_name);
   const [saving, setSaving] = useState(false);

@@ -25,6 +25,7 @@ export const ACTION_LABEL: Record<AuditAction, string> = {
   MEMBER_ADD: 'เพิ่มสมาชิก',
   MEMBER_UPDATE: 'แก้ไขชื่อ',
   MEMBER_ACTIVE: 'สถานะสมาชิก',
+  MEMBER_DELETE: 'ลบสมาชิก',
   SPORT_ADD: 'เพิ่มกีฬา',
   SPORT_UPDATE: 'แก้ไขกีฬา',
   SPORT_ACTIVE: 'สถานะกีฬา',
