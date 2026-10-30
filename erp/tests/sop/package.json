@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Tests for the SOP module's Firestore rules. Run: npm install, then npm test (needs Java 21 + firebase-tools).",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-sop \"node --test rules.test.js\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.0.0"
+  }
+}
