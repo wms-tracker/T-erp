@@ -151,6 +151,22 @@ const NAV = {
   ],
 };
 
+// ----- SOP Management (sop.html): ทุกบทบาทเห็นเมนู SOP — สิทธิ์ละเอียดกำหนดในหน้า "สิทธิ์ SOP" -----
+const SOP_ITEMS = [
+  { key: 'sop-dashboard', label: 'Dashboard SOP',        href: 'sop.html#/dashboard' },
+  { key: 'sop-list',      label: 'ทะเบียน SOP',          href: 'sop.html#/sops' },
+  { key: 'sop-tasks',     label: 'งานที่รอฉันดำเนินการ', href: 'sop.html#/tasks' },
+  { key: 'sop-new',       label: 'สร้าง SOP ใหม่',       href: 'sop.html#/new' },
+  { key: 'sop-activity',  label: 'ประวัติการดำเนินการ',  href: 'sop.html#/activity' },
+];
+for (const role of Object.keys(NAV)) {
+  NAV[role].push({ groupKey: 'sop', icon: '📘', label: 'SOP', items: role !== 'admin' ? SOP_ITEMS : [...SOP_ITEMS,
+    { key: 'sop-members',  label: 'สิทธิ์ SOP',  href: 'sop.html#/admin/members' },
+    { key: 'sop-depts',    label: 'แผนก SOP',   href: 'sop.html#/admin/departments' },
+    { key: 'sop-settings', label: 'ตั้งค่า SOP', href: 'sop.html#/admin/settings' },
+  ] });
+}
+
 // ไอคอนเส้น (line icon) แบบ Lucide — ใช้แทน emoji ในแถบเมนู เพื่อให้หน้าตาเหมือนกันทุกเครื่องและดูทันสมัย
 // key = groupKey ของ NAV; ใช้ stroke=currentColor เลยเปลี่ยนสีตามธีมได้
 const ICON_PATHS = {
@@ -176,6 +192,7 @@ const ICON_PATHS = {
   fallback: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/>',
 };
 ICON_PATHS.shipping = ICON_PATHS.freight;
+ICON_PATHS.sop = '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h8"/><path d="M8 11h6"/>';
 function navIcon(key, size = 24) {
   const p = ICON_PATHS[key] || ICON_PATHS.fallback;
   return `<svg class="nav-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;

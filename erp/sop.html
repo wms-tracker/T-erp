@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SOP Management — Web ERP</title>
+<link rel="stylesheet" href="css/erp.css" />
+<link rel="stylesheet" href="css/sop.css" />
+</head>
+<body></body>
+<script type="module">
+// ระบบบริหารจัดการเอกสาร SOP (Standard Operating Procedure) — ทุกบทบาทเข้าได้ สิทธิ์ละเอียดอยู่ใน js/sop/data.js + Firestore Rules
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import { start } from "./js/sop/app.js";
+
+const profile = await requireRole(null);
+const main = renderShell(profile, "sop-dashboard", "📘 SOP Management");
+start(main, profile);
+</script>
+</html>

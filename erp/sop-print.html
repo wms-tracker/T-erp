@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOP Print</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">
+<style>
+  :root { --navy: #1e3a5f; --line: #8c99a8; color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e5e7eb; font-family: 'Sarabun', Tahoma, sans-serif; font-size: 14px; color: #0f172a; line-height: 1.5; }
+  .bar { position: sticky; top: 0; background: #1e3a5f; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; z-index: 5; flex-wrap: wrap; }
+  .bar button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 0; cursor: pointer; background: #f5b324; color: #3d2a00; font-weight: 600; }
+  .bar .tip { font-size: 12.5px; opacity: .85; }
+  .paper { background: #fff; width: 210mm; max-width: 100%; margin: 16px auto; padding: 12mm 14mm; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+  table { border-collapse: collapse; width: 100%; }
+  .pg > thead > tr > td, .pg > tfoot > tr > td, .pg > tbody > tr > td { padding: 0; }
+  .hdr { border: 1px solid var(--line); margin-bottom: 4mm; table-layout: fixed; }
+  .hdr td { border: 1px solid var(--line); padding: 5px 8px; vertical-align: middle; }
+  .hdr .logo { width: 30mm; text-align: center; } .hdr .logo img { max-width: 26mm; max-height: 16mm; }
+  .hdr .mid { text-align: center; } .hdr .mid b { color: var(--navy); font-size: 15px; }
+  .hdr .meta { width: 48mm; font-size: 12px; line-height: 1.6; }
+  .wm { text-align: center; color: #c62828; font-weight: 700; font-size: 12.5px; margin: -2mm 0 3mm; }
+  .ftr { font-size: 10.5px; color: #64748b; display: flex; justify-content: space-between; border-top: 1px solid #cbd5e1; padding-top: 2mm; margin-top: 4mm; }
+  h1 { text-align: center; color: var(--navy); font-size: 20px; margin: 2px 0 10px; }
+  .kick { text-align: center; letter-spacing: .1em; font-size: 11.5px; color: #5a6b7f; font-weight: 600; }
+  .info td, .info th { border: 1px solid var(--line); padding: 4px 8px; font-size: 12.5px; text-align: left; }
+  .info th { background: #f1f5f9; width: 18%; }
+  .sig { margin: 4mm 0; table-layout: fixed; text-align: center; font-size: 12.5px; }
+  .sig th { background: var(--navy); color: #fff; border: 1px solid var(--navy); padding: 5px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sig td { border: 1px solid var(--line); padding: 4px; }
+  .sig .e { height: 14mm; color: #15803d; font-style: italic; vertical-align: middle; }
+  .sh { background: #e8eef5; color: var(--navy); font-weight: 700; padding: 4px 8px; margin: 5mm 0 2mm; break-after: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sb { white-space: pre-wrap; padding: 0 6mm; }
+  .step { padding: 0 6mm; margin: 2mm 0 3mm; break-inside: avoid; }
+  .step b { display: block; }
+  .step .d { white-space: pre-wrap; padding-left: 7mm; }
+  .step img { max-width: 120mm; max-height: 75mm; margin: 2mm 0 0 7mm; border: 1px solid #cbd5e1; display: block; }
+  .step .cap { padding-left: 7mm; font-size: 11px; color: #64748b; font-style: italic; }
+  .hist th { background: var(--navy); color: #fff; padding: 4px; font-size: 12px; border: 1px solid var(--navy); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .hist td { border: 1px solid var(--line); padding: 4px 6px; font-size: 12px; vertical-align: top; }
+  .err { padding: 40px; text-align: center; color: #b91c1c; }
+  @page {
+    size: A4; margin: 10mm 12mm 14mm;
+    @bottom-right { content: "หน้า " counter(page) " / " counter(pages); font-family: Sarabun, Tahoma, sans-serif; font-size: 10px; color: #64748b; }
+  }
+  @media print {
+    body { background: #fff; }
+    .bar { display: none; }
+    .paper { width: auto; margin: 0; padding: 0; box-shadow: none; }
+    .ftr .scr { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="bar"><b>พิมพ์ / บันทึกเป็น PDF</b><button onclick="print()">🖨 พิมพ์ / Save as PDF</button><span class="tip">ในหน้าต่างพิมพ์ เลือกปลายทาง "Save as PDF" (บันทึกเป็น PDF) — หัวกระดาษจะแสดงซ้ำทุกหน้า</span></div>
+<div class="paper" id="out"><div class="err" style="color:#64748b">กำลังโหลด…</div></div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import * as D from "./js/sop/data.js";
+import { docModel } from "./js/sop/export.js";
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+(async () => {
+  const vid = new URLSearchParams(location.search).get('v');
+  const out = document.getElementById('out');
+  try {
+    const profile = await requireRole(null);
+    await D.init(profile);
+    const m = await docModel(await D.versionPayload(vid), D.S.settings, D.STATUS, false);
+    document.title = `${m.sop_number} ${m.revLabel} ${m.title}`;
+    const c = m.content;
+    const logo = m.logo_url ? `<img src="${esc(m.logo_url)}" alt="">` : `<b style="color:#1e3a5f">${esc(m.companyShort)}</b>`;
+    const sec = (n, t, b) => `<div class="sh">${n}. ${t}</div><div class="sb">${esc(String(b || '').trim() || '-')}</div>`;
+    const sig = s => s ? `<td class="e">${esc(s.note || '')}</td>` : '<td class="e"></td>';
+    const roles = [m.prepared, m.reviewed, m.approved];
+    out.innerHTML = `<table class="pg"><thead><tr><td>
+        <table class="hdr"><tr><td class="logo">${logo}</td>
+          <td class="mid"><b>${esc(m.company)}</b>${m.companyEn ? `<div style="font-size:11.5px;color:#5a6b7f">${esc(m.companyEn)}</div>` : ''}<div style="font-weight:700;margin-top:2px">${esc(m.title)}</div><div style="font-size:11.5px;color:#5a6b7f">แผนก ${esc(m.dept_name)}</div></td>
+          <td class="meta">รหัสเอกสาร: <b>${esc(m.sop_number)}</b><br>Revision: <b>${esc(m.revLabel)}</b><br>วันที่มีผล: <b>${esc(m.effective_date || '-')}</b></td></tr></table>
+        ${m.watermark ? `<div class="wm">${esc(m.watermark)}</div>` : ''}</td></tr></thead>
+      <tfoot><tr><td><div class="ftr"><span>เอกสารควบคุม (Controlled Document) — ${esc(m.sop_number)} ${esc(m.revLabel)}</span><span>พิมพ์เมื่อ ${esc(m.printedAt)}</span></div></td></tr></tfoot>
+      <tbody><tr><td>
+        <div class="kick">STANDARD OPERATING PROCEDURE (SOP)</div><h1>${esc(m.title)}</h1>
+        <table class="info"><tr><th>SOP Number</th><td>${esc(m.sop_number)}</td><th>Department</th><td>${esc(m.dept_name)}</td></tr>
+          <tr><th>Revision</th><td>${esc(m.revLabel)}</td><th>Status</th><td>${esc(m.statusLabel)}</td></tr>
+          <tr><th>Effective Date</th><td>${esc(m.effective_date || '-')}</td><th>Review Date</th><td>${esc(m.review_date || '-')}</td></tr>
+          <tr><th>ผู้รับผิดชอบ</th><td>${esc(m.owner || '-')}</td><th>Keywords</th><td>${esc(c.keywords || '-')}</td></tr></table>
+        <table class="sig"><tr><th>ผู้จัดทำ (Prepared By)</th><th>ผู้ตรวจสอบ (Reviewed By)</th><th>ผู้อนุมัติ (Approved By)</th></tr>
+          <tr>${roles.map(sig).join('')}</tr>
+          <tr>${roles.map(s => `<td><b>( ${esc(s?.name || '..............................')} )</b></td>`).join('')}</tr>
+          <tr>${roles.map(s => `<td>${esc(s?.position || 'ตำแหน่ง ....................')}</td>`).join('')}</tr>
+          <tr>${roles.map(s => `<td>วันที่ ${esc(s?.date || '....../....../........')}</td>`).join('')}</tr></table>
+        ${sec(1, 'วัตถุประสงค์ (Objective)', c.objective)}${sec(2, 'ขอบเขต (Scope)', c.scope)}${sec(3, 'ความรับผิดชอบ (Responsibility)', c.responsibility)}
+        ${sec(4, 'อุปกรณ์ / เครื่องมือ (Equipment / Tools)', c.equipment)}${sec(5, 'ข้อกำหนดด้านความปลอดภัย (Safety Requirements)', c.safety)}
+        <div class="sh">6. ขั้นตอนการปฏิบัติงาน (Work Instructions)</div>
+        ${c.steps.map((s, i) => `<div class="step"><b>6.${i + 1} ${esc(s.title)}</b>${s.detail ? `<div class="d">${esc(s.detail)}</div>` : ''}
+          ${(s.images || []).map(im => `<img src="${esc(im.url)}" alt=""><div class="cap">รูป: ${esc(im.name)}</div>`).join('')}</div>`).join('') || '<div class="sb">-</div>'}
+        ${sec(7, 'เอกสารที่เกี่ยวข้อง (Related Documents)', c.related_docs)}
+        ${m.attachments.length ? `<div class="sb"><b>ไฟล์แนบ:</b>\n${m.attachments.map((a, i) => `${i + 1}) ${esc(a)}`).join('\n')}</div>` : ''}
+        ${sec(8, 'ตัวชี้วัด / มาตรฐาน (KPI / Standard)', c.kpi)}
+        <div class="sh">9. ประวัติการแก้ไข (Revision History)</div>
+        <table class="hist"><tr><th style="width:12%">Rev.</th><th style="width:15%">วันที่มีผล</th><th>รายละเอียดการแก้ไข</th><th style="width:18%">ผู้จัดทำ</th><th style="width:20%">ผู้อนุมัติ / วันที่</th></tr>
+          ${m.history.map(h => `<tr><td>${esc(h.rev)}</td><td>${esc(h.date || '-')}</td><td style="white-space:pre-wrap">${esc(h.summary || '-')}</td><td>${esc(h.prepared || '-')}</td><td>${esc(h.approved || '-')}${h.approvedDate ? '<br>' + esc(h.approvedDate) : ''}</td></tr>`).join('')}</table>
+      </td></tr></tbody></table>`;
+  } catch (e) { out.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+})();
+</script>
+</body>
+</html>

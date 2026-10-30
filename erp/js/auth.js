@@ -4,10 +4,10 @@
 // ===================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, connectAuthEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc
+  getFirestore, doc, getDoc, connectFirestoreEmulator
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 import { firebaseConfig } from "./firebase-config.js";
@@ -15,6 +15,15 @@ import { firebaseConfig } from "./firebase-config.js";
 export const app  = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db   = getFirestore(app);
+
+// โหมดทดสอบในเครื่องเท่านั้น: เปิดหน้าใดก็ได้บน localhost พร้อม ?emulator=1 → ใช้ Firebase Emulator แทนฐานข้อมูลจริง
+// (บน github.io ไม่มีผล) — ใช้กับ erp/tests/sop
+if (["localhost", "127.0.0.1"].includes(location.hostname)
+    && (new URLSearchParams(location.search).has("emulator") || sessionStorage.getItem("useFirebaseEmulator"))) {
+  sessionStorage.setItem("useFirebaseEmulator", "1");
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  connectFirestoreEmulator(db, "127.0.0.1", 8085);
+}
 
 // แมป role -> หน้า dashboard ของแต่ละแผนก
 export const ROLE_HOME = {
