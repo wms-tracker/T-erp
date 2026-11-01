@@ -703,3 +703,152 @@ export async function updateLegalRegister(id, data) {
 export async function deleteLegalRegister(id) {
   await deleteDoc(doc(db, COL.legal, id));
 }
+
+// ─── Permit to Work (PTW) ──────────────────────────────────────────────────
+COL.permits = 'safetyPermits';
+
+export const PERMIT_TYPES = {
+  hot_work:       { key: 'hot_work',       labelTh: 'งานร้อน (Hot Work)',              icon: '🔥', color: '#dc2626' },
+  confined_space: { key: 'confined_space', labelTh: 'พื้นที่อับอากาศ (Confined Space)', icon: '🕳', color: '#7c3aed' },
+  height:         { key: 'height',         labelTh: 'ทำงานที่สูง (Working at Height)',  icon: '🏗', color: '#2563eb' },
+  electrical:     { key: 'electrical',     labelTh: 'งานไฟฟ้า (Electrical Work)',       icon: '⚡', color: '#d97706' },
+  excavation:     { key: 'excavation',     labelTh: 'งานขุดเจาะ (Excavation)',          icon: '⛏', color: '#92400e' },
+  general:        { key: 'general',        labelTh: 'งานทั่วไป (General)',              icon: '📋', color: '#0891b2' },
+};
+
+export const PERMIT_STATUS = {
+  draft:     { label: 'ร่าง',            color: '#94a3b8' },
+  pending:   { label: 'รอการอนุมัติ',    color: '#d97706' },
+  approved:  { label: 'อนุมัติแล้ว',     color: '#0891b2' },
+  active:    { label: 'กำลังดำเนินงาน', color: '#16a34a' },
+  completed: { label: 'เสร็จสิ้น',       color: '#475569' },
+  rejected:  { label: 'ปฏิเสธ',          color: '#dc2626' },
+  cancelled: { label: 'ยกเลิก',          color: '#94a3b8' },
+};
+
+export const PERMIT_CHECKLISTS = {
+  hot_work: [
+    'ตรวจสอบพื้นที่ปลอดสารไวไฟรัศมี 10 เมตร',
+    'จัดเตรียมถังดับเพลิงและน้ำใกล้จุดทำงาน',
+    'แจ้งเตือนพนักงานในบริเวณใกล้เคียง',
+    'ตรวจสอบระบบ Sprinkler/การ์ดไฟ',
+    'กำหนด Fire Watch ตลอดระยะเวลางาน',
+    'ตรวจสอบอุปกรณ์ PPE: แว่นตา/หน้ากาก/ถุงมือทนไฟ',
+  ],
+  confined_space: [
+    'ทดสอบบรรยากาศ: O2, LEL, CO, H2S ก่อนเข้า',
+    'จัดเตรียมอุปกรณ์ช่วยเหลือฉุกเฉิน (Tripod/Winch)',
+    'กำหนด Standby Man นอกพื้นที่อับอากาศ',
+    'จัดระบบระบายอากาศ (Ventilation) ต่อเนื่อง',
+    'แจ้งหัวหน้างานและเบอร์ฉุกเฉิน',
+    'ตรวจสอบ PPE: อุปกรณ์ช่วยหายใจ/ชุดป้องกัน',
+  ],
+  height: [
+    'ตรวจสอบนั่งร้าน/บันได/กรงกระเช้าก่อนใช้งาน',
+    'สวมใส่ Full Body Harness และสายช่วยชีวิต',
+    'กำหนดพื้นที่ห้ามเข้า (Barricade) ด้านล่าง',
+    'ตรวจสอบสภาพอากาศ ไม่ทำงานในพายุ/ฝนตกหนัก',
+    'ผู้ปฏิบัติงานผ่านการฝึกอบรมงานที่สูง',
+    'ไม่วางวัสดุที่ขอบ มีการยึดเครื่องมืออย่างดี',
+  ],
+  electrical: [
+    'Lock Out / Tag Out (LOTO) ก่อนเริ่มงาน',
+    'ทดสอบว่าไม่มีกระแสไฟ (Test for Zero Energy)',
+    'สวมใส่ PPE ฉนวน: ถุงมือไดอิเล็กทริก/รองเท้าฉนวน',
+    'ห้ามทำงานคนเดียว มี Safety Observer ตลอดเวลา',
+    'ติดป้ายเตือน "อย่าเปิดสวิตช์" ที่ตู้ควบคุม',
+    'ตรวจสอบอุปกรณ์ป้องกันอาร์ก (Arc Flash)',
+  ],
+  excavation: [
+    'สำรวจและทำเครื่องหมายท่อใต้ดิน/สายไฟ',
+    'ค้ำยันผนังหลุมขุดลึกกว่า 1.5 เมตร',
+    'กำหนดพื้นที่กันรถยนต์เข้าใกล้ขอบหลุม',
+    'ตรวจสอบสภาพดินและน้ำใต้ดินก่อนขุด',
+    'มีบันไดออกฉุกเฉินทุก 7 เมตรของความยาวหลุม',
+    'ตรวจสอบอากาศในหลุมลึกกว่า 1.2 เมตร',
+  ],
+  general: [
+    'ประเมินอันตรายและความเสี่ยงเบื้องต้น',
+    'เตรียม PPE ตามความเสี่ยงของงาน',
+    'แจ้งหัวหน้างานและพนักงานในพื้นที่',
+    'ตรวจสอบเครื่องมืออุปกรณ์ก่อนใช้งาน',
+    'กำหนดทางออกฉุกเฉินและจุดรวมพล',
+  ],
+};
+
+export const PPE_OPTIONS = [
+  'หมวกนิรภัย', 'รองเท้านิรภัย', 'แว่นตานิรภัย', 'หน้ากากกันฝุ่น',
+  'ถุงมือ', 'เสื้อสะท้อนแสง', 'ชุด Full Body Harness', 'หน้ากากเชื่อม',
+  'ถุงมือทนไฟ', 'ถุงมือไดอิเล็กทริก', 'รองเท้าฉนวน', 'อุปกรณ์ช่วยหายใจ',
+  'ชุดป้องกันสารเคมี', 'ที่อุดหู', 'Face Shield',
+];
+
+let _ptw_seq = 0;
+export async function generatePermitId() {
+  const now = new Date();
+  const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0');
+  const snap = await getDocs(query(
+    collection(db, COL.permits),
+    where('permitId', '>=', `PTW-${y}${m}-`),
+    where('permitId', '<',  `PTW-${y}${m}-Z`),
+    orderBy('permitId', 'desc'), limit(1)
+  ));
+  const last = snap.empty ? 0 : parseInt(snap.docs[0].data().permitId.split('-').pop()) || 0;
+  return `PTW-${y}${m}-${String(last + 1 + _ptw_seq++).padStart(3,'0')}`;
+}
+
+export async function listPermits({ status, permitType, startDate, endDate, lim = 200 } = {}) {
+  const { query, orderBy, limit, where, getDocs, Timestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
+  const { db } = await import('./firebase.js');
+  const constraints = [orderBy('createdAt','desc'), limit(lim)];
+  if (status)     constraints.unshift(where('status','==',status));
+  if (permitType) constraints.unshift(where('permitType','==',permitType));
+  const snap = await getDocs(query(collection(db, COL.permits), ...constraints));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (startDate) rows = rows.filter(r => r.workStartDate >= startDate);
+  if (endDate)   rows = rows.filter(r => r.workStartDate <= endDate);
+  return rows;
+}
+
+export async function getPermit(id) {
+  const snap = await getDoc(doc(db, COL.permits, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createPermit(data, createdBy) {
+  return await addDoc(collection(db, COL.permits), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updatePermit(id, data) {
+  await updateDoc(doc(db, COL.permits, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function approvePermit(id, approvedBy) {
+  await updateDoc(doc(db, COL.permits, id), {
+    status: 'approved', approvedBy, approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function rejectPermit(id, rejectedBy, reason) {
+  await updateDoc(doc(db, COL.permits, id), {
+    status: 'rejected', rejectedBy, rejectedReason: reason, updatedAt: serverTimestamp(),
+  });
+}
+
+export async function activatePermit(id) {
+  await updateDoc(doc(db, COL.permits, id), { status: 'active', updatedAt: serverTimestamp() });
+}
+
+export async function closePermit(id, closedBy, notes) {
+  await updateDoc(doc(db, COL.permits, id), {
+    status: 'completed', closedBy, closedNotes: notes, closedAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function cancelPermit(id, reason) {
+  await updateDoc(doc(db, COL.permits, id), {
+    status: 'cancelled', cancelReason: reason, updatedAt: serverTimestamp(),
+  });
+}

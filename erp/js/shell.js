@@ -145,6 +145,7 @@ const NAV = {
       { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย',   href: 'safety-inspection.html' },
       { key: 'risk-assessment',   label: 'ประเมินความเสี่ยง (HIRA)', href: 'safety-risk.html' },
       { key: 'capa',              label: 'CAPA Management',         href: 'safety-capa.html' },
+      { key: 'safety-ptw',        label: 'ใบอนุญาตทำงาน (PTW)',    href: 'safety-ptw.html' },
     ]},
     { groupKey: 'safety-committee', icon: '👥', label: 'คปอ.', items: [
       { key: 'committee',      label: 'กรรมการ คปอ.',       href: 'safety-committee.html' },
@@ -170,6 +171,7 @@ const NAV = {
     { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
       { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย', href: 'safety-inspection.html' },
       { key: 'capa',              label: 'CAPA Management',      href: 'safety-capa.html' },
+      { key: 'safety-ptw',        label: 'ใบอนุญาตทำงาน (PTW)', href: 'safety-ptw.html' },
     ]},
     { groupKey: 'safety-committee', icon: '👥', label: 'คปอ.', items: [
       { key: 'committee',      label: 'กรรมการ คปอ.',     href: 'safety-committee.html' },
@@ -282,6 +284,7 @@ const PAGE_DEPARTMENT = {
   "safety-emergency.html":      "safety_officer",
   "safety-reports.html":        "safety_officer",
   "safety-legal.html":          "safety_officer",
+  "safety-ptw.html":            "safety_officer",
 };
 
 // ===================================================================
