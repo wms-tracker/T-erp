@@ -798,8 +798,6 @@ export async function generatePermitId() {
 }
 
 export async function listPermits({ status, permitType, startDate, endDate, lim = 200 } = {}) {
-  const { query, orderBy, limit, where, getDocs, Timestamp } = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js');
-  const { db } = await import('./firebase.js');
   const constraints = [orderBy('createdAt','desc'), limit(lim)];
   if (status)     constraints.unshift(where('status','==',status));
   if (permitType) constraints.unshift(where('permitType','==',permitType));
@@ -851,4 +849,110 @@ export async function cancelPermit(id, reason) {
   await updateDoc(doc(db, COL.permits, id), {
     status: 'cancelled', cancelReason: reason, updatedAt: serverTimestamp(),
   });
+}
+
+// ─── Safety Talk / Toolbox Talk ────────────────────────────────────────────
+COL.talks = 'safetyTalks';
+
+export const TALK_TYPES = {
+  safety_talk:    { label: 'Safety Talk รายวัน',      icon: '🗣' },
+  toolbox_talk:   { label: 'Toolbox Talk',            icon: '🔧' },
+  safety_briefing:{ label: 'Safety Briefing',         icon: '📋' },
+  morning_talk:   { label: 'กิจกรรมเช้า (Morning Talk)', icon: '🌅' },
+  special:        { label: 'พิเศษ (เหตุการณ์/กฎหมายใหม่)', icon: '⚡' },
+};
+
+export const TALK_TOPICS = [
+  'อุบัติเหตุและสาเหตุ', 'การใช้ PPE ที่ถูกต้อง', 'ความสะอาดและการจัดเก็บ (5ส)',
+  'การเคลื่อนย้ายสินค้าอย่างปลอดภัย', 'การป้องกันอัคคีภัย', 'Near Miss และการรายงาน',
+  'Permit to Work', 'การทำงานในที่อับอากาศ', 'ความปลอดภัยไฟฟ้า',
+  'การเคลื่อนย้ายด้วยรถโฟล์คลิฟท์', 'สารเคมีอันตราย', 'ภาวะฉุกเฉินและการอพยพ',
+  'ท่าทางการยกของที่ถูกต้อง', 'ความปลอดภัยบนที่สูง', 'อื่นๆ',
+];
+
+export async function listTalks({ startDate, endDate, talkType, dept, lim = 200 } = {}) {
+  const constraints = [orderBy('talkDate','desc'), limit(lim)];
+  if (talkType) constraints.unshift(where('talkType','==',talkType));
+  if (dept)     constraints.unshift(where('department','==',dept));
+  const snap = await getDocs(query(collection(db, COL.talks), ...constraints));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (startDate) rows = rows.filter(r => r.talkDate >= startDate);
+  if (endDate)   rows = rows.filter(r => r.talkDate <= endDate);
+  return rows;
+}
+
+export async function getTalk(id) {
+  const snap = await getDoc(doc(db, COL.talks, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createTalk(data, createdBy) {
+  return await addDoc(collection(db, COL.talks), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateTalk(id, data) {
+  await updateDoc(doc(db, COL.talks, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteTalk(id) {
+  await deleteDoc(doc(db, COL.talks, id));
+}
+
+// ─── Chemical / Hazardous Substance Register ──────────────────────────────
+COL.chemicals = 'safetyChemicals';
+
+export const GHS_HAZARDS = [
+  { key: 'explosive',      label: 'ระเบิดได้',         icon: '💥', color: '#dc2626' },
+  { key: 'flammable',      label: 'ติดไฟได้',           icon: '🔥', color: '#ea580c' },
+  { key: 'oxidizing',      label: 'ออกซิไดซ์/เพิ่มไฟ', icon: '⭕', color: '#d97706' },
+  { key: 'compressed_gas', label: 'ก๊าซอัด',            icon: '🟢', color: '#16a34a' },
+  { key: 'corrosive',      label: 'กัดกร่อน',           icon: '⚗️', color: '#7c3aed' },
+  { key: 'toxic',          label: 'เป็นพิษเฉียบพลัน',  icon: '☠️', color: '#dc2626' },
+  { key: 'health_hazard',  label: 'เป็นอันตรายต่อสุขภาพ', icon: '⚠️', color: '#d97706' },
+  { key: 'irritant',       label: 'กระตุ้น/แพ้',        icon: '❗', color: '#d97706' },
+  { key: 'env_hazard',     label: 'เป็นอันตรายต่อสิ่งแวดล้อม', icon: '🌊', color: '#0891b2' },
+];
+
+export const CHEM_STATUS = {
+  active:       { label: 'ใช้งาน',      color: '#16a34a' },
+  discontinued: { label: 'ยกเลิกใช้',   color: '#dc2626' },
+  review:       { label: 'รอทบทวน SDS', color: '#d97706' },
+};
+
+export const CHEM_UNITS = ['kg', 'g', 'L', 'mL', 'ถัง', 'ลัง', 'กระป๋อง'];
+
+export const DEFAULT_CHEMICALS = [
+  { chemicalName:'น้ำยาล้างพื้น/ทำความสะอาด', chemicalNameEn:'Floor Cleaner', casNumber:'Various', ghsHazards:['irritant'], storageLocation:'คลังสินค้าสารเคมี', unit:'L', maxQuantity:100, status:'active' },
+  { chemicalName:'แอลกอฮอล์ 70%', chemicalNameEn:'Isopropyl Alcohol 70%', casNumber:'67-63-0', ghsHazards:['flammable','irritant'], storageLocation:'คลังสินค้าสารเคมี', unit:'L', maxQuantity:50, status:'active' },
+  { chemicalName:'แก๊ส LPG', chemicalNameEn:'Liquefied Petroleum Gas', casNumber:'68476-85-7', ghsHazards:['flammable','compressed_gas'], storageLocation:'พื้นที่เก็บก๊าซ', unit:'ถัง', maxQuantity:10, status:'active' },
+  { chemicalName:'น้ำยาดับเพลิง (CO2)', chemicalNameEn:'Carbon Dioxide Extinguisher', casNumber:'124-38-9', ghsHazards:['compressed_gas'], storageLocation:'ตามจุดติดตั้ง', unit:'กระป๋อง', maxQuantity:30, status:'active' },
+  { chemicalName:'แบตเตอรี่กรด', chemicalNameEn:'Lead-Acid Battery', casNumber:'Various', ghsHazards:['corrosive','toxic'], storageLocation:'ห้องชาร์จแบตเตอรี่', unit:'ลูก', maxQuantity:20, status:'active' },
+];
+
+export async function listChemicals({ status, lim = 200 } = {}) {
+  const constraints = [orderBy('chemicalName','asc'), limit(lim)];
+  if (status) constraints.unshift(where('status','==',status));
+  const snap = await getDocs(query(collection(db, COL.chemicals), ...constraints));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getChemical(id) {
+  const snap = await getDoc(doc(db, COL.chemicals, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createChemical(data, createdBy) {
+  return await addDoc(collection(db, COL.chemicals), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateChemical(id, data) {
+  await updateDoc(doc(db, COL.chemicals, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteChemical(id) {
+  await deleteDoc(doc(db, COL.chemicals, id));
 }

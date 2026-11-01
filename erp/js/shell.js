@@ -155,6 +155,10 @@ const NAV = {
       { key: 'training',         label: 'ฝึกอบรมความปลอดภัย',   href: 'safety-training.html' },
       { key: 'safety-equipment', label: 'อุปกรณ์ความปลอดภัย',   href: 'safety-equipment.html' },
       { key: 'emergency',        label: 'แผนฉุกเฉิน',            href: 'safety-emergency.html' },
+      { key: 'safety-talk',      label: 'Safety Talk / Toolbox', href: 'safety-talk.html' },
+    ]},
+    { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
+      { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย', href: 'safety-chemical.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
       { key: 'safety-reports', label: 'รายงานความปลอดภัย',    href: 'safety-reports.html' },
@@ -254,6 +258,7 @@ const ICON_PATHS = {
   'safety-committee': '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   'safety-training':  '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
   'safety-report':    '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  'safety-chemical':  '<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>',
   fallback: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/>',
 };
 ICON_PATHS.shipping = ICON_PATHS.freight;
@@ -285,6 +290,8 @@ const PAGE_DEPARTMENT = {
   "safety-reports.html":        "safety_officer",
   "safety-legal.html":          "safety_officer",
   "safety-ptw.html":            "safety_officer",
+  "safety-talk.html":           "safety_officer",
+  "safety-chemical.html":       "safety_officer",
 };
 
 // ===================================================================
