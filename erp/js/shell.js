@@ -5,11 +5,13 @@
 import { logout } from "./auth.js";
 
 const ROLE_LABEL = {
-  sales:      "ฝ่ายขาย",
-  warehouse:  "คลังสินค้า",
-  accounting: "บัญชี",
-  admin:      "แอดมิน",
-  manager:    "ผู้บริหาร",
+  sales:          "ฝ่ายขาย",
+  warehouse:      "คลังสินค้า",
+  accounting:     "บัญชี",
+  admin:          "แอดมิน",
+  manager:        "ผู้บริหาร",
+  safety_officer: "จป.",
+  kpo:            "คปอ.",
 };
 
 // NAV แบบ Grouped: แต่ละ role มี array ของ group
@@ -96,6 +98,11 @@ const NAV = {
       { key: 'control-tower',       label: '📡 Warehouse Control Tower', href: 'warehouse-control-tower.html' },
       { key: 'control-tower-entry', label: '📝 กรอกข้อมูลรายวัน',        href: 'control-tower-entry.html' },
     ]},
+    { groupKey: 'safety-home', icon: '🛡', label: 'ความปลอดภัย', items: [
+      { key: 'safety-dashboard', label: 'KPO Safety Dashboard', href: 'safety.html' },
+      { key: 'incident-list',    label: 'บันทึกอุบัติเหตุ',     href: 'safety-incident.html' },
+      { key: 'capa',             label: 'CAPA Management',       href: 'safety-capa.html' },
+    ]},
   ],
   sales: [
     { groupKey: 'orders', icon: '📋', label: 'ออเดอร์', items: [
@@ -125,6 +132,52 @@ const NAV = {
       { key: 'reports',    label: 'รายงานทางการเงิน',                 href: 'dashboard-accounting.html#reports' },
     ]},
   ],
+  safety_officer: [
+    { groupKey: 'safety-home', icon: '🛡', label: 'ภาพรวม', items: [
+      { key: 'safety-dashboard', label: 'ภาพรวมความปลอดภัย', href: 'safety.html' },
+    ]},
+    { groupKey: 'safety-incident', icon: '⚠️', label: 'อุบัติเหตุ', items: [
+      { key: 'incident-list',   label: 'รายการอุบัติเหตุ',              href: 'safety-incident.html' },
+      { key: 'incident-create', label: 'บันทึกอุบัติเหตุ/เหตุการณ์',   href: 'safety-incident.html#new' },
+    ]},
+    { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
+      { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย',   href: 'safety-inspection.html' },
+      { key: 'risk-assessment',   label: 'ประเมินความเสี่ยง (HIRA)', href: 'safety-risk.html' },
+      { key: 'capa',              label: 'CAPA Management',         href: 'safety-capa.html' },
+    ]},
+    { groupKey: 'safety-committee', icon: '👥', label: 'คปอ.', items: [
+      { key: 'committee',      label: 'กรรมการ คปอ.',       href: 'safety-committee.html' },
+      { key: 'safety-meeting', label: 'ประชุม คปอ.',         href: 'safety-meeting.html' },
+    ]},
+    { groupKey: 'safety-training', icon: '📚', label: 'ฝึกอบรม', items: [
+      { key: 'training',         label: 'ฝึกอบรมความปลอดภัย',   href: 'safety-training.html' },
+      { key: 'safety-equipment', label: 'อุปกรณ์ความปลอดภัย',   href: 'safety-equipment.html' },
+      { key: 'emergency',        label: 'แผนฉุกเฉิน',            href: 'safety-emergency.html' },
+    ]},
+    { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
+      { key: 'safety-reports', label: 'รายงานความปลอดภัย',    href: 'safety-reports.html' },
+      { key: 'legal-compliance', label: 'กฎหมายความปลอดภัย', href: 'safety-legal.html' },
+    ]},
+  ],
+  kpo: [
+    { groupKey: 'safety-home', icon: '🛡', label: 'ภาพรวม', items: [
+      { key: 'safety-dashboard', label: 'ภาพรวมความปลอดภัย', href: 'safety.html' },
+    ]},
+    { groupKey: 'safety-incident', icon: '⚠️', label: 'อุบัติเหตุ', items: [
+      { key: 'incident-list', label: 'รายการอุบัติเหตุ', href: 'safety-incident.html' },
+    ]},
+    { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
+      { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย', href: 'safety-inspection.html' },
+      { key: 'capa',              label: 'CAPA Management',      href: 'safety-capa.html' },
+    ]},
+    { groupKey: 'safety-committee', icon: '👥', label: 'คปอ.', items: [
+      { key: 'committee',      label: 'กรรมการ คปอ.',     href: 'safety-committee.html' },
+      { key: 'safety-meeting', label: 'ประชุม คปอ.',       href: 'safety-meeting.html' },
+    ]},
+    { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
+      { key: 'safety-reports', label: 'รายงานความปลอดภัย', href: 'safety-reports.html' },
+    ]},
+  ],
   manager: [
     { groupKey: 'overview', icon: '📊', label: 'ภาพรวม', items: [
       { key: 'overview',   label: 'ภาพรวมทุกแผนก',                   href: 'dashboard-manager.html#overview' },
@@ -148,8 +201,27 @@ const NAV = {
     { groupKey: 'control-tower', icon: '📡', label: 'Control Tower', items: [
       { key: 'control-tower', label: '📡 Warehouse Control Tower', href: 'warehouse-control-tower.html' },
     ]},
+    { groupKey: 'safety-home', icon: '🛡', label: 'ความปลอดภัย', items: [
+      { key: 'safety-dashboard', label: 'KPO Safety Dashboard', href: 'safety.html' },
+    ]},
   ],
 };
+
+// ----- SOP Management (sop.html): ทุกบทบาทเห็นเมนู SOP — สิทธิ์ละเอียดกำหนดในหน้า "สิทธิ์ SOP" -----
+const SOP_ITEMS = [
+  { key: 'sop-dashboard', label: 'Dashboard SOP',        href: 'sop.html#/dashboard' },
+  { key: 'sop-list',      label: 'ทะเบียน SOP',          href: 'sop.html#/sops' },
+  { key: 'sop-tasks',     label: 'งานที่รอฉันดำเนินการ', href: 'sop.html#/tasks' },
+  { key: 'sop-new',       label: 'สร้าง SOP ใหม่',       href: 'sop.html#/new' },
+  { key: 'sop-activity',  label: 'ประวัติการดำเนินการ',  href: 'sop.html#/activity' },
+];
+for (const role of Object.keys(NAV)) {
+  NAV[role].push({ groupKey: 'sop', icon: '📘', label: 'SOP', items: role !== 'admin' ? SOP_ITEMS : [...SOP_ITEMS,
+    { key: 'sop-members',  label: 'สิทธิ์ SOP',  href: 'sop.html#/admin/members' },
+    { key: 'sop-depts',    label: 'แผนก SOP',   href: 'sop.html#/admin/departments' },
+    { key: 'sop-settings', label: 'ตั้งค่า SOP', href: 'sop.html#/admin/settings' },
+  ] });
+}
 
 // ไอคอนเส้น (line icon) แบบ Lucide — ใช้แทน emoji ในแถบเมนู เพื่อให้หน้าตาเหมือนกันทุกเครื่องและดูทันสมัย
 // key = groupKey ของ NAV; ใช้ stroke=currentColor เลยเปลี่ยนสีตามธีมได้
@@ -173,9 +245,16 @@ const ICON_PATHS = {
   overview: '<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>',
   finance: '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
   brand: '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>',
+  'safety-home':      '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'safety-incident':  '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  'safety-ops':       '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  'safety-committee': '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  'safety-training':  '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  'safety-report':    '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   fallback: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/>',
 };
 ICON_PATHS.shipping = ICON_PATHS.freight;
+ICON_PATHS.sop = '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h8"/><path d="M8 11h6"/>';
 function navIcon(key, size = 24) {
   const p = ICON_PATHS[key] || ICON_PATHS.fallback;
   return `<svg class="nav-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -189,6 +268,18 @@ const PAGE_DEPARTMENT = {
   "dashboard-accounting.html":  "accounting",
   "dashboard-admin.html":       "admin",
   "dashboard-manager.html":     "manager",
+  "safety.html":                "safety_officer",
+  "safety-incident.html":       "safety_officer",
+  "safety-inspection.html":     "safety_officer",
+  "safety-risk.html":           "safety_officer",
+  "safety-capa.html":           "safety_officer",
+  "safety-committee.html":      "safety_officer",
+  "safety-meeting.html":        "safety_officer",
+  "safety-training.html":       "safety_officer",
+  "safety-equipment.html":      "safety_officer",
+  "safety-emergency.html":      "safety_officer",
+  "safety-reports.html":        "safety_officer",
+  "safety-legal.html":          "safety_officer",
 };
 
 // ===================================================================

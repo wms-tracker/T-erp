@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+const profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager']);
+renderShell(profile, '', 'KPO Safety');
+const mc = document.getElementById('main-content');
+mc.innerHTML = `<div style="padding:60px 24px;text-align:center;font-family:Sarabun,sans-serif">
+  <div style="font-size:3rem;margin-bottom:16px">🛡️</div>
+  <div style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:8px">หน้านี้อยู่ระหว่างพัฒนา</div>
+  <div style="color:#64748b;font-size:.9rem">จะพร้อมใช้งานใน Phase ถัดไป</div>
+  <div style="margin-top:24px;display:inline-block;padding:8px 20px;background:#f1f5f9;border-radius:20px;font-size:.82rem;color:#64748b">Coming Soon</div>
+  <div style="margin-top:20px"><a href="safety.html" style="color:#1e40af;font-size:.9rem">← กลับ Dashboard</a></div>
+</div>`;
+</script>
+</body>
+</html>

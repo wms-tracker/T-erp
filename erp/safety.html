@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPO Safety Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  computeSafetyKPIs, monthlyTrend, incidentsByDept, incidentsByType,
+  countOpenCapa, countOverdueCapa, listIncidents,
+  INCIDENT_TYPES, INCIDENT_STATUS
+} from "./js/safety-data.js";
+
+// ─── chart instances (for destroy on redraw) ───────────────────────────────
+let chartTrend = null, chartType = null, chartDept = null;
+
+// ─── period helpers ────────────────────────────────────────────────────────
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function addDays(str, d) {
+  const dt = new Date(str); dt.setDate(dt.getDate() + d); return dt.toISOString().split('T')[0];
+}
+function monthStart(offset = 0) {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + offset);
+  return d.toISOString().split('T')[0];
+}
+function yearStart(y = new Date().getFullYear()) { return `${y}-01-01`; }
+function yearEnd(y = new Date().getFullYear())   { return `${y}-12-31`; }
+
+function getPeriod(key) {
+  const today = todayStr();
+  if (key === '1m')  return { start: addDays(today, -30),  end: today };
+  if (key === '3m')  return { start: addDays(today, -90),  end: today };
+  if (key === '6m')  return { start: addDays(today, -180), end: today };
+  if (key === 'ytd') return { start: yearStart(), end: today };
+  if (key === 'custom') {
+    const s = document.getElementById('customStart')?.value;
+    const e = document.getElementById('customEnd')?.value;
+    return { start: s || yearStart(), end: e || today };
+  }
+  return { start: yearStart(), end: today };
+}
+
+// ─── KPI card renderer ─────────────────────────────────────────────────────
+function kpiCard({ value, label, color, bg, big = false, sub = '' }) {
+  return `<div class="kpi-card" style="border-top:3px solid ${color};background:${bg||'#fff'}">
+    <div class="kpi-val" style="color:${color};font-size:${big?'2.4rem':'1.8rem'}">${value ?? '—'}</div>
+    <div class="kpi-label">${label}</div>
+    ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+// ─── main render ───────────────────────────────────────────────────────────
+async function render(period = 'ytd') {
+  const mc = document.getElementById('main-content');
+  if (!mc) return;
+
+  const { start, end } = getPeriod(period);
+
+  // fetch all data in parallel
+  const [kpi, openCapa, overdueCapa, trend, byDept, byType, recentRows] = await Promise.all([
+    computeSafetyKPIs({ startDate: start, endDate: end }),
+    countOpenCapa(),
+    countOverdueCapa(),
+    monthlyTrend(new Date().getFullYear()),
+    incidentsByDept(start, end),
+    incidentsByType(start, end),
+    listIncidents({ startDate: start, endDate: end, lim: 10 }),
+  ]);
+
+  const dwa = kpi.daysWithoutAccident;
+
+  mc.innerHTML = `
+  <style>
+    .sdb{padding:0 20px 32px;max-width:1600px;margin:0 auto;}
+    /* header */
+    .sdb-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:20px 0 12px;}
+    .sdb-title{font-size:1.35rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .sdb-title svg{color:#1e40af;}
+    .filter-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+    .period-btn{padding:5px 14px;border:1.5px solid #e2e8f0;border-radius:20px;background:#fff;font-family:Sarabun,sans-serif;font-size:.82rem;cursor:pointer;color:#475569;transition:.15s;}
+    .period-btn.active,.period-btn:hover{background:#1e40af;color:#fff;border-color:#1e40af;}
+    .custom-range{display:none;align-items:center;gap:6px;}
+    .custom-range.show{display:flex;}
+    .custom-range input{padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;font-family:Sarabun,sans-serif;font-size:.82rem;color:#334155;}
+    .custom-range button{padding:4px 12px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-family:Sarabun,sans-serif;font-size:.82rem;cursor:pointer;}
+    /* DWA banner */
+    .dwa-banner{background:linear-gradient(135deg,#1e3a8a,#1e40af);border-radius:16px;padding:24px 32px;display:flex;align-items:center;justify-content:space-between;color:#fff;margin-bottom:20px;flex-wrap:wrap;gap:16px;}
+    .dwa-left{display:flex;align-items:baseline;gap:12px;}
+    .dwa-number{font-size:4rem;font-weight:800;line-height:1;}
+    .dwa-unit{font-size:1.1rem;opacity:.85;}
+    .dwa-label{font-size:1rem;opacity:.9;margin-top:4px;}
+    .dwa-right{text-align:right;opacity:.8;font-size:.85rem;}
+    .dwa-right .period-label{font-size:.78rem;}
+    /* KPI grid */
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px;}
+    .kpi-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+    .kpi-val{font-weight:800;line-height:1;}
+    .kpi-label{font-size:.78rem;color:#64748b;margin-top:4px;}
+    .kpi-sub{font-size:.72rem;color:#94a3b8;margin-top:2px;}
+    .kpi-section-title{font-size:.72rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;}
+    /* Charts */
+    .charts-row{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:16px;margin-bottom:20px;}
+    @media(max-width:900px){.charts-row{grid-template-columns:1fr;}}
+    .chart-card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+    .chart-title{font-size:.85rem;font-weight:600;color:#334155;margin-bottom:12px;}
+    /* Table */
+    .tbl-card{background:#fff;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:20px;}
+    .tbl-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+    .tbl-title{font-size:.85rem;font-weight:600;color:#334155;}
+    .tbl-link{font-size:.8rem;color:#2563eb;text-decoration:none;}
+    .tbl-link:hover{text-decoration:underline;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:8px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #f1f5f9;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f8fafc;color:#334155;}
+    .tbl tr:last-child td{border-bottom:none;}
+    .tbl tr:hover td{background:#f8fafc;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .empty-state{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem;}
+    .action-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+    .btn-primary{padding:8px 18px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary:hover{background:#1d4ed8;}
+  </style>
+
+  <div class="sdb">
+    <!-- Header -->
+    <div class="sdb-header">
+      <div class="sdb-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+        KPO Safety Dashboard
+      </div>
+      <div class="filter-bar">
+        <button class="period-btn${period==='1m'?' active':''}" onclick="__setPeriod('1m')">30 วัน</button>
+        <button class="period-btn${period==='3m'?' active':''}" onclick="__setPeriod('3m')">3 เดือน</button>
+        <button class="period-btn${period==='6m'?' active':''}" onclick="__setPeriod('6m')">6 เดือน</button>
+        <button class="period-btn${period==='ytd'?' active':''}" onclick="__setPeriod('ytd')">ปีนี้</button>
+        <button class="period-btn${period==='custom'?' active':''}" onclick="__toggleCustom()">กำหนดเอง</button>
+        <div class="custom-range${period==='custom'?' show':''}" id="customRange">
+          <input type="date" id="customStart" value="${start}">
+          <span style="color:#94a3b8">ถึง</span>
+          <input type="date" id="customEnd" value="${end}">
+          <button onclick="__setPeriod('custom')">แสดง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <a href="safety-incident.html#new" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        บันทึกเหตุการณ์ใหม่
+      </a>
+      <a href="safety-incident.html" class="btn-primary" style="background:#0f766e;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        รายการทั้งหมด
+      </a>
+      <a href="safety-capa.html" class="btn-primary" style="background:#7c3aed;">CAPA (${openCapa} รายการเปิด)</a>
+    </div>
+
+    <!-- Days Without Accident Banner -->
+    <div class="dwa-banner">
+      <div>
+        <div class="dwa-left">
+          <div class="dwa-number">${dwa !== null ? dwa : '—'}</div>
+          <div class="dwa-unit">วัน</div>
+        </div>
+        <div class="dwa-label">ปลอดอุบัติเหตุที่มีการบาดเจ็บ</div>
+      </div>
+      <div class="dwa-right">
+        <div style="font-size:1rem;font-weight:600">Safety Record</div>
+        <div class="period-label">นับจากเหตุการณ์ FAC ขึ้นไปล่าสุด</div>
+        ${dwa !== null ? `<div style="margin-top:4px;font-size:.8rem">เริ่มนับ: ${addDays(todayStr(), -dwa)}</div>` : '<div style="margin-top:4px;font-size:.8rem">ยังไม่มีข้อมูลเหตุการณ์</div>'}
+      </div>
+    </div>
+
+    <!-- KPI: Accidents -->
+    <div class="kpi-section-title">สถิติอุบัติเหตุ — ${start} ถึง ${end}</div>
+    <div class="kpi-grid">
+      ${kpiCard({ value: kpi.total,    label: 'เหตุการณ์ทั้งหมด', color: '#1e40af', big: true })}
+      ${kpiCard({ value: kpi.fatality, label: 'Fatality (เสียชีวิต)', color: '#7f1d1d', bg: '#fff1f2' })}
+      ${kpiCard({ value: kpi.lti,      label: 'LTI (หยุดงาน)',       color: '#dc2626', bg: '#fef2f2' })}
+      ${kpiCard({ value: kpi.rws,      label: 'RWS (ลดงาน)',          color: '#ea580c', bg: '#fff7ed' })}
+      ${kpiCard({ value: kpi.mtc,      label: 'MTC (รักษาพยาบาล)',    color: '#d97706', bg: '#fffbeb' })}
+      ${kpiCard({ value: kpi.fac,      label: 'FAC (ปฐมพยาบาล)',      color: '#ca8a04', bg: '#fefce8' })}
+      ${kpiCard({ value: kpi.nearMiss, label: 'Near Miss',             color: '#2563eb', bg: '#eff6ff' })}
+      ${kpiCard({ value: kpi.unsafeAct,       label: 'Unsafe Act',      color: '#7c3aed', bg: '#f5f3ff' })}
+      ${kpiCard({ value: kpi.unsafeCondition, label: 'Unsafe Condition', color: '#0891b2', bg: '#ecfeff' })}
+    </div>
+
+    <!-- KPI: CAPA & Compliance -->
+    <div class="kpi-section-title">CAPA & การดำเนินการ</div>
+    <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+      ${kpiCard({ value: openCapa,    label: 'CAPA ค้างดำเนินการ',  color: overdueCapa>0?'#dc2626':'#1e40af',
+                  sub: overdueCapa > 0 ? `เกินกำหนด ${overdueCapa} รายการ` : '' })}
+      ${kpiCard({ value: overdueCapa, label: 'เกินกำหนด (Overdue)',  color: overdueCapa>0?'#dc2626':'#16a34a' })}
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-title">แนวโน้มรายเดือน (ปี ${new Date().getFullYear()})</div>
+        <canvas id="chartTrend" height="160"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">ตามประเภทเหตุการณ์</div>
+        <canvas id="chartType" height="160"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">ตามแผนก</div>
+        <canvas id="chartDept" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Recent incidents -->
+    <div class="tbl-card">
+      <div class="tbl-header">
+        <div class="tbl-title">เหตุการณ์ล่าสุด (${recentRows.length} รายการ)</div>
+        <a href="safety-incident.html" class="tbl-link">ดูทั้งหมด →</a>
+      </div>
+      ${recentRows.length === 0
+        ? `<div class="empty-state">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</div>`
+        : `<div style="overflow-x:auto"><table class="tbl">
+        <thead><tr>
+          <th>หมายเลข</th><th>วันที่</th><th>ประเภท</th><th>แผนก</th><th>สถานที่</th><th>สถานะ</th>
+        </tr></thead>
+        <tbody>${recentRows.map(r => {
+          const t = INCIDENT_TYPES[r.incidentType] || { labelTh: r.incidentType, color: '#64748b', bg: '#f1f5f9' };
+          const s = INCIDENT_STATUS[r.status]   || { label: r.status, color: '#64748b', bg: '#f1f5f9' };
+          return `<tr onclick="location.href='safety-incident.html?id=${r.id}'" style="cursor:pointer">
+            <td><span style="font-weight:600;color:#1e40af">${r.incidentId||r.id.slice(0,8)}</span></td>
+            <td>${r.incidentDate||'—'}</td>
+            <td><span class="badge" style="background:${t.bg};color:${t.color}">${t.labelTh}</span></td>
+            <td>${r.department||'—'}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.location||'—'}</td>
+            <td><span class="badge" style="background:${s.bg||'#f1f5f9'};color:${s.color}">${s.label}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`
+      }
+    </div>
+  </div>`;
+
+  // ── Charts ──────────────────────────────────────────────────────────────
+  // Destroy old instances
+  if (chartTrend) { chartTrend.destroy(); chartTrend = null; }
+  if (chartType)  { chartType.destroy();  chartType = null;  }
+  if (chartDept)  { chartDept.destroy();  chartDept = null;  }
+
+  // Monthly trend
+  const trendCtx = document.getElementById('chartTrend');
+  if (trendCtx && trend.length) {
+    chartTrend = new Chart(trendCtx, {
+      type: 'line',
+      data: {
+        labels: trend.map(m => m.label),
+        datasets: [
+          { label: 'อุบัติเหตุ', data: trend.map(m => m.accident), borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,.08)', tension: .35, pointRadius: 4, pointBackgroundColor: '#dc2626' },
+          { label: 'Near Miss',  data: trend.map(m => m.nearMiss), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.08)',  tension: .35, pointRadius: 4, pointBackgroundColor: '#2563eb' },
+        ]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { family: 'Sarabun' }, boxWidth: 12 } } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'Sarabun' } } }, x: { ticks: { font: { family: 'Sarabun' } } } } }
+    });
+  }
+
+  // By type (doughnut)
+  const typeCtx = document.getElementById('chartType');
+  if (typeCtx && byType.length) {
+    const CHART_COLORS = ['#dc2626','#ea580c','#d97706','#2563eb','#7c3aed','#0891b2','#16a34a','#475569'];
+    chartType = new Chart(typeCtx, {
+      type: 'doughnut',
+      data: {
+        labels: byType.map(([l]) => l),
+        datasets: [{ data: byType.map(([,v]) => v), backgroundColor: CHART_COLORS, borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { font: { family: 'Sarabun' }, boxWidth: 10, padding: 8 } } }, cutout: '55%' }
+    });
+  } else if (typeCtx) {
+    typeCtx.parentElement.innerHTML += '<div class="empty-state" style="padding:20px 0">ยังไม่มีข้อมูล</div>';
+  }
+
+  // By department (horizontal bar)
+  const deptCtx = document.getElementById('chartDept');
+  if (deptCtx && byDept.length) {
+    chartDept = new Chart(deptCtx, {
+      type: 'bar',
+      data: {
+        labels: byDept.map(([l]) => l),
+        datasets: [{ data: byDept.map(([,v]) => v), backgroundColor: '#3b82f6', borderRadius: 4 }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { stepSize: 1, font: { family: 'Sarabun' } } }, y: { ticks: { font: { family: 'Sarabun', size: 11 } } } }
+      }
+    });
+  } else if (deptCtx) {
+    deptCtx.parentElement.innerHTML += '<div class="empty-state" style="padding:20px 0">ยังไม่มีข้อมูล</div>';
+  }
+}
+
+// ─── global controls ────────────────────────────────────────────────────
+let _period = 'ytd';
+window.__setPeriod = p => { _period = p; render(p); };
+window.__toggleCustom = () => {
+  const el = document.getElementById('customRange');
+  if (el) el.classList.toggle('show');
+};
+
+// ─── boot ───────────────────────────────────────────────────────────────
+const profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager']);
+renderShell(profile, 'safety-dashboard', 'KPO Safety Dashboard');
+render('ytd');
+</script>
+</body>
+</html>
