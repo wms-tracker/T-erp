@@ -21,6 +21,7 @@ export const COL = {
   drills:       "safetyEmergencyDrills",
   nearMiss:     "safetyNearMiss",
   riskAssess:   "safetyRiskAssessments",
+  observations: "safetyObservations",
 };
 
 // ────────────────────────────────────────────
@@ -1006,4 +1007,56 @@ export async function updateInvestigation(id, data) {
 
 export async function deleteInvestigation(id) {
   await deleteDoc(doc(db, COL.investigations, id));
+}
+
+// ────────────────────────────────────────────
+// Safety Observations (BBS)
+// ────────────────────────────────────────────
+export const OBS_TYPES = {
+  safe:      { label: 'พฤติกรรมปลอดภัย',    color: '#16a34a', bg: '#dcfce7' },
+  unsafe:    { label: 'พฤติกรรมไม่ปลอดภัย', color: '#dc2626', bg: '#fee2e2' },
+  condition: { label: 'สภาพไม่ปลอดภัย',     color: '#d97706', bg: '#fef3c7' },
+  positive:  { label: 'แบบอย่างที่ดี',       color: '#2563eb', bg: '#eff6ff' },
+};
+
+export const OBS_CATEGORIES = [
+  'อุปกรณ์ PPE', 'ความสะอาด/5ส', 'เครื่องจักร/อุปกรณ์', 'การยกของ/ท่าทาง',
+  'สารเคมี', 'ไฟฟ้า', 'อัคคีภัย', 'การจราจร/ยานพาหนะ', 'ทำงานที่สูง',
+  'พื้นที่อับอากาศ', 'ป้ายเตือน/ความปลอดภัย', 'ทั่วไป',
+];
+
+export const OBS_STATUS = {
+  open:   { label: 'รอดำเนินการ', color: '#d97706', bg: '#fef3c7' },
+  closed: { label: 'ดำเนินการแล้ว', color: '#16a34a', bg: '#dcfce7' },
+  na:     { label: 'ไม่ต้องดำเนินการ', color: '#6b7280', bg: '#f9fafb' },
+};
+
+export async function listObservations({ startDate, endDate, obsType, dept, lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.observations), orderBy('observationDate', 'desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (startDate) rows = rows.filter(r => r.observationDate >= startDate);
+  if (endDate)   rows = rows.filter(r => r.observationDate <= endDate);
+  if (obsType)   rows = rows.filter(r => r.obsType === obsType);
+  if (dept)      rows = rows.filter(r => r.department === dept);
+  return rows;
+}
+
+export async function getObservation(id) {
+  const snap = await getDoc(doc(db, COL.observations, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createObservation(data, createdBy) {
+  return addDoc(collection(db, COL.observations), {
+    ...data, status: data.obsType === 'safe' || data.obsType === 'positive' ? 'na' : 'open',
+    createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateObservation(id, data) {
+  await updateDoc(doc(db, COL.observations, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteObservation(id) {
+  await deleteDoc(doc(db, COL.observations, id));
 }
