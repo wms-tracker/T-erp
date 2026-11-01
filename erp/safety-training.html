@@ -3,259 +3,406 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ฝึกอบรมความปลอดภัย — KPO Safety</title>
+  <title>ฝึกอบรมความปลอดภัย</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b">กำลังโหลด...</div>
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
 import {
   listTrainings, getTraining, createTraining, updateTraining, deleteTraining,
-  TRAINING_STATUS, TRAINING_TYPES, DEPARTMENTS
+  TRAINING_STATUS, TRAINING_TYPES, DEPARTMENTS,
 } from "./js/safety-data.js";
 
-const $ = id => document.getElementById(id);
-let _profile, _trainings = [];
-let _editId = null;
-let _filterType = '', _filterStatus = '', _filterDept = '', _search = '';
+let _profile, _rows = [], _editId = null;
+let _attendees = [];   // [{name, dept, position}]
 
-function buildLayout() {
-  document.getElementById('main-content').innerHTML = `
-  <style>
-    .tr{padding:0 20px 40px;max-width:1200px;margin:0 auto;}
-    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 14px;}
-    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
-    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
-    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
-    .btn-sm{padding:5px 11px;font-size:.78rem;}
-    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
-    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
-    .sum-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
-    .sum-chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;flex:1;min-width:110px;text-align:center;}
-    .sum-chip .val{font-size:1.4rem;font-weight:800;color:#0f172a;}
-    .sum-chip .lbl{font-size:.72rem;color:#94a3b8;margin-top:2px;}
-    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-    .filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;}
-    .tbl-wrap{overflow-x:auto;}
-    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
-    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
-    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
-    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
-    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
-    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
-    .modal-panel{background:#fff;height:100dvh;width:min(540px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
-    .modal-head{padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
-    .modal-body{padding:20px;flex:1;}
-    .modal-foot{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
-    .form-group{margin-bottom:12px;}
-    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
-    .req{color:#dc2626;}
-    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
-    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
-    textarea.form-ctrl{resize:vertical;min-height:72px;}
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
-  </style>
-  <div class="tr" id="mainView"></div>
-  <div id="mBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
-    <div class="modal-panel">
-      <div class="modal-head">
-        <div style="font-size:1rem;font-weight:700;color:#0f172a" id="mdTitle">—</div>
-        <button class="btn btn-ghost btn-sm" onclick="__closeModal(null)">✕</button>
+const today   = () => new Date().toISOString().split('T')[0];
+const typeMap = Object.fromEntries(TRAINING_TYPES.map(t => [t.key, t.label]));
+
+const CSS = `<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Sarabun,sans-serif;background:#f8fafc;color:#0f172a;}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px 60px;}
+.hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:20px 0 14px;}
+.page-title{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.1s;}
+.btn-primary{background:#0f172a;color:#fff;} .btn-primary:hover{background:#1e293b;}
+.btn-ghost{background:#f1f5f9;color:#475569;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-green{background:#16a34a;color:#fff;}   .btn-green:hover{background:#15803d;}
+.btn-red{background:#fee2e2;color:#dc2626;}  .btn-red:hover{background:#fecaca;}
+.btn-sm{padding:4px 10px;font-size:.75rem;}
+.stat-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.stat-card{background:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);flex:1;min-width:110px;}
+.stat-val{font-size:1.6rem;font-weight:900;line-height:1;}
+.stat-label{font-size:.72rem;color:#64748b;margin-top:3px;}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+.filter-row input,.filter-row select{padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.82rem;font-family:Sarabun,sans-serif;background:#fff;}
+.tbl-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
+.tbl{width:100%;border-collapse:collapse;font-size:.83rem;}
+.tbl th{text-align:left;padding:10px 14px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #f1f5f9;}
+.tbl td{padding:10px 14px;border-bottom:1px solid #f8fafc;vertical-align:middle;}
+.tbl tr:hover td{background:#f8fafc;}
+.tbl .empty{text-align:center;padding:40px;color:#94a3b8;}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;display:none;}
+.panel{position:fixed;right:0;top:0;height:100dvh;width:min(700px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);z-index:101;display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .25s ease;}
+.panel.open{transform:translateX(0);}
+.panel-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9;flex-shrink:0;}
+.panel-body{flex:1;overflow-y:auto;padding:20px;}
+.panel-ft{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+.fld{display:flex;flex-direction:column;gap:4px;}
+.fld.full{grid-column:1/-1;}
+.lbl{font-size:.75rem;font-weight:700;color:#475569;}
+input,select,textarea{padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;outline:none;color:#0f172a;background:#fff;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:#0891b2;}
+.sec-hd{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:10px 0 8px;border-bottom:1.5px solid #f1f5f9;margin:12px 0 8px;display:flex;justify-content:space-between;align-items:center;}
+.att-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+@media(max-width:560px){.att-row{grid-template-columns:1fr auto;}}
+/* print */
+@media print{
+  .no-print{display:none!important;}
+  .print-only{display:block!important;}
+  .overlay,.panel{display:none!important;}
+  body{font-size:10pt;}
+  .tbl{font-size:8.5pt;}
+}
+.print-only{display:none;}
+#printArea{display:none;}
+</style>`;
+
+// ── LOAD ──────────────────────────────────────────────────────────────────────
+async function loadList() {
+  _rows = await listTrainings({ lim: 200 });
+  renderList();
+}
+
+function renderList() {
+  const mc = document.getElementById('main-content');
+  const totalCourses = _rows.length;
+  const totalPeople  = _rows.reduce((s,r) => s + (r.participantCount || 0), 0);
+  const completed    = _rows.filter(r => r.status === 'completed').length;
+  const totalHours   = _rows.filter(r=>r.status==='completed').reduce((s,r) => s + (r.hours||0), 0);
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+        ฝึกอบรมความปลอดภัย
       </div>
-      <div class="modal-body" id="mdBody"></div>
-      <div class="modal-foot" id="mdFoot"></div>
+      <button class="btn btn-primary" onclick="__openPanel()">+ บันทึกการฝึกอบรม</button>
     </div>
-  </div>`;
+
+    <div class="stat-bar no-print">
+      <div class="stat-card"><div class="stat-val">${totalCourses}</div><div class="stat-label">หลักสูตรทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#16a34a">${completed}</div><div class="stat-label">เสร็จสิ้น</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#7c3aed">${totalPeople}</div><div class="stat-label">ผู้เข้าอบรมรวม (คน)</div></div>
+      <div class="stat-card"><div class="stat-val">${totalHours}</div><div class="stat-label">ชั่วโมงอบรมรวม</div></div>
+    </div>
+
+    <div class="filter-row no-print">
+      <input type="date" id="f-start" onchange="__filterList()">
+      <input type="date" id="f-end" onchange="__filterList()">
+      <select id="f-type" onchange="__filterList()"><option value="">ทุกประเภท</option>${TRAINING_TYPES.map(t=>`<option value="${t.key}">${t.label}</option>`).join('')}</select>
+      <select id="f-status" onchange="__filterList()">
+        <option value="">ทุกสถานะ</option>
+        ${Object.entries(TRAINING_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="tbl-card no-print">
+      <table class="tbl"><thead><tr>
+        <th>วันที่</th><th>หลักสูตร</th><th>ประเภท</th><th>วิทยากร</th><th>แผนก</th><th>ผู้เข้าร่วม</th><th>ชั่วโมง</th><th>สถานะ</th><th></th>
+      </tr></thead>
+      <tbody id="tBody">${buildRows(_rows)}</tbody></table>
+    </div>
+  </div>
+  <div class="overlay" id="overlay" onclick="__closePanel()"></div>
+  <div class="panel" id="sidePanel"><div id="panelContent" style="display:flex;flex-direction:column;height:100%"></div></div>
+  <div id="printArea"></div>`;
 }
 
-function renderView() {
-  const filtered = _trainings.filter(t => {
-    if (_filterType && t.trainingType !== _filterType) return false;
-    if (_filterStatus && t.status !== _filterStatus) return false;
-    if (_filterDept && t.department !== _filterDept) return false;
-    if (_search && !JSON.stringify(t).toLowerCase().includes(_search.toLowerCase())) return false;
-    return true;
-  });
-
-  const completed = _trainings.filter(t => t.status === 'completed');
-  const totalParticipants = completed.reduce((s, t) => s + (t.participantCount || 0), 0);
-  const upcoming = _trainings.filter(t => t.status === 'planned' && t.trainingDate >= new Date().toISOString().split('T')[0]).length;
-
-  $('mainView').innerHTML = `
-  <div class="page-header">
-    <div class="page-title">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-      ฝึกอบรมความปลอดภัย
-    </div>
-    <button class="btn btn-primary" onclick="__openForm(null)">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      บันทึกการฝึกอบรม
-    </button>
-  </div>
-
-  <div class="sum-bar">
-    <div class="sum-chip"><div class="val">${_trainings.length}</div><div class="lbl">รายการทั้งหมด</div></div>
-    <div class="sum-chip"><div class="val" style="color:#16a34a">${completed.length}</div><div class="lbl">เสร็จแล้ว</div></div>
-    <div class="sum-chip"><div class="val" style="color:#2563eb">${upcoming}</div><div class="lbl">ที่วางแผนไว้</div></div>
-    <div class="sum-chip"><div class="val" style="color:#0891b2">${totalParticipants}</div><div class="lbl">ผู้เข้าร่วมสะสม</div></div>
-  </div>
-
-  <div class="filter-bar">
-    <input type="text" placeholder="ค้นหา..." oninput="__srch(this.value)" style="min-width:180px">
-    <select onchange="__fType(this.value)">
-      <option value="">ทุกประเภท</option>
-      ${TRAINING_TYPES.map(t => `<option value="${t.key}" ${_filterType===t.key?'selected':''}>${t.label}</option>`).join('')}
-    </select>
-    <select onchange="__fStatus(this.value)">
-      <option value="">ทุกสถานะ</option>
-      ${Object.entries(TRAINING_STATUS).map(([k,v]) => `<option value="${k}" ${_filterStatus===k?'selected':''}>${v.label}</option>`).join('')}
-    </select>
-    <select onchange="__fDept(this.value)">
-      <option value="">ทุกแผนก</option>
-      ${DEPARTMENTS.map(d => `<option value="${d}" ${_filterDept===d?'selected':''}>${d}</option>`).join('')}
-    </select>
-  </div>
-
-  ${filtered.length === 0
-    ? `<div class="empty-state"><div style="font-size:2.5rem">📚</div><div style="margin-top:8px">ยังไม่มีบันทึกการฝึกอบรม</div></div>`
-    : `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>วันที่</th><th>หลักสูตร/ประเภท</th><th>แผนก</th><th>วิทยากร</th><th>ผู้เข้าร่วม</th><th>คะแนนเฉลี่ย</th><th>สถานะ</th><th></th></tr></thead>
-      <tbody>
-      ${filtered.map(t => {
-        const s = TRAINING_STATUS[t.status] || TRAINING_STATUS.planned;
-        const typeLabel = TRAINING_TYPES.find(x=>x.key===t.trainingType)?.label || t.trainingType || '—';
-        return `<tr onclick="__openForm('${t.id}')">
-          <td>${t.trainingDate||'—'}</td>
-          <td><div style="font-weight:600">${t.title||typeLabel}</div><div style="font-size:.75rem;color:#94a3b8">${typeLabel}</div></td>
-          <td>${t.department||'ทุกแผนก'}</td>
-          <td>${t.instructor||'—'}</td>
-          <td style="text-align:center">${t.participantCount||'—'}</td>
-          <td style="text-align:center">${t.avgScore ? t.avgScore+'%' : '—'}</td>
-          <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
-          <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="__del('${t.id}')">ลบ</button></td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table></div>`}`;
+function buildRows(rows) {
+  if (!rows.length) return `<tr><td colspan="9" class="empty">ยังไม่มีข้อมูล</td></tr>`;
+  return rows.map(r => {
+    const s = TRAINING_STATUS[r.status] || { label: r.status||'—', color:'#64748b', bg:'#f1f5f9' };
+    return `<tr>
+      <td>${r.trainingDate||'—'}</td>
+      <td style="font-weight:700">${r.title||'—'}</td>
+      <td style="font-size:.78rem">${typeMap[r.trainingType]||r.trainingType||'—'}</td>
+      <td>${r.trainer||'—'}</td>
+      <td>${r.department||'ทุกแผนก'}</td>
+      <td style="font-weight:700;color:#7c3aed">${r.participantCount||0}</td>
+      <td>${r.hours||'—'}</td>
+      <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="__openDetail('${r.id}')">ดู</button>
+        <button class="btn btn-ghost btn-sm" onclick="__editRecord('${r.id}')">แก้ไข</button>
+        <button class="btn btn-red btn-sm" onclick="__del('${r.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
 }
 
-async function openForm(id) {
+window.__filterList = () => {
+  const start  = document.getElementById('f-start')?.value;
+  const end    = document.getElementById('f-end')?.value;
+  const type   = document.getElementById('f-type')?.value;
+  const status = document.getElementById('f-status')?.value;
+  let rows = _rows;
+  if (start)  rows = rows.filter(r => r.trainingDate >= start);
+  if (end)    rows = rows.filter(r => r.trainingDate <= end);
+  if (type)   rows = rows.filter(r => r.trainingType === type);
+  if (status) rows = rows.filter(r => r.status === status);
+  const tb = document.getElementById('tBody');
+  if (tb) tb.innerHTML = buildRows(rows);
+};
+
+// ── PANEL helpers ─────────────────────────────────────────────────────────────
+function openPanel(html) {
+  document.getElementById('panelContent').innerHTML = html;
+  document.getElementById('sidePanel').classList.add('open');
+  document.getElementById('overlay').style.display = 'block';
+}
+window.__closePanel = () => {
+  document.getElementById('sidePanel').classList.remove('open');
+  document.getElementById('overlay').style.display = 'none';
+};
+
+// ── FORM PANEL ────────────────────────────────────────────────────────────────
+window.__openPanel = () => {
+  _editId = null;
+  _attendees = [];
+  renderFormPanel();
+};
+
+window.__editRecord = async (id) => {
+  const rec = _rows.find(r => r.id === id) || await getTraining(id);
+  if (!rec) return;
   _editId = id;
-  let t = id ? (_trainings.find(x=>x.id===id) || await getTraining(id)) : null;
-  $('mdTitle').textContent = id ? 'แก้ไขบันทึกการฝึกอบรม' : 'บันทึกการฝึกอบรมใหม่';
-  $('mdBody').innerHTML = `
-  <div class="form-group">
-    <label class="form-label">ชื่อหลักสูตร <span class="req">*</span></label>
-    <input type="text" class="form-ctrl" id="fTitle" value="${t?.title||''}" placeholder="ชื่อหลักสูตร / หัวข้ออบรม">
+  _attendees = (rec.attendees || []).map(a => ({ ...a }));
+  renderFormPanel(rec);
+};
+
+function renderFormPanel(rec = {}) {
+  openPanel(`
+  <div class="panel-hd">
+    <div style="font-weight:700">${_editId ? 'แก้ไขการฝึกอบรม' : 'บันทึกการฝึกอบรมใหม่'}</div>
+    <button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button>
   </div>
-  <div class="form-grid">
-    <div class="form-group">
-      <label class="form-label">ประเภทการฝึกอบรม <span class="req">*</span></label>
-      <select class="form-ctrl" id="fType">
-        ${TRAINING_TYPES.map(x=>`<option value="${x.key}" ${t?.trainingType===x.key?'selected':''}>${x.label}</option>`).join('')}
-      </select>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="fld full"><label class="lbl">ชื่อหลักสูตร *</label><input id="fTitle" value="${rec.title||''}"></div>
+      <div class="fld"><label class="lbl">ประเภทการอบรม</label>
+        <select id="fType">
+          ${TRAINING_TYPES.map(t=>`<option value="${t.key}" ${rec.trainingType===t.key?'selected':''}>${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fld"><label class="lbl">วันที่อบรม *</label><input type="date" id="fDate" value="${rec.trainingDate||today()}"></div>
+      <div class="fld"><label class="lbl">วิทยากร</label><input id="fTrainer" value="${rec.trainer||''}"></div>
+      <div class="fld"><label class="lbl">ประเภทวิทยากร</label>
+        <select id="fTrainerType">
+          <option value="internal" ${rec.trainerType!=='external'?'selected':''}>ภายใน</option>
+          <option value="external" ${rec.trainerType==='external'?'selected':''}>ภายนอก / บริษัทที่ปรึกษา</option>
+        </select>
+      </div>
+      <div class="fld"><label class="lbl">แผนก (ว่างไว้ = ทุกแผนก)</label>
+        <select id="fDept"><option value="">ทุกแผนก</option>${DEPARTMENTS.map(d=>`<option ${rec.department===d?'selected':''}>${d}</option>`).join('')}</select>
+      </div>
+      <div class="fld"><label class="lbl">สถานที่</label><input id="fVenue" value="${rec.venue||''}"></div>
+      <div class="fld"><label class="lbl">จำนวนชั่วโมง</label><input type="number" id="fHours" min="1" value="${rec.hours||''}"></div>
+      <div class="fld"><label class="lbl">จำนวนผู้เข้าร่วม</label><input type="number" id="fCount" min="0" value="${rec.participantCount||0}" oninput="__syncCount()"></div>
+      <div class="fld"><label class="lbl">สถานะ</label>
+        <select id="fStatus">
+          ${Object.entries(TRAINING_STATUS).map(([k,v])=>`<option value="${k}" ${(rec.status||'completed')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fld full"><label class="lbl">หมายเหตุ</label><textarea id="fNote" rows="2">${rec.notes||''}</textarea></div>
     </div>
-    <div class="form-group">
-      <label class="form-label">สถานะ</label>
-      <select class="form-ctrl" id="fStatus">
-        ${Object.entries(TRAINING_STATUS).map(([k,v])=>`<option value="${k}" ${(t?.status||'planned')===k?'selected':''}>${v.label}</option>`).join('')}
-      </select>
+
+    <div class="sec-hd">
+      รายชื่อผู้เข้าร่วม (ไม่บังคับ)
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="__addAttendee()">+ เพิ่ม</button>
+        <button class="btn btn-ghost btn-sm" onclick="__printAttend()">🖨 พิมพ์ใบลงชื่อ</button>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">วันที่อบรม <span class="req">*</span></label>
-      <input type="date" class="form-ctrl" id="fDate" value="${t?.trainingDate||''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">ระยะเวลา (ชั่วโมง)</label>
-      <input type="number" class="form-ctrl" id="fHours" value="${t?.durationHours||''}" min="1" step="0.5">
-    </div>
-    <div class="form-group">
-      <label class="form-label">แผนก / กลุ่มเป้าหมาย</label>
-      <select class="form-ctrl" id="fDept">
-        <option value="">ทุกแผนก</option>
-        ${DEPARTMENTS.map(d=>`<option value="${d}" ${t?.department===d?'selected':''}>${d}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">จำนวนผู้เข้าร่วม</label>
-      <input type="number" class="form-ctrl" id="fCount" value="${t?.participantCount||''}" min="0">
-    </div>
-    <div class="form-group">
-      <label class="form-label">วิทยากร / ผู้จัดอบรม</label>
-      <input type="text" class="form-ctrl" id="fInstr" value="${t?.instructor||''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">สถานที่</label>
-      <input type="text" class="form-ctrl" id="fVenue" value="${t?.venue||''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">คะแนนเฉลี่ย (%) ถ้ามีการทดสอบ</label>
-      <input type="number" class="form-ctrl" id="fScore" value="${t?.avgScore||''}" min="0" max="100">
-    </div>
-    <div class="form-group">
-      <label class="form-label">ค่าใช้จ่าย (บาท)</label>
-      <input type="number" class="form-ctrl" id="fCost" value="${t?.cost||''}" min="0">
-    </div>
+    <div id="attContainer">${_attendees.map((_,i)=>attRow(i)).join('')}</div>
+    ${_attendees.length===0?`<div style="color:#94a3b8;font-size:.8rem;padding:8px 0">ยังไม่มีรายชื่อ — กรอกจำนวนด้านบนแทนได้</div>`:''}
   </div>
-  <div class="form-group">
-    <label class="form-label">สรุปเนื้อหา / หมายเหตุ</label>
-    <textarea class="form-ctrl" id="fNote">${t?.note||''}</textarea>
-  </div>`;
-  $('mdFoot').innerHTML = `
-    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
-    ${id?`<button class="btn btn-danger btn-sm" onclick="__del('${id}')">ลบ</button>`:''}
-    <button class="btn btn-primary" id="mdSave" onclick="__save()">${id?'บันทึกการแก้ไข':'บันทึก'}</button>`;
-  $('mBg').style.display = 'flex';
+  <div class="panel-ft">
+    <button class="btn btn-ghost" onclick="__closePanel()">ยกเลิก</button>
+    <button class="btn btn-green" onclick="__saveForm()">💾 บันทึก</button>
+  </div>`);
 }
 
-async function save() {
-  const title = $('fTitle')?.value?.trim();
-  const date  = $('fDate')?.value;
-  if (!title || !date) { showToast('กรุณาระบุชื่อหลักสูตรและวันที่', '#dc2626'); return; }
+function attRow(i) {
+  const a = _attendees[i] || {};
+  return `<div class="att-row" id="att-${i}">
+    <input placeholder="ชื่อ-นามสกุล" value="${a.name||''}" onchange="__setAtt(${i},'name',this.value)">
+    <input placeholder="แผนก" value="${a.dept||''}" onchange="__setAtt(${i},'dept',this.value)">
+    <input placeholder="ตำแหน่ง" value="${a.position||''}" onchange="__setAtt(${i},'position',this.value)">
+    <button class="btn btn-red btn-sm" onclick="__removeAtt(${i})">✕</button>
+  </div>`;
+}
+
+window.__setAtt = (i, k, v) => { if (_attendees[i]) _attendees[i][k] = v; };
+window.__addAttendee = () => {
+  _attendees.push({ name:'', dept:'', position:'' });
+  const cnt = document.getElementById('attContainer');
+  if (cnt) cnt.insertAdjacentHTML('beforeend', attRow(_attendees.length - 1));
+  const fCount = document.getElementById('fCount');
+  if (fCount) fCount.value = _attendees.length;
+};
+window.__removeAtt = (i) => {
+  _attendees.splice(i, 1);
+  const cnt = document.getElementById('attContainer');
+  if (cnt) cnt.innerHTML = _attendees.map((_,idx) => attRow(idx)).join('');
+  const fCount = document.getElementById('fCount');
+  if (fCount) fCount.value = _attendees.length;
+};
+window.__syncCount = () => {
+  if (_attendees.length > 0) {
+    const fCount = document.getElementById('fCount');
+    if (fCount) fCount.value = _attendees.length;
+  }
+};
+
+window.__saveForm = async () => {
+  const title = document.getElementById('fTitle')?.value?.trim();
+  const date  = document.getElementById('fDate')?.value;
+  if (!title) return alert('กรุณาระบุชื่อหลักสูตร');
+  const count = _attendees.length > 0 ? _attendees.length : (+document.getElementById('fCount')?.value || 0);
   const data = {
-    title, trainingType: $('fType')?.value, status: $('fStatus')?.value||'planned',
-    trainingDate: date, durationHours: +($('fHours')?.value||0)||null,
-    department: $('fDept')?.value||'', participantCount: +($('fCount')?.value||0)||null,
-    instructor: $('fInstr')?.value?.trim()||'', venue: $('fVenue')?.value?.trim()||'',
-    avgScore: +($('fScore')?.value||0)||null, cost: +($('fCost')?.value||0)||null,
-    note: $('fNote')?.value?.trim()||'',
+    title,
+    trainingType:    document.getElementById('fType')?.value,
+    trainingDate:    date || today(),
+    trainer:         document.getElementById('fTrainer')?.value || '',
+    trainerType:     document.getElementById('fTrainerType')?.value || 'internal',
+    department:      document.getElementById('fDept')?.value || '',
+    venue:           document.getElementById('fVenue')?.value || '',
+    hours:           +document.getElementById('fHours')?.value || 0,
+    participantCount: count,
+    attendees:       _attendees.filter(a => a.name),
+    status:          document.getElementById('fStatus')?.value || 'completed',
+    notes:           document.getElementById('fNote')?.value || '',
   };
-  const btn = $('mdSave'); btn.disabled=true; btn.textContent='กำลังบันทึก...';
   try {
     if (_editId) await updateTraining(_editId, data);
-    else await createTraining(data, _profile.uid);
-    _trainings = await listTrainings({ lim: 200 });
-    closeModal(null); renderView();
-    showToast('บันทึกแล้ว ✓', '#16a34a');
-  } catch(e) { btn.disabled=false; btn.textContent=_editId?'บันทึกการแก้ไข':'บันทึก'; showToast(e.message,'#dc2626'); }
-}
+    else await createTraining(data, _profile?.uid);
+    _editId = null;
+    __closePanel();
+    await loadList();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
 
-async function del(id) {
-  if (!confirm('ลบบันทึกนี้?')) return;
+window.__del = async (id) => {
+  if (!confirm('ลบการฝึกอบรมนี้?')) return;
   await deleteTraining(id);
-  _trainings = await listTrainings({ lim: 200 });
-  closeModal(null); renderView();
-  showToast('ลบแล้ว','#0891b2');
-}
+  await loadList();
+};
 
-function closeModal(e) { if (e && e.target!==$('mBg')) return; $('mBg').style.display='none'; }
-function showToast(msg,color='#16a34a'){const el=document.createElement('div');el.style.cssText=`position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3500);}
+// ── DETAIL PANEL ──────────────────────────────────────────────────────────────
+window.__openDetail = async (id) => {
+  const rec = _rows.find(r => r.id === id) || await getTraining(id);
+  if (!rec) return;
+  const s = TRAINING_STATUS[rec.status] || { label: rec.status||'—', color:'#64748b', bg:'#f1f5f9' };
+  const atts = rec.attendees || [];
+  openPanel(`
+  <div class="panel-hd">
+    <div style="font-weight:700">${rec.title}</div>
+    <button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button>
+  </div>
+  <div class="panel-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;font-size:.83rem">
+      <div><div class="lbl">วันที่</div>${rec.trainingDate||'—'}</div>
+      <div><div class="lbl">ประเภท</div>${typeMap[rec.trainingType]||rec.trainingType||'—'}</div>
+      <div><div class="lbl">วิทยากร</div>${rec.trainer||'—'} (${rec.trainerType==='external'?'ภายนอก':'ภายใน'})</div>
+      <div><div class="lbl">สถานที่</div>${rec.venue||'—'}</div>
+      <div><div class="lbl">แผนก</div>${rec.department||'ทุกแผนก'}</div>
+      <div><div class="lbl">ชั่วโมง</div>${rec.hours||'—'} ชม.</div>
+      <div><div class="lbl">ผู้เข้าร่วม</div><span style="font-weight:700;color:#7c3aed">${rec.participantCount||0} คน</span></div>
+      <div><div class="lbl">สถานะ</div><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></div>
+      ${rec.notes?`<div style="grid-column:1/-1"><div class="lbl">หมายเหตุ</div>${rec.notes}</div>`:''}
+    </div>
+    ${atts.length > 0 ? `
+    <div class="sec-hd">รายชื่อผู้เข้าร่วม (${atts.length} คน)</div>
+    <table class="tbl" style="margin-bottom:8px">
+      <thead><tr><th>#</th><th>ชื่อ-นามสกุล</th><th>แผนก</th><th>ตำแหน่ง</th></tr></thead>
+      <tbody>${atts.map((a,i)=>`<tr><td>${i+1}</td><td>${a.name||'—'}</td><td>${a.dept||'—'}</td><td>${a.position||'—'}</td></tr>`).join('')}</tbody>
+    </table>` : ''}
+  </div>
+  <div class="panel-ft">
+    <button class="btn btn-ghost" onclick="__printAttend('${rec.id}')">🖨 พิมพ์ใบลงชื่อ</button>
+    <button class="btn btn-ghost" onclick="__closePanel()">ปิด</button>
+    <button class="btn btn-primary" onclick="__editRecord('${rec.id}')">✏️ แก้ไข</button>
+  </div>`);
+};
 
-window.__openForm=openForm; window.__save=save; window.__del=del; window.__closeModal=closeModal;
-window.__srch=v=>{_search=v;renderView()};
-window.__fType=v=>{_filterType=v;renderView()};
-window.__fStatus=v=>{_filterStatus=v;renderView()};
-window.__fDept=v=>{_filterDept=v;renderView()};
+// ── PRINT attendance sheet ────────────────────────────────────────────────────
+window.__printAttend = async (id) => {
+  let rec = null;
+  if (id) rec = _rows.find(r => r.id === id) || await getTraining(id);
+  const title   = rec?.title   || document.getElementById('fTitle')?.value || 'ฝึกอบรม';
+  const date    = rec?.trainingDate || document.getElementById('fDate')?.value || today();
+  const trainer = rec?.trainer || document.getElementById('fTrainer')?.value || '';
+  const venue   = rec?.venue   || document.getElementById('fVenue')?.value   || '';
+  const atts    = rec?.attendees?.length ? rec.attendees : _attendees;
+  const count   = rec?.participantCount || +document.getElementById('fCount')?.value || 0;
+  const blankRows = Math.max(0, 20 - atts.length);
 
+  const printContent = `
+    <div style="font-family:Sarabun,sans-serif;padding:20px;font-size:11pt">
+      <h2 style="text-align:center;margin-bottom:4px">ใบลงทะเบียนการฝึกอบรม</h2>
+      <p style="text-align:center;margin-bottom:14px">KPO Safety Management System</p>
+      <table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:16px">
+        <tr><td style="width:50%"><b>หลักสูตร:</b> ${title}</td><td><b>วันที่:</b> ${date}</td></tr>
+        <tr><td><b>วิทยากร:</b> ${trainer||'—'}</td><td><b>สถานที่:</b> ${venue||'—'}</td></tr>
+      </table>
+      <table style="width:100%;border-collapse:collapse;font-size:9.5pt">
+        <thead><tr style="background:#f1f5f9">
+          <th style="border:1px solid #ccc;padding:6px;width:36px">#</th>
+          <th style="border:1px solid #ccc;padding:6px;width:34%">ชื่อ-นามสกุล</th>
+          <th style="border:1px solid #ccc;padding:6px;width:22%">แผนก</th>
+          <th style="border:1px solid #ccc;padding:6px;width:20%">ตำแหน่ง</th>
+          <th style="border:1px solid #ccc;padding:6px">ลายมือชื่อ</th>
+        </tr></thead>
+        <tbody>
+          ${atts.map((a,i)=>`<tr><td style="border:1px solid #ccc;padding:5px;text-align:center">${i+1}</td>
+            <td style="border:1px solid #ccc;padding:5px">${a.name||''}</td>
+            <td style="border:1px solid #ccc;padding:5px">${a.dept||''}</td>
+            <td style="border:1px solid #ccc;padding:5px">${a.position||''}</td>
+            <td style="border:1px solid #ccc;padding:5px"></td></tr>`).join('')}
+          ${Array.from({length:blankRows},(_,i)=>`<tr><td style="border:1px solid #ccc;padding:5px;text-align:center">${atts.length+i+1}</td>
+            <td style="border:1px solid #ccc;padding:14px"></td>
+            <td style="border:1px solid #ccc;padding:14px"></td>
+            <td style="border:1px solid #ccc;padding:14px"></td>
+            <td style="border:1px solid #ccc;padding:14px"></td></tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="display:flex;gap:40px;justify-content:flex-end;margin-top:40px;font-size:10pt">
+        ${['วิทยากร','จป.วิชาชีพ','ผู้จัดการ'].map(n=>`<div style="text-align:center"><div style="border-top:1px solid #000;padding-top:4px;margin-top:50px;width:140px">${n}</div></div>`).join('')}
+      </div>
+    </div>`;
+
+  const pa = document.getElementById('printArea');
+  if (pa) {
+    pa.innerHTML = printContent;
+    pa.style.display = 'block';
+    window.print();
+    setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 500);
+  }
+};
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
 _profile = await requireRole(['safety_officer','kpo','admin','manager']);
-renderShell(_profile, 'safety-training', 'ฝึกอบรมความปลอดภัย');
-buildLayout();
-_trainings = await listTrainings({ lim: 200 });
-renderView();
+renderShell(_profile, 'training', 'ฝึกอบรมความปลอดภัย');
+loadList();
 </script>
 </body>
 </html>
