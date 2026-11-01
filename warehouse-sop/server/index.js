@@ -949,6 +949,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// เปิดเบราว์เซอร์อัตโนมัติเมื่อเปิดจากไอคอน (START.bat ตั้ง SOP_OPEN_BROWSER=1)
+function openBrowser() {
+  if (process.env.SOP_OPEN_BROWSER !== '1' || process.platform !== 'win32') return;
+  require('child_process').spawn('cmd', ['/c', 'start', '', `http://localhost:${PORT}`], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+}
+server.on('error', e => {
+  if (e.code === 'EADDRINUSE') {
+    console.log(`\n  โปรแกรมเปิดอยู่แล้ว — กำลังเปิดหน้าเว็บ http://localhost:${PORT}`);
+    openBrowser();
+    setTimeout(() => process.exit(0), 500);
+    return;
+  }
+  throw e;
+});
 const seededPw = D.seed();
 server.listen(PORT, HOST, () => {
   const ips = Object.values(os.networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => i.address);
@@ -956,6 +970,8 @@ server.listen(PORT, HOST, () => {
   console.log(`  เปิดบนเครื่องนี้:   http://localhost:${PORT}`);
   ips.forEach(ip => console.log(`  เครื่องอื่นในวง LAN: http://${ip}:${PORT}`));
   console.log(`  ฐานข้อมูล: ${path.join(D.DATA_DIR, 'sop.db')}`);
+  console.log('\n  ** ย่อหน้าต่างนี้ไว้ได้ แต่อย่าปิด — ถ้าปิด ทุกคนจะเข้าเว็บไม่ได้ **');
+  openBrowser();
   if (seededPw) console.log(`\n  สร้างบัญชีเริ่มต้นแล้ว: admin, manager, ob.head, ob.staff, ib.head, viewer\n  รหัสผ่านเริ่มต้น: ${seededPw}  (ระบบจะให้เปลี่ยนเมื่อเข้าใช้ครั้งแรก)\n`);
 });
 

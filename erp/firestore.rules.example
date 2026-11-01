@@ -267,5 +267,204 @@ service cloud.firestore {
       allow update: if isAdmin() || (hasRole('warehouse') && myWctDept() == resource.data.department);
       allow delete: if isAdmin();
     }
+
+    // ===================================================================
+    // SOP Management (erp/sop.html) — workflow ถูกบังคับที่นี่ ไม่ใช่แค่ในหน้าเว็บ
+    //   บทบาท SOP: admin (= ERP admin) / manager (อนุมัติ) / dept_head (ตรวจสอบ) / author (จัดทำ) / viewer
+    //   ตั้งค่าบทบาทได้ที่ sop.html#/admin/members (เก็บใน sopMembers/{uid})
+    // ===================================================================
+    function sopMember() {
+      return exists(/databases/$(database)/documents/sopMembers/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/sopMembers/$(request.auth.uid)).data : {};
+    }
+    function sopRole() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      let m = sopMember();
+      return u.role == 'admin' ? 'admin'
+        : (m.get('active', true) == false ? 'viewer'
+        : m.get('sopRole', u.role == 'manager' ? 'manager' : 'viewer'));
+    }
+    function sopDept() { return sopMember().get('deptId', ''); }
+    function sopActive() { return isSignedIn() && isActive(); }
+    function sopPriv() { return sopActive() && sopRole() in ['admin', 'manager']; }
+    function sopWriter(deptId) {
+      return sopActive() && (sopPriv() || (sopRole() in ['author', 'dept_head'] && sopDept() == deptId));
+    }
+    function sopIsPublic(st) { return st in ['published', 'superseded', 'obsolete']; }
+    function sopSeesWork(v) {
+      return sopActive() && (sopPriv()
+        || (sopRole() in ['author', 'dept_head'] && sopDept() == v.department_id)
+        || v.prepared_by == request.auth.uid || v.owner_id == request.auth.uid
+        || v.reviewer_id == request.auth.uid || v.approver_id == request.auth.uid);
+    }
+    // ผู้จัดทำ และผู้ที่ร่วมแก้ไขเนื้อหา ตรวจสอบ/อนุมัติฉบับนั้นไม่ได้
+    function sopSeparated(v) { return request.auth.uid != v.prepared_by && !(request.auth.uid in v.editors); }
+    function sopCanEdit(v) {
+      return sopActive() && v.status in ['draft', 'revision_required'] && v.locked == false
+        && (sopPriv() || v.prepared_by == request.auth.uid || (sopRole() == 'dept_head' && sopDept() == v.department_id));
+    }
+    function sopCanReview(v) {
+      return sopActive() && sopSeparated(v) && sopRole() != 'viewer'
+        && (v.reviewer_id != null ? v.reviewer_id == request.auth.uid
+            : (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id)));
+    }
+    function sopCanApprove(v) {
+      return sopActive() && sopSeparated(v) && sopRole() in ['manager', 'admin']
+        && (v.approver_id == null || v.approver_id == request.auth.uid);
+    }
+    function sopSubmittable(v) {
+      return v.title.size() > 0 && v.owner_id != null && v.effective_date is string && v.review_date is string
+        && v.review_date > v.effective_date && v.content.steps.size() > 0
+        && v.content.objective.size() > 0 && v.content.scope.size() > 0 && v.content.responsibility.size() > 0
+        && (v.revision == 0 || v.change_summary.size() > 0);
+    }
+    function sopVDoc(id) { return /databases/$(database)/documents/sopVersions/$(id); }
+    function sopSDoc(id) { return /databases/$(database)/documents/sops/$(id); }
+    // ต้องเป็นความคิดเห็นใหม่ในคำขอนี้ (last_comment_at = เวลาปัจจุบัน) ไม่ใช่ข้อความเก่าที่ค้างอยู่
+    function sopHasComment(n) { return n.last_comment is string && n.last_comment.size() > 0 && n.last_comment_at == request.time; }
+
+    match /sopDepartments/{id} {
+      allow read: if sopActive();
+      allow write: if isAdmin();
+    }
+    match /sopMembers/{uid} {
+      allow read: if sopActive();
+      allow write: if isAdmin();
+    }
+    match /sopSettings/{id} {
+      allow read: if sopActive();
+      allow write: if isAdmin();
+    }
+
+    // ----- sops: 1 เอกสารต่อ 1 SOP (doc id = SOP Number) — สรุปสำหรับทะเบียน + ตัวชี้ฉบับปัจจุบัน/ฉบับที่กำลังแก้ -----
+    match /sops/{sid} {
+      // resource == null: ให้ตรวจว่าเลข SOP ว่างอยู่หรือไม่ ก่อนสร้างใหม่
+      allow read: if sopActive() && (resource == null || resource.data.has_current == true || sopPriv()
+        || (sopRole() in ['author', 'dept_head'] && sopDept() == resource.data.department_id)
+        || request.auth.uid in resource.data.get('participants', []));
+      allow create: if sopWriter(request.resource.data.department_id)
+        && request.resource.data.created_by == request.auth.uid
+        && request.resource.data.current_version_id == null && request.resource.data.has_current == false
+        && request.resource.data.is_obsolete == false && request.resource.data.last_rev == 0
+        && request.resource.data.working_version_id == sid + '_r0'
+        && getAfter(sopVDoc(sid + '_r0')).data.prepared_by == request.auth.uid;
+      allow update: if sopSopUpdateOk(sid);
+      // ลบได้เฉพาะ SOP ที่ไม่เคยประกาศใช้ และฉบับร่างถูกยกเลิกใน batch เดียวกัน
+      allow delete: if sopActive() && resource.data.has_current == false && resource.data.working_version_id != null
+        && getAfter(sopVDoc(resource.data.working_version_id)).data.status == 'cancelled';
+
+      function sopSopUpdateOk(sid) {
+        let o = resource.data;
+        let n = request.resource.data;
+        let keys = n.diff(o).affectedKeys();
+        let summary = ['working_title', 'working_status', 'working_rev', 'owner_id', 'owner_name', 'participants', 'updated_at',
+                       'current_title', 'current_rev', 'current_effective_date', 'current_approved_at', 'current_approved_by', 'current_search'];
+        return sopActive() && !keys.hasAny(['sop_number', 'department_id', 'created_by', 'created_at']) && (
+          // อัปเดตข้อมูลสรุป (ชื่อ/สถานะฉบับที่กำลังทำ) โดยผู้ที่ทำงานกับ SOP นี้ได้
+          (keys.hasOnly(summary) && (sopWriter(o.department_id) || request.auth.uid in o.get('participants', [])))
+          // สร้างฉบับแก้ไข (Rev. ใหม่) จากฉบับที่ประกาศใช้อยู่
+          || (keys.hasOnly(summary.concat(['working_version_id', 'last_rev']))
+              && o.working_version_id == null && o.has_current == true && o.is_obsolete == false
+              && n.last_rev == o.last_rev + 1 && n.working_version_id == sid + '_r' + string(n.last_rev)
+              && sopWriter(o.department_id)
+              && getAfter(sopVDoc(n.working_version_id)).data.prepared_by == request.auth.uid)
+          // อนุมัติ: ฉบับที่กำลังทำกลายเป็น Current Version
+          || (keys.hasOnly(summary.concat(['current_version_id', 'has_current', 'working_version_id', 'next_review_date', 'is_obsolete']))
+              && n.current_version_id == o.working_version_id && n.working_version_id == null
+              && n.has_current == true && n.is_obsolete == false
+              && getAfter(sopVDoc(n.current_version_id)).data.status == 'published'
+              && getAfter(sopVDoc(n.current_version_id)).data.approved_by == request.auth.uid
+              && n.next_review_date == getAfter(sopVDoc(n.current_version_id)).data.review_date)
+          // ยกเลิกฉบับที่กำลังทำ
+          || (keys.hasOnly(summary.concat(['working_version_id']))
+              && o.working_version_id != null && n.working_version_id == null
+              && getAfter(sopVDoc(o.working_version_id)).data.status == 'cancelled')
+          // ยกเลิกใช้งาน SOP (Obsolete)
+          || (keys.hasOnly(summary.concat(['is_obsolete', 'working_version_id']))
+              && n.is_obsolete == true && n.working_version_id == null && sopPriv()
+              && getAfter(sopVDoc(o.current_version_id)).data.status == 'obsolete')
+          // บันทึกผลทบทวน / กำหนดวันทบทวนครั้งถัดไป (ไม่ออก Rev. ใหม่)
+          || (keys.hasOnly(['next_review_date', 'updated_at']) && o.has_current == true && o.is_obsolete == false
+              && n.next_review_date is string
+              && (sopPriv() || (sopRole() == 'dept_head' && sopDept() == o.department_id)))
+        );
+      }
+    }
+
+    // ----- sopVersions: เนื้อหาแต่ละ Rev. (doc id = {sid}_r{rev}) — ฉบับที่อนุมัติแล้วถูกล็อก -----
+    match /sopVersions/{vid} {
+      allow read: if sopActive() && (sopIsPublic(resource.data.status) || sopSeesWork(resource.data));
+      allow create: if sopNewVersionOk(vid);
+      allow update: if sopVersionUpdateOk(vid);
+      allow delete: if false;
+
+      function sopNewVersionOk(vid) {
+        let d = request.resource.data;
+        let sAfter = getAfter(sopSDoc(d.sop_id)).data;
+        return sopWriter(d.department_id)
+          && vid == d.sop_id + '_r' + string(d.revision)
+          && d.status == 'draft' && d.locked == false && d.row_ver == 1
+          && d.prepared_by == request.auth.uid && d.editors.size() == 0
+          && d.reviewed_by == null && d.approved_by == null
+          && sAfter.working_version_id == vid && sAfter.department_id == d.department_id
+          && (exists(sopSDoc(d.sop_id)) ? get(sopSDoc(d.sop_id)).data.last_rev == d.revision - 1 : d.revision == 0)
+          && (d.reviewer_id == null || d.reviewer_id != request.auth.uid)
+          && (d.approver_id == null || d.approver_id != request.auth.uid);
+      }
+      function sopVersionUpdateOk(vid) {
+        let o = resource.data;
+        let n = request.resource.data;
+        let keys = n.diff(o).affectedKeys();
+        let wf = ['status', 'row_ver', 'updated_at', 'updated_by', 'last_comment', 'last_comment_at'];
+        let newCur = getAfter(sopSDoc(o.sop_id)).data.current_version_id;
+        return sopActive() && !keys.hasAny(['sop_id', 'department_id', 'revision', 'prepared_by', 'created_at']) && (
+          // 1) แก้ไขเนื้อหา (ฉบับร่าง / ถูกส่งกลับ)
+          (n.status == o.status && sopCanEdit(o)
+            && keys.hasOnly(['title', 'content', 'owner_id', 'reviewer_id', 'approver_id', 'owner_name', 'reviewer_name', 'approver_name',
+                             'effective_date', 'review_date', 'change_summary', 'editors', 'row_ver', 'updated_at', 'updated_by'])
+            && n.row_ver == o.row_ver + 1 && n.updated_by == request.auth.uid
+            && n.editors.hasAll(o.editors)
+            && (request.auth.uid == o.prepared_by || request.auth.uid in n.editors)
+            && (n.reviewer_id == null || n.reviewer_id != o.prepared_by)
+            && (n.approver_id == null || n.approver_id != o.prepared_by))
+          // 2) ส่งตรวจ
+          || (o.status in ['draft', 'revision_required'] && n.status == 'submitted' && sopCanEdit(o)
+            && keys.hasOnly(wf.concat(['submitted_at'])) && sopSubmittable(o))
+          // 3) รับเรื่องตรวจสอบ
+          || (o.status == 'submitted' && n.status == 'dept_review' && sopCanReview(o) && keys.hasOnly(wf))
+          // 4) ตรวจสอบผ่าน -> รอผู้จัดการอนุมัติ
+          || (o.status in ['submitted', 'dept_review'] && n.status == 'manager_approval' && sopCanReview(o)
+            && n.reviewed_by == request.auth.uid && keys.hasOnly(wf.concat(['reviewed_by', 'reviewed_at', 'reviewed_by_name'])))
+          // 5) ส่งกลับแก้ไข — ต้องระบุเหตุผล
+          || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
+            && ((o.status in ['submitted', 'dept_review'] && sopCanReview(o)) || (o.status == 'manager_approval' && sopCanApprove(o))))
+          // 6) อนุมัติและประกาศใช้ (ล็อกถาวร)
+          || (o.status == 'manager_approval' && n.status == 'published' && sopCanApprove(o)
+            && n.approved_by == request.auth.uid && n.locked == true && newCur == vid
+            && keys.hasOnly(wf.concat(['approved_by', 'approved_at', 'approved_name', 'published_at', 'locked'])))
+          // 7) ฉบับเดิมถูกแทนที่ (ใน batch เดียวกับการอนุมัติฉบับใหม่)
+          || (o.status == 'published' && n.status == 'superseded' && keys.hasOnly(['status', 'superseded_at'])
+            && newCur != vid && getAfter(sopVDoc(newCur)).data.status == 'published'
+            && getAfter(sopVDoc(newCur)).data.approved_by == request.auth.uid)
+          // 8) ยกเลิกใช้งาน — ต้องระบุเหตุผล
+          || (o.status == 'published' && n.status == 'obsolete' && sopPriv() && sopHasComment(n)
+            && keys.hasOnly(['status', 'last_comment', 'last_comment_at', 'updated_at', 'updated_by']))
+          // 9) ยกเลิกฉบับที่กำลังทำ
+          || (n.status == 'cancelled' && keys.hasOnly(['status', 'updated_at', 'updated_by'])
+            && ((o.status in ['draft', 'revision_required'] && o.prepared_by == request.auth.uid)
+                || (o.status in ['draft', 'submitted', 'dept_review', 'manager_approval', 'revision_required'] && sopPriv())))
+        );
+      }
+    }
+
+    // ----- sopLog: บันทึก workflow / ความคิดเห็น (เพิ่มได้อย่างเดียว ห้ามแก้/ลบ) -----
+    match /sopLog/{id} {
+      allow read: if sopActive() && (resource.data.public == true || sopPriv()
+        || (sopRole() in ['author', 'dept_head'] && sopDept() == resource.data.department_id)
+        || request.auth.uid in resource.data.get('participants', []));
+      allow create: if sopActive() && sopRole() != 'viewer'
+        && request.resource.data.user_id == request.auth.uid && request.resource.data.at == request.time;
+      allow update, delete: if false;
+    }
   }
 }

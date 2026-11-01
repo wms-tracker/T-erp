@@ -2,6 +2,6 @@
 chcp 65001 >nul
 title Warehouse SOP Server
 cd /d "%~dp0"
-echo Starting Warehouse SOP Management System...
+set SOP_OPEN_BROWSER=1
 node server\index.js
-pause
+if errorlevel 1 pause
