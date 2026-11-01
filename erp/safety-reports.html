@@ -4,569 +4,586 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>รายงานความปลอดภัย — KPO Safety</title>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
   <style>
-    @media print {
-      body * { visibility: hidden !important; }
-      #printArea, #printArea * { visibility: visible !important; }
-      #printArea {
-        position: fixed; inset: 0; padding: 18mm 16mm;
-        font-family: Sarabun, sans-serif; font-size: 10.5pt;
-        color: #000; background: #fff; z-index: 9999;
-      }
-      .pr-title { text-align: center; font-size: 14pt; font-weight: 700; margin-bottom: 4pt; }
-      .pr-sub   { text-align: center; font-size: 11pt; margin-bottom: 14pt; }
-      .pr-kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 6pt; margin-bottom: 12pt; }
-      .pr-kpi-box  { border: 1pt solid #ccc; border-radius: 4pt; padding: 6pt; text-align: center; }
-      .pr-kpi-val  { font-size: 18pt; font-weight: 800; }
-      .pr-kpi-lbl  { font-size: 8pt; color: #555; }
-      .pr-section  { margin-top: 12pt; }
-      .pr-section-title { font-size: 11pt; font-weight: 700; border-bottom: 1.5pt solid #000; padding-bottom: 3pt; margin-bottom: 6pt; }
-      .pr-table    { border-collapse: collapse; width: 100%; font-size: 9pt; }
-      .pr-table th,.pr-table td { border: 1pt solid #999; padding: 4pt 6pt; }
-      .pr-table th { background: #f0f0f0; font-weight: 600; }
-      .pr-sign-row { display: flex; justify-content: space-around; margin-top: 32pt; }
-      .pr-sign-blk { text-align: center; }
-      .pr-sign-line{ border-top: 1pt solid #666; margin-top: 32pt; padding-top: 4pt; font-size: 9pt; }
-      @page { margin: 0; size: A4; }
+    .period-bar{background:#1e3a5f;color:#fff;padding:.9rem 1.5rem;border-radius:10px;display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:1.5rem}
+    .period-bar label{font-size:.82rem;opacity:.75}
+    .period-bar select{padding:.35rem .7rem;border-radius:6px;border:1px solid #4a6fa5;background:#0f2847;color:#fff;font-size:.88rem}
+    #spinner{display:none;text-align:center;padding:3rem;color:#64748b}
+    #reportWrap{display:none}
+
+    /* Report layout */
+    .rpt-header{text-align:center;padding:1.5rem 0 1rem;border-bottom:3px double #1e3a5f;margin-bottom:1.5rem}
+    .rpt-header h1{font-size:1.25rem;color:#1e3a5f;margin:0;font-weight:700}
+    .rpt-header .sub{color:#64748b;font-size:.88rem;margin-top:.3rem}
+    .rpt-header .meta{margin-top:.7rem;font-size:.8rem;color:#475569;display:flex;gap:2rem;justify-content:center;flex-wrap:wrap}
+
+    .rpt-section{margin-bottom:1.8rem}
+    .rpt-section h2{font-size:.95rem;background:#1e3a5f;color:#fff;padding:.45rem 1rem;border-radius:6px;margin:0 0 .7rem;display:flex;align-items:center;gap:.5rem}
+
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem}
+    .kpi-box{border:1px solid #e2e8f0;border-radius:8px;padding:.75rem .5rem;text-align:center;background:#fff}
+    .kpi-box .val{font-size:1.7rem;font-weight:700;color:#1e3a5f;line-height:1}
+    .kpi-box .lbl{font-size:.72rem;color:#64748b;margin-top:.3rem;line-height:1.3}
+    .kpi-box.good .val{color:#16a34a}
+    .kpi-box.warn .val{color:#d97706}
+    .kpi-box.bad  .val{color:#dc2626}
+
+    .rt{width:100%;border-collapse:collapse;font-size:.8rem}
+    .rt th{background:#f1f5f9;color:#374151;padding:.4rem .6rem;text-align:left;border:1px solid #e2e8f0;white-space:nowrap}
+    .rt td{padding:.4rem .6rem;border:1px solid #e2e8f0;vertical-align:top}
+    .rt tr:nth-child(even) td{background:#f8fafc}
+    .rt .center{text-align:center}
+
+    .bx{display:inline-block;padding:.1rem .4rem;border-radius:4px;font-size:.7rem;font-weight:600}
+    .empty{color:#94a3b8;font-style:italic;font-size:.82rem;padding:.7rem 0;text-align:center}
+
+    .sig-row{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:2rem;padding-top:1rem;border-top:1px solid #e2e8f0;font-size:.8rem;color:#475569}
+    .sig-row .sig-line{margin-bottom:2.5rem;border-bottom:1px solid #94a3b8}
+
+    @media print{
+      .period-bar,.no-print{display:none!important}
+      #reportWrap{display:block!important}
+      .rpt-section{page-break-inside:avoid}
+      .kpi-grid{grid-template-columns:repeat(5,1fr)}
+      body{font-size:10pt}
+      .rt{font-size:9pt}
     }
   </style>
 </head>
 <body>
-<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
-<div id="printArea" style="display:none"></div>
 <script type="module">
-import { requireRole } from "./js/auth.js";
-import { renderShell  } from "./js/shell.js";
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
 import {
-  listIncidents, computeSafetyKPIs, monthlyTrend, incidentsByDept, incidentsByType,
-  listNearMiss, listCapaRecords, countOpenCapa, countOverdueCapa,
-  listInspections, listRiskAssessments, listTrainings,
-  listEquipments, listDrills, listLegalRegisters, listCommitteeMembers,
-  INCIDENT_TYPES, DEPARTMENTS, getRiskLevel, TRAINING_TYPES
-} from "./js/safety-data.js";
+  computeSafetyKPIs,
+  listIncidents, listNearMiss,
+  listCapaRecords,
+  listInspections,
+  listTrainings, TRAINING_TYPES, TRAINING_STATUS,
+  listEquipments, EQUIP_STATUS,
+  listMeetings, MEETING_STATUS, MEETING_TYPES,
+  listDrills, DRILL_STATUS, DRILL_TYPES,
+  listLegalRegisters, LEGAL_STATUS,
+  listPermits, PERMIT_STATUS, PERMIT_TYPES,
+  listRiskAssessments,
+  listTalks,
+  INCIDENT_TYPES, INCIDENT_STATUS, CAPA_STATUS
+} from './js/safety-data.js';
 
-const $ = id => document.getElementById(id);
-let _profile;
-const CHART_INSTANCES = {};
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-reports', 'รายงานความปลอดภัย');
 
-// ─── Period helpers ────────────────────────────────────────────────────────
-function periodRange(p, customStart, customEnd) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const pad = n => String(n).padStart(2,'0');
-  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  if (p === 'month')  return { start: `${y}-${pad(m+1)}-01`, end: fmt(new Date(y,m+1,0)), label: `เดือน${m+1}/${y}` };
-  if (p === 'q')      { const qm = Math.floor(m/3)*3; return { start:`${y}-${pad(qm+1)}-01`, end: fmt(new Date(y,qm+3,0)), label:`Q${Math.floor(m/3)+1}/${y}` }; }
-  if (p === 'ytd')    return { start: `${y}-01-01`, end: fmt(now), label: `YTD ${y}` };
-  if (p === 'year')   return { start: `${y}-01-01`, end: `${y}-12-31`, label: `ปี ${y}` };
-  if (p === 'lastyear') return { start:`${y-1}-01-01`, end:`${y-1}-12-31`, label:`ปี ${y-1}` };
-  return { start: customStart||`${y}-01-01`, end: customEnd||fmt(now), label:`${customStart} – ${customEnd}` };
+const MONTHS_TH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                   'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const now   = new Date();
+let _type   = 'monthly';
+let _month  = now.getMonth();
+let _quarter= Math.floor(now.getMonth() / 3);
+let _year   = now.getFullYear();
+
+/* ── helpers ── */
+function fmt(d) {
+  if (!d) return '-';
+  const dt = typeof d === 'string' ? new Date(d) : d;
+  return `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()+543}`;
+}
+function bx(txt, color, bg) {
+  return `<span class="bx" style="background:${bg||'#e2e8f0'};color:${color||'#374151'}">${txt}</span>`;
+}
+function inRange(val, s, e) {
+  if (!val) return false;
+  const d = typeof val === 'string' ? new Date(val) : val;
+  return d >= s && d <= e;
+}
+function getTs(row) {
+  return row.createdAt?.toDate?.() || null;
 }
 
-let _period = 'ytd', _customStart = '', _customEnd = '';
-let _allData = {};
+function getPeriod() {
+  if (_type === 'monthly') {
+    const s = new Date(_year, _month, 1);
+    const e = new Date(_year, _month + 1, 0, 23, 59, 59);
+    return { s, e, label: `${MONTHS_TH[_month]} ${_year + 543}` };
+  }
+  if (_type === 'quarterly') {
+    const sm = _quarter * 3;
+    const s  = new Date(_year, sm, 1);
+    const e  = new Date(_year, sm + 3, 0, 23, 59, 59);
+    const labels = ['ไตรมาส 1 (ม.ค.–มี.ค.)','ไตรมาส 2 (เม.ย.–มิ.ย.)','ไตรมาส 3 (ก.ค.–ก.ย.)','ไตรมาส 4 (ต.ค.–ธ.ค.)'];
+    return { s, e, label: `${labels[_quarter]} ${_year + 543}` };
+  }
+  const s = new Date(_year, 0, 1);
+  const e = new Date(_year, 11, 31, 23, 59, 59);
+  return { s, e, label: `ประจำปี ${_year + 543}` };
+}
 
-// ─── Layout ────────────────────────────────────────────────────────────────
-function buildLayout() {
-  document.getElementById('main-content').innerHTML = `
-  <style>
-    .rp{padding:0 20px 40px;max-width:1300px;margin:0 auto;}
-    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 12px;}
-    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
-    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
-    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
-    .btn-sm{padding:5px 11px;font-size:.78rem;}
-    .tab-bar{display:flex;gap:4px;background:#f1f5f9;border-radius:10px;padding:4px;flex-wrap:wrap;margin-bottom:16px;}
-    .tab{padding:7px 16px;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;border:none;background:transparent;color:#64748b;transition:.15s;}
-    .tab.active,.tab:hover{background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1);}
-    .period-bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:18px;padding:12px 16px;background:#f8fafc;border-radius:10px;}
-    .period-bar span{font-size:.8rem;font-weight:600;color:#64748b;margin-right:4px;}
-    .p-btn{padding:5px 12px;border:1.5px solid #e2e8f0;border-radius:20px;font-family:Sarabun,sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;background:#fff;color:#475569;transition:.15s;}
-    .p-btn.active{background:#0891b2;border-color:#0891b2;color:#fff;}
-    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px;}
-    .kpi-card{background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);border-top:3px solid #e2e8f0;}
-    .kpi-val{font-size:2rem;font-weight:900;line-height:1;margin-bottom:4px;}
-    .kpi-lbl{font-size:.72rem;color:#64748b;font-weight:600;}
-    .kpi-delta{font-size:.72rem;margin-top:2px;}
-    .section-title{font-size:.9rem;font-weight:700;color:#0f172a;margin:20px 0 10px;display:flex;align-items:center;gap:6px;}
-    .chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
-    @media(max-width:900px){.chart-grid{grid-template-columns:1fr;}}
-    .chart-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
-    .chart-card-title{font-size:.8rem;font-weight:700;color:#64748b;margin-bottom:12px;}
-    .chart-wrap{position:relative;height:220px;}
-    /* AI Panel */
-    .ai-panel{background:linear-gradient(135deg,#0f172a,#1e293b);border-radius:14px;padding:20px 24px;margin-bottom:20px;color:#fff;}
-    .ai-panel-title{font-size:1rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
-    .ai-insight{background:rgba(255,255,255,.07);border-radius:10px;padding:12px 14px;margin-bottom:8px;border-left:3px solid;}
-    .ai-insight:last-child{margin-bottom:0;}
-    .ai-insight-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;opacity:.7;margin-bottom:4px;}
-    .ai-insight-text{font-size:.88rem;line-height:1.5;}
-    /* Dept table */
-    .dept-table{width:100%;border-collapse:collapse;font-size:.82rem;}
-    .dept-table th{text-align:left;padding:8px 10px;font-size:.72rem;font-weight:600;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
-    .dept-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;}
-    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
-    .empty-state{text-align:center;padding:40px 20px;color:#94a3b8;font-size:.85rem;}
-  </style>
-  <div class="rp">
-    <div class="page-header">
-      <div class="page-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><polyline points="7 16 11 11 15 13 19 8"/></svg>
-        รายงานความปลอดภัย
-      </div>
-      <button class="btn btn-primary" onclick="__printReport()">🖨 พิมพ์รายงาน PDF</button>
+/* ── period picker UI ── */
+function buildPicker() {
+  const cy   = now.getFullYear();
+  const yrs  = Array.from({length: 5}, (_, i) => cy - i);
+  const mOpt = MONTHS_TH.map((m, i) => `<option value="${i}" ${i===_month?'selected':''}>${m}</option>`).join('');
+  const yOpt = yrs.map(y => `<option value="${y}" ${y===_year?'selected':''}>${y + 543}</option>`).join('');
+  const qOpt = ['ไตรมาส 1','ไตรมาส 2','ไตรมาส 3','ไตรมาส 4']
+               .map((q, i) => `<option value="${i}" ${i===_quarter?'selected':''}>${q}</option>`).join('');
+  return `
+  <div class="period-bar no-print">
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <label>ประเภท</label>
+      <select onchange="__sr_type(this.value)">
+        <option value="monthly"   ${_type==='monthly'  ?'selected':''}>รายเดือน</option>
+        <option value="quarterly" ${_type==='quarterly'?'selected':''}>รายไตรมาส</option>
+        <option value="annual"    ${_type==='annual'   ?'selected':''}>รายปี</option>
+      </select>
     </div>
-
-    <div class="period-bar">
-      <span>ช่วงเวลา:</span>
-      ${[['month','เดือนนี้'],['q','ไตรมาสนี้'],['ytd','YTD'],['year','ปีนี้'],['lastyear','ปีที่แล้ว'],['custom','กำหนดเอง']].map(([v,l])=>`
-        <button class="p-btn ${_period===v?'active':''}" onclick="__setPeriod('${v}')">${l}</button>`).join('')}
-      <div id="customRange" style="display:${_period==='custom'?'flex':'none'};gap:6px;align-items:center;margin-left:8px">
-        <input type="date" id="cStart" value="${_customStart}" style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.8rem" oninput="__customDate()">
-        <span style="color:#94a3b8;font-size:.8rem">–</span>
-        <input type="date" id="cEnd" value="${_customEnd}" style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.8rem" oninput="__customDate()">
-      </div>
+    <div id="mPick" style="display:${_type==='monthly'?'flex':'none'};gap:.5rem;align-items:center">
+      <label>เดือน</label>
+      <select onchange="__sr_month(this.value)">${mOpt}</select>
     </div>
-
-    <div id="reportContent"><div style="text-align:center;padding:60px;color:#94a3b8">⏳ กำลังโหลดข้อมูล...</div></div>
-  </div>`;
+    <div id="qPick" style="display:${_type==='quarterly'?'flex':'none'};gap:.5rem;align-items:center">
+      <label>ไตรมาส</label>
+      <select onchange="__sr_q(this.value)">${qOpt}</select>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <label>ปี</label>
+      <select onchange="__sr_year(this.value)">${yOpt}</select>
+    </div>
+    <button class="btn btn-primary" id="genBtn" onclick="__sr_gen()">📊 สร้างรายงาน</button>
+    <button class="btn no-print" onclick="window.print()">🖨️ พิมพ์</button>
+  </div>
+  <div id="spinner">⏳ กำลังโหลดข้อมูล...</div>
+  <div id="reportWrap"></div>`;
 }
 
-// ─── Load all data ─────────────────────────────────────────────────────────
-async function loadAllData() {
-  const { start, end } = periodRange(_period, _customStart, _customEnd);
-  const year = new Date(start).getFullYear();
+window.__sr_type = v => {
+  _type = v;
+  document.getElementById('mPick').style.display = v==='monthly'   ? 'flex' : 'none';
+  document.getElementById('qPick').style.display = v==='quarterly' ? 'flex' : 'none';
+};
+window.__sr_month = v => { _month   = +v; };
+window.__sr_q     = v => { _quarter = +v; };
+window.__sr_year  = v => { _year    = +v; };
 
-  const [
-    incidents, nearMiss, capas, inspections, risks,
-    trainings, equips, drills, legals, members, trendData
-  ] = await Promise.all([
-    listIncidents({ startDate: start, endDate: end, lim: 1000 }),
-    listNearMiss({ startDate: start, endDate: end, lim: 1000 }),
-    listCapaRecords({ lim: 500 }),
-    listInspections({ startDate: start, endDate: end, lim: 500 }),
-    listRiskAssessments({ lim: 200 }),
-    listTrainings({ lim: 200 }),
-    listEquipments({ lim: 500 }),
-    listDrills({ lim: 100 }),
-    listLegalRegisters({ lim: 200 }),
-    listCommitteeMembers(),
-    monthlyTrend(year),
-  ]);
+window.__sr_gen = async () => {
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true; btn.textContent = '⏳ กำลังโหลด...';
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('reportWrap').style.display = 'none';
 
-  _allData = { incidents, nearMiss, capas, inspections, risks, trainings, equips, drills, legals, members, trendData, start, end };
-  return _allData;
-}
+  const { s, e, label } = getPeriod();
+  const sStr = s.toISOString().slice(0, 10);
+  const eStr = e.toISOString().slice(0, 10);
 
-// ─── Render report ─────────────────────────────────────────────────────────
-async function renderReport() {
-  const rc = $('reportContent');
-  rc.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8">⏳ กำลังวิเคราะห์ข้อมูล...</div>';
+  try {
+    const [kpis, incidents, nearMiss, capas, inspections,
+           trainings, equipments, meetings, drills, legals,
+           permits, risks, talks] = await Promise.all([
+      computeSafetyKPIs({ startDate: sStr, endDate: eStr }),
+      listIncidents({ startDate: sStr, endDate: eStr }),
+      listNearMiss({ startDate: sStr, endDate: eStr }),
+      listCapaRecords({}),
+      listInspections({ startDate: sStr, endDate: eStr }),
+      listTrainings({}),
+      listEquipments({}),
+      listMeetings({}),
+      listDrills({}),
+      listLegalRegisters({}),
+      listPermits({ startDate: sStr, endDate: eStr }),
+      listRiskAssessments({}),
+      listTalks({ startDate: sStr, endDate: eStr }),
+    ]);
+    buildReport({ label, s, e, kpis, incidents, nearMiss, capas, inspections,
+                  trainings, equipments, meetings, drills, legals, permits, risks, talks });
+  } catch (err) {
+    alert('เกิดข้อผิดพลาด: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '📊 สร้างรายงาน';
+    document.getElementById('spinner').style.display = 'none';
+  }
+};
 
-  // Destroy old charts
-  Object.values(CHART_INSTANCES).forEach(c => { try { c.destroy(); } catch{} });
+function buildReport({ label, s, e, kpis, incidents, nearMiss, capas, inspections,
+                       trainings, equipments, meetings, drills, legals, permits, risks, talks }) {
+  const today = new Date();
 
-  const data = await loadAllData();
-  const { start, end, incidents, nearMiss, capas, inspections, risks, trainings, equips, drills, legals, members, trendData } = data;
+  /* ── period-filter helpers ── */
+  const filterPeriod = (rows, field) =>
+    rows.filter(r => inRange(r[field] || getTs(r)?.toISOString(), s, e));
 
-  // ── KPI calculations ────────────────────────────────────────────────────
-  const totalIncidents   = incidents.length;
-  const fatalLTI         = incidents.filter(i => ['fatality','lti'].includes(i.incidentType)).length;
-  const nmCount          = nearMiss.length;
-  const openCapa         = capas.filter(c => c.status !== 'closed').length;
-  const overdueCapa      = capas.filter(c => c.status !== 'closed' && c.dueDate && c.dueDate < new Date().toISOString().split('T')[0]).length;
-  const inspTotal        = inspections.length;
-  const inspPass         = inspections.reduce((s,i) => s + (i.passCount||0), 0);
-  const inspItems        = inspections.reduce((s,i) => s + ((i.passCount||0) + (i.failCount||0)), 0);
-  const inspPassRate     = inspItems > 0 ? Math.round(inspPass/inspItems*100) : null;
-  const highRiskCount    = risks.filter(r => { const l = getRiskLevel((r.likelihood||1)*(r.severity||1)); return l.level === 'high' || l.level === 'extreme'; }).length;
-  const trainCompleted   = trainings.filter(t => t.status === 'completed').length;
-  const totalParticipants = trainings.filter(t=>t.status==='completed').reduce((s,t)=>s+(t.participantCount||0),0);
-  const legalCompliance  = legals.length > 0 ? Math.round(legals.filter(l=>l.complianceStatus==='compliant').length / legals.filter(l=>l.complianceStatus!=='not_applicable').length * 100) : null;
-  const expiredEquip     = equips.filter(e => e.expiryDate && e.expiryDate < new Date().toISOString().split('T')[0]).length;
-  const drillsDone       = drills.filter(d=>d.status==='completed').length;
+  const trainingPeriod = filterPeriod(trainings, 'trainingDate');
+  const meetingPeriod  = filterPeriod(meetings,  'meetingDate');
+  const drillPeriod    = filterPeriod(drills,     'drillDate');
 
-  // ── Days Without Accident ──
-  const severeTypes = ['fatality','lti','rws','mtc','fac'];
-  const severeIncidents = incidents.filter(i => severeTypes.includes(i.incidentType)).sort((a,b) => b.incidentDate?.localeCompare(a.incidentDate));
-  const lastSevere = severeIncidents[0]?.incidentDate;
-  const daysWithout = lastSevere
-    ? Math.floor((new Date() - new Date(lastSevere)) / 86400000)
+  /* ── KPI helpers ── */
+  const lostDays     = incidents.reduce((a, b) => a + (b.lostTimeDays || 0), 0);
+  const openCapa     = capas.filter(c => c.status !== 'closed');
+  const closedCapa   = capas.filter(c => c.status === 'closed');
+  const overdueCapa  = openCapa.filter(c => c.dueDate && new Date(c.dueDate) < today);
+
+  const insWithRate  = inspections.filter(i => typeof i.passRate === 'number');
+  const avgPass      = insWithRate.length
+    ? Math.round(insWithRate.reduce((a,b) => a + b.passRate, 0) / insWithRate.length)
     : null;
 
-  // ── AI Insights ────────────────────────────────────────────────────────
-  const insights = generateInsights({ incidents, nearMiss, capas, inspections, risks, trainings, equips, legals, drills });
+  const expiredEq    = equipments.filter(eq =>
+    eq.expiryDate && new Date(eq.expiryDate) < today && eq.status !== 'retired');
+  const soonEq       = equipments.filter(eq => {
+    if (!eq.expiryDate) return false;
+    const d = Math.ceil((new Date(eq.expiryDate) - today) / 86400000);
+    return d >= 0 && d <= 30 && eq.status !== 'retired';
+  });
 
-  // ── Monthly trend labels ────────────────────────────────────────────────
-  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-  const trendLabels = trendData.map(d => months[d.month-1]);
-  const trendVals   = trendData.map(d => d.count);
+  const compliantLg  = legals.filter(l => l.status === 'compliant').length;
+  const legalPct     = legals.length ? Math.round(compliantLg / legals.length * 100) : 0;
+  const nonCompLg    = legals.filter(l => l.status === 'non_compliant').length;
+  const overdueLg    = legals.filter(l => l.nextReviewDate && new Date(l.nextReviewDate) < today).length;
 
-  // ── Incident by type ───────────────────────────────────────────────────
-  const typeCounts = {};
-  for (const inc of incidents) {
-    const k = inc.incidentType;
-    typeCounts[k] = (typeCounts[k]||0) + 1;
-  }
-  const typeLabels = Object.keys(typeCounts).map(k => (INCIDENT_TYPES[k]?.labelTh || k));
-  const typeData   = Object.values(typeCounts);
-  const typeColors = Object.keys(typeCounts).map(k => INCIDENT_TYPES[k]?.color || '#94a3b8');
+  const ttlPax       = trainingPeriod.reduce((a, b) => a + (b.participantCount || 0), 0);
+  const ttlHrs       = trainingPeriod.reduce((a, b) => a + (b.durationHours || 0), 0);
 
-  // ── Incident by dept ───────────────────────────────────────────────────
-  const deptCounts = {};
-  for (const inc of incidents) {
-    const k = inc.department || 'ไม่ระบุ';
-    deptCounts[k] = (deptCounts[k]||0) + 1;
-  }
-  const deptLabels = Object.keys(deptCounts);
-  const deptData   = Object.values(deptCounts);
+  const drillsScored = drillPeriod.filter(d => d.score);
+  const avgDrill     = drillsScored.length
+    ? (drillsScored.reduce((a,b) => a + b.score, 0) / drillsScored.length).toFixed(1)
+    : null;
 
-  // ── Risk distribution ──────────────────────────────────────────────────
-  const riskDist = { low:0, moderate:0, high:0, extreme:0 };
-  for (const r of risks) {
-    const l = getRiskLevel((r.likelihood||1)*(r.severity||1));
-    riskDist[l.level] = (riskDist[l.level]||0) + 1;
-  }
+  const extremeRisks = risks.filter(r =>
+    (r.hazards || []).some(h => (h.likelihoodAfter||0)*(h.severityAfter||0) > 16)).length;
+  const highRisks    = risks.filter(r =>
+    (r.hazards || []).some(h => { const sc = (h.likelihoodAfter||0)*(h.severityAfter||0); return sc >= 10 && sc <= 16; })).length;
 
-  // ── Training by type ───────────────────────────────────────────────────
-  const trainByType = {};
-  for (const t of trainings.filter(t=>t.status==='completed')) {
-    const k = TRAINING_TYPES.find(x=>x.key===t.trainingType)?.label || t.trainingType || 'อื่นๆ';
-    trainByType[k] = (trainByType[k]||0) + (t.participantCount||0);
-  }
+  /* ── section renderers ── */
+  const emptyNote = txt => `<p class="empty">${txt || 'ไม่มีข้อมูลในช่วงเวลาดังกล่าว'}</p>`;
 
-  // ── Render HTML ────────────────────────────────────────────────────────
-  rc.innerHTML = `
-  <!-- Days Without Accident Banner -->
-  ${daysWithout !== null ? `
-  <div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#fff;border-radius:14px;padding:18px 24px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap">
-    <div style="text-align:center;min-width:80px">
-      <div style="font-size:3rem;font-weight:900;line-height:1">${daysWithout}</div>
-      <div style="font-size:.75rem;opacity:.7;font-weight:600">วัน</div>
-    </div>
-    <div>
-      <div style="font-size:1rem;font-weight:700">ไม่มีอุบัติเหตุสูญเสียวัน (LTI+) ต่อเนื่อง</div>
-      <div style="font-size:.82rem;opacity:.7;margin-top:4px">นับจาก ${lastSevere} ถึงวันนี้</div>
-    </div>
-  </div>` : ''}
+  // Section 1 — KPI
+  const kpiColor = (v, good, warn) => v <= good ? 'good' : v <= warn ? 'warn' : 'bad';
+  const kpiHtml = `
+    <div class="kpi-grid">
+      <div class="kpi-box ${kpiColor(incidents.length,0,3)}">
+        <div class="val">${incidents.length}</div><div class="lbl">อุบัติเหตุ (ครั้ง)</div></div>
+      <div class="kpi-box ${kpiColor(nearMiss.length,0,5)}">
+        <div class="val">${nearMiss.length}</div><div class="lbl">Near Miss (ครั้ง)</div></div>
+      <div class="kpi-box ${kpiColor(lostDays,0,1)}">
+        <div class="val">${lostDays}</div><div class="lbl">วันสูญเสีย (วัน)</div></div>
+      <div class="kpi-box ${kpis.fatality>0?'bad':kpis.lti>0?'bad':'good'}">
+        <div class="val">${kpis.fatality > 0 ? kpis.fatality : kpis.lti}</div>
+        <div class="lbl">${kpis.fatality > 0 ? 'เสียชีวิต' : 'หยุดงาน LTI'}</div></div>
+      <div class="kpi-box ${kpiColor(overdueCapa.length,0,2)}">
+        <div class="val">${overdueCapa.length}</div><div class="lbl">CAPA เกินกำหนด</div></div>
+      <div class="kpi-box ${avgPass===null?'':avgPass>=90?'good':avgPass>=70?'warn':'bad'}">
+        <div class="val">${avgPass !== null ? avgPass + '%' : '-'}</div><div class="lbl">Pass Rate ตรวจสอบ</div></div>
+      <div class="kpi-box">
+        <div class="val">${ttlPax}</div><div class="lbl">ผู้เข้าอบรม (คน)</div></div>
+      <div class="kpi-box">
+        <div class="val">${ttlHrs}</div><div class="lbl">ชั่วโมงอบรม</div></div>
+      <div class="kpi-box ${legalPct>=90?'good':legalPct>=70?'warn':'bad'}">
+        <div class="val">${legalPct}%</div><div class="lbl">สอดคล้องกฎหมาย</div></div>
+      <div class="kpi-box ${kpiColor(expiredEq.length,0,3)}">
+        <div class="val">${expiredEq.length}</div><div class="lbl">PPE หมดอายุ</div></div>
+    </div>`;
 
-  <!-- KPI Cards -->
-  <div class="kpi-grid">
-    <div class="kpi-card" style="border-color:#dc2626"><div class="kpi-val" style="color:#dc2626">${totalIncidents}</div><div class="kpi-lbl">อุบัติเหตุทั้งหมด</div></div>
-    <div class="kpi-card" style="border-color:#7f1d1d"><div class="kpi-val" style="color:#7f1d1d">${fatalLTI}</div><div class="kpi-lbl">Fatality + LTI</div></div>
-    <div class="kpi-card" style="border-color:#2563eb"><div class="kpi-val" style="color:#2563eb">${nmCount}</div><div class="kpi-lbl">Near Miss / Unsafe</div></div>
-    <div class="kpi-card" style="border-color:#d97706"><div class="kpi-val" style="color:#d97706">${openCapa}</div><div class="kpi-lbl">CAPA ค้างอยู่${overdueCapa>0?` <span style="color:#dc2626">(${overdueCapa} เกิน)</span>`:''}</div></div>
-    <div class="kpi-card" style="border-color:#0891b2"><div class="kpi-val" style="color:#0891b2">${inspPassRate!==null?inspPassRate+'%':'—'}</div><div class="kpi-lbl">Pass Rate ตรวจสอบ (${inspTotal} ครั้ง)</div></div>
-    <div class="kpi-card" style="border-color:#dc2626"><div class="kpi-val" style="color:#dc2626">${highRiskCount}</div><div class="kpi-lbl">ความเสี่ยงสูง/สูงมาก</div></div>
-    <div class="kpi-card" style="border-color:#16a34a"><div class="kpi-val" style="color:#16a34a">${trainCompleted}</div><div class="kpi-lbl">อบรมเสร็จแล้ว (${totalParticipants} คน)</div></div>
-    <div class="kpi-card" style="border-color:${legalCompliance!==null&&legalCompliance<80?'#dc2626':'#16a34a'}"><div class="kpi-val" style="color:${legalCompliance!==null&&legalCompliance<80?'#dc2626':'#16a34a'}">${legalCompliance!==null?legalCompliance+'%':'—'}</div><div class="kpi-lbl">ความสอดคล้องกฎหมาย</div></div>
-    <div class="kpi-card" style="border-color:${expiredEquip>0?'#dc2626':'#16a34a'}"><div class="kpi-val" style="color:${expiredEquip>0?'#dc2626':'#16a34a'}">${expiredEquip}</div><div class="kpi-lbl">อุปกรณ์หมดอายุ</div></div>
-    <div class="kpi-card" style="border-color:#7c3aed"><div class="kpi-val" style="color:#7c3aed">${drillsDone}</div><div class="kpi-lbl">ซ้อมแผนฉุกเฉินเสร็จ</div></div>
-    <div class="kpi-card" style="border-color:#0891b2"><div class="kpi-val" style="color:#0891b2">${members.filter(m=>m.status==='active').length}</div><div class="kpi-lbl">กรรมการ คปอ. ปัจจุบัน</div></div>
-  </div>
-
-  <!-- AI Analyst -->
-  <div class="ai-panel">
-    <div class="ai-panel-title">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 0 2h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1 0-2h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/></svg>
-      AI Safety Analyst — วิเคราะห์ข้อมูลและคำแนะนำ
-    </div>
-    ${insights.length === 0
-      ? `<div style="opacity:.6;font-size:.85rem">📊 ยังไม่มีข้อมูลเพียงพอสำหรับการวิเคราะห์ในช่วงเวลานี้</div>`
-      : insights.map(ins => `
-      <div class="ai-insight" style="border-color:${ins.color}">
-        <div class="ai-insight-label" style="color:${ins.color}">${ins.icon} ${ins.level}</div>
-        <div class="ai-insight-text">${ins.text}</div>
-      </div>`).join('')}
-  </div>
-
-  <!-- Charts -->
-  <div class="section-title">📈 แนวโน้มรายเดือน</div>
-  <div class="chart-grid">
-    <div class="chart-card" style="grid-column:1/-1">
-      <div class="chart-card-title">จำนวนอุบัติเหตุรายเดือน (ปี ${new Date(start).getFullYear()})</div>
-      <div class="chart-wrap" style="height:200px"><canvas id="chartTrend"></canvas></div>
-    </div>
-  </div>
-
-  <div class="chart-grid">
-    <div class="chart-card">
-      <div class="chart-card-title">อุบัติเหตุแยกตามประเภท</div>
-      <div class="chart-wrap"><canvas id="chartType"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-title">อุบัติเหตุแยกตามแผนก</div>
-      <div class="chart-wrap"><canvas id="chartDept"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-title">การกระจายระดับความเสี่ยง (HIRA)</div>
-      <div class="chart-wrap"><canvas id="chartRisk"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="chart-card-title">ผู้เข้าอบรมแยกตามหลักสูตร</div>
-      <div class="chart-wrap"><canvas id="chartTrain"></canvas></div>
-    </div>
-  </div>
-
-  <!-- Dept breakdown table -->
-  ${deptLabels.length > 0 ? `
-  <div class="section-title">🏭 สรุปอุบัติเหตุแยกแผนก</div>
-  <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:20px;overflow-x:auto">
-    <table class="dept-table">
-      <thead><tr><th>แผนก</th><th style="text-align:center">จำนวนเหตุ</th><th style="text-align:center">Near Miss</th><th style="text-align:center">สัดส่วน</th></tr></thead>
-      <tbody>
-      ${deptLabels.sort((a,b)=>deptCounts[b]-deptCounts[a]).map(dept => {
-        const nmDept = nearMiss.filter(n=>n.department===dept).length;
-        const pct = totalIncidents > 0 ? Math.round(deptCounts[dept]/totalIncidents*100) : 0;
+  // Section 2 — Incidents
+  const incHtml = incidents.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>วันที่</th><th>รหัส</th><th>ประเภท</th><th>แผนก</th><th class="center">วันสูญเสีย</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead>
+      <tbody>${incidents.map(i => {
+        const t  = INCIDENT_TYPES[i.incidentType] || {};
+        const st = INCIDENT_STATUS[i.status] || {};
         return `<tr>
-          <td>${dept}</td>
-          <td style="text-align:center;font-weight:700;color:#dc2626">${deptCounts[dept]}</td>
-          <td style="text-align:center;color:#2563eb">${nmDept}</td>
-          <td style="text-align:center">
-            <div style="display:flex;align-items:center;gap:6px;justify-content:center">
-              <div style="width:80px;height:6px;background:#f1f5f9;border-radius:3px"><div style="width:${pct}%;height:100%;background:#dc2626;border-radius:3px"></div></div>
-              <span style="font-size:.78rem;color:#64748b">${pct}%</span>
-            </div>
-          </td>
+          <td>${fmt(i.incidentDate)}</td>
+          <td style="font-family:monospace;font-size:.72rem">${i.incidentId||'-'}</td>
+          <td>${bx(t.labelTh||i.incidentType||'-', t.color, t.bg)}</td>
+          <td>${i.department||'-'}</td>
+          <td class="center">${i.lostTimeDays||0}</td>
+          <td>${bx(st.label||i.status||'-', st.color, st.bg)}</td>
+          <td>${(i.description||'').slice(0,60)}${i.description?.length>60?'…':''}</td>
         </tr>`;
-      }).join('')}
-      </tbody>
+      }).join('')}</tbody>
+    </table>`;
+
+  // Section 3 — Near Miss
+  const nmHtml = nearMiss.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>วันที่</th><th>แผนก</th><th>ประเภท</th><th>สถานะ</th><th>รายละเอียด</th></tr></thead>
+      <tbody>${nearMiss.map(n => `<tr>
+        <td>${fmt(n.incidentDate || getTs(n)?.toISOString())}</td>
+        <td>${n.department||'-'}</td>
+        <td>${n.nearMissType||'-'}</td>
+        <td>${n.status||'-'}</td>
+        <td>${(n.description||'').slice(0,80)}${n.description?.length>80?'…':''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+  // Section 4 — CAPA
+  const capaHtml = openCapa.length === 0
+    ? `<p class="empty">ไม่มี CAPA ค้างอยู่</p>`
+    : `<table class="rt">
+        <thead><tr><th>แหล่งที่มา</th><th>คำอธิบาย</th><th>ผู้รับผิดชอบ</th><th>กำหนด</th><th>สถานะ</th></tr></thead>
+        <tbody>${openCapa.map(c => {
+          const od = c.dueDate && new Date(c.dueDate) < today;
+          const st = CAPA_STATUS[c.status] || {};
+          return `<tr style="${od?'background:#fef2f2':''}">
+            <td>${c.sourceType||'-'}</td>
+            <td>${(c.description||'').slice(0,60)}${c.description?.length>60?'…':''}</td>
+            <td>${c.assignedTo||'-'}</td>
+            <td style="${od?'color:#dc2626;font-weight:600':''}">${fmt(c.dueDate)}</td>
+            <td>${bx(st.label||c.status,'#fff',st.color||'#94a3b8')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+      <div style="margin-top:.4rem;font-size:.78rem;color:#475569">ปิดแล้ว ${closedCapa.length} รายการ | เกินกำหนด ${overdueCapa.length} รายการ</div>`;
+
+  // Section 5 — Inspections
+  const insHtml = inspections.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>วันที่</th><th>แผนก/พื้นที่</th><th>ผู้ตรวจ</th><th class="center">ผ่าน</th><th class="center">ไม่ผ่าน</th><th class="center">Pass%</th><th>สถานะ</th></tr></thead>
+      <tbody>${inspections.map(i => {
+        const pr = typeof i.passRate === 'number' ? i.passRate : null;
+        const pc = pr === null ? '' : pr >= 90 ? '#16a34a' : pr >= 70 ? '#d97706' : '#dc2626';
+        return `<tr>
+          <td>${fmt(i.inspectionDate)}</td>
+          <td>${i.area||i.department||'-'}</td>
+          <td>${i.inspectorName||'-'}</td>
+          <td class="center" style="color:#16a34a">${i.passCount??'-'}</td>
+          <td class="center" style="color:#dc2626">${i.failCount??'-'}</td>
+          <td class="center" style="color:${pc};font-weight:600">${pr!==null?pr+'%':'-'}</td>
+          <td>${i.status||'-'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+
+  // Section 6 — Training
+  const trHtml = trainingPeriod.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>วันที่</th><th>หลักสูตร</th><th>ประเภท</th><th>ผู้สอน</th><th class="center">คน</th><th class="center">ชม.</th><th>สถานะ</th></tr></thead>
+      <tbody>${trainingPeriod.map(t => {
+        const tt = TRAINING_TYPES.find(x => x.key === t.trainingType);
+        const st = TRAINING_STATUS[t.status] || {};
+        return `<tr>
+          <td>${fmt(t.trainingDate)}</td>
+          <td>${t.trainingTitle||'-'}</td>
+          <td>${tt?.label||t.trainingType||'-'}</td>
+          <td>${t.instructor||'-'}</td>
+          <td class="center">${t.participantCount||0}</td>
+          <td class="center">${t.durationHours||0}</td>
+          <td>${bx(st.label||t.status,'#fff',st.color||'#94a3b8')}</td>
+        </tr>`;
+      }).join('')}</tbody>
     </table>
-  </div>` : ''}
+    <div style="margin-top:.4rem;font-size:.78rem;color:#475569">รวม ${ttlPax} คน / ${ttlHrs} ชั่วโมง</div>`;
 
-  <!-- CAPA overdue list -->
-  ${overdueCapa > 0 ? `
-  <div class="section-title" style="color:#dc2626">⚠️ CAPA เกินกำหนด (${overdueCapa} รายการ)</div>
-  <div style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:20px;overflow-x:auto">
-    <table class="dept-table">
-      <thead><tr><th>CAPA ID</th><th>คำอธิบาย</th><th>ผู้รับผิดชอบ</th><th>ครบกำหนด</th></tr></thead>
-      <tbody>
-      ${capas.filter(c=>c.status!=='closed'&&c.dueDate&&c.dueDate<new Date().toISOString().split('T')[0]).map(c=>`
-        <tr>
-          <td style="font-weight:700;color:#dc2626">${c.capaId||c.id.slice(0,8)}</td>
-          <td>${(c.description||'').slice(0,60)}...</td>
-          <td>${c.assignedTo||'—'}</td>
-          <td style="color:#dc2626;font-weight:600">${c.dueDate} ⚠️</td>
-        </tr>`).join('')}
-      </tbody>
+  // Section 7 — Equipment
+  const alertEq = [...expiredEq, ...soonEq.filter(eq => !expiredEq.includes(eq))];
+  const eqHtml = alertEq.length === 0
+    ? `<p class="empty">ไม่มีอุปกรณ์หมดอายุหรือใกล้หมดอายุ (≤30 วัน)</p>`
+    : `<table class="rt">
+        <thead><tr><th>ชื่ออุปกรณ์</th><th>หมวดหมู่</th><th>หมายเลข</th><th>ผู้ใช้</th><th>วันหมดอายุ</th><th>สถานะ</th></tr></thead>
+        <tbody>${alertEq.map(eq => {
+          const d  = eq.expiryDate ? Math.ceil((new Date(eq.expiryDate)-today)/86400000) : null;
+          const st = EQUIP_STATUS[eq.status] || {};
+          const rd = d !== null && d < 0 ? '#fef2f2' : d !== null && d <= 7 ? '#fffbeb' : '';
+          return `<tr style="${rd?'background:'+rd:''}">
+            <td>${eq.equipmentName||'-'}</td>
+            <td>${eq.category||'-'}</td>
+            <td style="font-family:monospace;font-size:.72rem">${eq.serialNumber||'-'}</td>
+            <td>${eq.assignedTo||'-'}</td>
+            <td style="color:${d!==null&&d<0?'#dc2626':'#d97706'};font-weight:600">${fmt(eq.expiryDate)}</td>
+            <td>${bx(st.label||eq.status,'#fff',st.color||'#94a3b8')}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+
+  // Section 8 — PTW
+  const ptwHtml = permits.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>เลขที่</th><th>ประเภท</th><th>งาน</th><th>แผนก</th><th>วันที่</th><th>สถานะ</th></tr></thead>
+      <tbody>${permits.map(p => {
+        const pt = PERMIT_TYPES[p.permitType] || {};
+        const st = PERMIT_STATUS[p.status] || {};
+        return `<tr>
+          <td style="font-family:monospace;font-size:.72rem">${p.permitId||'-'}</td>
+          <td>${pt.labelTh||p.permitType||'-'}</td>
+          <td>${(p.workDescription||'').slice(0,50)}${p.workDescription?.length>50?'…':''}</td>
+          <td>${p.department||'-'}</td>
+          <td>${fmt(p.startDate||getTs(p)?.toISOString())}</td>
+          <td>${bx(st.label||p.status,'#fff',st.color||'#94a3b8')}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+
+  // Section 9 — Meetings
+  const mtgHtml = meetingPeriod.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>ครั้งที่</th><th>วันที่</th><th>ประเภท</th><th class="center">วาระ</th><th class="center">มติ</th><th>สถานะ</th></tr></thead>
+      <tbody>${meetingPeriod.map(m => {
+        const mt = MEETING_TYPES.find(x => x.key === m.meetingType);
+        const st = MEETING_STATUS[m.status] || {};
+        return `<tr>
+          <td>${m.meetingNo||'-'}</td>
+          <td>${fmt(m.meetingDate)}</td>
+          <td>${mt?.label||m.meetingType||'-'}</td>
+          <td class="center">${(m.agendas||[]).length}</td>
+          <td class="center">${(m.resolutions||[]).length}</td>
+          <td>${bx(st.label||m.status,'#fff',st.color||'#94a3b8')}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+
+  // Section 10 — Drills
+  const drillHtml = drillPeriod.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>วันที่</th><th>ประเภท</th><th>สถานที่</th><th class="center">ผู้เข้าร่วม</th><th class="center">ระยะเวลา</th><th class="center">คะแนน</th><th>สถานะ</th></tr></thead>
+      <tbody>${drillPeriod.map(d => {
+        const dt = DRILL_TYPES.find(x => x.key === d.drillType);
+        const st = DRILL_STATUS[d.status] || {};
+        const sc = d.score;
+        const sc_c = sc >= 8 ? '#16a34a' : sc >= 6 ? '#d97706' : '#dc2626';
+        return `<tr>
+          <td>${fmt(d.drillDate)}</td>
+          <td>${dt?.label||d.drillType||'-'}</td>
+          <td>${d.location||'-'}</td>
+          <td class="center">${d.participantCount||0}</td>
+          <td class="center">${d.durationMinutes||'-'} นาที</td>
+          <td class="center" style="color:${sc?sc_c:'#94a3b8'};font-weight:600">${sc||'-'}/10</td>
+          <td>${bx(st.label||d.status,'#fff',st.color||'#94a3b8')}</td>
+        </tr>`;
+      }).join('')}</tbody>
     </table>
-  </div>` : ''}`;
+    ${avgDrill ? `<div style="margin-top:.4rem;font-size:.78rem;color:#475569">คะแนนเฉลี่ย ${avgDrill}/10</div>` : ''}`;
 
-  // ── Draw Charts ───────────────────────────────────────────────────────
-  const fontFamily = "'Sarabun', sans-serif";
-  const baseOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { font: { family: fontFamily } } } }, scales: {} };
+  // Section 11 — Legal
+  const lgHtml = legals.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>กฎหมาย / มาตรฐาน</th><th>หมวด</th><th>ข้อกำหนดสำคัญ</th><th>สถานะ</th><th>ทบทวนครั้งถัดไป</th></tr></thead>
+      <tbody>${legals.map(l => {
+        const st = LEGAL_STATUS[l.status] || {};
+        const od = l.nextReviewDate && new Date(l.nextReviewDate) < today;
+        return `<tr style="${l.status==='non_compliant'?'background:#fef2f2':''}">
+          <td>${l.lawName||'-'}</td>
+          <td>${l.category||'-'}</td>
+          <td>${(l.requirements||'').slice(0,60)}${l.requirements?.length>60?'…':''}</td>
+          <td>${bx(st.label||l.status,'#fff',st.color||'#94a3b8')}</td>
+          <td style="${od?'color:#dc2626;font-weight:600':''}">${fmt(l.nextReviewDate)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+    <div style="margin-top:.4rem;font-size:.78rem;color:#475569">
+      สอดคล้อง ${compliantLg} | ไม่สอดคล้อง ${nonCompLg} | เกินกำหนดทบทวน ${overdueLg} รายการ
+    </div>`;
 
-  CHART_INSTANCES.trend = new Chart($('chartTrend'), {
-    type: 'line',
-    data: { labels: trendLabels, datasets: [{ label: 'จำนวนเหตุการณ์', data: trendVals, borderColor: '#0891b2', backgroundColor: 'rgba(8,145,178,.1)', fill: true, tension: .4, pointRadius: 4, pointBackgroundColor: '#0891b2' }] },
-    options: { ...baseOptions, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: fontFamily } } }, x: { ticks: { font: { family: fontFamily } } } } },
-  });
+  // Section 12 — Risk
+  const riskHtml = risks.length === 0
+    ? emptyNote('ไม่มีข้อมูลการประเมินความเสี่ยง')
+    : `<table class="rt">
+        <thead><tr><th>หน่วยงาน</th><th>ชื่อประเมิน</th><th class="center">อันตราย</th><th class="center" style="color:#dc2626">Extreme</th><th class="center" style="color:#d97706">High</th><th>ผู้ประเมิน</th><th>วันที่</th></tr></thead>
+        <tbody>${risks.map(r => {
+          const haz = r.hazards || [];
+          const ext = haz.filter(h => (h.likelihoodAfter||0)*(h.severityAfter||0) > 16).length;
+          const hi  = haz.filter(h => { const sc=(h.likelihoodAfter||0)*(h.severityAfter||0); return sc>=10&&sc<=16; }).length;
+          return `<tr>
+            <td>${r.department||'-'}</td>
+            <td>${r.assessmentTitle||'-'}</td>
+            <td class="center">${haz.length}</td>
+            <td class="center" style="color:${ext>0?'#dc2626':'#374151'};font-weight:${ext>0?'700':'400'}">${ext}</td>
+            <td class="center" style="color:${hi>0?'#d97706':'#374151'};font-weight:${hi>0?'700':'400'}">${hi}</td>
+            <td>${r.assessorName||'-'}</td>
+            <td>${fmt(r.assessmentDate||getTs(r)?.toISOString())}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
 
-  if (typeLabels.length > 0) {
-    CHART_INSTANCES.type = new Chart($('chartType'), {
-      type: 'doughnut',
-      data: { labels: typeLabels, datasets: [{ data: typeData, backgroundColor: typeColors.map(c=>c+'cc'), borderColor: typeColors, borderWidth: 2 }] },
-      options: { ...baseOptions, plugins: { legend: { position: 'right', labels: { font: { family: fontFamily }, boxWidth: 12 } } } },
-    });
-  } else { $('chartType').parentElement.innerHTML = '<div class="empty-state">ไม่มีข้อมูลอุบัติเหตุในช่วงนี้</div>'; }
+  // Section 13 — Safety Talks
+  const tlkHtml = talks.length === 0 ? emptyNote() : `
+    <table class="rt">
+      <thead><tr><th>วันที่</th><th>หัวข้อ</th><th>ประเภท</th><th>แผนก</th><th class="center">ผู้เข้าร่วม</th><th class="center">ระยะเวลา</th></tr></thead>
+      <tbody>${talks.map(t => `<tr>
+        <td>${fmt(t.talkDate||getTs(t)?.toISOString())}</td>
+        <td>${t.talkTitle||t.topic||'-'}</td>
+        <td>${t.talkType||'-'}</td>
+        <td>${t.department||'-'}</td>
+        <td class="center">${t.attendeeCount||0}</td>
+        <td class="center">${t.durationMinutes||'-'} นาที</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
 
-  if (deptLabels.length > 0) {
-    CHART_INSTANCES.dept = new Chart($('chartDept'), {
-      type: 'bar',
-      data: { labels: deptLabels, datasets: [{ label: 'จำนวนเหตุการณ์', data: deptData, backgroundColor: '#0891b2cc', borderColor: '#0891b2', borderWidth: 1.5, borderRadius: 6 }] },
-      options: { ...baseOptions, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { stepSize: 1, font: { family: fontFamily } } }, y: { ticks: { font: { family: fontFamily, size: 11 } } } } },
-    });
-  } else { $('chartDept').parentElement.innerHTML = '<div class="empty-state">ไม่มีข้อมูล</div>'; }
+  /* ── assemble ── */
+  const wrap = document.getElementById('reportWrap');
+  wrap.innerHTML = `
+    <div class="rpt-header">
+      <div style="font-size:.82rem;color:#64748b;margin-bottom:.3rem">บริษัท เค.พี.โอ. จำกัด — ระบบบริหารความปลอดภัย KPO Safety</div>
+      <h1>รายงานความปลอดภัย ${label}</h1>
+      <div class="sub">ช่วงเวลา: ${fmt(s.toISOString())} — ${fmt(e.toISOString())}</div>
+      <div class="meta">
+        <span>จัดทำโดย: ${_profile.displayName||_profile.email}</span>
+        <span>วันที่สร้าง: ${fmt(new Date().toISOString())}</span>
+      </div>
+    </div>
 
-  if (Object.values(riskDist).some(v=>v>0)) {
-    CHART_INSTANCES.risk = new Chart($('chartRisk'), {
-      type: 'doughnut',
-      data: {
-        labels: ['ต่ำ','ปานกลาง','สูง','สูงมาก'],
-        datasets: [{ data: [riskDist.low, riskDist.moderate, riskDist.high, riskDist.extreme], backgroundColor: ['#16a34acc','#d97706cc','#dc2626cc','#7f1d1dcc'], borderColor: ['#16a34a','#d97706','#dc2626','#7f1d1d'], borderWidth: 2 }]
-      },
-      options: { ...baseOptions, plugins: { legend: { position: 'right', labels: { font: { family: fontFamily }, boxWidth: 12 } } } },
-    });
-  } else { $('chartRisk').parentElement.innerHTML = '<div class="empty-state">ยังไม่มีการประเมินความเสี่ยง</div>'; }
+    <div class="rpt-section">
+      <h2>📊 ส่วนที่ 1 — บทสรุป KPI ความปลอดภัย</h2>${kpiHtml}</div>
 
-  const trainLabels2 = Object.keys(trainByType).map(k => k.length > 18 ? k.slice(0,18)+'…' : k);
-  const trainVals2   = Object.values(trainByType);
-  if (trainLabels2.length > 0) {
-    CHART_INSTANCES.train = new Chart($('chartTrain'), {
-      type: 'bar',
-      data: { labels: trainLabels2, datasets: [{ label: 'ผู้เข้าร่วม (คน)', data: trainVals2, backgroundColor: '#7c3aedcc', borderColor: '#7c3aed', borderWidth: 1.5, borderRadius: 6 }] },
-      options: { ...baseOptions, indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: { font: { family: fontFamily } } }, y: { ticks: { font: { family: fontFamily, size: 11 } } } } },
-    });
-  } else { $('chartTrain').parentElement.innerHTML = '<div class="empty-state">ยังไม่มีข้อมูลการอบรม</div>'; }
+    <div class="rpt-section">
+      <h2>⚠️ ส่วนที่ 2 — อุบัติเหตุ (${incidents.length} ครั้ง | วันสูญเสีย ${lostDays} วัน)</h2>${incHtml}</div>
+
+    <div class="rpt-section">
+      <h2>🔶 ส่วนที่ 3 — Near Miss / เหตุการณ์เกือบเกิดอุบัติเหตุ (${nearMiss.length} ครั้ง)</h2>${nmHtml}</div>
+
+    <div class="rpt-section">
+      <h2>✅ ส่วนที่ 4 — ติดตาม CAPA (เปิดอยู่ ${openCapa.length} | เกินกำหนด ${overdueCapa.length})</h2>${capaHtml}</div>
+
+    <div class="rpt-section">
+      <h2>🔍 ส่วนที่ 5 — การตรวจสอบความปลอดภัย (${inspections.length} ครั้ง${avgPass!==null?' | เฉลี่ย '+avgPass+'%':''})</h2>${insHtml}</div>
+
+    <div class="rpt-section">
+      <h2>🎓 ส่วนที่ 6 — การฝึกอบรม (${trainingPeriod.length} หลักสูตร | ${ttlPax} คน | ${ttlHrs} ชม.)</h2>${trHtml}</div>
+
+    <div class="rpt-section">
+      <h2>🦺 ส่วนที่ 7 — อุปกรณ์ PPE ที่ต้องดำเนินการ (หมดอายุ ${expiredEq.length} | ใกล้หมด ${soonEq.length})</h2>${eqHtml}</div>
+
+    <div class="rpt-section">
+      <h2>📋 ส่วนที่ 8 — ใบอนุญาตทำงาน PTW (${permits.length} ใบ)</h2>${ptwHtml}</div>
+
+    <div class="rpt-section">
+      <h2>🤝 ส่วนที่ 9 — การประชุม คปอ. (${meetingPeriod.length} ครั้ง)</h2>${mtgHtml}</div>
+
+    <div class="rpt-section">
+      <h2>🚨 ส่วนที่ 10 — ซ้อมแผนฉุกเฉิน (${drillPeriod.length} ครั้ง${avgDrill?' | เฉลี่ย '+avgDrill+'/10':''})</h2>${drillHtml}</div>
+
+    <div class="rpt-section">
+      <h2>⚖️ ส่วนที่ 11 — ความสอดคล้องกฎหมาย (${legalPct}% | ไม่สอดคล้อง ${nonCompLg})</h2>${lgHtml}</div>
+
+    <div class="rpt-section">
+      <h2>📊 ส่วนที่ 12 — ประเมินความเสี่ยง HIRA (${risks.length} ประเมิน | Extreme ${extremeRisks} | High ${highRisks})</h2>${riskHtml}</div>
+
+    <div class="rpt-section">
+      <h2>💬 ส่วนที่ 13 — Safety Talk (${talks.length} ครั้ง)</h2>${tlkHtml}</div>
+
+    <div class="sig-row">
+      <div>
+        <div class="sig-line">&nbsp;</div>
+        <div>เจ้าหน้าที่ความปลอดภัยวิชาชีพ</div>
+        <div style="margin-top:.2rem;color:#94a3b8">วันที่ ___________________</div>
+      </div>
+      <div>
+        <div class="sig-line">&nbsp;</div>
+        <div>ประธาน คปอ.</div>
+        <div style="margin-top:.2rem;color:#94a3b8">วันที่ ___________________</div>
+      </div>
+      <div>
+        <div class="sig-line">&nbsp;</div>
+        <div>ผู้จัดการโรงงาน / ผู้บริหาร</div>
+        <div style="margin-top:.2rem;color:#94a3b8">วันที่ ___________________</div>
+      </div>
+    </div>
+  `;
+  wrap.style.display = 'block';
+  wrap.scrollIntoView({ behavior: 'smooth' });
 }
 
-// ─── AI Insights engine ────────────────────────────────────────────────────
-function generateInsights({ incidents, nearMiss, capas, inspections, risks, trainings, equips, legals, drills }) {
-  const insights = [];
-  const today = new Date().toISOString().split('T')[0];
-
-  // 1. Overdue CAPA
-  const overdue = capas.filter(c => c.status !== 'closed' && c.dueDate && c.dueDate < today);
-  if (overdue.length > 0) {
-    insights.push({ level: 'เร่งด่วน', icon: '🔴', color: '#f87171',
-      text: `มี CAPA ค้างเกินกำหนด ${overdue.length} รายการ กรุณาเร่งรัดผู้รับผิดชอบ: ${[...new Set(overdue.map(c=>c.assignedTo).filter(Boolean))].slice(0,3).join(', ')||'ไม่ระบุ'}` });
-  }
-
-  // 2. High-risk department
-  if (incidents.length > 0) {
-    const deptCount = {};
-    for (const i of incidents) { const k = i.department||'ไม่ระบุ'; deptCount[k]=(deptCount[k]||0)+1; }
-    const topDept = Object.entries(deptCount).sort((a,b)=>b[1]-a[1])[0];
-    if (topDept && topDept[1] >= 2) {
-      insights.push({ level: 'แจ้งเตือน', icon: '🏭', color: '#fbbf24',
-        text: `แผนก ${topDept[0]} มีอุบัติเหตุสูงสุด ${topDept[1]} ครั้ง ควรทบทวน Risk Assessment และมาตรการควบคุมในแผนกนี้` });
-    }
-  }
-
-  // 3. Near miss spike (near miss > incidents suggests good culture)
-  if (nearMiss.length > 0 && incidents.length === 0) {
-    insights.push({ level: 'เชิงบวก', icon: '✅', color: '#4ade80',
-      text: `ช่วงเวลานี้มีรายงาน Near Miss ${nearMiss.length} ครั้ง แต่ไม่มีอุบัติเหตุ แสดงถึงวัฒนธรรมความปลอดภัยที่ดี ควรส่งเสริมการรายงาน Near Miss ต่อเนื่อง` });
-  }
-
-  // 4. Expired equipment
-  const expiredEquip = equips.filter(e => e.expiryDate && e.expiryDate < today);
-  if (expiredEquip.length > 0) {
-    insights.push({ level: 'แจ้งเตือน', icon: '🦺', color: '#fb923c',
-      text: `อุปกรณ์ความปลอดภัยหมดอายุ ${expiredEquip.length} รายการ (${expiredEquip.slice(0,3).map(e=>e.name).join(', ')}${expiredEquip.length>3?'...':''}) ควรสั่งซื้อทดแทนทันที` });
-  }
-
-  // 5. Legal compliance gap
-  const nonCompliant = legals.filter(l => l.complianceStatus === 'non_compliant');
-  if (nonCompliant.length > 0) {
-    insights.push({ level: 'เร่งด่วน', icon: '⚖️', color: '#f87171',
-      text: `พบข้อกำหนดกฎหมายที่ไม่สอดคล้อง ${nonCompliant.length} รายการ: ${nonCompliant.slice(0,2).map(l=>l.lawName).join(', ')} ควรดำเนินการแก้ไขและบันทึกหลักฐาน` });
-  }
-
-  // 6. Inspection fail items
-  const failItems = inspections.reduce((s,i) => s + (i.failCount||0), 0);
-  if (failItems > 5) {
-    insights.push({ level: 'คำแนะนำ', icon: '🔍', color: '#60a5fa',
-      text: `การตรวจสอบพบรายการ Fail รวม ${failItems} รายการ หากยังไม่ได้สร้าง CAPA ควรดำเนินการแก้ไขและติดตามผล` });
-  }
-
-  // 7. High/Extreme risks without controls
-  const uncontrolledRisks = risks.filter(r => {
-    const l = getRiskLevel((r.likelihood||1)*(r.severity||1));
-    return (l.level === 'high' || l.level === 'extreme') && (!r.controls || !Object.values(r.controls).some(Boolean));
-  });
-  if (uncontrolledRisks.length > 0) {
-    insights.push({ level: 'แจ้งเตือน', icon: '⚠️', color: '#fbbf24',
-      text: `มีความเสี่ยงระดับสูง/สูงมาก ${uncontrolledRisks.length} รายการ ที่ยังไม่ได้กำหนดมาตรการควบคุม ควรจัดลำดับความสำคัญและดำเนินการ` });
-  }
-
-  // 8. No drills this year
-  const thisYear = new Date().getFullYear().toString();
-  const drillsThisYear = drills.filter(d => d.drillDate?.startsWith(thisYear) && d.status === 'completed');
-  if (drillsThisYear.length === 0) {
-    insights.push({ level: 'คำแนะนำ', icon: '🚨', color: '#60a5fa',
-      text: `ยังไม่มีบันทึกการซ้อมแผนฉุกเฉินในปีนี้ กฎหมายกำหนดให้ต้องซ้อมอย่างน้อยปีละ 1 ครั้ง ควรวางแผนและบันทึก` });
-  }
-
-  // 9. Near miss type pattern
-  if (nearMiss.length >= 3) {
-    const nmTypeCnt = {};
-    for (const n of nearMiss) { const k=n.nmType||n.reportType||'unsafe_condition'; nmTypeCnt[k]=(nmTypeCnt[k]||0)+1; }
-    const topNm = Object.entries(nmTypeCnt).sort((a,b)=>b[1]-a[1])[0];
-    if (topNm && topNm[1] >= 2) {
-      const label = topNm[0]==='unsafe_act'?'พฤติกรรมไม่ปลอดภัย':topNm[0]==='unsafe_condition'?'สภาพไม่ปลอดภัย':'เฉียดอุบัติเหตุ';
-      insights.push({ level: 'คำแนะนำ', icon: '📌', color: '#60a5fa',
-        text: `รายงาน Near Miss ส่วนใหญ่ (${topNm[1]}/${nearMiss.length} ครั้ง) เป็นประเภท "${label}" ควรวิเคราะห์หาสาเหตุรากและออกมาตรการป้องกัน` });
-    }
-  }
-
-  return insights;
-}
-
-// ─── Print PDF ─────────────────────────────────────────────────────────────
-async function printReport() {
-  const { start, end, incidents, nearMiss, capas, inspections, risks, trainings, legals } = _allData;
-  const { label } = periodRange(_period, _customStart, _customEnd);
-  const today = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
-
-  const openCapa = capas.filter(c=>c.status!=='closed').length;
-  const overdueCapa = capas.filter(c=>c.status!=='closed'&&c.dueDate&&c.dueDate<new Date().toISOString().split('T')[0]).length;
-  const inspPass = inspections.reduce((s,i)=>s+(i.passCount||0),0);
-  const inspItems = inspections.reduce((s,i)=>s+((i.passCount||0)+(i.failCount||0)),0);
-  const inspPassRate = inspItems>0?Math.round(inspPass/inspItems*100)+'%':'—';
-  const legalComp = legals.length>0?Math.round(legals.filter(l=>l.complianceStatus==='compliant').length/legals.filter(l=>l.complianceStatus!=='not_applicable').length*100)+'%':'—';
-
-  const pa = $('printArea');
-  pa.style.display = 'block';
-  pa.innerHTML = `
-  <div class="pr-title">รายงานสรุปสถิติความปลอดภัยในการทำงาน</div>
-  <div class="pr-sub">ช่วงเวลา: ${label} &nbsp;|&nbsp; วันที่พิมพ์: ${today}</div>
-
-  <div class="pr-kpi-grid">
-    ${[['อุบัติเหตุทั้งหมด',incidents.length,'#dc2626'],['Near Miss / Unsafe',nearMiss.length,'#2563eb'],['CAPA ค้าง (เกิน)',`${openCapa} (${overdueCapa})`,'#d97706'],['Inspection Pass Rate',inspPassRate,'#0891b2'],['การอบรมเสร็จ',trainings.filter(t=>t.status==='completed').length,'#16a34a'],['ความสอดคล้องกฎหมาย',legalComp,'#7c3aed']].map(([l,v,c])=>`
-    <div class="pr-kpi-box">
-      <div class="pr-kpi-val" style="color:${c}">${v}</div>
-      <div class="pr-kpi-lbl">${l}</div>
-    </div>`).join('')}
-  </div>
-
-  <div class="pr-section">
-    <div class="pr-section-title">สรุปอุบัติเหตุ/เหตุการณ์</div>
-    <table class="pr-table">
-      <thead><tr><th>วันที่</th><th>ประเภท</th><th>แผนก</th><th>สถานที่</th><th>ผู้ได้รับบาดเจ็บ</th><th>สถานะ</th></tr></thead>
-      <tbody>
-      ${incidents.slice(0,20).map(i=>`<tr><td>${i.incidentDate||'—'}</td><td>${i.incidentType||'—'}</td><td>${i.department||'—'}</td><td>${i.location||'—'}</td><td>${i.injuredPerson||'—'}</td><td>${i.status||'—'}</td></tr>`).join('')}
-      ${incidents.length===0?'<tr><td colspan="6" style="text-align:center;color:#999">ไม่มีข้อมูลในช่วงเวลานี้</td></tr>':''}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="pr-section">
-    <div class="pr-section-title">CAPA ที่ยังเปิดอยู่</div>
-    <table class="pr-table">
-      <thead><tr><th>CAPA ID</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th><th>ครบกำหนด</th><th>สถานะ</th></tr></thead>
-      <tbody>
-      ${capas.filter(c=>c.status!=='closed').slice(0,15).map(c=>`<tr><td>${c.capaId||'—'}</td><td>${(c.description||'').slice(0,60)}</td><td>${c.assignedTo||'—'}</td><td>${c.dueDate||'—'}</td><td>${c.status||'—'}</td></tr>`).join('')}
-      ${capas.filter(c=>c.status!=='closed').length===0?'<tr><td colspan="5" style="text-align:center;color:#999">ไม่มี CAPA ค้างอยู่</td></tr>':''}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="pr-sign-row">
-    ${['จป. วิชาชีพ','ประธาน คปอ.','ผู้บริหาร'].map(n=>`<div class="pr-sign-blk"><div class="pr-sign-line">(...................................)<br>${n}</div></div>`).join('')}
-  </div>`;
-
-  window.print();
-  setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 1000);
-}
-
-// ─── Controls ──────────────────────────────────────────────────────────────
-window.__setPeriod = v => {
-  _period = v;
-  // Update tab buttons
-  document.querySelectorAll('.p-btn').forEach(b => b.classList.toggle('active', b.textContent.trim() === {month:'เดือนนี้',q:'ไตรมาสนี้',ytd:'YTD',year:'ปีนี้',lastyear:'ปีที่แล้ว',custom:'กำหนดเอง'}[v]));
-  const cr = $('customRange');
-  if (cr) cr.style.display = v === 'custom' ? 'flex' : 'none';
-  if (v !== 'custom') renderReport();
-};
-
-window.__customDate = () => {
-  _customStart = $('cStart')?.value;
-  _customEnd   = $('cEnd')?.value;
-  if (_customStart && _customEnd) renderReport();
-};
-
-window.__printReport = printReport;
-
-// ─── Boot ───────────────────────────────────────────────────────────────────
-_profile = await requireRole(['safety_officer','kpo','admin','manager']);
-renderShell(_profile, 'safety-reports', 'รายงานความปลอดภัย');
-buildLayout();
-await renderReport();
+/* ── inject into page ── */
+const target = document.querySelector('main') || document.querySelector('.page-content')
+            || document.querySelector('#content') || document.body;
+target.insertAdjacentHTML('beforeend', buildPicker());
 </script>
 </body>
 </html>
