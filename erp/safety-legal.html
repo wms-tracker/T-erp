@@ -3,280 +3,288 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>กฎหมายความปลอดภัย — KPO Safety</title>
+  <title>กฎหมายความปลอดภัย</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b">กำลังโหลด...</div>
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
 import {
   listLegalRegisters, getLegalRegister, createLegalRegister,
   updateLegalRegister, deleteLegalRegister,
-  LEGAL_CATEGORIES, LEGAL_STATUS
+  LEGAL_CATEGORIES, LEGAL_STATUS,
 } from "./js/safety-data.js";
 
-const $ = id => document.getElementById(id);
-let _profile, _regs = [];
-let _editId = null;
-let _search = '', _filterCat = '', _filterStatus = '';
+let _profile, _rows = [], _editId = null;
 
-function buildLayout() {
-  document.getElementById('main-content').innerHTML = `
-  <style>
-    .lr{padding:0 20px 40px;max-width:1200px;margin:0 auto;}
-    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 14px;}
-    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
-    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
-    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
-    .btn-sm{padding:5px 11px;font-size:.78rem;}
-    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
-    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
-    .sum-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
-    .sum-chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;flex:1;min-width:100px;text-align:center;}
-    .sum-chip .val{font-size:1.4rem;font-weight:800;}
-    .sum-chip .lbl{font-size:.72rem;color:#94a3b8;margin-top:2px;}
-    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-    .filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;}
-    .tbl-wrap{overflow-x:auto;}
-    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
-    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
-    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
-    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
-    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
-    .compliance-bar{height:8px;border-radius:4px;background:#e2e8f0;margin-top:6px;overflow:hidden;}
-    .compliance-fill{height:100%;border-radius:4px;background:#16a34a;}
-    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
-    .modal-panel{background:#fff;height:100dvh;width:min(580px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
-    .modal-head{padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
-    .modal-body{padding:20px;flex:1;}
-    .modal-foot{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
-    .form-group{margin-bottom:12px;}
-    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
-    .req{color:#dc2626;}
-    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
-    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
-    textarea.form-ctrl{resize:vertical;min-height:72px;}
-    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
-    @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
-  </style>
-  <div class="lr" id="mainView"></div>
-  <div id="mBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
-    <div class="modal-panel">
-      <div class="modal-head"><div style="font-size:1rem;font-weight:700;color:#0f172a" id="mdTitle">—</div>
-        <button class="btn btn-ghost btn-sm" onclick="__closeModal(null)">✕</button></div>
-      <div class="modal-body" id="mdBody"></div>
-      <div class="modal-foot" id="mdFoot"></div>
-    </div>
-  </div>`;
-}
+const today = () => new Date().toISOString().split('T')[0];
 
-function renderView() {
-  const filtered = _regs.filter(r => {
-    if (_filterCat && r.category !== _filterCat) return false;
-    if (_filterStatus && r.complianceStatus !== _filterStatus) return false;
-    if (_search && !JSON.stringify(r).toLowerCase().includes(_search.toLowerCase())) return false;
-    return true;
-  });
-
-  const total = _regs.length;
-  const compliant    = _regs.filter(r=>r.complianceStatus==='compliant').length;
-  const partial      = _regs.filter(r=>r.complianceStatus==='partial').length;
-  const nonCompliant = _regs.filter(r=>r.complianceStatus==='non_compliant').length;
-  const applicable   = total - _regs.filter(r=>r.complianceStatus==='not_applicable').length;
-  const compliancePct = applicable > 0 ? Math.round(compliant/applicable*100) : 0;
-
-  $('mainView').innerHTML = `
-  <div class="page-header">
-    <div class="page-title">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h4"/><path d="M7 11h8"/><path d="M7 6h10"/></svg>
-      ทะเบียนกฎหมายความปลอดภัย
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-ghost" onclick="__loadDefaults()">โหลดกฎหมายพื้นฐาน</button>
-      <button class="btn btn-primary" onclick="__openForm(null)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        เพิ่มกฎหมาย/มาตรฐาน
-      </button>
-    </div>
-  </div>
-
-  <div class="sum-bar">
-    <div class="sum-chip">
-      <div class="val" style="color:${compliancePct>=80?'#16a34a':compliancePct>=60?'#d97706':'#dc2626'}">${compliancePct}%</div>
-      <div class="lbl">ความสอดคล้อง</div>
-      <div class="compliance-bar"><div class="compliance-fill" style="width:${compliancePct}%;background:${compliancePct>=80?'#16a34a':compliancePct>=60?'#d97706':'#dc2626'}"></div></div>
-    </div>
-    <div class="sum-chip"><div class="val">${total}</div><div class="lbl">รายการทั้งหมด</div></div>
-    <div class="sum-chip"><div class="val" style="color:#16a34a">${compliant}</div><div class="lbl">สอดคล้อง</div></div>
-    <div class="sum-chip"><div class="val" style="color:#d97706">${partial}</div><div class="lbl">บางส่วน</div></div>
-    <div class="sum-chip"><div class="val" style="color:#dc2626">${nonCompliant}</div><div class="lbl">ไม่สอดคล้อง</div></div>
-  </div>
-
-  <div class="filter-bar">
-    <input type="text" placeholder="ค้นหา..." oninput="__srch(this.value)" style="min-width:180px">
-    <select onchange="__fCat(this.value)">
-      <option value="">ทุกหมวดหมู่</option>
-      ${LEGAL_CATEGORIES.map(c=>`<option value="${c}" ${_filterCat===c?'selected':''}>${c}</option>`).join('')}
-    </select>
-    <select onchange="__fSt(this.value)">
-      <option value="">ทุกสถานะ</option>
-      ${Object.entries(LEGAL_STATUS).map(([k,v])=>`<option value="${k}" ${_filterStatus===k?'selected':''}>${v.label}</option>`).join('')}
-    </select>
-  </div>
-
-  ${filtered.length === 0
-    ? `<div class="empty-state"><div style="font-size:2.5rem">⚖️</div><div style="margin-top:8px">ยังไม่มีรายการกฎหมาย</div><div style="margin-top:4px;font-size:.8rem">กด "โหลดกฎหมายพื้นฐาน" เพื่อนำเข้ากฎหมายที่ใช้บ่อย</div></div>`
-    : `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>กฎหมาย/มาตรฐาน</th><th>หมวดหมู่</th><th>ข้อกำหนด</th><th>ทบทวนล่าสุด</th><th>ทบทวนครั้งถัดไป</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th></th></tr></thead>
-      <tbody>
-      ${filtered.map(r => {
-        const s = LEGAL_STATUS[r.complianceStatus] || LEGAL_STATUS.under_review;
-        const today = new Date().toISOString().split('T')[0];
-        const overdue = r.nextReviewDate && r.nextReviewDate < today;
-        return `<tr onclick="__openForm('${r.id}')">
-          <td>
-            <div style="font-weight:700">${r.lawName||'—'}</div>
-            ${r.lawNo?`<div style="font-size:.72rem;color:#94a3b8">${r.lawNo}</div>`:''}
-          </td>
-          <td style="font-size:.78rem">${r.category||'—'}</td>
-          <td style="font-size:.78rem;max-width:200px">${r.requirement||'—'}</td>
-          <td>${r.lastReviewDate||'—'}</td>
-          <td class="${overdue?'expire-warn':''}">${r.nextReviewDate||'—'}${overdue?' ⚠️':''}</td>
-          <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
-          <td>${r.responsible||'—'}</td>
-          <td onclick="event.stopPropagation()"><button class="btn btn-danger btn-sm" onclick="__del('${r.id}')">ลบ</button></td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table></div>`}`;
-}
-
-async function openForm(id) {
-  _editId = id;
-  let r = id ? (_regs.find(x=>x.id===id) || await getLegalRegister(id)) : null;
-  $('mdTitle').textContent = id ? 'แก้ไขทะเบียนกฎหมาย' : 'เพิ่มกฎหมาย/มาตรฐาน';
-  $('mdBody').innerHTML = `
-  <div class="form-group">
-    <label class="form-label">ชื่อกฎหมาย/มาตรฐาน <span class="req">*</span></label>
-    <input type="text" class="form-ctrl" id="fLaw" value="${r?.lawName||''}" placeholder="เช่น พ.ร.บ.ความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน">
-  </div>
-  <div class="form-grid">
-    <div class="form-group">
-      <label class="form-label">เลขที่/ปีที่ออก</label>
-      <input type="text" class="form-ctrl" id="fNo" value="${r?.lawNo||''}" placeholder="เช่น พ.ศ.2554">
-    </div>
-    <div class="form-group">
-      <label class="form-label">หมวดหมู่ <span class="req">*</span></label>
-      <select class="form-ctrl" id="fCat">
-        ${LEGAL_CATEGORIES.map(c=>`<option value="${c}" ${r?.category===c?'selected':''}>${c}</option>`).join('')}
-      </select>
-    </div>
-  </div>
-  <div class="form-group">
-    <label class="form-label">ข้อกำหนดที่เกี่ยวข้อง</label>
-    <textarea class="form-ctrl" id="fReq">${r?.requirement||''}</textarea>
-  </div>
-  <div class="form-group">
-    <label class="form-label">มาตรการปฏิบัติตาม</label>
-    <textarea class="form-ctrl" id="fAction">${r?.actionsTaken||''}</textarea>
-  </div>
-  <div class="form-grid">
-    <div class="form-group">
-      <label class="form-label">สถานะความสอดคล้อง</label>
-      <select class="form-ctrl" id="fSt">
-        ${Object.entries(LEGAL_STATUS).map(([k,v])=>`<option value="${k}" ${(r?.complianceStatus||'under_review')===k?'selected':''}>${v.label}</option>`).join('')}
-      </select>
-    </div>
-    <div class="form-group">
-      <label class="form-label">ผู้รับผิดชอบ</label>
-      <input type="text" class="form-ctrl" id="fResp" value="${r?.responsible||''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">วันที่ทบทวนล่าสุด</label>
-      <input type="date" class="form-ctrl" id="fLast" value="${r?.lastReviewDate||''}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">กำหนดทบทวนครั้งถัดไป</label>
-      <input type="date" class="form-ctrl" id="fNext" value="${r?.nextReviewDate||''}">
-    </div>
-  </div>
-  <div class="form-group">
-    <label class="form-label">หมายเหตุ</label>
-    <textarea class="form-ctrl" id="fNote" style="min-height:56px">${r?.note||''}</textarea>
-  </div>`;
-  $('mdFoot').innerHTML = `
-    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
-    ${id?`<button class="btn btn-danger btn-sm" onclick="__del('${id}')">ลบ</button>`:''}
-    <button class="btn btn-primary" id="mdSave" onclick="__save()">${id?'บันทึกการแก้ไข':'เพิ่ม'}</button>`;
-  $('mBg').style.display = 'flex';
-}
-
-async function save() {
-  const lawName = $('fLaw')?.value?.trim();
-  const cat = $('fCat')?.value;
-  if (!lawName || !cat) { showToast('กรุณาระบุชื่อกฎหมายและหมวดหมู่', '#dc2626'); return; }
-  const data = {
-    lawName, lawNo: $('fNo')?.value?.trim()||'', category: cat,
-    requirement: $('fReq')?.value?.trim()||'', actionsTaken: $('fAction')?.value?.trim()||'',
-    complianceStatus: $('fSt')?.value||'under_review', responsible: $('fResp')?.value?.trim()||'',
-    lastReviewDate: $('fLast')?.value||'', nextReviewDate: $('fNext')?.value||'',
-    note: $('fNote')?.value?.trim()||'',
-  };
-  const btn = $('mdSave'); btn.disabled=true; btn.textContent='กำลังบันทึก...';
-  try {
-    if (_editId) await updateLegalRegister(_editId, data);
-    else await createLegalRegister(data, _profile.uid);
-    _regs = await listLegalRegisters({ lim: 200 });
-    closeModal(null); renderView();
-    showToast('บันทึกแล้ว ✓', '#16a34a');
-  } catch(e) { btn.disabled=false; btn.textContent=_editId?'บันทึกการแก้ไข':'เพิ่ม'; showToast(e.message,'#dc2626'); }
-}
-
-async function del(id) {
-  if (!confirm('ลบรายการนี้?')) return;
-  await deleteLegalRegister(id);
-  _regs = await listLegalRegisters({ lim: 200 });
-  closeModal(null); renderView();
-  showToast('ลบแล้ว','#0891b2');
-}
-
+// กฎหมายสำคัญสำหรับคลังสินค้า (seed)
 const DEFAULT_LAWS = [
-  { lawName:'พ.ร.บ.ความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน', lawNo:'พ.ศ.2554', category:'พ.ร.บ. ความปลอดภัยฯ พ.ศ.2554', requirement:'นายจ้างต้องจัดให้มีเจ้าหน้าที่ความปลอดภัยในการทำงาน (จป.) และคณะกรรมการความปลอดภัย (คปอ.) ตามขนาดองค์กร', complianceStatus:'under_review' },
-  { lawName:'กฎกระทรวงกำหนดมาตรฐานการบริหารจัดการด้านความปลอดภัยฯ', lawNo:'พ.ศ.2549', category:'กฎกระทรวง (สวัสดิการฯ)', requirement:'จัดทำแผนงานด้านความปลอดภัยฯ ประจำปี และรายงานสถิติอุบัติเหตุต่ออธิบดีกรมสวัสดิการฯ', complianceStatus:'under_review' },
-  { lawName:'ประกาศกรมสวัสดิการฯ เรื่อง หลักเกณฑ์ วิธีการ และเงื่อนไข จป.วิชาชีพ', lawNo:'', category:'ประกาศกรม (แรงงาน)', requirement:'จป.วิชาชีพ ต้องผ่านการอบรมหลักสูตรที่กรมสวัสดิการรับรอง และปฏิบัติงานตามขอบเขตที่กำหนด', complianceStatus:'under_review' },
-  { lawName:'กฎกระทรวงกำหนดมาตรฐานในการบริหาร จัดการ และดำเนินการด้านความปลอดภัย (ไฟฟ้า)', lawNo:'พ.ศ.2558', category:'กฎกระทรวง (สวัสดิการฯ)', requirement:'ติดตั้งระบบไฟฟ้าตามมาตรฐาน จัดให้มีการตรวจสอบและบำรุงรักษาระบบไฟฟ้าสม่ำเสมอ', complianceStatus:'under_review' },
-  { lawName:'กฎกระทรวงกำหนดมาตรฐานในการบริหาร จัดการ และดำเนินการด้านความปลอดภัย (เคมี)', lawNo:'พ.ศ.2556', category:'กฎกระทรวง (สวัสดิการฯ)', requirement:'จัดทำ SDS จัดเก็บสารเคมีอย่างปลอดภัย จัดให้มี PPE สำหรับผู้ทำงานกับสารเคมี', complianceStatus:'under_review' },
+  { lawName:'พ.ร.บ.ความปลอดภัย อาชีวอนามัยและสภาพแวดล้อมในการทำงาน พ.ศ.2554', category:'พ.ร.บ. ความปลอดภัยฯ พ.ศ.2554', requirementSummary:'บทบัญญัติหลักด้านความปลอดภัยในการทำงาน กำหนดหน้าที่นายจ้าง/ลูกจ้าง การจัดตั้ง คปอ.' },
+  { lawName:'กฎกระทรวง กำหนดมาตรฐานในการบริหารและจัดการด้านความปลอดภัยฯ (ฉบับที่ 2) พ.ศ.2553', category:'กฎกระทรวง (สวัสดิการฯ)', requirementSummary:'กำหนดให้จัดทำโปรแกรมความปลอดภัย ตรวจสอบสภาพแวดล้อม จัดทำรายงาน' },
+  { lawName:'กฎกระทรวง ความปลอดภัยเกี่ยวกับไฟฟ้า พ.ศ.2558', category:'กฎกระทรวง (สวัสดิการฯ)', requirementSummary:'มาตรฐานการติดตั้ง ตรวจสอบระบบไฟฟ้า การป้องกันอันตรายจากไฟฟ้า' },
+  { lawName:'กฎกระทรวง ความปลอดภัยในการทำงานในที่อับอากาศ พ.ศ.2562', category:'กฎกระทรวง (สวัสดิการฯ)', requirementSummary:'ขั้นตอนการทำงานในที่อับอากาศ ใบอนุญาต ผู้ควบคุม/ผู้ตรวจสอบ' },
+  { lawName:'กฎกระทรวง กำหนดมาตรฐานในการบริหาร จัดการ และดำเนินการด้านความปลอดภัยฯ เกี่ยวกับรถยก พ.ศ.2554', category:'กฎกระทรวง (สวัสดิการฯ)', requirementSummary:'การตรวจสอบ ใบรับรอง ผู้ขับขี่ Forklift การบำรุงรักษา' },
+  { lawName:'ประกาศกรมสวัสดิการและคุ้มครองแรงงาน เรื่อง หลักเกณฑ์และวิธีการจัดทำแผนบริหารจัดการความปลอดภัยในการทำงาน', category:'ประกาศกรม (แรงงาน)', requirementSummary:'การจัดทำแผนงานความปลอดภัย กำหนดเป้าหมาย ผู้รับผิดชอบ งบประมาณ' },
+  { lawName:'กฎกระทรวง กำหนดมาตรฐานในการบริหารและจัดการด้านความปลอดภัยฯ เกี่ยวกับสารเคมีอันตราย พ.ศ.2556', category:'กฎกระทรวง (สวัสดิการฯ)', requirementSummary:'การจัดทำ SDS การฝึกอบรม การจัดเก็บ การขนส่งสารเคมีอันตราย' },
+  { lawName:'ประกาศกรมสวัสดิการฯ เรื่อง คุณสมบัติ และการฝึกอบรม จป. ระดับต่างๆ', category:'ประกาศกรม (แรงงาน)', requirementSummary:'คุณสมบัติ หลักสูตรฝึกอบรม จป.หัวหน้างาน/บริหาร/วิชาชีพ' },
 ];
 
-async function loadDefaults() {
-  if (!confirm(`โหลดกฎหมายพื้นฐาน ${DEFAULT_LAWS.length} รายการ?\n(รายการที่มีอยู่แล้วจะไม่ถูกลบ)`)) return;
-  let added = 0;
-  for (const law of DEFAULT_LAWS) {
-    const exists = _regs.some(r => r.lawName === law.lawName);
-    if (!exists) { await createLegalRegister(law, _profile.uid); added++; }
-  }
-  _regs = await listLegalRegisters({ lim: 200 });
-  renderView();
-  showToast(`เพิ่ม ${added} รายการแล้ว ✓`, '#16a34a');
+const CSS = `<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Sarabun,sans-serif;background:#f8fafc;color:#0f172a;}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px 60px;}
+.hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:20px 0 14px;}
+.page-title{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.1s;}
+.btn-primary{background:#0f172a;color:#fff;} .btn-primary:hover{background:#1e293b;}
+.btn-ghost{background:#f1f5f9;color:#475569;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-green{background:#16a34a;color:#fff;}   .btn-green:hover{background:#15803d;}
+.btn-red{background:#fee2e2;color:#dc2626;}  .btn-red:hover{background:#fecaca;}
+.btn-sm{padding:4px 10px;font-size:.75rem;}
+/* compliance summary */
+.compliance-bar{background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.pct-ring{position:relative;width:80px;height:80px;flex-shrink:0;}
+.pct-ring svg{transform:rotate(-90deg);}
+.pct-ring .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:900;}
+.stat-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.stat-card{background:#fff;border-radius:10px;padding:10px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);flex:1;min-width:90px;cursor:pointer;transition:.1s;}
+.stat-card:hover{box-shadow:0 3px 8px rgba(0,0,0,.1);}
+.stat-card.active{outline:2px solid #0891b2;}
+.stat-val{font-size:1.4rem;font-weight:900;line-height:1;}
+.stat-label{font-size:.7rem;color:#64748b;margin-top:3px;}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+.filter-row input,.filter-row select{padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.82rem;font-family:Sarabun,sans-serif;background:#fff;}
+.tbl-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
+.tbl{width:100%;border-collapse:collapse;font-size:.83rem;}
+.tbl th{text-align:left;padding:10px 14px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #f1f5f9;}
+.tbl td{padding:10px 14px;border-bottom:1px solid #f8fafc;vertical-align:top;}
+.tbl tr:hover td{background:#f8fafc;}
+.tbl .empty{text-align:center;padding:40px;color:#94a3b8;}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;display:none;}
+.panel{position:fixed;right:0;top:0;height:100dvh;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);z-index:101;display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .25s ease;}
+.panel.open{transform:translateX(0);}
+.panel-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9;flex-shrink:0;}
+.panel-body{flex:1;overflow-y:auto;padding:20px;}
+.panel-ft{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+.fld{display:flex;flex-direction:column;gap:4px;}
+.fld.full{grid-column:1/-1;}
+.lbl{font-size:.75rem;font-weight:700;color:#475569;}
+input,select,textarea{padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;outline:none;color:#0f172a;background:#fff;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:#0891b2;}
+@media print{.no-print{display:none!important;}.print-only{display:block!important;}.overlay,.panel{display:none!important;}body{font-size:9pt;}}
+.print-only{display:none;}
+</style>`;
+
+let _filterStatus = '';
+
+async function loadList() { _rows = await listLegalRegisters({ lim: 300 }); renderList(); }
+
+function renderList() {
+  const mc = document.getElementById('main-content');
+  const applicable = _rows.filter(r => r.complianceStatus !== 'not_applicable');
+  const compliant  = _rows.filter(r => r.complianceStatus === 'compliant').length;
+  const partial    = _rows.filter(r => r.complianceStatus === 'partial').length;
+  const nonComp    = _rows.filter(r => r.complianceStatus === 'non_compliant').length;
+  const review     = _rows.filter(r => r.complianceStatus === 'under_review').length;
+  const pct        = applicable.length ? Math.round(compliant / applicable.length * 100) : null;
+  const overdue    = _rows.filter(r => r.nextReviewDate && r.nextReviewDate < today()).length;
+
+  const r = 36, cx = 40, cy = 40, circ = 2 * Math.PI * r;
+  const fill = pct !== null ? circ * (1 - pct/100) : circ;
+  const pctColor = pct === null ? '#64748b' : pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        ทะเบียนกฎหมายความปลอดภัย
+      </div>
+      <div style="display:flex;gap:8px">
+        ${_rows.length===0?`<button class="btn btn-ghost" onclick="__loadDefaults()">📥 โหลดกฎหมายเริ่มต้น</button>`:''}
+        <button class="btn btn-ghost" onclick="window.print()">🖨 พิมพ์</button>
+        <button class="btn btn-primary" onclick="__openForm()">+ เพิ่มกฎหมาย</button>
+      </div>
+    </div>
+
+    <!-- Compliance summary -->
+    <div class="compliance-bar no-print">
+      <div class="pct-ring">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${pctColor}" stroke-width="8"
+            stroke-dasharray="${circ}" stroke-dashoffset="${fill}" stroke-linecap="round"/>
+        </svg>
+        <div class="num" style="color:${pctColor}">${pct ?? '—'}%</div>
+      </div>
+      <div>
+        <div style="font-size:1rem;font-weight:700">ความสอดคล้องกฎหมาย</div>
+        <div style="font-size:.83rem;color:#64748b;margin-top:2px">${compliant} จาก ${applicable.length} ข้อที่เกี่ยวข้อง</div>
+        ${overdue?`<div style="color:#dc2626;font-size:.8rem;font-weight:700;margin-top:4px">⚠️ ครบกำหนดทบทวน ${overdue} รายการ</div>`:''}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+        ${[['compliant','สอดคล้อง','#16a34a'],['partial','บางส่วน','#d97706'],['non_compliant','ไม่สอดคล้อง','#dc2626'],['under_review','ทบทวน','#7c3aed']].map(([k,l,c])=>{
+          const cnt=_rows.filter(r=>r.complianceStatus===k).length;
+          return `<div style="text-align:center;cursor:pointer" onclick="__setFilter('${k}')"><div style="font-size:1.4rem;font-weight:900;color:${c}">${cnt}</div><div style="font-size:.72rem;color:#64748b">${l}</div></div>`;
+        }).join('<div style="width:1px;background:#e2e8f0"></div>')}
+      </div>
+    </div>
+
+    <div class="stat-bar no-print" style="display:flex;gap:8px;margin-bottom:12px">
+      ${[['','ทั้งหมด',_rows.length,'#0f172a'],['compliant','สอดคล้อง',compliant,'#16a34a'],['partial','บางส่วน',partial,'#d97706'],['non_compliant','ไม่สอดคล้อง',nonComp,'#dc2626'],['under_review','ทบทวน',review,'#7c3aed'],['not_applicable','ไม่เกี่ยวข้อง',_rows.filter(r=>r.complianceStatus==='not_applicable').length,'#94a3b8']].map(([k,l,n,c])=>
+        `<div class="stat-card ${_filterStatus===k?'active':''}" onclick="__setFilter('${k}')"><div class="stat-val" style="color:${c}">${n}</div><div class="stat-label">${l}</div></div>`
+      ).join('')}
+    </div>
+
+    <div class="filter-row no-print">
+      <input id="fSearch" placeholder="🔍 ค้นหากฎหมาย..." oninput="__filterList()" style="min-width:200px">
+      <select id="fCat" onchange="__filterList()"><option value="">ทุกหมวด</option>${LEGAL_CATEGORIES.map(c=>`<option>${c}</option>`).join('')}</select>
+    </div>
+
+    <div class="tbl-card no-print">
+      <table class="tbl"><thead><tr>
+        <th>ชื่อกฎหมาย / ข้อกำหนด</th><th>หมวด</th><th>สรุปข้อกำหนด</th><th>ผู้รับผิดชอบ</th><th>ทบทวนครั้งต่อไป</th><th>สถานะ</th><th></th>
+      </tr></thead>
+      <tbody id="legalBody">${buildRows(_rows)}</tbody></table>
+    </div>
+
+    <!-- Print table -->
+    <div class="print-only">
+      <h2 style="text-align:center;font-size:13pt;margin-bottom:8px">ทะเบียนกฎหมายและข้อกำหนดด้านความปลอดภัย</h2>
+      <p style="text-align:center;font-size:10pt;margin-bottom:10px">ความสอดคล้องรวม ${pct ?? '—'}% (${compliant}/${applicable.length})</p>
+      <table style="width:100%;border-collapse:collapse;font-size:8.5pt">
+        <thead><tr style="background:#f1f5f9">${['#','ชื่อกฎหมาย','หมวด','ผู้รับผิดชอบ','ทบทวน','สถานะ'].map(h=>`<th style="border:1px solid #ccc;padding:5px">${h}</th>`).join('')}</tr></thead>
+        <tbody>${_rows.map((r,i)=>{const s=LEGAL_STATUS[r.complianceStatus]||{label:r.complianceStatus,color:'#64748b'};
+          return `<tr><td style="border:1px solid #ccc;padding:4px;text-align:center">${i+1}</td>
+            <td style="border:1px solid #ccc;padding:4px">${r.lawName||'—'}</td>
+            <td style="border:1px solid #ccc;padding:4px;font-size:7.5pt">${r.category||'—'}</td>
+            <td style="border:1px solid #ccc;padding:4px">${r.responsiblePerson||'—'}</td>
+            <td style="border:1px solid #ccc;padding:4px;color:${r.nextReviewDate&&r.nextReviewDate<today()?'#dc2626':'inherit'}">${r.nextReviewDate||'—'}</td>
+            <td style="border:1px solid #ccc;padding:4px;color:${s.color}">${s.label}</td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="overlay" id="overlay" onclick="__closePanel()"></div>
+  <div class="panel" id="sidePanel"><div id="panelContent" style="display:flex;flex-direction:column;height:100%"></div></div>`;
 }
 
-function closeModal(e) { if (e && e.target!==$('mBg')) return; $('mBg').style.display='none'; }
-function showToast(msg,color='#16a34a'){const el=document.createElement('div');el.style.cssText=`position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3500);}
+function buildRows(rows) {
+  let filtered = rows;
+  if (_filterStatus) filtered = rows.filter(r => r.complianceStatus === _filterStatus);
+  if (!filtered.length) return `<tr><td colspan="7" class="empty">ไม่มีรายการ</td></tr>`;
+  return filtered.map(r => {
+    const s=LEGAL_STATUS[r.complianceStatus]||{label:r.complianceStatus,color:'#64748b',bg:'#f1f5f9'};
+    return `<tr>
+      <td style="font-weight:700;max-width:280px">${r.lawName||'—'}</td>
+      <td style="font-size:.75rem;color:#64748b">${r.category||'—'}</td>
+      <td style="font-size:.78rem;max-width:220px;color:#475569">${(r.requirementSummary||'').slice(0,80)}${(r.requirementSummary||'').length>80?'...':''}</td>
+      <td style="font-size:.78rem">${r.responsiblePerson||'—'}</td>
+      <td style="font-size:.78rem;color:${r.nextReviewDate&&r.nextReviewDate<today()?'#dc2626':'inherit'}">${r.nextReviewDate||'—'}</td>
+      <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="__editRecord('${r.id}')">แก้ไข</button>
+        <button class="btn btn-red btn-sm" onclick="__del('${r.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
 
-window.__openForm=openForm; window.__save=save; window.__del=del;
-window.__closeModal=closeModal; window.__loadDefaults=loadDefaults;
-window.__srch=v=>{_search=v;renderView()};
-window.__fCat=v=>{_filterCat=v;renderView()};
-window.__fSt=v=>{_filterStatus=v;renderView()};
+window.__setFilter = f => {
+  _filterStatus = _filterStatus === f ? '' : f;
+  const tbody = document.getElementById('legalBody');
+  if (tbody) tbody.innerHTML = buildRows(_rows);
+  renderList();
+};
+
+window.__filterList = () => {
+  const search = document.getElementById('fSearch')?.value?.toLowerCase() || '';
+  const cat    = document.getElementById('fCat')?.value || '';
+  let rows = _rows;
+  if (_filterStatus) rows = rows.filter(r => r.complianceStatus === _filterStatus);
+  if (search) rows = rows.filter(r => (r.lawName||'').toLowerCase().includes(search) || (r.requirementSummary||'').toLowerCase().includes(search));
+  if (cat)    rows = rows.filter(r => r.category === cat);
+  const tbody = document.getElementById('legalBody');
+  if (tbody) tbody.innerHTML = buildRows(rows);
+};
+
+window.__loadDefaults = async () => {
+  if (!confirm(`โหลดกฎหมายพื้นฐาน ${DEFAULT_LAWS.length} รายการ?\n(จะไม่ซ้ำกับที่มีอยู่แล้ว)`)) return;
+  const existing = new Set(_rows.map(r => r.lawName));
+  let added = 0;
+  for (const law of DEFAULT_LAWS) {
+    if (!existing.has(law.lawName)) {
+      await createLegalRegister({ ...law, complianceStatus: 'under_review', responsiblePerson: 'จป.วิชาชีพ' }, _profile?.uid);
+      added++;
+    }
+  }
+  alert(`เพิ่มกฎหมาย ${added} รายการ`);
+  await loadList();
+};
+
+function openPanel(html) { document.getElementById('panelContent').innerHTML=html; document.getElementById('sidePanel').classList.add('open'); document.getElementById('overlay').style.display='block'; }
+window.__closePanel = () => { document.getElementById('sidePanel').classList.remove('open'); document.getElementById('overlay').style.display='none'; };
+
+window.__openForm = () => { _editId=null; renderFormPanel(); };
+window.__editRecord = async id => {
+  const rec=_rows.find(r=>r.id===id)||await getLegalRegister(id);
+  if(!rec) return;
+  _editId=id;
+  renderFormPanel(rec);
+};
+
+function renderFormPanel(rec={}) {
+  openPanel(`
+  <div class="panel-hd"><div style="font-weight:700">${_editId?'แก้ไขกฎหมาย':'เพิ่มกฎหมาย/ข้อกำหนด'}</div><button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button></div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="fld full"><label class="lbl">ชื่อกฎหมาย / ข้อกำหนด *</label><textarea id="lName" rows="2">${rec.lawName||''}</textarea></div>
+      <div class="fld full"><label class="lbl">หมวดหมู่</label>
+        <select id="lCat">${LEGAL_CATEGORIES.map(c=>`<option ${rec.category===c?'selected':''}>${c}</option>`).join('')}</select>
+      </div>
+      <div class="fld full"><label class="lbl">สรุปข้อกำหนดที่เกี่ยวข้อง</label><textarea id="lReq" rows="3">${rec.requirementSummary||''}</textarea></div>
+      <div class="fld"><label class="lbl">วันที่ออก/บังคับใช้</label><input type="date" id="lIssue" value="${rec.issueDate||''}"></div>
+      <div class="fld"><label class="lbl">วันที่ทบทวนครั้งต่อไป</label><input type="date" id="lNext" value="${rec.nextReviewDate||''}"></div>
+      <div class="fld"><label class="lbl">ผู้รับผิดชอบ</label><input id="lResponsible" value="${rec.responsiblePerson||''}"></div>
+      <div class="fld"><label class="lbl">สถานะความสอดคล้อง</label>
+        <select id="lStatus">${Object.entries(LEGAL_STATUS).map(([k,v])=>`<option value="${k}" ${(rec.complianceStatus||'under_review')===k?'selected':''}>${v.label}</option>`).join('')}</select>
+      </div>
+      <div class="fld full"><label class="lbl">หมายเหตุ / แผนปรับปรุง</label><textarea id="lNote" rows="2">${rec.notes||''}</textarea></div>
+    </div>
+  </div>
+  <div class="panel-ft">
+    <button class="btn btn-ghost" onclick="__closePanel()">ยกเลิก</button>
+    <button class="btn btn-green" onclick="__saveForm()">💾 บันทึก</button>
+  </div>`);
+}
+
+window.__saveForm = async () => {
+  const name=document.getElementById('lName')?.value?.trim();
+  if(!name) return alert('กรุณาระบุชื่อกฎหมาย');
+  const data={lawName:name,category:document.getElementById('lCat')?.value||'',requirementSummary:document.getElementById('lReq')?.value||'',issueDate:document.getElementById('lIssue')?.value||'',nextReviewDate:document.getElementById('lNext')?.value||'',responsiblePerson:document.getElementById('lResponsible')?.value||'',complianceStatus:document.getElementById('lStatus')?.value||'under_review',notes:document.getElementById('lNote')?.value||''};
+  try{
+    if(_editId) await updateLegalRegister(_editId,data);
+    else await createLegalRegister(data,_profile?.uid);
+    _editId=null; __closePanel(); await loadList();
+  }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
+};
+
+window.__del = async id => {
+  if(!confirm('ลบรายการนี้?')) return;
+  await deleteLegalRegister(id); await loadList();
+};
 
 _profile = await requireRole(['safety_officer','kpo','admin','manager']);
-renderShell(_profile, 'safety-legal', 'กฎหมายความปลอดภัย');
-buildLayout();
-_regs = await listLegalRegisters({ lim: 200 });
-renderView();
+renderShell(_profile,'legal-compliance','กฎหมายความปลอดภัย');
+loadList();
 </script>
 </body>
 </html>
