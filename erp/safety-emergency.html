@@ -3,24 +3,311 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KPO Safety</title>
+  <title>แผนฉุกเฉิน — KPO Safety</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media print {
+      body * { visibility: hidden !important; }
+      #printArea, #printArea * { visibility: visible !important; }
+      #printArea { position:fixed;inset:0;padding:20mm;font-family:Sarabun,sans-serif;font-size:11pt;background:#fff;z-index:9999; }
+      @page { margin:0;size:A4; }
+    }
+  </style>
 </head>
 <body>
 <div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="printArea" style="display:none"></div>
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
-const profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager']);
-renderShell(profile, '', 'KPO Safety');
-const mc = document.getElementById('main-content');
-mc.innerHTML = `<div style="padding:60px 24px;text-align:center;font-family:Sarabun,sans-serif">
-  <div style="font-size:3rem;margin-bottom:16px">🛡️</div>
-  <div style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:8px">หน้านี้อยู่ระหว่างพัฒนา</div>
-  <div style="color:#64748b;font-size:.9rem">จะพร้อมใช้งานใน Phase ถัดไป</div>
-  <div style="margin-top:24px;display:inline-block;padding:8px 20px;background:#f1f5f9;border-radius:20px;font-size:.82rem;color:#64748b">Coming Soon</div>
-  <div style="margin-top:20px"><a href="safety.html" style="color:#1e40af;font-size:.9rem">← กลับ Dashboard</a></div>
-</div>`;
+import {
+  listDrills, getDrill, createDrill, updateDrill, deleteDrill,
+  DRILL_TYPES, DRILL_STATUS, DEPARTMENTS
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _drills = [];
+let _editId = null;
+let _search = '', _filterType = '', _filterStatus = '';
+
+function buildLayout() {
+  document.getElementById('main-content').innerHTML = `
+  <style>
+    .em{padding:0 20px 40px;max-width:1200px;margin:0 auto;}
+    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 14px;}
+    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 11px;font-size:.78rem;}
+    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .sum-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+    .sum-chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;flex:1;min-width:100px;text-align:center;}
+    .sum-chip .val{font-size:1.4rem;font-weight:800;}
+    .sum-chip .lbl{font-size:.72rem;color:#94a3b8;margin-top:2px;}
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+    .filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;}
+    .drill-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+    .drill-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;cursor:pointer;transition:.15s;}
+    .drill-card:hover{border-color:#0891b2;box-shadow:0 2px 8px rgba(8,145,178,.15);}
+    .drill-card-type{font-size:.75rem;font-weight:700;color:#0891b2;margin-bottom:6px;}
+    .drill-card-date{font-size:.78rem;color:#94a3b8;margin-bottom:8px;}
+    .drill-card-title{font-size:.95rem;font-weight:700;color:#0f172a;margin-bottom:6px;}
+    .drill-card-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:#64748b;margin-top:8px;}
+    .drill-card-actions{display:flex;gap:8px;margin-top:12px;}
+    .score-ring{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:50%;font-size:.85rem;font-weight:800;border:2.5px solid;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
+    .modal-panel{background:#fff;height:100dvh;width:min(580px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
+    .modal-head{padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
+    .modal-body{padding:20px;flex:1;}
+    .modal-foot{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
+    .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
+    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    textarea.form-ctrl{resize:vertical;min-height:72px;}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+  </style>
+  <div class="em" id="mainView"></div>
+  <div id="mBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
+    <div class="modal-panel">
+      <div class="modal-head"><div style="font-size:1rem;font-weight:700;color:#0f172a" id="mdTitle">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="__closeModal(null)">✕</button></div>
+      <div class="modal-body" id="mdBody"></div>
+      <div class="modal-foot" id="mdFoot"></div>
+    </div>
+  </div>`;
+}
+
+function renderView() {
+  const filtered = _drills.filter(d => {
+    if (_filterType && d.drillType !== _filterType) return false;
+    if (_filterStatus && d.status !== _filterStatus) return false;
+    if (_search && !JSON.stringify(d).toLowerCase().includes(_search.toLowerCase())) return false;
+    return true;
+  });
+  const done = _drills.filter(d => d.status === 'completed');
+  const avgEvac = done.filter(d=>d.evacTimeSec).reduce((s,d,_,a)=>s+d.evacTimeSec/a.length,0);
+
+  $('mainView').innerHTML = `
+  <div class="page-header">
+    <div class="page-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      แผนฉุกเฉิน / ซ้อมแผนอพยพ
+    </div>
+    <button class="btn btn-primary" onclick="__openForm(null)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      บันทึกการซ้อมแผน
+    </button>
+  </div>
+
+  <div class="sum-bar">
+    <div class="sum-chip"><div class="val">${_drills.length}</div><div class="lbl">รายการทั้งหมด</div></div>
+    <div class="sum-chip"><div class="val" style="color:#16a34a">${done.length}</div><div class="lbl">เสร็จแล้ว</div></div>
+    <div class="sum-chip"><div class="val" style="color:#2563eb">${_drills.filter(d=>d.status==='planned').length}</div><div class="lbl">วางแผนไว้</div></div>
+    <div class="sum-chip"><div class="val" style="color:#0891b2">${avgEvac>0?Math.round(avgEvac/60)+'min':'—'}</div><div class="lbl">เวลาอพยพเฉลี่ย</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" placeholder="ค้นหา..." oninput="__srch(this.value)" style="min-width:180px">
+    <select onchange="__fType(this.value)">
+      <option value="">ทุกประเภท</option>
+      ${DRILL_TYPES.map(t=>`<option value="${t.key}" ${_filterType===t.key?'selected':''}>${t.label}</option>`).join('')}
+    </select>
+    <select onchange="__fSt(this.value)">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(DRILL_STATUS).map(([k,v])=>`<option value="${k}" ${_filterStatus===k?'selected':''}>${v.label}</option>`).join('')}
+    </select>
+  </div>
+
+  ${filtered.length === 0
+    ? `<div class="empty-state"><div style="font-size:2.5rem">🚨</div><div style="margin-top:8px">ยังไม่มีบันทึกการซ้อมแผน</div></div>`
+    : `<div class="drill-grid">
+    ${filtered.map(d => {
+      const s = DRILL_STATUS[d.status] || DRILL_STATUS.planned;
+      const typeLabel = DRILL_TYPES.find(t=>t.key===d.drillType)?.label || '—';
+      const score = d.overallScore;
+      const scoreColor = score>=80?'#16a34a':score>=60?'#d97706':'#dc2626';
+      return `<div class="drill-card" onclick="__openForm('${d.id}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between">
+          <div style="flex:1">
+            <div class="drill-card-type">${typeLabel}</div>
+            <div class="drill-card-date">📅 ${d.drillDate||'—'}</div>
+            <div class="drill-card-title">${d.title||typeLabel}</div>
+          </div>
+          ${score ? `<div class="score-ring" style="color:${scoreColor};border-color:${scoreColor}">${score}</div>` : ''}
+        </div>
+        <div style="margin-top:6px"><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></div>
+        <div class="drill-card-meta">
+          ${d.participants?`<span>👥 ${d.participants} คน</span>`:''}
+          ${d.evacTimeSec?`<span>⏱ ${Math.floor(d.evacTimeSec/60)}:${String(d.evacTimeSec%60).padStart(2,'0')} min</span>`:''}
+          ${d.location?`<span>📍 ${d.location}</span>`:''}
+        </div>
+        <div class="drill-card-actions">
+          ${d.status==='completed'?`<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();__printDrill('${d.id}')">🖨 พิมพ์</button>`:''}
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();__del('${d.id}')">ลบ</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`}`;
+}
+
+async function openForm(id) {
+  _editId = id;
+  let d = id ? (_drills.find(x=>x.id===id) || await getDrill(id)) : null;
+  $('mdTitle').textContent = id ? 'แก้ไขบันทึกการซ้อม' : 'บันทึกการซ้อมแผนฉุกเฉิน';
+  $('mdBody').innerHTML = `
+  <div class="form-group">
+    <label class="form-label">ชื่อ/หัวข้อการซ้อม <span class="req">*</span></label>
+    <input type="text" class="form-ctrl" id="fTitle" value="${d?.title||''}" placeholder="เช่น ซ้อมอพยพหนีไฟ ประจำปี 2568">
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label class="form-label">ประเภท <span class="req">*</span></label>
+      <select class="form-ctrl" id="fType">
+        ${DRILL_TYPES.map(t=>`<option value="${t.key}" ${d?.drillType===t.key?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานะ</label>
+      <select class="form-ctrl" id="fSt">
+        ${Object.entries(DRILL_STATUS).map(([k,v])=>`<option value="${k}" ${(d?.status||'planned')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันที่ซ้อม <span class="req">*</span></label>
+      <input type="date" class="form-ctrl" id="fDate" value="${d?.drillDate||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">เวลาเริ่ม</label>
+      <input type="time" class="form-ctrl" id="fTime" value="${d?.startTime||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานที่</label>
+      <input type="text" class="form-ctrl" id="fLoc" value="${d?.location||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">จำนวนผู้เข้าร่วม (คน)</label>
+      <input type="number" class="form-ctrl" id="fPart" value="${d?.participants||''}" min="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">เวลาอพยพ (วินาที)</label>
+      <input type="number" class="form-ctrl" id="fEvac" value="${d?.evacTimeSec||''}" min="0" placeholder="เช่น 180">
+    </div>
+    <div class="form-group">
+      <label class="form-label">คะแนนภาพรวม (0-100)</label>
+      <input type="number" class="form-ctrl" id="fScore" value="${d?.overallScore||''}" min="0" max="100">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้ควบคุมการซ้อม</label>
+      <input type="text" class="form-ctrl" id="fController" value="${d?.controller||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้สังเกตการณ์</label>
+      <input type="text" class="form-ctrl" id="fObserver" value="${d?.observer||''}">
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สิ่งที่ทำได้ดี (ข้อแข็ง)</label>
+    <textarea class="form-ctrl" id="fStrength">${d?.strengths||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">จุดที่ต้องปรับปรุง</label>
+    <textarea class="form-ctrl" id="fImprove">${d?.improvements||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">มาตรการแก้ไข / Follow-up</label>
+    <textarea class="form-ctrl" id="fAction">${d?.actionItems||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หมายเหตุ</label>
+    <textarea class="form-ctrl" id="fNote" style="min-height:56px">${d?.note||''}</textarea>
+  </div>`;
+  $('mdFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
+    ${id?`<button class="btn btn-danger btn-sm" onclick="__del('${id}')">ลบ</button>`:''}
+    <button class="btn btn-primary" id="mdSave" onclick="__save()">${id?'บันทึกการแก้ไข':'บันทึก'}</button>`;
+  $('mBg').style.display = 'flex';
+}
+
+async function save() {
+  const title = $('fTitle')?.value?.trim();
+  const date  = $('fDate')?.value;
+  if (!title || !date) { showToast('กรุณาระบุชื่อและวันที่', '#dc2626'); return; }
+  const data = {
+    title, drillType: $('fType')?.value, status: $('fSt')?.value||'planned',
+    drillDate: date, startTime: $('fTime')?.value||'',
+    location: $('fLoc')?.value?.trim()||'',
+    participants: +($('fPart')?.value||0)||null,
+    evacTimeSec: +($('fEvac')?.value||0)||null,
+    overallScore: +($('fScore')?.value||0)||null,
+    controller: $('fController')?.value?.trim()||'',
+    observer: $('fObserver')?.value?.trim()||'',
+    strengths:    $('fStrength')?.value?.trim()||'',
+    improvements: $('fImprove')?.value?.trim()||'',
+    actionItems:  $('fAction')?.value?.trim()||'',
+    note: $('fNote')?.value?.trim()||'',
+  };
+  const btn = $('mdSave'); btn.disabled=true; btn.textContent='กำลังบันทึก...';
+  try {
+    if (_editId) await updateDrill(_editId, data);
+    else await createDrill(data, _profile.uid);
+    _drills = await listDrills({ lim: 100 });
+    closeModal(null); renderView();
+    showToast('บันทึกแล้ว ✓', '#16a34a');
+  } catch(e) { btn.disabled=false; btn.textContent=_editId?'บันทึกการแก้ไข':'บันทึก'; showToast(e.message,'#dc2626'); }
+}
+
+async function del(id) {
+  if (!confirm('ลบบันทึกนี้?')) return;
+  await deleteDrill(id);
+  _drills = await listDrills({ lim: 100 });
+  closeModal(null); renderView();
+  showToast('ลบแล้ว','#0891b2');
+}
+
+async function printDrill(id) {
+  const d = _drills.find(x=>x.id===id) || await getDrill(id);
+  if (!d) return;
+  const typeLabel = DRILL_TYPES.find(t=>t.key===d.drillType)?.label||'—';
+  const pa = $('printArea');
+  pa.style.display='block';
+  pa.innerHTML=`
+  <div style="text-align:center;margin-bottom:18pt">
+    <div style="font-size:15pt;font-weight:700">รายงานผลการซ้อมแผนฉุกเฉิน</div>
+    <div style="font-size:11pt;margin-top:4pt">${d.title||typeLabel}</div>
+  </div>
+  <table style="border-collapse:collapse;width:100%;margin-bottom:14pt">
+    ${[['ประเภท',typeLabel],['วันที่',d.drillDate||'—'],['เวลาเริ่ม',d.startTime||'—'],['สถานที่',d.location||'—'],['จำนวนผู้เข้าร่วม',(d.participants||'—')+' คน'],['เวลาอพยพ',d.evacTimeSec?Math.floor(d.evacTimeSec/60)+':'+String(d.evacTimeSec%60).padStart(2,'0')+' นาที':'—'],['คะแนนภาพรวม',(d.overallScore||'—')+(d.overallScore?'/100':'')],['ผู้ควบคุม',d.controller||'—']].map(([k,v])=>`<tr><td style="border:1px solid #999;padding:5pt 8pt;font-weight:600;width:35%">${k}</td><td style="border:1px solid #999;padding:5pt 8pt">${v}</td></tr>`).join('')}
+  </table>
+  ${d.strengths?`<div style="margin-bottom:10pt"><div style="font-weight:700;border-bottom:1.5pt solid #000;padding-bottom:3pt;margin-bottom:6pt">จุดแข็ง / สิ่งที่ทำได้ดี</div><div>${d.strengths}</div></div>`:''}
+  ${d.improvements?`<div style="margin-bottom:10pt"><div style="font-weight:700;border-bottom:1.5pt solid #000;padding-bottom:3pt;margin-bottom:6pt">จุดที่ต้องปรับปรุง</div><div>${d.improvements}</div></div>`:''}
+  ${d.actionItems?`<div style="margin-bottom:10pt"><div style="font-weight:700;border-bottom:1.5pt solid #000;padding-bottom:3pt;margin-bottom:6pt">มาตรการแก้ไข / Follow-up</div><div>${d.actionItems}</div></div>`:''}
+  <div style="display:flex;justify-content:space-around;margin-top:36pt">
+    ${['ผู้ควบคุมการซ้อม','ผู้สังเกตการณ์','จป.วิชาชีพ'].map(n=>`<div style="text-align:center;min-width:120pt"><div style="border-top:1pt solid #666;margin-top:36pt;padding-top:4pt;font-size:10pt">(............................)<br>${n}</div></div>`).join('')}
+  </div>`;
+  window.print();
+  setTimeout(()=>{pa.style.display='none';pa.innerHTML='';},1000);
+}
+
+function closeModal(e) { if (e && e.target!==$('mBg')) return; $('mBg').style.display='none'; }
+function showToast(msg,color='#16a34a'){const el=document.createElement('div');el.style.cssText=`position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;el.textContent=msg;document.body.appendChild(el);setTimeout(()=>el.remove(),3500);}
+
+window.__openForm=openForm; window.__save=save; window.__del=del; window.__closeModal=closeModal;
+window.__printDrill=printDrill;
+window.__srch=v=>{_search=v;renderView()};
+window.__fType=v=>{_filterType=v;renderView()};
+window.__fSt=v=>{_filterStatus=v;renderView()};
+
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-emergency', 'แผนฉุกเฉิน');
+buildLayout();
+_drills = await listDrills({ lim: 100 });
+renderView();
 </script>
 </body>
 </html>

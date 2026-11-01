@@ -534,3 +534,172 @@ export async function createMeeting(data, createdBy) {
 export async function updateMeeting(id, data) {
   await updateDoc(doc(db, COL.meetings, id), { ...data, updatedAt: serverTimestamp() });
 }
+
+// ────────────────────────────────────────────
+// Safety Training
+// ────────────────────────────────────────────
+export const TRAINING_STATUS = {
+  planned:   { label: 'วางแผนแล้ว', color: '#2563eb', bg: '#eff6ff' },
+  completed: { label: 'เสร็จแล้ว',  color: '#16a34a', bg: '#dcfce7' },
+  cancelled: { label: 'ยกเลิก',    color: '#dc2626', bg: '#fee2e2' },
+};
+
+export const TRAINING_TYPES = [
+  { key: 'new_employee',   label: 'ปฐมนิเทศความปลอดภัย (พนักงานใหม่)' },
+  { key: 'refresher',      label: 'ทบทวนความปลอดภัยประจำปี' },
+  { key: 'fire',           label: 'การป้องกันและระงับอัคคีภัย' },
+  { key: 'first_aid',      label: 'การปฐมพยาบาลเบื้องต้น' },
+  { key: 'forklift',       label: 'ความปลอดภัยในการใช้ Forklift' },
+  { key: 'chemical',       label: 'การจัดการสารเคมีอันตราย' },
+  { key: 'emergency',      label: 'แผนฉุกเฉินและการอพยพ' },
+  { key: 'kpo_law',        label: 'กฎหมายความปลอดภัย (คปอ.)' },
+  { key: 'other',          label: 'อื่นๆ' },
+];
+
+export async function listTrainings({ lim = 100 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.training), orderBy('trainingDate', 'desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getTraining(id) {
+  const snap = await getDoc(doc(db, COL.training, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createTraining(data, createdBy) {
+  return addDoc(collection(db, COL.training), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateTraining(id, data) {
+  await updateDoc(doc(db, COL.training, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteTraining(id) {
+  await deleteDoc(doc(db, COL.training, id));
+}
+
+// ────────────────────────────────────────────
+// Safety Equipment
+// ────────────────────────────────────────────
+export const EQUIPMENT_CATEGORIES = [
+  'PPE — หัวใจ (หมวก)', 'PPE — ตา/หน้า (แว่น/หน้ากาก)', 'PPE — ระบบหายใจ',
+  'PPE — มือ (ถุงมือ)', 'PPE — เท้า (รองเท้า)', 'PPE — ร่างกาย (ชุด)',
+  'PPE — ที่สูง (Safety Harness)', 'อุปกรณ์ดับเพลิง', 'อุปกรณ์ปฐมพยาบาล',
+  'อุปกรณ์ฉุกเฉิน', 'อื่นๆ',
+];
+
+export const EQUIP_STATUS = {
+  active:   { label: 'ใช้งานได้', color: '#16a34a', bg: '#dcfce7' },
+  inspect:  { label: 'รอตรวจสอบ', color: '#d97706', bg: '#fef3c7' },
+  repair:   { label: 'ส่งซ่อม',   color: '#dc2626', bg: '#fee2e2' },
+  retired:  { label: 'ปลดระวาง',  color: '#6b7280', bg: '#f9fafb' },
+};
+
+export async function listEquipments({ lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.equipment), orderBy('createdAt', 'desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getEquipment(id) {
+  const snap = await getDoc(doc(db, COL.equipment, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createEquipment(data, createdBy) {
+  return addDoc(collection(db, COL.equipment), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateEquipment(id, data) {
+  await updateDoc(doc(db, COL.equipment, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteEquipment(id) {
+  await deleteDoc(doc(db, COL.equipment, id));
+}
+
+// ────────────────────────────────────────────
+// Emergency Drills
+// ────────────────────────────────────────────
+export const DRILL_TYPES = [
+  { key: 'fire',         label: 'ซ้อมดับเพลิง / อพยพหนีไฟ' },
+  { key: 'chemical',     label: 'ซ้อมรับมือสารเคมีรั่วไหล' },
+  { key: 'earthquake',   label: 'ซ้อมรับมือแผ่นดินไหว' },
+  { key: 'medical',      label: 'ซ้อมปฐมพยาบาลฉุกเฉิน' },
+  { key: 'full_scale',   label: 'ซ้อมแผนฉุกเฉินเต็มรูปแบบ' },
+  { key: 'tabletop',     label: 'Tabletop Exercise' },
+  { key: 'other',        label: 'อื่นๆ' },
+];
+
+export const DRILL_STATUS = {
+  planned:   { label: 'วางแผนแล้ว', color: '#2563eb', bg: '#eff6ff' },
+  completed: { label: 'เสร็จแล้ว',  color: '#16a34a', bg: '#dcfce7' },
+  cancelled: { label: 'ยกเลิก',    color: '#dc2626', bg: '#fee2e2' },
+};
+
+export async function listDrills({ lim = 100 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.drills), orderBy('drillDate', 'desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getDrill(id) {
+  const snap = await getDoc(doc(db, COL.drills, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createDrill(data, createdBy) {
+  return addDoc(collection(db, COL.drills), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateDrill(id, data) {
+  await updateDoc(doc(db, COL.drills, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteDrill(id) {
+  await deleteDoc(doc(db, COL.drills, id));
+}
+
+// ────────────────────────────────────────────
+// Legal Register
+// ────────────────────────────────────────────
+export const LEGAL_CATEGORIES = [
+  'พ.ร.บ. ความปลอดภัยฯ พ.ศ.2554', 'กฎกระทรวง (สวัสดิการฯ)', 'ประกาศกรม (แรงงาน)',
+  'มาตรฐาน มอก./ISO', 'ข้อบัญญัติท้องถิ่น', 'อื่นๆ',
+];
+
+export const LEGAL_STATUS = {
+  compliant:      { label: 'สอดคล้อง',     color: '#16a34a', bg: '#dcfce7' },
+  partial:        { label: 'สอดคล้องบางส่วน', color: '#d97706', bg: '#fef3c7' },
+  non_compliant:  { label: 'ไม่สอดคล้อง',  color: '#dc2626', bg: '#fee2e2' },
+  not_applicable: { label: 'ไม่เกี่ยวข้อง', color: '#6b7280', bg: '#f9fafb' },
+  under_review:   { label: 'กำลังทบทวน',   color: '#7c3aed', bg: '#f5f3ff' },
+};
+
+export async function listLegalRegisters({ lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.legal), orderBy('createdAt', 'desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getLegalRegister(id) {
+  const snap = await getDoc(doc(db, COL.legal, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createLegalRegister(data, createdBy) {
+  return addDoc(collection(db, COL.legal), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateLegalRegister(id, data) {
+  await updateDoc(doc(db, COL.legal, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteLegalRegister(id) {
+  await deleteDoc(doc(db, COL.legal, id));
+}
