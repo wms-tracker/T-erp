@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สอบสวนอุบัติเหตุ — KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media print {
+      body * { visibility: hidden !important; }
+      #printArea, #printArea * { visibility: visible !important; }
+      #printArea {
+        position: fixed; inset: 0; padding: 16mm 14mm;
+        font-family: Sarabun, sans-serif; font-size: 10pt; color: #000; background: #fff; z-index: 9999;
+      }
+      .pt { text-align: center; font-size: 14pt; font-weight: 900; margin-bottom: 3pt; }
+      .ps { text-align: center; font-size: 10pt; margin-bottom: 12pt; border-bottom: 2pt solid #000; padding-bottom: 6pt; }
+      .prow  { display: flex; gap: 16pt; margin: 4pt 0; }
+      .pfield{ flex: 1; }
+      .plbl  { font-size: 8.5pt; font-weight: 800; }
+      .pval  { border-bottom: .5pt solid #aaa; min-height: 14pt; padding: 1pt 0; font-size: 9.5pt; }
+      .psec  { margin-top: 9pt; }
+      .psec-title{ font-size: 10.5pt; font-weight: 800; background: #e8e8e8; padding: 3pt 6pt; margin-bottom: 5pt; }
+      .ptable{ border-collapse: collapse; width: 100%; font-size: 9pt; margin-bottom: 5pt; }
+      .ptable th, .ptable td { border: 1pt solid #999; padding: 3pt 5pt; }
+      .ptable th { background: #f0f0f0; font-weight: 700; text-align: center; }
+      .p4m   { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; margin-bottom: 6pt; }
+      .p4mbox{ border: 1pt solid #bbb; border-radius: 3pt; padding: 4pt 6pt; }
+      .p4mtitle{ font-size: 9pt; font-weight: 800; margin-bottom: 2pt; }
+      .p4mval  { font-size: 9pt; min-height: 18pt; }
+      .psign-row { display: flex; justify-content: space-around; margin-top: 28pt; }
+      .psign-blk { text-align: center; min-width: 100pt; }
+      .psign-line{ border-top: 1pt solid #666; margin-top: 30pt; padding-top: 4pt; font-size: 8.5pt; }
+      @page { margin: 0; size: A4; }
+    }
+  </style>
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="printArea" style="display:none"></div>
+
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listInvestigations, getInvestigation, createInvestigation,
+  updateInvestigation, deleteInvestigation,
+  listIncidents, getIncident,
+  createCapa,
+  INVEST_STATUS, ROOT_CAUSE_4M1E, IMMEDIATE_CAUSE_TYPES, INCIDENT_TYPES, DEPARTMENTS,
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _items = [], _incidents = [], _view = 'list', _editId = null;
+
+// ── state arrays for form ─────────────────────────────────────────────────
+let _timeline  = [];  // [{time, event, location, person}]
+let _witnesses = [];  // [{name, dept, statement}]
+let _whys      = [];  // [{why, answer}]
+let _corrective = []; // [{action, responsible, dueDate}]
+let _preventive = []; // [{action, responsible, dueDate}]
+
+// ── load ──────────────────────────────────────────────────────────────────
+async function loadData() {
+  [_items, _incidents] = await Promise.all([
+    listInvestigations({ lim: 300 }),
+    listIncidents({ lim: 200 }),
+  ]);
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────
+function statusBadge(s) {
+  const p = INVEST_STATUS[s] || { label: s, color: '#94a3b8' };
+  return `<span style="background:${p.color}22;color:${p.color};border:1px solid ${p.color}44;border-radius:10px;padding:2px 9px;font-size:.72rem;font-weight:700">${p.label}</span>`;
+}
+function incidentLabel(id) {
+  const inc = _incidents.find(i => i.id === id);
+  if (!inc) return id || '—';
+  return `${inc.incidentId||inc.id.slice(0,8)} — ${inc.incidentDate||''} ${(inc.workDescription||inc.location||'').slice(0,30)}`;
+}
+const TODAY = () => new Date().toISOString().split('T')[0];
+
+// ── render shell ──────────────────────────────────────────────────────────
+function renderContent() {
+  $('main-content').innerHTML = `
+  <style>
+    .iw{padding:0 20px 60px;max-width:1200px;margin:0 auto;}
+    .ph{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:18px 0 12px;}
+    .ph-title{font-size:1.15rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 10px;font-size:.78rem;}
+    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fecaca;}
+    .btn-success{background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0;}
+    /* List */
+    .inv-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .inv-table th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .inv-table td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    .inv-table tr:hover td{background:#f8fafc;}
+    /* Form fullpage */
+    .form-page{background:#fff;border-radius:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;}
+    .form-section{padding:20px 24px;border-bottom:1px solid #f1f5f9;}
+    .form-section:last-child{border-bottom:none;}
+    .sec-title{font-size:.9rem;font-weight:800;color:#0f172a;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+    .sec-num{width:24px;height:24px;border-radius:50%;background:#0891b2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;flex-shrink:0;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;}
+    @media(max-width:700px){.form-row{grid-template-columns:1fr;}}
+    .form-row.full{grid-template-columns:1fr;}
+    .form-row.three{grid-template-columns:1fr 1fr 1fr;}
+    @media(max-width:600px){.form-row.three{grid-template-columns:1fr 1fr;}}
+    .form-group{display:flex;flex-direction:column;gap:4px;}
+    .form-label{font-size:.78rem;font-weight:700;color:#374151;}
+    .form-label span{color:#dc2626;}
+    .form-input{padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;transition:.15s;}
+    .form-input:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    /* Dynamic rows */
+    .dyn-row{display:flex;gap:8px;align-items:flex-start;margin-bottom:8px;background:#f8fafc;border-radius:8px;padding:8px 10px;}
+    .dyn-row input,.dyn-row textarea,.dyn-row select{flex:1;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-family:Sarabun,sans-serif;font-size:.82rem;background:#fff;}
+    .dyn-row textarea{resize:none;height:50px;}
+    /* 4M1E */
+    .m4-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+    @media(max-width:600px){.m4-grid{grid-template-columns:1fr;}}
+    .m4-card{border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;}
+    .m4-title{font-size:.8rem;font-weight:800;color:#0f172a;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+    /* 5-Whys */
+    .why-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;}
+    .why-num{width:28px;height:28px;border-radius:50%;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;flex-shrink:0;margin-top:6px;}
+    .why-row .why-half{display:flex;flex-direction:column;gap:4px;flex:1;}
+    .why-row input{width:100%;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;}
+    /* Actions table */
+    .act-row{display:grid;grid-template-columns:3fr 2fr 1.5fr auto;gap:8px;align-items:center;margin-bottom:6px;}
+    @media(max-width:600px){.act-row{grid-template-columns:1fr;}}
+    .act-row input{padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-family:Sarabun,sans-serif;font-size:.82rem;}
+    /* Detail */
+    .detail-section{background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+    .ds-title{font-size:.85rem;font-weight:800;color:#0f172a;margin-bottom:12px;border-bottom:1px solid #f1f5f9;padding-bottom:6px;}
+    .ds-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.83rem;}
+    @media(max-width:600px){.ds-grid{grid-template-columns:1fr;}}
+    .ds-field{display:flex;flex-direction:column;gap:2px;}
+    .ds-label{font-size:.72rem;font-weight:700;color:#64748b;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    .sticky-actions{position:sticky;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:14px 24px;display:flex;gap:8px;flex-wrap:wrap;z-index:10;}
+  </style>
+
+  <div class="iw">
+    <div class="ph">
+      <div class="ph-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></svg>
+        สอบสวนอุบัติเหตุ (Accident Investigation)
+      </div>
+      ${_view === 'list' ? `<button class="btn btn-primary" onclick="__openCreate()">+ สร้างรายงานสอบสวน</button>` :
+        `<button class="btn btn-ghost" onclick="__setView('list')">← รายการ</button>`}
+    </div>
+    <div id="pageContent"></div>
+  </div>`;
+
+  renderPage();
+}
+
+// ── router ────────────────────────────────────────────────────────────────
+function renderPage() {
+  if (_view === 'list')   renderList();
+  else if (_view === 'form')   renderFormPage();
+  else if (_view === 'detail') renderDetailPage();
+}
+
+// ── list ──────────────────────────────────────────────────────────────────
+function renderList() {
+  const pc = $('pageContent');
+  if (!pc) return;
+  // Summary chips
+  const byStatus = {};
+  for (const st of Object.keys(INVEST_STATUS)) byStatus[st] = _items.filter(i => i.status === st).length;
+
+  if (_items.length === 0) {
+    pc.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:40px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07);color:#94a3b8">
+      🔍 ยังไม่มีรายงานสอบสวน<br><small style="font-size:.82rem">คลิก "+ สร้างรายงานสอบสวน" เพื่อเริ่มต้น</small>
+    </div>`;
+    return;
+  }
+
+  pc.innerHTML = `
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+    ${Object.entries(INVEST_STATUS).map(([k,v])=>`
+    <div style="background:#fff;border-radius:10px;padding:10px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);text-align:center;min-width:80px">
+      <div style="font-size:1.5rem;font-weight:900;color:${v.color}">${byStatus[k]||0}</div>
+      <div style="font-size:.68rem;color:#64748b;font-weight:600">${v.label}</div>
+    </div>`).join('')}
+  </div>
+  <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.07)">
+  <div style="overflow-x:auto">
+  <table class="inv-table">
+    <thead><tr>
+      <th>เลขที่อุบัติเหตุ</th><th>วันที่สอบสวน</th><th>ผู้สอบสวน</th>
+      <th>ความเสียหาย</th><th>สถานะ</th><th></th>
+    </tr></thead>
+    <tbody>
+    ${_items.map(r => {
+      const inc = _incidents.find(i => i.id === r.incidentId);
+      return `<tr>
+        <td>
+          <div style="font-weight:700;color:#0891b2">${inc?.incidentId || r.incidentId?.slice(0,8) || '—'}</div>
+          <div style="font-size:.72rem;color:#64748b">${inc?.incidentDate||''} ${inc?.location||''}</div>
+        </td>
+        <td style="color:#64748b">${r.investigationDate||'—'}</td>
+        <td>${r.investigatedBy||'—'}</td>
+        <td style="font-size:.78rem">
+          ${r.workdaysLost ? `<span style="color:#dc2626;font-weight:700">${r.workdaysLost} วันหยุดงาน</span>` : '—'}
+          ${r.estimatedLoss ? `<br><span style="color:#d97706;font-size:.72rem">฿${Number(r.estimatedLoss).toLocaleString()}</span>` : ''}
+        </td>
+        <td>${statusBadge(r.status)}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="__openDetail('${r.id}')">ดู</button>
+          <button class="btn btn-ghost btn-sm" onclick="__openEdit('${r.id}')">✏️</button>
+          <button class="btn btn-ghost btn-sm" onclick="__printInv('${r.id}')">🖨</button>
+          <button class="btn btn-danger btn-sm" onclick="__deleteInv('${r.id}')">🗑</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div></div>`;
+}
+
+// ── form page (fullpage, not panel) ──────────────────────────────────────
+async function openCreate() {
+  _editId = null;
+  _timeline  = [{ time:'', event:'', location:'', person:'' }];
+  _witnesses = [];
+  _whys      = [{ why:'', answer:'' }, { why:'', answer:'' }, { why:'', answer:'' }];
+  _corrective = [{ action:'', responsible:'', dueDate:'' }];
+  _preventive = [{ action:'', responsible:'', dueDate:'' }];
+  _view = 'form';
+  renderContent();
+}
+async function openEdit(id) {
+  _editId = id;
+  const r = _items.find(i => i.id === id) || await getInvestigation(id);
+  _timeline  = r.timeline?.length  ? [...r.timeline]  : [{ time:'', event:'', location:'', person:'' }];
+  _witnesses = r.witnesses?.length ? [...r.witnesses] : [];
+  _whys      = r.fiveWhys?.length  ? [...r.fiveWhys]  : [{ why:'', answer:'' }];
+  _corrective = r.correctiveActions?.length ? [...r.correctiveActions] : [{ action:'', responsible:'', dueDate:'' }];
+  _preventive = r.preventiveActions?.length ? [...r.preventiveActions] : [{ action:'', responsible:'', dueDate:'' }];
+  _view = 'form';
+  renderContent();
+  // prefill
+  setTimeout(() => prefillForm(r), 50);
+}
+
+function prefillForm(r) {
+  if ($('fIncidentId')) $('fIncidentId').value = r.incidentId||'';
+  if ($('fDate'))       $('fDate').value = r.investigationDate||'';
+  if ($('fInvestigator')) $('fInvestigator').value = r.investigatedBy||'';
+  if ($('fTeam'))       $('fTeam').value = r.investigators?.join(', ')||'';
+  if ($('fSummary'))    $('fSummary').value = r.incidentSummary||'';
+  if ($('fDaysLost'))   $('fDaysLost').value = r.workdaysLost||'';
+  if ($('fLoss'))       $('fLoss').value = r.estimatedLoss||'';
+  if ($('fImmediateDesc')) $('fImmediateDesc').value = r.immediateDescription||'';
+  for (const t of IMMEDIATE_CAUSE_TYPES) {
+    const el = document.getElementById(`ic_${t.replace(/[^a-zA-Z0-9]/g,'_')}`);
+    if (el && r.immediateCauses?.includes(t)) el.checked = true;
+  }
+  for (const m of ROOT_CAUSE_4M1E) {
+    const el = $(`m4_${m.key}`);
+    if (el) el.value = r.rootCauses?.[m.key]||'';
+  }
+  if ($('fRcSummary'))  $('fRcSummary').value = r.rootCauseSummary||'';
+  if ($('fRecommend'))  $('fRecommend').value = r.recommendations||'';
+  if ($('fStatus'))     $('fStatus').value = r.status||'draft';
+}
+
+function renderFormPage() {
+  const incidentOptions = _incidents.map(i =>
+    `<option value="${i.id}">${i.incidentId||i.id.slice(0,8)} — ${i.incidentDate||''} (${i.location||'ไม่ระบุ'})</option>`).join('');
+
+  $('pageContent').innerHTML = `
+  <div class="form-page">
+
+    <!-- Section 1: Basic info -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">1</div>ข้อมูลทั่วไป</div>
+      <div class="form-row full"><div class="form-group">
+        <label class="form-label">เชื่อมโยงกับอุบัติเหตุ <span>*</span></label>
+        <select class="form-input" id="fIncidentId">
+          <option value="">— เลือกอุบัติเหตุที่สอบสวน —</option>
+          ${incidentOptions}
+        </select>
+      </div></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">วันที่สอบสวน <span>*</span></label>
+          <input type="date" class="form-input" id="fDate" value="${TODAY()}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">ผู้สอบสวนหลัก (จป.) <span>*</span></label>
+          <input class="form-input" id="fInvestigator" placeholder="ชื่อ-นามสกุล">
+        </div>
+      </div>
+      <div class="form-row full"><div class="form-group">
+        <label class="form-label">คณะกรรมการสอบสวน (คั่นด้วยจุลภาค)</label>
+        <input class="form-input" id="fTeam" placeholder="ชื่อ 1, ชื่อ 2, ชื่อ 3 ...">
+      </div></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">จำนวนวันหยุดงาน (LTI)</label>
+          <input type="number" class="form-input" id="fDaysLost" min="0" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">มูลค่าความเสียหาย (บาท)</label>
+          <input type="number" class="form-input" id="fLoss" min="0" placeholder="0">
+        </div>
+      </div>
+      <div class="form-row full"><div class="form-group">
+        <label class="form-label">สรุปเหตุการณ์</label>
+        <textarea class="form-input" id="fSummary" rows="3" placeholder="อธิบายสิ่งที่เกิดขึ้นโดยย่อ..."></textarea>
+      </div></div>
+    </div>
+
+    <!-- Section 2: Timeline -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">2</div>ลำดับเหตุการณ์ (Timeline)</div>
+      <div id="timelineList">${_timeline.map((t,i) => timelineRow(t,i)).join('')}</div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="__addTimeline()">+ เพิ่มเหตุการณ์</button>
+    </div>
+
+    <!-- Section 3: Witnesses -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">3</div>พยานและผู้ให้ข้อมูล</div>
+      <div id="witnessList">${_witnesses.map((w,i) => witnessRow(w,i)).join('')}</div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="__addWitness()">+ เพิ่มพยาน</button>
+    </div>
+
+    <!-- Section 4: Immediate causes -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">4</div>สาเหตุโดยตรง (Immediate Causes)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+        ${IMMEDIATE_CAUSE_TYPES.map(t => {
+          const id = `ic_${t.replace(/[^a-zA-Z0-9]/g,'_')}`;
+          return `<label style="display:flex;align-items:center;gap:6px;padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:.8rem">
+            <input type="checkbox" id="${id}" style="accent-color:#dc2626"> ${t}</label>`;
+        }).join('')}
+      </div>
+      <div class="form-row full"><div class="form-group">
+        <label class="form-label">อธิบายสาเหตุโดยตรงเพิ่มเติม</label>
+        <textarea class="form-input" id="fImmediateDesc" rows="2" placeholder="รายละเอียดสาเหตุโดยตรง..."></textarea>
+      </div></div>
+    </div>
+
+    <!-- Section 5: Root Cause 4M1E -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">5</div>วิเคราะห์สาเหตุรากฐาน — 4M1E</div>
+      <div class="m4-grid">
+        ${ROOT_CAUSE_4M1E.map(m => `
+        <div class="m4-card">
+          <div class="m4-title">${m.icon} ${m.label}</div>
+          <div style="font-size:.72rem;color:#94a3b8;margin-bottom:6px">${m.examples}</div>
+          <textarea class="form-input" id="m4_${m.key}" rows="2" placeholder="ระบุสาเหตุด้าน${m.label.split(' ')[0]}..."></textarea>
+        </div>`).join('')}
+      </div>
+      <div class="form-row full" style="margin-top:10px"><div class="form-group">
+        <label class="form-label">สรุปสาเหตุรากฐาน (Root Cause Summary)</label>
+        <textarea class="form-input" id="fRcSummary" rows="2" placeholder="สรุปสาเหตุที่แท้จริงของอุบัติเหตุ..."></textarea>
+      </div></div>
+    </div>
+
+    <!-- Section 6: 5 Whys -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">6</div>วิเคราะห์ 5 Whys</div>
+      <div id="whyList">${_whys.map((w,i) => whyRow(w,i)).join('')}</div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="__addWhy()" id="addWhyBtn" ${_whys.length>=5?'disabled':''}>+ เพิ่ม Why</button>
+    </div>
+
+    <!-- Section 7: Corrective & Preventive Actions -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">7</div>มาตรการแก้ไข (Corrective Actions)</div>
+      <div style="display:grid;grid-template-columns:3fr 2fr 1.5fr 40px;gap:8px;margin-bottom:4px">
+        <span style="font-size:.72rem;font-weight:700;color:#64748b">มาตรการ</span>
+        <span style="font-size:.72rem;font-weight:700;color:#64748b">ผู้รับผิดชอบ</span>
+        <span style="font-size:.72rem;font-weight:700;color:#64748b">ครบกำหนด</span>
+        <span></span>
+      </div>
+      <div id="correctiveList">${_corrective.map((a,i) => actionRow(a,i,'c')).join('')}</div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="__addAction('c')">+ เพิ่มมาตรการแก้ไข</button>
+    </div>
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">8</div>มาตรการป้องกัน (Preventive Actions)</div>
+      <div style="display:grid;grid-template-columns:3fr 2fr 1.5fr 40px;gap:8px;margin-bottom:4px">
+        <span style="font-size:.72rem;font-weight:700;color:#64748b">มาตรการ</span>
+        <span style="font-size:.72rem;font-weight:700;color:#64748b">ผู้รับผิดชอบ</span>
+        <span style="font-size:.72rem;font-weight:700;color:#64748b">ครบกำหนด</span>
+        <span></span>
+      </div>
+      <div id="preventiveList">${_preventive.map((a,i) => actionRow(a,i,'p')).join('')}</div>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="__addAction('p')">+ เพิ่มมาตรการป้องกัน</button>
+    </div>
+
+    <!-- Section 9: Summary & Status -->
+    <div class="form-section">
+      <div class="sec-title"><div class="sec-num">9</div>ข้อเสนอแนะและสถานะ</div>
+      <div class="form-row full"><div class="form-group">
+        <label class="form-label">ข้อเสนอแนะเพิ่มเติม</label>
+        <textarea class="form-input" id="fRecommend" rows="2" placeholder="ข้อเสนอแนะต่อผู้บริหาร / ฝ่ายที่เกี่ยวข้อง..."></textarea>
+      </div></div>
+      <div class="form-row"><div class="form-group">
+        <label class="form-label">สถานะการสอบสวน</label>
+        <select class="form-input" id="fStatus">
+          ${Object.entries(INVEST_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+        </select>
+      </div></div>
+    </div>
+
+    <div class="sticky-actions">
+      <button class="btn btn-primary" onclick="__submitForm(${!!_editId})">💾 บันทึกรายงาน</button>
+      <button class="btn btn-success" onclick="__submitAndCapa()">💾 + สร้าง CAPA อัตโนมัติ</button>
+      <button class="btn btn-ghost" onclick="__setView('list')">ยกเลิก</button>
+    </div>
+  </div>`;
+}
+
+// ── dynamic row templates ─────────────────────────────────────────────────
+function timelineRow(t, i) {
+  return `<div class="dyn-row" id="tl_${i}">
+    <input style="max-width:90px" value="${t.time||''}" placeholder="เวลา" oninput="_timeline[${i}].time=this.value">
+    <input style="flex:2" value="${t.event||''}" placeholder="เหตุการณ์ที่เกิดขึ้น" oninput="_timeline[${i}].event=this.value">
+    <input value="${t.location||''}" placeholder="สถานที่" oninput="_timeline[${i}].location=this.value">
+    <input value="${t.person||''}" placeholder="บุคคลที่เกี่ยวข้อง" oninput="_timeline[${i}].person=this.value">
+    <button class="btn btn-danger btn-sm" onclick="__removeTimeline(${i})" style="flex-shrink:0">✕</button>
+  </div>`;
+}
+function witnessRow(w, i) {
+  return `<div class="dyn-row" id="wit_${i}" style="flex-wrap:wrap">
+    <input value="${w.name||''}" placeholder="ชื่อพยาน" oninput="_witnesses[${i}].name=this.value" style="max-width:160px">
+    <input value="${w.dept||''}" placeholder="แผนก" oninput="_witnesses[${i}].dept=this.value" style="max-width:120px">
+    <textarea placeholder="คำให้การ/ข้อมูลที่ได้รับ..." oninput="_witnesses[${i}].statement=this.value">${w.statement||''}</textarea>
+    <button class="btn btn-danger btn-sm" onclick="__removeWitness(${i})">✕</button>
+  </div>`;
+}
+function whyRow(w, i) {
+  return `<div class="why-row" id="why_${i}">
+    <div class="why-num">${i+1}</div>
+    <div class="why-half">
+      <label style="font-size:.72rem;font-weight:700;color:#64748b">คำถาม Why #${i+1}</label>
+      <input value="${w.why||''}" placeholder="ทำไม...?" oninput="_whys[${i}].why=this.value">
+    </div>
+    <div class="why-half">
+      <label style="font-size:.72rem;font-weight:700;color:#64748b">คำตอบ</label>
+      <input value="${w.answer||''}" placeholder="เพราะ..." oninput="_whys[${i}].answer=this.value">
+    </div>
+    ${i >= 3 ? `<button class="btn btn-danger btn-sm" style="margin-top:22px" onclick="__removeWhy(${i})">✕</button>` : '<div style="width:36px"></div>'}
+  </div>`;
+}
+function actionRow(a, i, type) {
+  return `<div class="act-row" id="act_${type}_${i}">
+    <input value="${a.action||''}" placeholder="มาตรการ..." oninput="_${type==='c'?'corrective':'preventive'}[${i}].action=this.value">
+    <input value="${a.responsible||''}" placeholder="ผู้รับผิดชอบ" oninput="_${type==='c'?'corrective':'preventive'}[${i}].responsible=this.value">
+    <input type="date" value="${a.dueDate||''}" oninput="_${type==='c'?'corrective':'preventive'}[${i}].dueDate=this.value">
+    <button class="btn btn-danger btn-sm" onclick="__removeAction('${type}',${i})">✕</button>
+  </div>`;
+}
+
+// ── dynamic row controls ──────────────────────────────────────────────────
+function appendRow(containerId, rowHtml) {
+  const el = $(containerId);
+  if (!el) return;
+  const d = document.createElement('div'); d.innerHTML = rowHtml;
+  el.appendChild(d.firstElementChild);
+}
+window.__addTimeline = () => { const i = _timeline.length; _timeline.push({time:'',event:'',location:'',person:''}); appendRow('timelineList', timelineRow({},i)); };
+window.__removeTimeline = i => { _timeline[i] = null; $(`tl_${i}`)?.remove(); };
+window.__addWitness = () => { const i = _witnesses.length; _witnesses.push({name:'',dept:'',statement:''}); appendRow('witnessList', witnessRow({},i)); };
+window.__removeWitness = i => { _witnesses[i] = null; $(`wit_${i}`)?.remove(); };
+window.__addWhy = () => {
+  if (_whys.length >= 5) return;
+  const i = _whys.length; _whys.push({why:'',answer:''});
+  appendRow('whyList', whyRow({},i));
+  if (_whys.length >= 5) { const b = $('addWhyBtn'); if(b) b.disabled = true; }
+};
+window.__removeWhy = i => { _whys[i] = null; $(`why_${i}`)?.remove(); };
+window.__addAction = type => {
+  const arr = type==='c' ? _corrective : _preventive;
+  const i = arr.length; arr.push({action:'',responsible:'',dueDate:''});
+  appendRow(type==='c'?'correctiveList':'preventiveList', actionRow({},i,type));
+};
+window.__removeAction = (type,i) => {
+  if (type==='c') _corrective[i]=null; else _preventive[i]=null;
+  $(`act_${type}_${i}`)?.remove();
+};
+
+// ── collect form data ─────────────────────────────────────────────────────
+function collectForm() {
+  const immCauses = IMMEDIATE_CAUSE_TYPES.filter(t => {
+    const el = document.getElementById(`ic_${t.replace(/[^a-zA-Z0-9]/g,'_')}`);
+    return el?.checked;
+  });
+  const rootCauses = {};
+  for (const m of ROOT_CAUSE_4M1E) {
+    const v = $(`m4_${m.key}`)?.value?.trim();
+    if (v) rootCauses[m.key] = v;
+  }
+  return {
+    incidentId:       $('fIncidentId')?.value || '',
+    investigationDate: $('fDate')?.value || TODAY(),
+    investigatedBy:   $('fInvestigator')?.value?.trim()||'',
+    investigators:    ($('fTeam')?.value||'').split(',').map(s=>s.trim()).filter(Boolean),
+    workdaysLost:     parseInt($('fDaysLost')?.value)||0,
+    estimatedLoss:    parseFloat($('fLoss')?.value)||0,
+    incidentSummary:  $('fSummary')?.value?.trim()||'',
+    timeline:         _timeline.filter(Boolean).filter(t=>t.event),
+    witnesses:        _witnesses.filter(Boolean).filter(w=>w.name),
+    immediateCauses:  immCauses,
+    immediateDescription: $('fImmediateDesc')?.value?.trim()||'',
+    rootCauses,
+    rootCauseSummary: $('fRcSummary')?.value?.trim()||'',
+    fiveWhys:         _whys.filter(Boolean).filter(w=>w.why||w.answer),
+    correctiveActions: _corrective.filter(Boolean).filter(a=>a.action),
+    preventiveActions: _preventive.filter(Boolean).filter(a=>a.action),
+    recommendations:  $('fRecommend')?.value?.trim()||'',
+    status:           $('fStatus')?.value||'draft',
+  };
+}
+
+window.__submitForm = async isEdit => {
+  const data = collectForm();
+  if (!data.incidentId) { alert('กรุณาเลือกอุบัติเหตุที่จะสอบสวน'); return; }
+  if (!data.investigatedBy) { alert('กรุณาระบุชื่อผู้สอบสวน'); return; }
+  if (isEdit) await updateInvestigation(_editId, data);
+  else        await createInvestigation(data, _profile.uid);
+  await loadData();
+  _view = 'list';
+  renderContent();
+};
+
+window.__submitAndCapa = async () => {
+  const data = collectForm();
+  if (!data.incidentId) { alert('กรุณาเลือกอุบัติเหตุที่จะสอบสวน'); return; }
+  if (!data.investigatedBy) { alert('กรุณาระบุชื่อผู้สอบสวน'); return; }
+  data.status = 'completed';
+  let invId;
+  if (_editId) { await updateInvestigation(_editId, data); invId = _editId; }
+  else         { const ref = await createInvestigation(data, _profile.uid); invId = ref.id; }
+
+  // auto-create CAPA for each corrective action
+  const inc = _incidents.find(i => i.id === data.incidentId);
+  let capaCount = 0;
+  for (const act of [...data.correctiveActions, ...data.preventiveActions]) {
+    if (!act.action) continue;
+    await createCapa({
+      sourceType: 'investigation', sourceId: invId,
+      incidentId: data.incidentId,
+      description: act.action,
+      assignedTo:  act.responsible||'',
+      dueDate:     act.dueDate||'',
+      priority:    'high',
+      status:      'open',
+      note:        `สร้างอัตโนมัติจากการสอบสวน ${inc?.incidentId||''}`,
+    }, _profile.uid);
+    capaCount++;
+  }
+  await loadData();
+  alert(`บันทึกสำเร็จ${capaCount>0?` และสร้าง CAPA ${capaCount} รายการ`:''}`);
+  _view = 'list';
+  renderContent();
+};
+
+// ── detail view ────────────────────────────────────────────────────────────
+async function openDetail(id) {
+  const r = _items.find(i => i.id === id) || await getInvestigation(id);
+  if (!r) return;
+  const inc = _incidents.find(i => i.id === r.incidentId);
+  _view = 'detail';
+  _editId = id;
+  renderContent();
+  const pc = $('pageContent');
+
+  pc.innerHTML = `
+  <div class="detail-section">
+    <div class="ds-title">ข้อมูลทั่วไป ${statusBadge(r.status)}</div>
+    <div class="ds-grid">
+      ${[
+        ['เลขที่อุบัติเหตุ', inc?.incidentId||r.incidentId||'—'],
+        ['วันที่อุบัติเหตุ', inc?.incidentDate||'—'],
+        ['สถานที่', inc?.location||'—'],
+        ['วันที่สอบสวน', r.investigationDate||'—'],
+        ['ผู้สอบสวนหลัก', r.investigatedBy||'—'],
+        ['คณะกรรมการ', r.investigators?.join(', ')||'—'],
+        ['วันหยุดงาน', r.workdaysLost ? `${r.workdaysLost} วัน` : '—'],
+        ['มูลค่าความเสียหาย', r.estimatedLoss ? `฿${Number(r.estimatedLoss).toLocaleString()}` : '—'],
+      ].map(([l,v])=>`<div class="ds-field"><div class="ds-label">${l}</div><div>${v}</div></div>`).join('')}
+    </div>
+    ${r.incidentSummary ? `<div style="margin-top:10px"><div class="ds-label">สรุปเหตุการณ์</div><div style="font-size:.85rem;white-space:pre-wrap">${r.incidentSummary}</div></div>` : ''}
+  </div>
+
+  ${r.timeline?.length ? `
+  <div class="detail-section">
+    <div class="ds-title">ลำดับเหตุการณ์</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+      <thead><tr>${['เวลา','เหตุการณ์','สถานที่','บุคคล'].map(h=>`<th style="text-align:left;padding:6px 8px;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;font-size:.72rem;font-weight:700;color:#64748b">${h}</th>`).join('')}</tr></thead>
+      <tbody>${r.timeline.map(t=>`<tr>${[t.time,t.event,t.location,t.person].map(v=>`<td style="padding:6px 8px;border-bottom:1px solid #f1f5f9">${v||'—'}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table>
+  </div>` : ''}
+
+  ${r.witnesses?.length ? `
+  <div class="detail-section">
+    <div class="ds-title">พยาน</div>
+    ${r.witnesses.map(w=>`<div style="margin-bottom:8px;padding:10px 12px;background:#f8fafc;border-radius:8px">
+      <div style="font-weight:700;font-size:.85rem">${w.name||'—'} ${w.dept?`<span style="color:#64748b;font-weight:400;font-size:.78rem">(${w.dept})</span>`:''}</div>
+      ${w.statement?`<div style="font-size:.82rem;color:#374151;margin-top:4px;white-space:pre-wrap">${w.statement}</div>`:''}
+    </div>`).join('')}
+  </div>` : ''}
+
+  ${(r.immediateCauses?.length||r.immediateDescription) ? `
+  <div class="detail-section">
+    <div class="ds-title">สาเหตุโดยตรง</div>
+    ${r.immediateCauses?.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">${r.immediateCauses.map(c=>`<span style="background:#fee2e2;color:#dc2626;border-radius:8px;padding:3px 10px;font-size:.76rem;font-weight:600">${c}</span>`).join('')}</div>` : ''}
+    ${r.immediateDescription?`<div style="font-size:.85rem;white-space:pre-wrap">${r.immediateDescription}</div>`:''}
+  </div>` : ''}
+
+  <div class="detail-section">
+    <div class="ds-title">วิเคราะห์สาเหตุรากฐาน — 4M1E</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      ${ROOT_CAUSE_4M1E.map(m => {
+        const v = r.rootCauses?.[m.key];
+        return `<div style="border:1.5px solid ${v?'#e2e8f0':'#f1f5f9'};border-radius:8px;padding:10px 12px;background:${v?'#fff':'#f8fafc'}">
+          <div style="font-size:.78rem;font-weight:700;color:${v?'#0f172a':'#94a3b8'};margin-bottom:4px">${m.icon} ${m.label}</div>
+          <div style="font-size:.83rem;color:${v?'#374151':'#94a3b8'}">${v||'ไม่พบสาเหตุ'}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    ${r.rootCauseSummary?`<div style="margin-top:10px;background:#fef9c3;border-radius:8px;padding:10px 12px"><div style="font-size:.75rem;font-weight:700;color:#854d0e">สรุปสาเหตุรากฐาน</div><div style="font-size:.85rem;white-space:pre-wrap;margin-top:4px">${r.rootCauseSummary}</div></div>`:''}
+  </div>
+
+  ${r.fiveWhys?.length ? `
+  <div class="detail-section">
+    <div class="ds-title">วิเคราะห์ 5 Whys</div>
+    ${r.fiveWhys.map((w,i)=>`
+    <div style="display:flex;gap:12px;margin-bottom:10px;align-items:flex-start">
+      <div style="width:26px;height:26px;border-radius:50%;background:#0891b2;color:#fff;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;flex-shrink:0">${i+1}</div>
+      <div style="flex:1">
+        <div style="font-size:.75rem;font-weight:700;color:#0891b2">Why #${i+1}</div>
+        <div style="font-size:.85rem;font-weight:600">${w.why||'—'}</div>
+        ${w.answer?`<div style="font-size:.82rem;color:#475569;margin-top:2px">→ ${w.answer}</div>`:''}
+      </div>
+    </div>`).join('')}
+  </div>` : ''}
+
+  ${(r.correctiveActions?.length||r.preventiveActions?.length) ? `
+  <div class="detail-section">
+    <div class="ds-title">มาตรการแก้ไขและป้องกัน</div>
+    ${r.correctiveActions?.length ? `<div style="margin-bottom:12px"><div style="font-size:.78rem;font-weight:700;color:#dc2626;margin-bottom:6px">🔧 มาตรการแก้ไข (${r.correctiveActions.length} รายการ)</div>${r.correctiveActions.map(a=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;font-size:.82rem"><span style="flex:1">${a.action}</span><span style="color:#64748b;white-space:nowrap">${a.responsible||'—'}</span><span style="color:#d97706;white-space:nowrap">${a.dueDate||'—'}</span></div>`).join('')}</div>` : ''}
+    ${r.preventiveActions?.length ? `<div><div style="font-size:.78rem;font-weight:700;color:#16a34a;margin-bottom:6px">🛡 มาตรการป้องกัน (${r.preventiveActions.length} รายการ)</div>${r.preventiveActions.map(a=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:5px;font-size:.82rem"><span style="flex:1">${a.action}</span><span style="color:#64748b;white-space:nowrap">${a.responsible||'—'}</span><span style="color:#d97706;white-space:nowrap">${a.dueDate||'—'}</span></div>`).join('')}</div>` : ''}
+  </div>` : ''}
+
+  ${r.recommendations?`<div class="detail-section"><div class="ds-title">ข้อเสนอแนะ</div><div style="font-size:.85rem;white-space:pre-wrap">${r.recommendations}</div></div>`:''}
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+    <button class="btn btn-ghost" onclick="__openEdit('${r.id}')">✏️ แก้ไข</button>
+    <button class="btn btn-ghost" onclick="__printInv('${r.id}')">🖨 พิมพ์รายงาน</button>
+    <button class="btn btn-ghost" onclick="__setView('list')">← รายการ</button>
+  </div>`;
+}
+
+// ── print investigation ────────────────────────────────────────────────────
+window.__printInv = async id => {
+  const r = _items.find(i => i.id === id) || await getInvestigation(id);
+  if (!r) return;
+  const inc = _incidents.find(i => i.id === r.incidentId);
+  const today = new Date().toLocaleDateString('th-TH', {year:'numeric', month:'long', day:'numeric'});
+
+  const pa = $('printArea');
+  pa.style.display = 'block';
+  pa.innerHTML = `
+  <div class="pt">รายงานการสอบสวนอุบัติเหตุ</div>
+  <div class="ps">บริษัท KPO | พิมพ์วันที่ ${today}</div>
+
+  <div class="prow">
+    <div class="pfield"><div class="plbl">เลขที่อุบัติเหตุ</div><div class="pval">${inc?.incidentId||r.incidentId||'—'}</div></div>
+    <div class="pfield"><div class="plbl">วันที่เกิดเหตุ</div><div class="pval">${inc?.incidentDate||'—'}</div></div>
+    <div class="pfield"><div class="plbl">วันที่สอบสวน</div><div class="pval">${r.investigationDate||'—'}</div></div>
+  </div>
+  <div class="prow">
+    <div class="pfield"><div class="plbl">สถานที่เกิดเหตุ</div><div class="pval">${inc?.location||'—'}</div></div>
+    <div class="pfield"><div class="plbl">ผู้สอบสวนหลัก</div><div class="pval">${r.investigatedBy||'—'}</div></div>
+  </div>
+  <div class="prow">
+    <div class="pfield"><div class="plbl">จำนวนวันหยุดงาน</div><div class="pval">${r.workdaysLost||0} วัน</div></div>
+    <div class="pfield"><div class="plbl">มูลค่าความเสียหาย</div><div class="pval">${r.estimatedLoss?`฿${Number(r.estimatedLoss).toLocaleString()}`:'—'}</div></div>
+    <div class="pfield"><div class="plbl">สถานะ</div><div class="pval">${INVEST_STATUS[r.status]?.label||r.status}</div></div>
+  </div>
+  <div class="prow"><div class="pfield"><div class="plbl">สรุปเหตุการณ์</div><div class="pval" style="min-height:30pt">${r.incidentSummary||''}</div></div></div>
+
+  ${r.timeline?.length ? `
+  <div class="psec">
+    <div class="psec-title">ลำดับเหตุการณ์</div>
+    <table class="ptable">
+      <thead><tr><th style="width:50pt">เวลา</th><th>เหตุการณ์</th><th style="width:80pt">สถานที่</th><th style="width:80pt">บุคคล</th></tr></thead>
+      <tbody>${r.timeline.map(t=>`<tr><td>${t.time||''}</td><td>${t.event||''}</td><td>${t.location||''}</td><td>${t.person||''}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>` : ''}
+
+  <div class="psec">
+    <div class="psec-title">สาเหตุโดยตรง</div>
+    <div style="font-size:9.5pt">${r.immediateCauses?.join(' | ')||'—'}</div>
+    ${r.immediateDescription?`<div style="font-size:9pt;margin-top:3pt">${r.immediateDescription}</div>`:''}
+  </div>
+
+  <div class="psec">
+    <div class="psec-title">วิเคราะห์สาเหตุรากฐาน 4M1E</div>
+    <div class="p4m">
+      ${ROOT_CAUSE_4M1E.map(m=>`
+      <div class="p4mbox">
+        <div class="p4mtitle">${m.icon} ${m.label}</div>
+        <div class="p4mval">${r.rootCauses?.[m.key]||'—'}</div>
+      </div>`).join('')}
+    </div>
+    ${r.rootCauseSummary?`<div class="plbl" style="margin-top:4pt">สรุปสาเหตุรากฐาน</div><div style="font-size:9.5pt;min-height:18pt">${r.rootCauseSummary}</div>`:''}
+  </div>
+
+  ${r.fiveWhys?.length ? `
+  <div class="psec">
+    <div class="psec-title">วิเคราะห์ 5 Whys</div>
+    <table class="ptable">
+      <thead><tr><th style="width:20pt">#</th><th>คำถาม Why</th><th>คำตอบ</th></tr></thead>
+      <tbody>${r.fiveWhys.map((w,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${w.why||''}</td><td>${w.answer||''}</td></tr>`).join('')}</tbody>
+    </table>
+  </div>` : ''}
+
+  ${(r.correctiveActions?.length||r.preventiveActions?.length) ? `
+  <div class="psec">
+    <div class="psec-title">มาตรการแก้ไขและป้องกัน</div>
+    <table class="ptable">
+      <thead><tr><th>ประเภท</th><th>มาตรการ</th><th style="width:80pt">ผู้รับผิดชอบ</th><th style="width:60pt">ครบกำหนด</th></tr></thead>
+      <tbody>
+        ${(r.correctiveActions||[]).map(a=>`<tr><td>แก้ไข</td><td>${a.action}</td><td>${a.responsible||'—'}</td><td>${a.dueDate||'—'}</td></tr>`).join('')}
+        ${(r.preventiveActions||[]).map(a=>`<tr><td>ป้องกัน</td><td>${a.action}</td><td>${a.responsible||'—'}</td><td>${a.dueDate||'—'}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  ${r.recommendations?`<div class="psec"><div class="psec-title">ข้อเสนอแนะ</div><div style="font-size:9.5pt">${r.recommendations}</div></div>`:''}
+
+  <div class="psign-row">
+    ${['ผู้สอบสวนหลัก\n(จป. วิชาชีพ)','ประธานคณะกรรมการ\nสอบสวน','ผู้บริหาร\nรับทราบ'].map(n=>`
+    <div class="psign-blk"><div class="psign-line">${n}</div></div>`).join('')}
+  </div>`;
+
+  window.print();
+  setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 1000);
+};
+
+// ── delete ────────────────────────────────────────────────────────────────
+window.__deleteInv = async id => {
+  if (!confirm('ลบรายงานสอบสวนนี้?')) return;
+  await deleteInvestigation(id);
+  await loadData(); renderContent();
+};
+
+// ── controls ──────────────────────────────────────────────────────────────
+window.__setView = v => { _view = v; renderContent(); };
+window.__openCreate = openCreate;
+window.__openEdit   = openEdit;
+window.__openDetail = openDetail;
+
+// ── boot ──────────────────────────────────────────────────────────────────
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-investigation', 'สอบสวนอุบัติเหตุ');
+await loadData();
+renderContent();
+</script>
+</body>
+</html>

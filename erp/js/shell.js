@@ -137,9 +137,10 @@ const NAV = {
       { key: 'safety-dashboard', label: 'ภาพรวมความปลอดภัย', href: 'safety.html' },
     ]},
     { groupKey: 'safety-incident', icon: '⚠️', label: 'อุบัติเหตุ', items: [
-      { key: 'incident-list',   label: 'รายการอุบัติเหตุ',              href: 'safety-incident.html' },
-      { key: 'incident-create', label: 'บันทึกอุบัติเหตุ/เหตุการณ์',   href: 'safety-incident.html#new' },
-      { key: 'near-miss',       label: 'Near Miss / Unsafe Report',    href: 'safety-near-miss.html' },
+      { key: 'incident-list',        label: 'รายการอุบัติเหตุ',             href: 'safety-incident.html' },
+      { key: 'incident-create',      label: 'บันทึกอุบัติเหตุ/เหตุการณ์',  href: 'safety-incident.html#new' },
+      { key: 'near-miss',            label: 'Near Miss / Unsafe Report',   href: 'safety-near-miss.html' },
+      { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
     ]},
     { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
       { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย',   href: 'safety-inspection.html' },
@@ -292,6 +293,7 @@ const PAGE_DEPARTMENT = {
   "safety-ptw.html":            "safety_officer",
   "safety-talk.html":           "safety_officer",
   "safety-chemical.html":       "safety_officer",
+  "safety-investigation.html":  "safety_officer",
 };
 
 // ===================================================================

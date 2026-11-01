@@ -956,3 +956,54 @@ export async function updateChemical(id, data) {
 export async function deleteChemical(id) {
   await deleteDoc(doc(db, COL.chemicals, id));
 }
+
+// ─── Accident Investigation ────────────────────────────────────────────────
+COL.investigations = 'safetyInvestigations';
+
+export const INVEST_STATUS = {
+  draft:      { label: 'ร่าง',              color: '#94a3b8' },
+  in_progress:{ label: 'กำลังสอบสวน',      color: '#d97706' },
+  completed:  { label: 'เสร็จสิ้น',         color: '#0891b2' },
+  reviewed:   { label: 'ผ่านการทบทวนแล้ว', color: '#16a34a' },
+};
+
+export const ROOT_CAUSE_4M1E = [
+  { key: 'human',       label: 'คน (Human / Man)',             icon: '👤', examples: 'ความประมาท, ขาดความรู้, ฝืนกฎ, ล้า, เจ็บป่วย' },
+  { key: 'machine',     label: 'เครื่องจักร (Machine)',        icon: '⚙️', examples: 'ชำรุด, ไม่ได้รับการบำรุงรักษา, ออกแบบไม่ดี' },
+  { key: 'method',      label: 'วิธีการ (Method)',             icon: '📋', examples: 'ขั้นตอนไม่ชัดเจน, ไม่มี SOP, ฝึกอบรมไม่เพียงพอ' },
+  { key: 'material',    label: 'วัสดุ (Material)',             icon: '📦', examples: 'วัสดุมีตำหนิ, ไม่ได้มาตรฐาน, ป้ายเตือนไม่ครบ' },
+  { key: 'environment', label: 'สภาพแวดล้อม (Environment)',   icon: '🌡', examples: 'แสงไม่เพียงพอ, พื้นลื่น, เสียงดัง, อุณหภูมิสูง/ต่ำ' },
+];
+
+export const IMMEDIATE_CAUSE_TYPES = [
+  'พฤติกรรมไม่ปลอดภัย (Unsafe Act)', 'สภาพไม่ปลอดภัย (Unsafe Condition)',
+  'ไม่ใช้ PPE', 'ทำงานโดยไม่มีใบอนุญาต', 'การเคลื่อนไหวที่ไม่เหมาะสม',
+  'ใช้เครื่องมือผิดประเภท', 'ทำงานในพื้นที่อันตรายโดยไม่ได้รับอนุญาต',
+  'เครื่องจักรชำรุดแต่ยังใช้งาน', 'ระบบไฟฟ้าผิดปกติ', 'อื่นๆ',
+];
+
+export async function listInvestigations({ status, lim = 200 } = {}) {
+  const constraints = [orderBy('createdAt','desc'), limit(lim)];
+  if (status) constraints.unshift(where('status','==',status));
+  const snap = await getDocs(query(collection(db, COL.investigations), ...constraints));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getInvestigation(id) {
+  const snap = await getDoc(doc(db, COL.investigations, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createInvestigation(data, createdBy) {
+  return await addDoc(collection(db, COL.investigations), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateInvestigation(id, data) {
+  await updateDoc(doc(db, COL.investigations, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteInvestigation(id) {
+  await deleteDoc(doc(db, COL.investigations, id));
+}
