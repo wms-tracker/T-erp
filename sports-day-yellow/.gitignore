@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+# root .gitignore ignores index.html / *.csv — re-include this app's entry page
+!index.html
+*.tsbuildinfo
+server-dist/
+data/

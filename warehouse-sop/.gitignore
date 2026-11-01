@@ -1,0 +1,5 @@
+# ฐานข้อมูลและไฟล์อัปโหลด (ข้อมูลจริงขององค์กร — ห้ามขึ้น Git)
+data/
+# root .gitignore ignores these names; keep them for this app
+!START.bat
+!public/index.html

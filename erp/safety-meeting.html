@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ประชุม คปอ.</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listMeetings, getMeeting, createMeeting, updateMeeting,
+  MEETING_STATUS, MEETING_TYPES,
+} from "./js/safety-data.js";
+
+let _profile, _rows = [], _editId = null;
+let _agendas    = [];   // [{topic, detail}]
+let _resolutions= [];   // [{description, assignedTo, dueDate, status}]
+
+const today   = () => new Date().toISOString().split('T')[0];
+const typeMap = Object.fromEntries(MEETING_TYPES.map(t=>[t.key,t.label]));
+
+const CSS = `<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Sarabun,sans-serif;background:#f8fafc;color:#0f172a;}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px 60px;}
+.hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:20px 0 14px;}
+.page-title{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.1s;}
+.btn-primary{background:#0f172a;color:#fff;} .btn-primary:hover{background:#1e293b;}
+.btn-ghost{background:#f1f5f9;color:#475569;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-green{background:#16a34a;color:#fff;}   .btn-green:hover{background:#15803d;}
+.btn-red{background:#fee2e2;color:#dc2626;}  .btn-red:hover{background:#fecaca;}
+.btn-sm{padding:4px 10px;font-size:.75rem;}
+.stat-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.stat-card{background:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);flex:1;min-width:110px;}
+.stat-val{font-size:1.6rem;font-weight:900;line-height:1;}
+.stat-label{font-size:.72rem;color:#64748b;margin-top:3px;}
+.tbl-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
+.tbl{width:100%;border-collapse:collapse;font-size:.83rem;}
+.tbl th{text-align:left;padding:10px 14px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #f1f5f9;}
+.tbl td{padding:10px 14px;border-bottom:1px solid #f8fafc;vertical-align:top;}
+.tbl tr:hover td{background:#f8fafc;}
+.tbl .empty{text-align:center;padding:40px;color:#94a3b8;}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;display:none;}
+.panel{position:fixed;right:0;top:0;height:100dvh;width:min(720px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);z-index:101;display:flex;flex-direction:column;overflow:hidden;transform:translateX(100%);transition:transform .25s ease;}
+.panel.open{transform:translateX(0);}
+.panel-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9;flex-shrink:0;}
+.panel-body{flex:1;overflow-y:auto;padding:20px;}
+.panel-ft{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+.fld{display:flex;flex-direction:column;gap:4px;}
+.fld.full{grid-column:1/-1;}
+.lbl{font-size:.75rem;font-weight:700;color:#475569;}
+input,select,textarea{padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;outline:none;color:#0f172a;background:#fff;width:100%;}
+input:focus,select:focus,textarea:focus{border-color:#0891b2;}
+.sec-hd{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:10px 0 8px;border-bottom:1.5px solid #f1f5f9;margin:14px 0 8px;display:flex;justify-content:space-between;align-items:center;}
+.agenda-row{display:grid;grid-template-columns:auto 1fr 1.4fr auto;gap:8px;align-items:start;margin-bottom:6px;}
+.res-row{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:start;margin-bottom:6px;}
+@media(max-width:560px){.agenda-row,.res-row{grid-template-columns:1fr auto;}}
+@media print{.no-print{display:none!important;}.print-only{display:block!important;}.overlay,.panel{display:none!important;}body{font-size:10pt;}}
+.print-only{display:none;}
+</style>`;
+
+async function loadList() { _rows = await listMeetings({ lim: 200 }); renderList(); }
+
+function renderList() {
+  const mc = document.getElementById('main-content');
+  const completed = _rows.filter(r=>r.status==='completed').length;
+  const upcoming  = _rows.filter(r=>r.status==='scheduled'&&r.meetingDate>=today()).length;
+  const thisYear  = _rows.filter(r=>r.status==='completed'&&r.meetingDate?.startsWith(String(new Date().getFullYear()))).length;
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        บันทึกการประชุม คปอ.
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="window.print()">🖨</button>
+        <button class="btn btn-primary" onclick="__openForm()">+ บันทึกการประชุม</button>
+      </div>
+    </div>
+
+    <div class="stat-bar no-print">
+      <div class="stat-card"><div class="stat-val">${_rows.length}</div><div class="stat-label">ประชุมทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#16a34a">${thisYear}</div><div class="stat-label">เสร็จปีนี้</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#2563eb">${upcoming}</div><div class="stat-label">ที่กำลังจะมา</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#d97706">${_rows.reduce((s,r)=>{const pend=(r.resolutions||[]).filter(x=>x.status!=='done').length;return s+pend;},0)}</div><div class="stat-label">มติค้างดำเนินการ</div></div>
+    </div>
+
+    <div class="tbl-card no-print">
+      <table class="tbl"><thead><tr>
+        <th>วันที่</th><th>ประเภท</th><th>ครั้งที่</th><th>สถานที่</th><th>ผู้เข้าร่วม</th><th>วาระ</th><th>มติ</th><th>สถานะ</th><th></th>
+      </tr></thead>
+      <tbody>${buildRows(_rows)}</tbody></table>
+    </div>
+
+    <!-- Print list -->
+    <div class="print-only">
+      <h2 style="text-align:center;font-size:14pt;margin-bottom:8px">สรุปบันทึกการประชุม คปอ.</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:9.5pt">
+        <thead><tr style="background:#f1f5f9">${['ครั้งที่','วันที่','ประเภท','ผู้เข้าร่วม','วาระ/มติ','สถานะ'].map(h=>`<th style="border:1px solid #ccc;padding:5px">${h}</th>`).join('')}</tr></thead>
+        <tbody>${_rows.map((r,i)=>{const s=MEETING_STATUS[r.status]||{label:r.status,color:'#64748b'};
+          return `<tr><td style="border:1px solid #ccc;padding:4px;text-align:center">${r.meetingNo||i+1}</td>
+            <td style="border:1px solid #ccc;padding:4px">${r.meetingDate||'—'}</td>
+            <td style="border:1px solid #ccc;padding:4px">${typeMap[r.meetingType]||r.meetingType||'—'}</td>
+            <td style="border:1px solid #ccc;padding:4px;text-align:center">${r.attendeeCount||0}</td>
+            <td style="border:1px solid #ccc;padding:4px">${(r.agendas||[]).length} วาระ / ${(r.resolutions||[]).length} มติ</td>
+            <td style="border:1px solid #ccc;padding:4px;color:${s.color}">${s.label}</td>
+          </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="overlay" id="overlay" onclick="__closePanel()"></div>
+  <div class="panel" id="sidePanel"><div id="panelContent" style="display:flex;flex-direction:column;height:100%"></div></div>`;
+}
+
+function buildRows(rows) {
+  if(!rows.length) return `<tr><td colspan="9" class="empty">ยังไม่มีข้อมูล</td></tr>`;
+  return rows.map(r=>{
+    const s=MEETING_STATUS[r.status]||{label:r.status,color:'#64748b',bg:'#f1f5f9'};
+    const pendRes=(r.resolutions||[]).filter(x=>x.status!=='done').length;
+    return `<tr>
+      <td style="font-weight:700">${r.meetingDate||'—'}</td>
+      <td style="font-size:.78rem">${typeMap[r.meetingType]||r.meetingType||'—'}</td>
+      <td style="color:#64748b">ครั้งที่ ${r.meetingNo||'—'}</td>
+      <td style="font-size:.78rem">${r.venue||'—'}</td>
+      <td style="text-align:center">${r.attendeeCount||0}</td>
+      <td style="text-align:center">${(r.agendas||[]).length}</td>
+      <td>${pendRes>0?`<span style="color:#d97706;font-weight:700">${pendRes} ค้าง</span>`:`<span style="color:#16a34a">${(r.resolutions||[]).length} รายการ</span>`}</td>
+      <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="__openDetail('${r.id}')">ดู</button>
+        <button class="btn btn-ghost btn-sm" onclick="__editRecord('${r.id}')">แก้ไข</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openPanel(html) { document.getElementById('panelContent').innerHTML=html; document.getElementById('sidePanel').classList.add('open'); document.getElementById('overlay').style.display='block'; }
+window.__closePanel = () => { document.getElementById('sidePanel').classList.remove('open'); document.getElementById('overlay').style.display='none'; };
+
+// ── FORM ──────────────────────────────────────────────────────────────────────
+window.__openForm = () => { _editId=null; _agendas=[{topic:'',detail:''}]; _resolutions=[]; renderFormPanel(); };
+window.__editRecord = async id => {
+  const rec=_rows.find(r=>r.id===id)||await getMeeting(id);
+  if(!rec) return;
+  _editId=id;
+  _agendas=(rec.agendas||[{topic:'',detail:''}]).map(a=>({...a}));
+  _resolutions=(rec.resolutions||[]).map(r=>({...r}));
+  renderFormPanel(rec);
+};
+
+function renderFormPanel(rec={}) {
+  openPanel(`
+  <div class="panel-hd"><div style="font-weight:700">${_editId?'แก้ไขบันทึกการประชุม':'บันทึกการประชุมใหม่'}</div><button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button></div>
+  <div class="panel-body">
+    <div class="form-grid">
+      <div class="fld"><label class="lbl">วันที่ประชุม *</label><input type="date" id="mtDate" value="${rec.meetingDate||today()}"></div>
+      <div class="fld"><label class="lbl">ครั้งที่</label><input id="mtNo" value="${rec.meetingNo||''}" placeholder="เช่น 1/2568"></div>
+      <div class="fld"><label class="lbl">ประเภทการประชุม</label>
+        <select id="mtType">${MEETING_TYPES.map(t=>`<option value="${t.key}" ${rec.meetingType===t.key?'selected':''}>${t.label}</option>`).join('')}</select>
+      </div>
+      <div class="fld"><label class="lbl">สถานที่</label><input id="mtVenue" value="${rec.venue||''}"></div>
+      <div class="fld"><label class="lbl">จำนวนผู้เข้าร่วม</label><input type="number" id="mtAttendee" min="0" value="${rec.attendeeCount||0}"></div>
+      <div class="fld"><label class="lbl">ประธานที่ประชุม</label><input id="mtChair" value="${rec.chairman||''}"></div>
+      <div class="fld"><label class="lbl">การประชุมครั้งต่อไป</label><input type="date" id="mtNext" value="${rec.nextMeetingDate||''}"></div>
+      <div class="fld"><label class="lbl">สถานะ</label>
+        <select id="mtStatus">${Object.entries(MEETING_STATUS).map(([k,v])=>`<option value="${k}" ${(rec.status||'completed')===k?'selected':''}>${v.label}</option>`).join('')}</select>
+      </div>
+      <div class="fld full"><label class="lbl">หมายเหตุ</label><textarea id="mtNote" rows="2">${rec.notes||''}</textarea></div>
+    </div>
+
+    <div class="sec-hd">วาระการประชุม<button class="btn btn-ghost btn-sm" onclick="__addAgenda()">+ วาระ</button></div>
+    <div id="agendaContainer">${_agendas.map((_,i)=>agendaRow(i)).join('')}</div>
+
+    <div class="sec-hd">มติที่ประชุม / แผนปฏิบัติการ<button class="btn btn-ghost btn-sm" onclick="__addRes()">+ มติ</button></div>
+    <div id="resContainer">${_resolutions.map((_,i)=>resRow(i)).join('')}</div>
+  </div>
+  <div class="panel-ft">
+    <button class="btn btn-ghost" onclick="__closePanel()">ยกเลิก</button>
+    <button class="btn btn-green" onclick="__saveForm()">💾 บันทึก</button>
+  </div>`);
+}
+
+function agendaRow(i) {
+  const a=_agendas[i]||{};
+  return `<div class="agenda-row" id="ag-${i}">
+    <div style="padding:7px 8px;background:#f1f5f9;border-radius:6px;font-weight:700;font-size:.8rem;width:28px;text-align:center">${i+1}</div>
+    <input placeholder="หัวข้อวาระ" value="${a.topic||''}" onchange="__setAg(${i},'topic',this.value)">
+    <input placeholder="รายละเอียด / ผลการพิจารณา" value="${a.detail||''}" onchange="__setAg(${i},'detail',this.value)">
+    ${i>0?`<button class="btn btn-red btn-sm" onclick="__removeAg(${i})">✕</button>`:'<div></div>'}
+  </div>`;
+}
+function resRow(i) {
+  const r=_resolutions[i]||{};
+  return `<div class="res-row" id="res-${i}">
+    <input placeholder="รายละเอียดมติ / งานที่ต้องทำ" value="${r.description||''}" onchange="__setRes(${i},'description',this.value)">
+    <input placeholder="ผู้รับผิดชอบ" value="${r.assignedTo||''}" onchange="__setRes(${i},'assignedTo',this.value)">
+    <input type="date" value="${r.dueDate||''}" title="กำหนดเสร็จ" onchange="__setRes(${i},'dueDate',this.value)">
+    <button class="btn btn-red btn-sm" onclick="__removeRes(${i})">✕</button>
+  </div>`;
+}
+window.__setAg=(i,k,v)=>{if(_agendas[i])_agendas[i][k]=v;};
+window.__setRes=(i,k,v)=>{if(_resolutions[i])_resolutions[i][k]=v;};
+window.__addAgenda=()=>{_agendas.push({topic:'',detail:''});const c=document.getElementById('agendaContainer');if(c)c.insertAdjacentHTML('beforeend',agendaRow(_agendas.length-1));};
+window.__removeAg=i=>{_agendas.splice(i,1);const c=document.getElementById('agendaContainer');if(c)c.innerHTML=_agendas.map((_,idx)=>agendaRow(idx)).join('');};
+window.__addRes=()=>{_resolutions.push({description:'',assignedTo:'',dueDate:'',status:'pending'});const c=document.getElementById('resContainer');if(c)c.insertAdjacentHTML('beforeend',resRow(_resolutions.length-1));};
+window.__removeRes=i=>{_resolutions.splice(i,1);const c=document.getElementById('resContainer');if(c)c.innerHTML=_resolutions.map((_,idx)=>resRow(idx)).join('');};
+
+window.__saveForm = async () => {
+  const date=document.getElementById('mtDate')?.value;
+  if(!date) return alert('กรุณาระบุวันที่ประชุม');
+  // collect latest input values
+  _agendas=_agendas.map((_,i)=>({topic:document.getElementById(`ag-${i}`)?.children[1]?.value||'',detail:document.getElementById(`ag-${i}`)?.children[2]?.value||''}));
+  _resolutions=_resolutions.map((_,i)=>({description:document.getElementById(`res-${i}`)?.children[0]?.value||'',assignedTo:document.getElementById(`res-${i}`)?.children[1]?.value||'',dueDate:document.getElementById(`res-${i}`)?.children[2]?.value||'',status:_resolutions[i]?.status||'pending'}));
+  const data={meetingDate:date,meetingNo:document.getElementById('mtNo')?.value||'',meetingType:document.getElementById('mtType')?.value,venue:document.getElementById('mtVenue')?.value||'',attendeeCount:+document.getElementById('mtAttendee')?.value||0,chairman:document.getElementById('mtChair')?.value||'',nextMeetingDate:document.getElementById('mtNext')?.value||'',status:document.getElementById('mtStatus')?.value||'completed',notes:document.getElementById('mtNote')?.value||'',agendas:_agendas.filter(a=>a.topic),resolutions:_resolutions.filter(r=>r.description)};
+  try{
+    if(_editId) await updateMeeting(_editId,data);
+    else await createMeeting(data,_profile?.uid);
+    _editId=null; __closePanel(); await loadList();
+  }catch(e){alert('บันทึกไม่สำเร็จ: '+e.message);}
+};
+
+// ── DETAIL ────────────────────────────────────────────────────────────────────
+window.__openDetail = async id => {
+  const rec=_rows.find(r=>r.id===id)||await getMeeting(id);
+  if(!rec) return;
+  const s=MEETING_STATUS[rec.status]||{label:rec.status,color:'#64748b',bg:'#f1f5f9'};
+  openPanel(`
+  <div class="panel-hd"><div style="font-weight:700">การประชุม ครั้งที่ ${rec.meetingNo||'—'} — ${rec.meetingDate||''}</div><button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button></div>
+  <div class="panel-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;font-size:.83rem">
+      <div><div style="font-size:.72rem;font-weight:700;color:#64748b">ประเภท</div>${typeMap[rec.meetingType]||rec.meetingType||'—'}</div>
+      <div><div style="font-size:.72rem;font-weight:700;color:#64748b">สถานที่</div>${rec.venue||'—'}</div>
+      <div><div style="font-size:.72rem;font-weight:700;color:#64748b">ประธาน</div>${rec.chairman||'—'}</div>
+      <div><div style="font-size:.72rem;font-weight:700;color:#64748b">ผู้เข้าร่วม</div>${rec.attendeeCount||0} คน</div>
+      <div><div style="font-size:.72rem;font-weight:700;color:#64748b">สถานะ</div><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></div>
+      ${rec.nextMeetingDate?`<div><div style="font-size:.72rem;font-weight:700;color:#64748b">ประชุมครั้งต่อไป</div>${rec.nextMeetingDate}</div>`:''}
+    </div>
+    ${(rec.agendas||[]).length?`
+    <div class="sec-hd" style="margin-top:0">วาระการประชุม</div>
+    <ol style="padding-left:18px;font-size:.85rem;line-height:1.8">${(rec.agendas||[]).map(a=>`<li><b>${a.topic}</b>${a.detail?` — ${a.detail}`:''}</li>`).join('')}</ol>`:''}
+    ${(rec.resolutions||[]).length?`
+    <div class="sec-hd">มติที่ประชุม (${(rec.resolutions||[]).length} รายการ)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+      <thead><tr><th style="padding:6px;border-bottom:1px solid #e2e8f0;text-align:left">มติ</th><th style="padding:6px;border-bottom:1px solid #e2e8f0">ผู้รับผิดชอบ</th><th style="padding:6px;border-bottom:1px solid #e2e8f0">กำหนดเสร็จ</th><th style="padding:6px;border-bottom:1px solid #e2e8f0">สถานะ</th></tr></thead>
+      <tbody>${(rec.resolutions||[]).map(r=>`<tr>
+        <td style="padding:6px;border-bottom:1px solid #f8fafc">${r.description}</td>
+        <td style="padding:6px;border-bottom:1px solid #f8fafc">${r.assignedTo||'—'}</td>
+        <td style="padding:6px;border-bottom:1px solid #f8fafc;color:${r.dueDate&&r.dueDate<today()?'#dc2626':'inherit'}">${r.dueDate||'—'}</td>
+        <td style="padding:6px;border-bottom:1px solid #f8fafc">
+          <span style="color:${r.status==='done'?'#16a34a':'#d97706'};font-weight:700">${r.status==='done'?'✓ เสร็จ':'⏳ รอ'}</span>
+        </td>
+      </tr>`).join('')}</tbody>
+    </table>`:''}
+  </div>
+  <div class="panel-ft">
+    <button class="btn btn-ghost" onclick="__closePanel()">ปิด</button>
+    <button class="btn btn-primary" onclick="__editRecord('${rec.id}')">✏️ แก้ไข</button>
+  </div>`);
+};
+
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile,'safety-meeting','ประชุม คปอ.');
+loadList();
+</script>
+</body>
+</html>

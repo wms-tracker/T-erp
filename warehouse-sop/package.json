@@ -1,0 +1,11 @@
+{
+  "name": "warehouse-sop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Warehouse SOP Management System — จัดทำ ตรวจสอบ อนุมัติ และเผยแพร่เอกสาร SOP",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node test/workflow.test.js"
+  },
+  "engines": { "node": ">=22.13" }
+}

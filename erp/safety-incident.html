@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>บันทึกอุบัติเหตุ — KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listIncidents, getIncident, createIncident, updateIncident,
+  INCIDENT_TYPES, INCIDENT_STATUS, DEPARTMENTS, BODY_PARTS, INJURY_NATURES
+} from "./js/safety-data.js";
+
+// ─── helpers ────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const fmtDate = s => s || '—';
+function badge(val, map) {
+  const m = map[val] || { label: val, color: '#64748b', bg: '#f1f5f9' };
+  return `<span class="badge" style="background:${m.bg||'#f1f5f9'};color:${m.color}">${m.label||m.labelTh}</span>`;
+}
+
+let _profile, _rows = [], _activeId = null;
+
+// ─── filter state ──────────────────────────────────────────────────────
+const F = { type: '', status: '', dept: '', q: '', page: 0, pageSize: 20 };
+
+function applyFilters(rows) {
+  let r = [...rows];
+  if (F.type)   r = r.filter(x => x.incidentType === F.type);
+  if (F.status) r = r.filter(x => x.status === F.status);
+  if (F.dept)   r = r.filter(x => x.department === F.dept);
+  if (F.q) {
+    const q = F.q.toLowerCase();
+    r = r.filter(x => (x.incidentId||'').toLowerCase().includes(q)
+      || (x.description||'').toLowerCase().includes(q)
+      || (x.location||'').toLowerCase().includes(q)
+      || (x.injuredPerson||'').toLowerCase().includes(q));
+  }
+  return r;
+}
+
+// ─── page layout (rendered once) ───────────────────────────────────────
+function buildLayout() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `
+  <style>
+    .si{padding:0 20px 32px;max-width:1400px;margin:0 auto;}
+    .si-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 16px;}
+    .si-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#1e40af;color:#fff;}
+    .btn-primary:hover{background:#1d4ed8;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;}
+    .btn-ghost:hover{background:#e2e8f0;}
+    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
+    .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #f1f5f9;margin-bottom:8px;}
+    select,input[type=text]{padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;color:#334155;background:#fff;}
+    .tbl-wrap{overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
+    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .incid-id{font-weight:700;color:#1e40af;font-size:.83rem;}
+    .pager{display:flex;align-items:center;gap:8px;padding:14px 0;justify-content:flex-end;font-size:.82rem;color:#64748b;}
+    .pager button{padding:4px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-family:Sarabun,sans-serif;font-size:.82rem;cursor:pointer;}
+    .pager button:disabled{opacity:.4;cursor:default;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    /* Modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
+    .modal-panel{background:#fff;height:100dvh;width:min(640px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
+    .modal-head{padding:20px 24px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
+    .modal-head-title{font-size:1rem;font-weight:700;color:#0f172a;}
+    .modal-body{padding:20px 24px;flex:1;}
+    .modal-foot{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
+    .form-group{margin-bottom:14px;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
+    .form-label .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
+    .form-ctrl:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+    textarea.form-ctrl{resize:vertical;min-height:72px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .form-section{font-size:.78rem;font-weight:700;color:#1e40af;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #dbeafe;padding-bottom:6px;margin:20px 0 12px;}
+    .severity-badge{padding:4px 10px;border-radius:6px;font-size:.8rem;font-weight:600;display:inline-block;}
+    /* detail view */
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;}
+    .detail-row{padding:6px 0;border-bottom:1px solid #f8fafc;}
+    .detail-label{font-size:.75rem;color:#64748b;font-weight:600;}
+    .detail-val{font-size:.85rem;color:#1e293b;margin-top:2px;}
+    .status-timeline{padding:12px 0;}
+    .status-step{display:flex;align-items:flex-start;gap:10px;padding:8px 0;}
+    .status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+    .status-step-label{font-size:.82rem;color:#475569;}
+    .status-step.done .status-step-label{color:#16a34a;}
+    .status-step.active .status-step-label{color:#1e40af;font-weight:600;}
+    .workflow-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;}
+    .workflow-btn{padding:6px 14px;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;border:1.5px solid #e2e8f0;background:#fff;color:#475569;}
+    .workflow-btn:hover{background:#f1f5f9;}
+    .workflow-btn.primary{background:#1e40af;color:#fff;border-color:#1e40af;}
+  </style>
+
+  <div class="si">
+    <div class="si-header">
+      <div class="si-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        บันทึกอุบัติเหตุ & เหตุการณ์
+      </div>
+      <button class="btn btn-primary" onclick="__openCreate()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        บันทึกเหตุการณ์ใหม่
+      </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-row">
+      <input type="text" id="fSearch" placeholder="ค้นหา หมายเลข / สถานที่ / รายละเอียด..." style="width:250px" oninput="__filter()">
+      <select id="fType" onchange="__filter()">
+        <option value="">ประเภท: ทั้งหมด</option>
+        ${Object.entries(INCIDENT_TYPES).map(([k,v]) => `<option value="${k}">${v.labelTh}</option>`).join('')}
+      </select>
+      <select id="fStatus" onchange="__filter()">
+        <option value="">สถานะ: ทั้งหมด</option>
+        ${Object.entries(INCIDENT_STATUS).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <select id="fDept" onchange="__filter()">
+        <option value="">แผนก: ทั้งหมด</option>
+        ${DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost" onclick="__clearFilter()">ล้าง</button>
+      <span id="rowCount" style="margin-left:auto;font-size:.8rem;color:#94a3b8"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="tbl-wrap" id="tblWrap"></div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <!-- Create/Edit/View modal -->
+  <div id="modalBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
+    <div class="modal-panel" id="modalPanel" onclick="e=>e.stopPropagation()">
+      <div class="modal-head">
+        <div class="modal-head-title" id="modalTitle">บันทึกเหตุการณ์ใหม่</div>
+        <button class="btn btn-ghost" onclick="__closeModal(null)" style="padding:4px 10px">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>`;
+}
+
+// ─── table render ──────────────────────────────────────────────────────
+function renderTable() {
+  const filtered = applyFilters(_rows);
+  const total = filtered.length;
+  const pages = Math.ceil(total / F.pageSize) || 1;
+  if (F.page >= pages) F.page = pages - 1;
+  const slice = filtered.slice(F.page * F.pageSize, (F.page + 1) * F.pageSize);
+
+  $('rowCount').textContent = `${total} รายการ`;
+
+  if (filtered.length === 0) {
+    $('tblWrap').innerHTML = `<div class="empty-state"><div style="font-size:2.5rem">📋</div><div style="margin-top:8px">ยังไม่มีข้อมูลเหตุการณ์</div><div style="margin-top:4px;font-size:.8rem">กดปุ่ม "บันทึกเหตุการณ์ใหม่" เพื่อเพิ่มข้อมูลแรก</div></div>`;
+    $('pager').innerHTML = '';
+    return;
+  }
+
+  $('tblWrap').innerHTML = `
+  <table class="tbl">
+    <thead><tr>
+      <th>หมายเลข</th><th>วันที่-เวลา</th><th>ประเภท</th><th>แผนก/สถานที่</th>
+      <th>ผู้ประสบเหตุ</th><th>รายละเอียด</th><th>สถานะ</th>
+    </tr></thead>
+    <tbody>
+    ${slice.map(r => {
+      const t = INCIDENT_TYPES[r.incidentType] || { labelTh: r.incidentType, color: '#64748b', bg: '#f1f5f9' };
+      const s = INCIDENT_STATUS[r.status]       || { label: r.status, color: '#64748b', bg: '#f1f5f9' };
+      return `<tr onclick="__openDetail('${r.id}')">
+        <td><span class="incid-id">${r.incidentId||r.id.slice(0,8)}</span></td>
+        <td>${r.incidentDate||'—'} ${r.incidentTime||''}</td>
+        <td><span class="badge" style="background:${t.bg};color:${t.color}">${t.labelTh}</span></td>
+        <td><div style="font-size:.82rem;font-weight:600">${r.department||'—'}</div><div style="font-size:.75rem;color:#94a3b8">${r.location||''}</div></td>
+        <td>${r.injuredPerson||'—'}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
+        <td><span class="badge" style="background:${s.bg||'#f1f5f9'};color:${s.color}">${s.label}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+
+  // Pagination
+  $('pager').innerHTML = `
+    <span>${F.page*F.pageSize+1}–${Math.min((F.page+1)*F.pageSize,total)} / ${total}</span>
+    <button onclick="__page(-1)" ${F.page===0?'disabled':''}>‹ ก่อนหน้า</button>
+    <button onclick="__page(1)"  ${F.page>=pages-1?'disabled':''}>ถัดไป ›</button>`;
+}
+
+// ─── create form ───────────────────────────────────────────────────────
+function openCreateForm() {
+  _activeId = null;
+  $('modalTitle').textContent = 'บันทึกเหตุการณ์ใหม่';
+  $('modalBody').innerHTML = createFormHTML({});
+  $('modalFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="__submitCreate()">บันทึกเหตุการณ์</button>`;
+  $('modalBg').style.display = 'flex';
+}
+
+function createFormHTML(d) {
+  return `
+  <div class="form-section">ข้อมูลพื้นฐาน</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันที่เกิดเหตุ <span class="req">*</span></label>
+      <input type="date" class="form-ctrl" id="fIncidentDate" value="${d.incidentDate||new Date().toISOString().split('T')[0]}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">เวลาที่เกิดเหตุ <span class="req">*</span></label>
+      <input type="time" class="form-ctrl" id="fIncidentTime" value="${d.incidentTime||''}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ประเภทเหตุการณ์ <span class="req">*</span></label>
+      <select class="form-ctrl" id="fIncidentType">
+        <option value="">-- เลือกประเภท --</option>
+        ${Object.entries(INCIDENT_TYPES).map(([k,v]) => `<option value="${k}" ${d.incidentType===k?'selected':''}>${v.labelTh}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">แผนก <span class="req">*</span></label>
+      <select class="form-ctrl" id="fDepartment">
+        <option value="">-- เลือกแผนก --</option>
+        ${DEPARTMENTS.map(dep => `<option value="${dep}" ${d.department===dep?'selected':''}>${dep}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สถานที่เกิดเหตุ (ระบุจุดให้ชัดเจน) <span class="req">*</span></label>
+    <input type="text" class="form-ctrl" id="fLocation" placeholder="เช่น โซน A แถว 3, Dock 5..." value="${d.location||''}">
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียดเหตุการณ์ <span class="req">*</span></label>
+    <textarea class="form-ctrl" id="fDescription" placeholder="อธิบายสิ่งที่เกิดขึ้นอย่างละเอียด...">${d.description||''}</textarea>
+  </div>
+
+  <div class="form-section">ข้อมูลผู้ประสบเหตุ</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ชื่อผู้ประสบเหตุ</label>
+      <input type="text" class="form-ctrl" id="fInjuredPerson" placeholder="ชื่อ-นามสกุล (ถ้ามี)" value="${d.injuredPerson||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ตำแหน่งงาน</label>
+      <input type="text" class="form-ctrl" id="fPosition" placeholder="เช่น พนักงานคลังสินค้า" value="${d.position||''}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ลักษณะการบาดเจ็บ</label>
+      <select class="form-ctrl" id="fInjuryNature">
+        <option value="">-- เลือก (ถ้ามีการบาดเจ็บ) --</option>
+        ${INJURY_NATURES.map(n => `<option value="${n}" ${d.injuryNature===n?'selected':''}>${n}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">อวัยวะที่ได้รับบาดเจ็บ</label>
+      <select class="form-ctrl" id="fBodyPart">
+        <option value="">-- เลือก (ถ้ามีการบาดเจ็บ) --</option>
+        ${BODY_PARTS.map(b => `<option value="${b}" ${d.bodyPart===b?'selected':''}>${b}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-section">การดำเนินการเบื้องต้น</div>
+  <div class="form-group">
+    <label class="form-label">มาตรการแก้ไขเบื้องต้น</label>
+    <textarea class="form-ctrl" id="fImmediateAction" placeholder="สิ่งที่ดำเนินการทันทีหลังเกิดเหตุ...">${d.immediateAction||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">ผู้รายงาน / พยาน</label>
+    <input type="text" class="form-ctrl" id="fWitness" placeholder="ชื่อผู้รายงาน หรือพยาน" value="${d.witness||''}">
+  </div>`;
+}
+
+// ─── detail view ───────────────────────────────────────────────────────
+async function openDetail(id) {
+  _activeId = id;
+  $('modalTitle').textContent = 'รายละเอียดเหตุการณ์';
+  $('modalBody').innerHTML = `<div style="text-align:center;padding:40px;color:#94a3b8">กำลังโหลด...</div>`;
+  $('modalBg').style.display = 'flex';
+
+  const r = await getIncident(id);
+  if (!r) { $('modalBody').innerHTML = '<div style="padding:20px;color:#dc2626">ไม่พบข้อมูล</div>'; return; }
+
+  const t = INCIDENT_TYPES[r.incidentType] || { labelTh: r.incidentType, color: '#64748b', bg: '#f1f5f9' };
+  const s = INCIDENT_STATUS[r.status]       || { label: r.status, color: '#64748b', bg: '#f1f5f9' };
+
+  const STATUS_ORDER = ['draft','submitted','investigating','pending_approval','corrective_action','closed'];
+  const currentIdx = STATUS_ORDER.indexOf(r.status);
+
+  $('modalBody').innerHTML = `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <span style="font-size:1.05rem;font-weight:800;color:#1e40af">${r.incidentId||id.slice(0,8)}</span>
+    <span class="badge" style="background:${t.bg};color:${t.color};font-size:.8rem">${t.labelTh}</span>
+    <span class="badge" style="background:${s.bg||'#f1f5f9'};color:${s.color};font-size:.8rem">${s.label}</span>
+  </div>
+
+  <div class="form-section">ข้อมูลเหตุการณ์</div>
+  <div class="detail-grid">
+    <div class="detail-row"><div class="detail-label">วันที่</div><div class="detail-val">${r.incidentDate||'—'} ${r.incidentTime||''}</div></div>
+    <div class="detail-row"><div class="detail-label">แผนก</div><div class="detail-val">${r.department||'—'}</div></div>
+    <div class="detail-row"><div class="detail-label">สถานที่</div><div class="detail-val">${r.location||'—'}</div></div>
+    <div class="detail-row"><div class="detail-label">ผู้รายงาน</div><div class="detail-val">${r.witness||r.createdBy||'—'}</div></div>
+  </div>
+
+  <div class="form-group" style="margin-top:12px">
+    <div class="form-label">รายละเอียด</div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#1e293b;line-height:1.6">${r.description||'—'}</div>
+  </div>
+
+  ${r.injuredPerson ? `
+  <div class="form-section">ผู้ประสบเหตุ</div>
+  <div class="detail-grid">
+    <div class="detail-row"><div class="detail-label">ชื่อ</div><div class="detail-val">${r.injuredPerson}</div></div>
+    <div class="detail-row"><div class="detail-label">ตำแหน่ง</div><div class="detail-val">${r.position||'—'}</div></div>
+    <div class="detail-row"><div class="detail-label">ลักษณะบาดเจ็บ</div><div class="detail-val">${r.injuryNature||'—'}</div></div>
+    <div class="detail-row"><div class="detail-label">อวัยวะ</div><div class="detail-val">${r.bodyPart||'—'}</div></div>
+  </div>` : ''}
+
+  ${r.immediateAction ? `
+  <div class="form-group" style="margin-top:12px">
+    <div class="form-label">มาตรการแก้ไขเบื้องต้น</div>
+    <div style="background:#f0fdf4;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#1e293b;line-height:1.6">${r.immediateAction}</div>
+  </div>` : ''}
+
+  <div class="form-section">สถานะการดำเนินการ</div>
+  <div class="status-timeline">
+  ${STATUS_ORDER.map((st, i) => {
+    const sm = INCIDENT_STATUS[st] || { label: st, color: '#64748b' };
+    const isDone = i < currentIdx;
+    const isActive = i === currentIdx;
+    return `<div class="status-step ${isDone?'done':''} ${isActive?'active':''}">
+      <div class="status-dot" style="background:${isActive?s.color:isDone?'#16a34a':'#e2e8f0'}"></div>
+      <div class="status-step-label">${sm.label}</div>
+    </div>`;
+  }).join('')}
+  </div>
+
+  <div class="form-section">อัปเดตสถานะ</div>
+  <div class="workflow-row">
+    ${r.status !== 'investigating' ? `<button class="workflow-btn primary" onclick="__updateStatus('${id}','investigating')">เริ่มสอบสวน</button>` : ''}
+    ${r.status === 'investigating'  ? `<button class="workflow-btn primary" onclick="__updateStatus('${id}','pending_approval')">ส่งอนุมัติ</button>` : ''}
+    ${r.status === 'pending_approval' ? `<button class="workflow-btn primary" onclick="__updateStatus('${id}','corrective_action')">อนุมัติ → ดำเนินการแก้ไข</button>` : ''}
+    ${r.status === 'corrective_action' ? `<button class="workflow-btn primary" onclick="__updateStatus('${id}','closed')">ปิดเคส</button>` : ''}
+    ${r.status !== 'closed' ? `<button class="workflow-btn" onclick="__openEdit('${id}')">แก้ไขข้อมูล</button>` : ''}
+  </div>`;
+
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="__closeModal(null)">ปิด</button>`;
+}
+
+// ─── edit form ─────────────────────────────────────────────────────────
+async function openEdit(id) {
+  _activeId = id;
+  const r = await getIncident(id);
+  if (!r) return;
+  $('modalTitle').textContent = 'แก้ไขข้อมูลเหตุการณ์';
+  $('modalBody').innerHTML = createFormHTML(r);
+  $('modalFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__openDetail('${id}')">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="__submitEdit('${id}')">บันทึกการแก้ไข</button>`;
+}
+
+// ─── submit handlers ───────────────────────────────────────────────────
+async function submitCreate() {
+  const d = collectForm();
+  if (!d) return;
+  const btn = $('modalFoot').querySelector('.btn-primary');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    await createIncident(d, _profile.uid);
+    _rows = await listIncidents({ lim: 200 });
+    renderTable();
+    closeModal(null);
+    showToast('บันทึกเหตุการณ์เรียบร้อยแล้ว ✓', '#16a34a');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'บันทึกเหตุการณ์';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+async function submitEdit(id) {
+  const d = collectForm();
+  if (!d) return;
+  const btn = $('modalFoot').querySelector('.btn-primary');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    await updateIncident(id, d);
+    _rows = await listIncidents({ lim: 200 });
+    renderTable();
+    openDetail(id);
+    showToast('แก้ไขข้อมูลเรียบร้อยแล้ว ✓', '#16a34a');
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'บันทึกการแก้ไข';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+async function updateStatus(id, newStatus) {
+  try {
+    await updateIncident(id, { status: newStatus });
+    _rows = await listIncidents({ lim: 200 });
+    renderTable();
+    openDetail(id);
+    showToast(`อัปเดตสถานะ: ${INCIDENT_STATUS[newStatus]?.label} ✓`, '#16a34a');
+  } catch (e) {
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+function collectForm() {
+  const required = ['fIncidentDate','fIncidentTime','fIncidentType','fDepartment','fLocation','fDescription'];
+  for (const id of required) {
+    if (!$(id)?.value?.trim()) {
+      showToast('กรุณากรอกข้อมูลให้ครบ (ช่องที่มี *)', '#dc2626');
+      $(id)?.focus();
+      return null;
+    }
+  }
+  return {
+    incidentDate:    $('fIncidentDate').value,
+    incidentTime:    $('fIncidentTime').value,
+    incidentType:    $('fIncidentType').value,
+    department:      $('fDepartment').value,
+    location:        $('fLocation').value.trim(),
+    description:     $('fDescription').value.trim(),
+    injuredPerson:   $('fInjuredPerson').value.trim(),
+    position:        $('fPosition').value.trim(),
+    injuryNature:    $('fInjuryNature').value,
+    bodyPart:        $('fBodyPart').value,
+    immediateAction: $('fImmediateAction').value.trim(),
+    witness:         $('fWitness').value.trim(),
+  };
+}
+
+// ─── toast ─────────────────────────────────────────────────────────────
+function showToast(msg, color = '#16a34a') {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2);max-width:320px`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function closeModal(e) {
+  if (e && e.target !== $('modalBg')) return;
+  $('modalBg').style.display = 'none';
+  _activeId = null;
+}
+
+// ─── global helpers ────────────────────────────────────────────────────
+window.__filter = () => {
+  F.type   = $('fType')?.value   || '';
+  F.status = $('fStatus')?.value || '';
+  F.dept   = $('fDept')?.value   || '';
+  F.q      = $('fSearch')?.value || '';
+  F.page   = 0;
+  renderTable();
+};
+window.__clearFilter = () => {
+  $('fType').value = $('fStatus').value = $('fDept').value = $('fSearch').value = '';
+  Object.assign(F, { type:'', status:'', dept:'', q:'', page:0 });
+  renderTable();
+};
+window.__page        = d => { F.page += d; renderTable(); };
+window.__openCreate  = openCreateForm;
+window.__openDetail  = openDetail;
+window.__openEdit    = openEdit;
+window.__closeModal  = closeModal;
+window.__submitCreate = submitCreate;
+window.__submitEdit   = submitEdit;
+window.__updateStatus = updateStatus;
+
+// ─── boot ───────────────────────────────────────────────────────────────
+_profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager', 'warehouse']);
+renderShell(_profile, 'incident-list', 'บันทึกอุบัติเหตุ');
+buildLayout();
+
+// Load data
+_rows = await listIncidents({ lim: 200 });
+renderTable();
+
+// Handle #new hash
+if (location.hash === '#new') openCreateForm();
+// Handle ?id= query
+const qid = new URLSearchParams(location.search).get('id');
+if (qid) openDetail(qid);
+</script>
+</body>
+</html>

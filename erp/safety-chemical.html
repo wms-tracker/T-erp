@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ทะเบียนสารเคมี — KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media print {
+      body * { visibility: hidden !important; }
+      #printArea, #printArea * { visibility: visible !important; }
+      #printArea {
+        position: fixed; inset: 0; padding: 14mm 12mm;
+        font-family: Sarabun, sans-serif; font-size: 9.5pt; color: #000; background: #fff; z-index: 9999;
+      }
+      .pr-title { text-align: center; font-size: 13pt; font-weight: 800; margin-bottom: 4pt; }
+      .pr-sub   { text-align: center; font-size: 9.5pt; margin-bottom: 10pt; color: #555; }
+      .pr-table { border-collapse: collapse; width: 100%; font-size: 8.5pt; }
+      .pr-table th, .pr-table td { border: 1pt solid #999; padding: 3pt 5pt; vertical-align: top; }
+      .pr-table th { background: #f0f0f0; font-weight: 700; text-align: center; }
+      @page { margin: 0; size: A4 landscape; }
+    }
+  </style>
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="printArea" style="display:none"></div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listChemicals, getChemical, createChemical, updateChemical, deleteChemical,
+  GHS_HAZARDS, CHEM_STATUS, CHEM_UNITS, DEFAULT_CHEMICALS, PPE_OPTIONS,
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _items = [], _editId = null;
+let _filterSearch = '', _filterStatus = '', _filterGhs = '';
+const TODAY = () => new Date().toISOString().split('T')[0];
+
+// ── load ──────────────────────────────────────────────────────────────────
+async function loadData() { _items = await listChemicals({ lim: 500 }); }
+
+// ── GHS badge helpers ─────────────────────────────────────────────────────
+function ghsBadges(list = []) {
+  return list.map(k => {
+    const g = GHS_HAZARDS.find(h => h.key === k);
+    return g ? `<span title="${g.label}" style="font-size:1rem">${g.icon}</span>` : '';
+  }).join('');
+}
+function ghsBadgeFull(list = []) {
+  return list.map(k => {
+    const g = GHS_HAZARDS.find(h => h.key === k);
+    return g ? `<span style="background:${g.color}18;color:${g.color};border:1px solid ${g.color}44;border-radius:8px;padding:2px 8px;font-size:.72rem;font-weight:600">${g.icon} ${g.label}</span>` : '';
+  }).join(' ');
+}
+
+function daysUntilSds(d) {
+  if (!d) return null;
+  return Math.ceil((new Date(d) - new Date()) / 86400000);
+}
+
+// ── render ────────────────────────────────────────────────────────────────
+function renderContent() {
+  $('main-content').innerHTML = `
+  <style>
+    .cw{padding:0 20px 60px;max-width:1300px;margin:0 auto;}
+    .ph{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:18px 0 12px;}
+    .ph-title{font-size:1.15rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 10px;font-size:.78rem;}
+    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fecaca;} .btn-danger:hover{background:#fecaca;}
+    .btn-warn{background:#fef3c7;color:#d97706;border:1px solid #fde68a;}
+    .sum-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+    .sum-chip{background:#fff;border-radius:10px;padding:10px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);text-align:center;min-width:80px;}
+    .sum-val{font-size:1.5rem;font-weight:900;line-height:1;}
+    .sum-lbl{font-size:.68rem;color:#64748b;font-weight:600;margin-top:2px;}
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+    .filter-bar input,.filter-bar select{padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;background:#fff;}
+    .filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:#0891b2;}
+    /* GHS matrix */
+    .ghs-legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;background:#fff;padding:12px 16px;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+    .ghs-chip{display:flex;align-items:center;gap:4px;font-size:.74rem;padding:3px 8px;border-radius:10px;}
+    /* Table */
+    .chem-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .chem-table th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;white-space:nowrap;}
+    .chem-table td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    .chem-table tr:hover td{background:#f8fafc;}
+    /* Panel */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;}
+    .overlay.open{display:block;}
+    .panel{position:fixed;top:0;right:0;height:100dvh;width:min(600px,100vw);background:#fff;z-index:201;overflow-y:auto;transform:translateX(100%);transition:.25s cubic-bezier(.4,0,.2,1);}
+    .panel.open{transform:none;}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1;}
+    .panel-title{font-size:1rem;font-weight:700;color:#0f172a;}
+    .panel-body{padding:20px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+    @media(max-width:550px){.form-row{grid-template-columns:1fr;}}
+    .form-row.full{grid-template-columns:1fr;}
+    .form-row.three{grid-template-columns:1fr 1fr 1fr;}
+    @media(max-width:550px){.form-row.three{grid-template-columns:1fr 1fr;}}
+    .form-group{display:flex;flex-direction:column;gap:4px;}
+    .form-label{font-size:.78rem;font-weight:700;color:#374151;}
+    .form-label span{color:#dc2626;}
+    .form-input{padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;transition:.15s;}
+    .form-input:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    .section-div{font-size:.8rem;font-weight:700;color:#475569;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid #e2e8f0;}
+    .ghs-sel{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
+    .ghs-sel-btn{padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:.75rem;font-weight:600;cursor:pointer;background:#fff;color:#475569;transition:.1s;}
+    .ghs-sel-btn.active{background:#dc2626;border-color:#dc2626;color:#fff;}
+    .ppe-grid{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
+    .ppe-btn{padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:.75rem;font-weight:600;cursor:pointer;background:#fff;color:#475569;}
+    .ppe-btn.active{background:#0891b2;border-color:#0891b2;color:#fff;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    .sds-warn{color:#dc2626;font-weight:700;font-size:.72rem;}
+  </style>
+  <div class="cw">
+    <div class="ph">
+      <div class="ph-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg>
+        ทะเบียนสารเคมีอันตราย
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="__loadDefaults()">📥 โหลด Default</button>
+        <button class="btn btn-ghost" onclick="__printAll()">🖨 พิมพ์ทะเบียน</button>
+        <button class="btn btn-primary" onclick="__openCreate()">+ เพิ่มสารเคมี</button>
+      </div>
+    </div>
+
+    <div id="sumBar"></div>
+
+    <div class="ghs-legend">
+      <span style="font-size:.78rem;font-weight:700;color:#64748b;margin-right:4px">GHS:</span>
+      ${GHS_HAZARDS.map(g=>`<span class="ghs-chip" style="background:${g.color}15;color:${g.color}">${g.icon} ${g.label}</span>`).join('')}
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" id="fSearch" placeholder="🔍 ค้นหาชื่อสารเคมี/CAS..." value="${_filterSearch}" oninput="__filter()" style="flex:1;min-width:180px">
+      <select id="fStatus" onchange="__filter()">
+        <option value="">ทุกสถานะ</option>
+        ${Object.entries(CHEM_STATUS).map(([k,v])=>`<option value="${k}" ${_filterStatus===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+      <select id="fGhs" onchange="__filter()">
+        <option value="">ทุกอันตราย GHS</option>
+        ${GHS_HAZARDS.map(g=>`<option value="${g.key}" ${_filterGhs===g.key?'selected':''}>${g.icon} ${g.label}</option>`).join('')}
+      </select>
+    </div>
+
+    <div style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.07)">
+      <div style="overflow-x:auto">
+        <table class="chem-table">
+          <thead><tr>
+            <th>#</th><th>ชื่อสารเคมี</th><th>CAS Number</th><th>GHS</th>
+            <th>สถานที่เก็บ</th><th>ปริมาณสูงสุด</th><th>SDS</th><th>สถานะ</th><th></th>
+          </tr></thead>
+          <tbody id="chemTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay" onclick="__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <span class="panel-title" id="panelTitle">สารเคมี</span>
+      <button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>`;
+
+  renderSummary();
+  renderTable();
+}
+
+// ── summary ───────────────────────────────────────────────────────────────
+function renderSummary() {
+  const active   = _items.filter(i => i.status==='active').length;
+  const sdsOverdue = _items.filter(i => i.nextReviewDate && i.nextReviewDate < TODAY()).length;
+  const sdsSoon  = _items.filter(i => { const d = daysUntilSds(i.nextReviewDate); return d !== null && d >= 0 && d <= 30; }).length;
+  const highHaz  = _items.filter(i => (i.ghsHazards||[]).some(h => ['toxic','explosive'].includes(h))).length;
+  const total    = _items.length;
+
+  $('sumBar').innerHTML = `<div class="sum-bar">
+    ${[
+      { val: total,      lbl: 'ทั้งหมด',           color: '#475569' },
+      { val: active,     lbl: 'ใช้งาน',             color: '#16a34a' },
+      { val: highHaz,    lbl: 'อันตรายสูง (พิษ/ระเบิด)', color: '#dc2626' },
+      { val: sdsOverdue, lbl: 'SDS หมดอายุ',         color: '#dc2626' },
+      { val: sdsSoon,    lbl: 'SDS ครบ 30 วัน',       color: '#d97706' },
+    ].map(b=>`<div class="sum-chip"><div class="sum-val" style="color:${b.color}">${b.val}</div><div class="sum-lbl">${b.lbl}</div></div>`).join('')}
+  </div>`;
+}
+
+// ── table ─────────────────────────────────────────────────────────────────
+function filtered() {
+  let rows = _items;
+  if (_filterStatus) rows = rows.filter(r => r.status === _filterStatus);
+  if (_filterGhs)    rows = rows.filter(r => (r.ghsHazards||[]).includes(_filterGhs));
+  if (_filterSearch) {
+    const q = _filterSearch.toLowerCase();
+    rows = rows.filter(r =>
+      (r.chemicalName||'').toLowerCase().includes(q) ||
+      (r.chemicalNameEn||'').toLowerCase().includes(q) ||
+      (r.casNumber||'').toLowerCase().includes(q));
+  }
+  return rows;
+}
+
+function renderTable() {
+  const rows = filtered();
+  const tbody = $('chemTableBody');
+  if (!tbody) return;
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty-state">⚗️ ยังไม่มีสารเคมีในทะเบียน<br><small>คลิก "โหลด Default" เพื่อเพิ่มรายการเริ่มต้น</small></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r, idx) => {
+    const st = CHEM_STATUS[r.status] || { label: r.status, color: '#94a3b8' };
+    const sdsD = daysUntilSds(r.nextReviewDate);
+    const sdsWarn = sdsD !== null && sdsD < 0 ? `<span class="sds-warn">⛔ ${Math.abs(sdsD)}d</span>` :
+                    sdsD !== null && sdsD <= 30 ? `<span style="color:#d97706;font-weight:700;font-size:.72rem">⚠️ ${sdsD}d</span>` :
+                    r.nextReviewDate ? `<span style="font-size:.75rem;color:#16a34a">${r.nextReviewDate}</span>` : '—';
+    return `<tr>
+      <td style="color:#94a3b8">${idx+1}</td>
+      <td>
+        <div style="font-weight:700;color:#0f172a">${r.chemicalName}</div>
+        <div style="font-size:.72rem;color:#94a3b8">${r.chemicalNameEn||''}</div>
+      </td>
+      <td style="font-size:.75rem;color:#64748b;font-family:monospace">${r.casNumber||'—'}</td>
+      <td><div style="display:flex;gap:2px;flex-wrap:wrap">${ghsBadges(r.ghsHazards)}</div></td>
+      <td style="font-size:.78rem">${r.storageLocation||'—'}</td>
+      <td style="font-size:.78rem;white-space:nowrap">${r.maxQuantity||'—'} ${r.unit||''}</td>
+      <td>${sdsWarn}</td>
+      <td><span style="background:${st.color}18;color:${st.color};border-radius:10px;padding:2px 8px;font-size:.72rem;font-weight:700">${st.label}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="__openDetail('${r.id}')">ดู</button>
+        <button class="btn btn-ghost btn-sm" onclick="__openEdit('${r.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="__deleteChem('${r.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── form ──────────────────────────────────────────────────────────────────
+function openCreate() { _editId = null; renderForm(null); }
+async function openEdit(id) { _editId = id; const r = _items.find(i => i.id === id) || await getChemical(id); renderForm(r); }
+
+function renderForm(r) {
+  const isEdit = !!r;
+  const ghs = r?.ghsHazards || [];
+  const ppe = r?.ppe || [];
+  $('panelTitle').textContent = isEdit ? `✏️ แก้ไข ${r.chemicalName}` : '➕ เพิ่มสารเคมี';
+  $('panelBody').innerHTML = `
+    <div class="form-row full"><div class="form-group">
+      <label class="form-label">ชื่อสารเคมี (ภาษาไทย) <span>*</span></label>
+      <input class="form-input" id="fName" value="${r?.chemicalName||''}">
+    </div></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ชื่อสารเคมี (อังกฤษ)</label>
+        <input class="form-input" id="fNameEn" value="${r?.chemicalNameEn||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">CAS Number</label>
+        <input class="form-input" id="fCas" placeholder="xxx-xx-x" value="${r?.casNumber||''}">
+      </div>
+    </div>
+
+    <div class="section-div">การจำแนกอันตราย GHS</div>
+    <div class="ghs-sel">
+      ${GHS_HAZARDS.map(g=>`<button type="button" class="ghs-sel-btn ${ghs.includes(g.key)?'active':''}" data-key="${g.key}" onclick="__toggleGhs(this)">${g.icon} ${g.label}</button>`).join('')}
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">สถานที่จัดเก็บ</label>
+        <input class="form-input" id="fLoc" value="${r?.storageLocation||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ผู้จำหน่าย</label>
+        <input class="form-input" id="fSupplier" value="${r?.supplier||''}">
+      </div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group">
+        <label class="form-label">ปริมาณสูงสุด</label>
+        <input type="number" class="form-input" id="fMax" min="0" value="${r?.maxQuantity||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">หน่วย</label>
+        <select class="form-input" id="fUnit">
+          ${CHEM_UNITS.map(u=>`<option value="${u}" ${(r?.unit||'kg')===u?'selected':''}>${u}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ปริมาณปัจจุบัน</label>
+        <input type="number" class="form-input" id="fCurrent" min="0" value="${r?.currentStock||''}">
+      </div>
+    </div>
+
+    <div class="section-div">เอกสาร SDS</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">เลขที่ SDS</label>
+        <input class="form-input" id="fSdsRef" value="${r?.sdsDocRef||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันที่ออก SDS</label>
+        <input type="date" class="form-input" id="fSdsDate" value="${r?.sdsDate||''}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ทบทวน SDS ครั้งถัดไป</label>
+        <input type="date" class="form-input" id="fReview" value="${r?.nextReviewDate||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานะ</label>
+        <select class="form-input" id="fStatus">
+          ${Object.entries(CHEM_STATUS).map(([k,v])=>`<option value="${k}" ${(r?.status||'active')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="section-div">PPE ที่กำหนด</div>
+    <div class="ppe-grid">
+      ${PPE_OPTIONS.map(p=>`<button type="button" class="ppe-btn ${ppe.includes(p)?'active':''}" onclick="this.classList.toggle('active')">${p}</button>`).join('')}
+    </div>
+
+    <div class="form-row full"><div class="form-group">
+      <label class="form-label">อันตรายและการปฐมพยาบาล</label>
+      <textarea class="form-input" id="fHazard" rows="2" placeholder="อาการเมื่อสัมผัส / การปฐมพยาบาลเบื้องต้น...">${r?.hazardDescription||''}</textarea>
+    </div></div>
+    <div class="form-row full"><div class="form-group">
+      <label class="form-label">การปฏิบัติในกรณีฉุกเฉิน</label>
+      <textarea class="form-input" id="fEmergency" rows="2" placeholder="หากหก/รั่วไหล/ไฟไหม้ ให้ทำอย่างไร...">${r?.emergencyAction||''}</textarea>
+    </div></div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="__submitForm(${isEdit})">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="__closePanel()">ยกเลิก</button>
+    </div>`;
+  openPanel();
+}
+
+window.__toggleGhs = btn => { btn.classList.toggle('active'); };
+
+// ── submit ────────────────────────────────────────────────────────────────
+window.__submitForm = async isEdit => {
+  const chemicalName = $('fName')?.value?.trim();
+  if (!chemicalName) { alert('กรุณากรอกชื่อสารเคมี'); return; }
+  const ghsHazards = [...document.querySelectorAll('.ghs-sel-btn.active')].map(b => b.dataset.key);
+  const ppe        = [...document.querySelectorAll('.ppe-btn.active')].map(b => b.textContent.trim());
+  const data = {
+    chemicalName,
+    chemicalNameEn: $('fNameEn')?.value?.trim()||'',
+    casNumber:      $('fCas')?.value?.trim()||'',
+    ghsHazards, ppe,
+    storageLocation: $('fLoc')?.value?.trim()||'',
+    supplier:       $('fSupplier')?.value?.trim()||'',
+    maxQuantity:    parseFloat($('fMax')?.value)||0,
+    unit:           $('fUnit')?.value||'kg',
+    currentStock:   parseFloat($('fCurrent')?.value)||0,
+    sdsDocRef:      $('fSdsRef')?.value?.trim()||'',
+    sdsDate:        $('fSdsDate')?.value||'',
+    nextReviewDate: $('fReview')?.value||'',
+    status:         $('fStatus')?.value||'active',
+    hazardDescription: $('fHazard')?.value?.trim()||'',
+    emergencyAction: $('fEmergency')?.value?.trim()||'',
+  };
+  if (isEdit) await updateChemical(_editId, data);
+  else        await createChemical(data, _profile.uid);
+  __closePanel();
+  await loadData(); renderSummary(); renderTable();
+};
+
+// ── detail view ────────────────────────────────────────────────────────────
+async function openDetail(id) {
+  const r = _items.find(i => i.id === id) || await getChemical(id);
+  if (!r) return;
+  const st = CHEM_STATUS[r.status] || { label: r.status, color:'#94a3b8' };
+  const sdsD = daysUntilSds(r.nextReviewDate);
+  $('panelTitle').textContent = `⚗️ ${r.chemicalName}`;
+  $('panelBody').innerHTML = `
+    <div style="margin-bottom:14px">
+      ${ghsBadgeFull(r.ghsHazards)}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;font-size:.84rem">
+      ${[
+        ['ชื่อ (EN)', r.chemicalNameEn||'—'],
+        ['CAS Number', r.casNumber||'—'],
+        ['สถานที่เก็บ', r.storageLocation||'—'],
+        ['ผู้จำหน่าย', r.supplier||'—'],
+        ['ปริมาณสูงสุด', r.maxQuantity ? `${r.maxQuantity} ${r.unit}` : '—'],
+        ['ปริมาณปัจจุบัน', r.currentStock ? `${r.currentStock} ${r.unit}` : '—'],
+        ['เลขที่ SDS', r.sdsDocRef||'—'],
+        ['วันที่ออก SDS', r.sdsDate||'—'],
+      ].map(([l,v])=>`<div><div style="font-size:.72rem;font-weight:700;color:#64748b">${l}</div><div>${v}</div></div>`).join('')}
+    </div>
+    ${r.nextReviewDate ? `<div style="margin-bottom:10px;padding:8px 12px;border-radius:8px;background:${sdsD<0?'#fef2f2':sdsD<=30?'#fef9c3':'#f0fdf4'}">
+      <span style="font-size:.78rem;font-weight:700;color:${sdsD<0?'#dc2626':sdsD<=30?'#854d0e':'#166534'}">
+        ${sdsD<0?`⛔ SDS หมดอายุ ${Math.abs(sdsD)} วันแล้ว`:sdsD<=30?`⚠️ ทบทวน SDS อีก ${sdsD} วัน`:`✅ ทบทวน SDS: ${r.nextReviewDate}`}
+      </span>
+    </div>` : ''}
+    ${r.hazardDescription?`<div style="margin-bottom:10px"><div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:4px">อันตราย/ปฐมพยาบาล</div><div style="font-size:.84rem;background:#fef2f2;border-radius:8px;padding:8px 10px;white-space:pre-wrap">${r.hazardDescription}</div></div>`:''}
+    ${r.emergencyAction?`<div style="margin-bottom:10px"><div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:4px">การปฏิบัติฉุกเฉิน</div><div style="font-size:.84rem;background:#fff7ed;border-radius:8px;padding:8px 10px;white-space:pre-wrap">${r.emergencyAction}</div></div>`:''}
+    ${r.ppe?.length>0?`<div style="margin-bottom:10px"><div style="font-size:.75rem;font-weight:700;color:#64748b;margin-bottom:6px">PPE ที่กำหนด</div><div style="display:flex;flex-wrap:wrap;gap:5px">${r.ppe.map(p=>`<span style="background:#0891b218;color:#0891b2;border-radius:10px;padding:3px 10px;font-size:.75rem;font-weight:600">🦺 ${p}</span>`).join('')}</div></div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9">
+      <button class="btn btn-ghost btn-sm" onclick="__openEdit('${r.id}')">✏️ แก้ไข</button>
+    </div>`;
+  openPanel();
+}
+
+// ── load defaults ─────────────────────────────────────────────────────────
+window.__loadDefaults = async () => {
+  const existing = new Set(_items.map(i => i.chemicalName));
+  let count = 0;
+  for (const c of DEFAULT_CHEMICALS) {
+    if (!existing.has(c.chemicalName)) {
+      await createChemical({ ...c, nextReviewDate: new Date(Date.now() + 365*86400000).toISOString().split('T')[0] }, _profile.uid);
+      count++;
+    }
+  }
+  if (count === 0) { alert('ไม่มีรายการใหม่ (มีทั้งหมดในทะเบียนแล้ว)'); return; }
+  alert(`เพิ่ม ${count} รายการสำเร็จ`);
+  await loadData(); renderSummary(); renderTable();
+};
+
+// ── print all ─────────────────────────────────────────────────────────────
+window.__printAll = () => {
+  const rows = filtered();
+  const today = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+  const pa = $('printArea');
+  pa.style.display = 'block';
+  pa.innerHTML = `
+  <div class="pr-title">ทะเบียนสารเคมีอันตราย</div>
+  <div class="pr-sub">วันที่พิมพ์: ${today} | จำนวนรายการ: ${rows.length}</div>
+  <table class="pr-table">
+    <thead><tr>
+      <th>#</th><th>ชื่อสารเคมี (ไทย)</th><th>ชื่อสากล/CAS</th>
+      <th>GHS</th><th>สถานที่เก็บ</th><th>ปริมาณสูงสุด</th><th>ทบทวน SDS</th><th>สถานะ</th>
+    </tr></thead>
+    <tbody>
+    ${rows.map((r,i)=>`<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td>${r.chemicalName}</td>
+      <td>${r.chemicalNameEn||'—'}<br><small>${r.casNumber||''}</small></td>
+      <td>${(r.ghsHazards||[]).map(k=>GHS_HAZARDS.find(h=>h.key===k)?.icon||'').join(' ')}</td>
+      <td>${r.storageLocation||'—'}</td>
+      <td>${r.maxQuantity||'—'} ${r.unit||''}</td>
+      <td>${r.nextReviewDate||'—'}</td>
+      <td>${CHEM_STATUS[r.status]?.label||r.status}</td>
+    </tr>`).join('')}
+    </tbody>
+  </table>`;
+  window.print();
+  setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 1000);
+};
+
+// ── delete ────────────────────────────────────────────────────────────────
+window.__deleteChem = async id => {
+  if (!confirm('ลบสารเคมีนี้ออกจากทะเบียน?')) return;
+  await deleteChemical(id);
+  await loadData(); renderSummary(); renderTable();
+};
+
+// ── panel & controls ──────────────────────────────────────────────────────
+function openPanel() {
+  $('overlay').classList.add('open');
+  setTimeout(() => $('panel').classList.add('open'), 10);
+}
+window.__closePanel = () => { $('panel').classList.remove('open'); $('overlay').classList.remove('open'); };
+window.__filter = () => {
+  _filterSearch = $('fSearch')?.value||'';
+  _filterStatus = $('fStatus')?.value||'';
+  _filterGhs    = $('fGhs')?.value||'';
+  renderTable();
+};
+window.__openCreate = openCreate;
+window.__openEdit   = openEdit;
+window.__openDetail = openDetail;
+
+// ── boot ──────────────────────────────────────────────────────────────────
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-chemical', 'ทะเบียนสารเคมี');
+await loadData();
+renderContent();
+</script>
+</body>
+</html>

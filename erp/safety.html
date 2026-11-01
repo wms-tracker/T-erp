@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KPO Safety Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  computeSafetyKPIs, monthlyTrend, incidentsByDept, incidentsByType,
+  listIncidents, listNearMiss, listCapaRecords,
+  listInspections, listRiskAssessments,
+  listPermits, listTrainings, listEquipments,
+  listDrills, listLegalRegisters,
+  listTalks, listChemicals, listInvestigations,
+  listMeetings,
+  INCIDENT_TYPES, INCIDENT_STATUS, PERMIT_STATUS,
+} from "./js/safety-data.js";
+
+const CHARTS = {};
+let _period = 'ytd';
+
+// ── period helpers ─────────────────────────────────────────────────────────
+const todayStr = () => new Date().toISOString().split('T')[0];
+function addDays(str, d) { const dt = new Date(str); dt.setDate(dt.getDate()+d); return dt.toISOString().split('T')[0]; }
+function monthStart(offset=0) { const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()+offset); return d.toISOString().split('T')[0]; }
+function yearStart(y=new Date().getFullYear()) { return `${y}-01-01`; }
+function getPeriod(key) {
+  const today = todayStr();
+  if (key==='1m')  return { start: addDays(today,-30),  end: today, label:'30 วันล่าสุด' };
+  if (key==='3m')  return { start: addDays(today,-90),  end: today, label:'3 เดือน' };
+  if (key==='ytd') return { start: yearStart(), end: today, label:'ปีนี้ (YTD)' };
+  const cs = document.getElementById('customStart')?.value;
+  const ce = document.getElementById('customEnd')?.value;
+  return { start: cs||yearStart(), end: ce||today, label:'กำหนดเอง' };
+}
+
+// ── kpi card ────────────────────────────────────────────────────────────────
+const kpiCard = ({ value, label, color, bg, sub='', href='' }) =>
+  `<div class="kpi-card" style="border-top:3px solid ${color};background:${bg||'#fff'};${href?'cursor:pointer':''}"
+    ${href?`onclick="location.href='${href}'"`:''}>
+    <div class="kpi-val" style="color:${color}">${value ?? '—'}</div>
+    <div class="kpi-label">${label}</div>
+    ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
+  </div>`;
+
+// ── main render ─────────────────────────────────────────────────────────────
+async function render(period='ytd') {
+  _period = period;
+  const mc = document.getElementById('main-content');
+  if (!mc) return;
+  mc.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;padding:80px;color:#94a3b8">⏳ กำลังโหลดข้อมูล...</div>`;
+
+  const { start, end, label: periodLabel } = getPeriod(period);
+  const today = todayStr();
+  const y = new Date().getFullYear();
+
+  // Load all data in parallel (two waves to avoid Firestore index conflicts)
+  const [kpi, openCapaList, trend, byDept, byType, recentRows] = await Promise.all([
+    computeSafetyKPIs({ startDate: start, endDate: end }),
+    listCapaRecords({ lim: 500 }),
+    monthlyTrend(y),
+    incidentsByDept(start, end),
+    incidentsByType(start, end),
+    listIncidents({ startDate: start, endDate: end, lim: 10 }),
+  ]);
+  const [inspections, risks, permits, trainings, equips, drills, legals, talks, chems, investigations, meetings] = await Promise.all([
+    listInspections({ startDate: start, endDate: end, lim: 200 }),
+    listRiskAssessments({ lim: 200 }),
+    listPermits({ lim: 300 }),
+    listTrainings({ lim: 200 }),
+    listEquipments({ lim: 500 }),
+    listDrills({ lim: 100 }),
+    listLegalRegisters({ lim: 200 }),
+    listTalks({ startDate: start, endDate: end, lim: 500 }),
+    listChemicals({ lim: 200 }),
+    listInvestigations({ lim: 100 }),
+    listMeetings({ lim: 50 }),
+  ]);
+
+  // ── derived stats ─────────────────────────────────────────────────────────
+  const dwa = kpi.daysWithoutAccident;
+  const openCapa    = openCapaList.filter(c => c.status !== 'closed').length;
+  const overdueCapa = openCapaList.filter(c => c.status !== 'closed' && c.dueDate && c.dueDate < today);
+  const inspPassItems = inspections.reduce((s,i)=>s+(i.passCount||0),0);
+  const inspTotalItems= inspections.reduce((s,i)=>s+(i.passCount||0)+(i.failCount||0),0);
+  const inspPassRate  = inspTotalItems > 0 ? Math.round(inspPassItems/inspTotalItems*100) : null;
+  const highRisk   = risks.filter(r=>{const s=(r.likelihood||1)*(r.severity||1);return s>=10;}).length;
+  const activePermits = permits.filter(p=>p.status==='active');
+  const pendingPermits= permits.filter(p=>p.status==='pending').length;
+  const expiringPermits=permits.filter(p=>p.status==='active'&&p.workEndDate&&p.workEndDate<=addDays(today,1));
+  const trainDone  = trainings.filter(t=>t.status==='completed').length;
+  const trainPeople= trainings.filter(t=>t.status==='completed').reduce((s,t)=>s+(t.participantCount||0),0);
+  const expiredEquip = equips.filter(e=>e.expiryDate&&e.expiryDate<today);
+  const expiringSoonEquip = equips.filter(e=>{if(!e.expiryDate)return false;const d=Math.ceil((new Date(e.expiryDate)-new Date())/86400000);return d>=0&&d<=30;});
+  const legalApplicable = legals.filter(l=>l.complianceStatus!=='not_applicable');
+  const legalCompliant  = legals.filter(l=>l.complianceStatus==='compliant');
+  const legalNon        = legals.filter(l=>l.complianceStatus==='non_compliant');
+  const legalPct = legalApplicable.length > 0 ? Math.round(legalCompliant.length/legalApplicable.length*100) : null;
+  const talkThisMonth = talks.filter(t=>{const ym=`${y}-${String(new Date().getMonth()+1).padStart(2,'0')}`;return t.talkDate?.startsWith(ym);}).length;
+  const sdsOverdue  = chems.filter(c=>c.nextReviewDate&&c.nextReviewDate<today).length;
+  const invPending  = investigations.filter(i=>['draft','in_progress'].includes(i.status)).length;
+  const upcomingMtg = meetings.filter(m=>{const d=m.meetingDate;return d&&d>=today&&d<=addDays(today,14);});
+
+  // ── ALERT CENTER ──────────────────────────────────────────────────────────
+  const alerts = [];
+  if (overdueCapa.length > 0) alerts.push({ level:'critical', icon:'🔴', text:`CAPA เกินกำหนด ${overdueCapa.length} รายการ`, href:'safety-capa.html' });
+  if (expiringPermits.length > 0) alerts.push({ level:'critical', icon:'🔴', text:`ใบอนุญาตทำงาน (PTW) หมดอายุวันนี้/พรุ่งนี้ ${expiringPermits.length} ใบ`, href:'safety-ptw.html' });
+  if (legalNon.length > 0) alerts.push({ level:'critical', icon:'⚖️', text:`กฎหมายที่ไม่สอดคล้อง ${legalNon.length} รายการ`, href:'safety-legal.html' });
+  if (expiredEquip.length > 0) alerts.push({ level:'warn', icon:'🦺', text:`อุปกรณ์ความปลอดภัยหมดอายุ ${expiredEquip.length} รายการ`, href:'safety-equipment.html' });
+  if (sdsOverdue > 0) alerts.push({ level:'warn', icon:'⚗️', text:`SDS ครบกำหนดทบทวน ${sdsOverdue} รายการ`, href:'safety-chemical.html' });
+  if (expiringSoonEquip.length > 0) alerts.push({ level:'info', icon:'⚠️', text:`อุปกรณ์ใกล้หมดอายุ (≤30 วัน) ${expiringSoonEquip.length} รายการ`, href:'safety-equipment.html' });
+  if (invPending > 0) alerts.push({ level:'info', icon:'🔍', text:`รายงานสอบสวนยังไม่เสร็จ ${invPending} รายการ`, href:'safety-investigation.html' });
+  if (pendingPermits > 0) alerts.push({ level:'info', icon:'📋', text:`ใบอนุญาตรออนุมัติ ${pendingPermits} ใบ`, href:'safety-ptw.html' });
+  if (upcomingMtg.length > 0) alerts.push({ level:'info', icon:'📅', text:`ประชุม คปอ. ใน 14 วัน: ${upcomingMtg[0].meetingDate}`, href:'safety-meeting.html' });
+  if (highRisk > 0) alerts.push({ level:'info', icon:'⚡', text:`ความเสี่ยงระดับสูง/สูงมาก ${highRisk} รายการ (ตรวจสอบมาตรการ)`, href:'safety-risk.html' });
+
+  // ── Module health tiles ───────────────────────────────────────────────────
+  const modules = [
+    { label:'อุบัติเหตุ',       icon:'⚠️',  val:`${kpi.total} เหตุ`,     ok:kpi.total===0,    href:'safety-incident.html' },
+    { label:'Near Miss',        icon:'👁',   val:`${kpi.nearMiss||0} รายงาน`, ok:true,           href:'safety-near-miss.html' },
+    { label:'CAPA',             icon:'🔧',   val:`${openCapa} ค้าง`,       ok:overdueCapa.length===0, href:'safety-capa.html' },
+    { label:'ตรวจสอบ',          icon:'🔍',   val:inspPassRate!==null?`${inspPassRate}% Pass`:'ยังไม่มีข้อมูล', ok:inspPassRate===null||inspPassRate>=80, href:'safety-inspection.html' },
+    { label:'ความเสี่ยง (HIRA)',icon:'⚡',  val:`${highRisk} สูง/สูงมาก`, ok:highRisk===0,     href:'safety-risk.html' },
+    { label:'ใบอนุญาต (PTW)',   icon:'📋',  val:`${activePermits.length} Active`, ok:expiringPermits.length===0, href:'safety-ptw.html' },
+    { label:'ฝึกอบรม',          icon:'📚',  val:`${trainDone} หลักสูตร (${trainPeople} คน)`, ok:trainDone>0, href:'safety-training.html' },
+    { label:'อุปกรณ์',          icon:'🦺',  val:`${expiredEquip.length} หมดอายุ`, ok:expiredEquip.length===0, href:'safety-equipment.html' },
+    { label:'ซ้อมฉุกเฉิน',      icon:'🚨',  val:`${drills.filter(d=>d.status==='completed'&&d.drillDate?.startsWith(String(y))).length} ครั้งปีนี้`, ok:true, href:'safety-emergency.html' },
+    { label:'กฎหมาย',           icon:'⚖️',  val:legalPct!==null?`${legalPct}% สอดคล้อง`:'ยังไม่มีข้อมูล', ok:legalPct===null||legalPct>=80, href:'safety-legal.html' },
+    { label:'Safety Talk',      icon:'🗣',   val:`${talkThisMonth} ครั้งเดือนนี้`, ok:talkThisMonth>0, href:'safety-talk.html' },
+    { label:'สารเคมี',          icon:'⚗️',  val:`${sdsOverdue} SDS หมดอายุ`,  ok:sdsOverdue===0,  href:'safety-chemical.html' },
+    { label:'สอบสวน',           icon:'🔬',  val:`${invPending} รอเสร็จ`,       ok:invPending===0,  href:'safety-investigation.html' },
+    { label:'ประชุม คปอ.',      icon:'👥',  val:`${upcomingMtg.length} ครั้งใกล้`,ok:true,           href:'safety-meeting.html' },
+  ];
+
+  mc.innerHTML = `
+  <style>
+    .sdb{padding:0 20px 40px;max-width:1600px;margin:0 auto;}
+    .sdb-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:18px 0 12px;}
+    .sdb-title{font-size:1.25rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .period-btn{padding:5px 14px;border:1.5px solid #e2e8f0;border-radius:20px;background:#fff;font-family:Sarabun,sans-serif;font-size:.82rem;cursor:pointer;color:#475569;transition:.15s;}
+    .period-btn.active,.period-btn:hover{background:#0f172a;color:#fff;border-color:#0f172a;}
+    /* DWA */
+    .dwa-banner{background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:16px;padding:22px 28px;display:flex;align-items:center;justify-content:space-between;color:#fff;margin-bottom:20px;flex-wrap:wrap;gap:16px;}
+    .dwa-num{font-size:4rem;font-weight:900;line-height:1;}
+    .dwa-unit{font-size:1.1rem;opacity:.8;margin-left:8px;}
+    /* Alert center */
+    .alert-center{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:18px;}
+    .alert-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+    .alert-list{display:flex;flex-direction:column;gap:6px;}
+    .alert-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;cursor:pointer;transition:.1s;text-decoration:none;}
+    .alert-item:hover{filter:brightness(.96);}
+    .alert-item.critical{background:#fef2f2;border-left:3px solid #dc2626;}
+    .alert-item.warn{background:#fff7ed;border-left:3px solid #d97706;}
+    .alert-item.info{background:#f0f9ff;border-left:3px solid #0891b2;}
+    .alert-text{font-size:.83rem;color:#0f172a;font-weight:600;}
+    /* Module health */
+    .module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-bottom:18px;}
+    .mod-tile{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;transition:.15s;border-top:3px solid transparent;text-align:left;}
+    .mod-tile:hover{box-shadow:0 4px 12px rgba(0,0,0,.1);transform:translateY(-1px);}
+    .mod-icon{font-size:1.2rem;margin-bottom:4px;}
+    .mod-label{font-size:.72rem;font-weight:700;color:#64748b;}
+    .mod-val{font-size:.83rem;font-weight:700;color:#0f172a;margin-top:2px;}
+    .mod-ok{border-top-color:#16a34a;}
+    .mod-warn{border-top-color:#d97706;}
+    .mod-bad{border-top-color:#dc2626;}
+    /* KPI grid */
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+    .kpi-card{background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;transition:.1s;}
+    .kpi-card:hover{box-shadow:0 3px 8px rgba(0,0,0,.1);}
+    .kpi-val{font-size:2rem;font-weight:900;line-height:1;}
+    .kpi-label{font-size:.74rem;color:#64748b;margin-top:4px;}
+    .kpi-sub{font-size:.7rem;color:#94a3b8;margin-top:2px;}
+    .sec-title{font-size:.72rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;}
+    /* Charts */
+    .chart-row{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:14px;margin-bottom:16px;}
+    @media(max-width:900px){.chart-row{grid-template-columns:1fr;}}
+    .chart-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+    .chart-title{font-size:.82rem;font-weight:600;color:#334155;margin-bottom:10px;}
+    /* Quick links */
+    .ql-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:18px;}
+    .ql-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);cursor:pointer;transition:.15s;display:flex;align-items:center;gap:10px;text-decoration:none;color:#0f172a;}
+    .ql-card:hover{box-shadow:0 3px 8px rgba(0,0,0,.1);transform:translateY(-1px);}
+    .ql-icon{font-size:1.3rem;flex-shrink:0;}
+    .ql-label{font-size:.78rem;font-weight:600;}
+    /* Recent table */
+    .tbl-card{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:18px;overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:8px 10px;font-size:.72rem;font-weight:700;color:#64748b;border-bottom:1.5px solid #f1f5f9;}
+    .tbl td{padding:8px 10px;border-bottom:1px solid #f8fafc;}
+    .tbl tr:hover td{background:#f8fafc;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .action-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+    .btn-act{padding:7px 16px;background:#0f172a;color:#fff;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:.1s;}
+    .btn-act:hover{background:#1e293b;}
+    .btn-act.green{background:#16a34a;} .btn-act.green:hover{background:#15803d;}
+    .btn-act.blue{background:#0891b2;}  .btn-act.blue:hover{background:#0e7490;}
+    .btn-act.purple{background:#7c3aed;}.btn-act.purple:hover{background:#6d28d9;}
+    .empty-state{text-align:center;padding:30px;color:#94a3b8;font-size:.85rem;}
+  </style>
+
+  <div class="sdb">
+    <!-- Header -->
+    <div class="sdb-header">
+      <div class="sdb-title">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+        KPO Safety Command Center
+        <span style="font-size:.72rem;font-weight:400;color:#64748b;background:#f1f5f9;padding:3px 8px;border-radius:8px">${periodLabel}</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${[['1m','30 วัน'],['3m','3 เดือน'],['ytd','ปีนี้'],['custom','กำหนดเอง']].map(([v,l])=>
+          `<button class="period-btn${_period===v?' active':''}" onclick="__setPeriod('${v}')">${l}</button>`).join('')}
+        <div id="customRange" style="display:${_period==='custom'?'flex':'none'};gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="date" id="customStart" value="${start}" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.82rem">
+          <span style="color:#94a3b8">ถึง</span>
+          <input type="date" id="customEnd" value="${end}" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.82rem">
+          <button onclick="__setPeriod('custom')" style="padding:5px 10px;background:#0f172a;color:#fff;border:none;border-radius:6px;font-size:.82rem;cursor:pointer">แสดง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="action-row">
+      <a href="safety-incident.html#new" class="btn-act">+ บันทึกเหตุการณ์</a>
+      <a href="safety-near-miss.html" class="btn-act blue">+ Near Miss</a>
+      <a href="safety-ptw.html" class="btn-act purple">+ ใบอนุญาต PTW</a>
+      <a href="safety-talk.html" class="btn-act green">+ Safety Talk</a>
+      <a href="safety-reports.html" class="btn-act" style="background:#475569">📊 รายงานประจำเดือน</a>
+    </div>
+
+    <!-- DWA Banner -->
+    <div class="dwa-banner">
+      <div>
+        <div style="display:flex;align-items:baseline">
+          <div class="dwa-num">${dwa !== null ? dwa : '—'}</div>
+          <div class="dwa-unit">วัน</div>
+        </div>
+        <div style="opacity:.85;margin-top:4px">ปลอดอุบัติเหตุ LTI+ ต่อเนื่อง</div>
+        ${dwa !== null ? `<div style="opacity:.6;font-size:.8rem;margin-top:2px">นับจาก ${addDays(todayStr(),-dwa)}</div>` : ''}
+      </div>
+      <div style="text-align:right;opacity:.75">
+        <div style="font-size:.85rem;font-weight:600">ช่วงเวลา: ${periodLabel}</div>
+        <div style="font-size:.8rem;margin-top:4px">${start} ถึง ${end}</div>
+        <div style="font-size:1rem;margin-top:6px;font-weight:700">อุบัติเหตุรวม: ${kpi.total} เหตุ | Near Miss: ${kpi.nearMiss||0}</div>
+      </div>
+    </div>
+
+    <!-- Alert Center -->
+    ${alerts.length > 0 ? `
+    <div class="alert-center">
+      <div class="alert-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Alert Center — รายการที่ต้องดำเนินการ (${alerts.length})
+      </div>
+      <div class="alert-list">
+        ${alerts.map(a => `<a href="${a.href}" class="alert-item ${a.level}"><span style="font-size:1rem">${a.icon}</span><span class="alert-text">${a.text}</span><span style="margin-left:auto;font-size:.72rem;color:#94a3b8">→</span></a>`).join('')}
+      </div>
+    </div>` : `
+    <div class="alert-center" style="border-left:4px solid #16a34a">
+      <div style="display:flex;align-items:center;gap:10px;color:#16a34a">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        <span style="font-weight:700">ทุกอย่างอยู่ในสถานะปกติ — ไม่มีรายการเร่งด่วน</span>
+      </div>
+    </div>`}
+
+    <!-- Module Health -->
+    <div class="sec-title">ภาพรวมระบบ Safety ทั้งหมด</div>
+    <div class="module-grid">
+      ${modules.map(m => `
+      <div class="mod-tile ${m.ok?'mod-ok':'mod-bad'}" onclick="location.href='${m.href}'">
+        <div class="mod-icon">${m.icon}</div>
+        <div class="mod-label">${m.label}</div>
+        <div class="mod-val">${m.val}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- KPI: Incidents -->
+    <div class="sec-title">สถิติอุบัติเหตุ — ${start} ถึง ${end}</div>
+    <div class="kpi-grid">
+      ${kpiCard({ value: kpi.total,    label: 'รวมทั้งหมด',        color: '#0f172a', href:'safety-incident.html' })}
+      ${kpiCard({ value: kpi.fatality, label: 'Fatality (เสียชีวิต)', color: '#7f1d1d', bg:'#fff1f2', href:'safety-incident.html' })}
+      ${kpiCard({ value: kpi.lti,      label: 'LTI (หยุดงาน)',     color: '#dc2626', bg:'#fef2f2', href:'safety-incident.html' })}
+      ${kpiCard({ value: kpi.rws,      label: 'RWS (ลดงาน)',       color: '#ea580c', bg:'#fff7ed', href:'safety-incident.html' })}
+      ${kpiCard({ value: kpi.mtc,      label: 'MTC (รักษาพยาบาล)',  color: '#d97706', bg:'#fffbeb', href:'safety-incident.html' })}
+      ${kpiCard({ value: kpi.fac,      label: 'FAC (ปฐมพยาบาล)',   color: '#ca8a04', bg:'#fefce8', href:'safety-incident.html' })}
+      ${kpiCard({ value: kpi.nearMiss||0, label: 'Near Miss',      color: '#2563eb', bg:'#eff6ff', href:'safety-near-miss.html' })}
+    </div>
+
+    <div class="sec-title">การดำเนินการและการปฏิบัติ</div>
+    <div class="kpi-grid">
+      ${kpiCard({ value: openCapa,  label: 'CAPA ค้างดำเนินการ', color: overdueCapa.length>0?'#dc2626':'#0891b2',
+                  sub: overdueCapa.length>0?`⚠️ เกิน ${overdueCapa.length} ราย`:'', href:'safety-capa.html' })}
+      ${kpiCard({ value: inspPassRate!==null?inspPassRate+'%':'—', label:`Inspection Pass Rate (${inspections.length} ครั้ง)`, color: (inspPassRate??100)>=80?'#16a34a':'#dc2626', href:'safety-inspection.html' })}
+      ${kpiCard({ value: highRisk,  label: 'ความเสี่ยงสูง/สูงมาก (HIRA)', color: highRisk>0?'#dc2626':'#16a34a', href:'safety-risk.html' })}
+      ${kpiCard({ value: activePermits.length, label: 'PTW กำลังดำเนินงาน', color:'#7c3aed',
+                  sub: pendingPermits>0?`รออนุมัติ ${pendingPermits} ใบ`:'', href:'safety-ptw.html' })}
+      ${kpiCard({ value: trainDone, label: `อบรมสำเร็จ (${trainPeople} คน)`, color:'#16a34a', href:'safety-training.html' })}
+      ${kpiCard({ value: expiredEquip.length, label: 'อุปกรณ์หมดอายุ', color: expiredEquip.length>0?'#dc2626':'#16a34a',
+                  sub: expiringSoonEquip.length>0?`⚠️ ใกล้หมด ${expiringSoonEquip.length} ชิ้น`:'', href:'safety-equipment.html' })}
+      ${kpiCard({ value: legalPct!==null?legalPct+'%':'—', label: 'ความสอดคล้องกฎหมาย', color:(legalPct??100)>=80?'#16a34a':'#dc2626', href:'safety-legal.html' })}
+      ${kpiCard({ value: talkThisMonth, label: 'Safety Talk เดือนนี้', color: talkThisMonth>0?'#0891b2':'#d97706', href:'safety-talk.html' })}
+      ${kpiCard({ value: sdsOverdue, label: 'SDS หมดอายุ', color: sdsOverdue>0?'#dc2626':'#16a34a', href:'safety-chemical.html' })}
+      ${kpiCard({ value: invPending, label: 'สอบสวนยังไม่เสร็จ', color: invPending>0?'#d97706':'#16a34a', href:'safety-investigation.html' })}
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-title">แนวโน้มอุบัติเหตุรายเดือน (ปี ${y})</div>
+        <canvas id="chartTrend" height="160"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">แยกตามประเภทเหตุการณ์</div>
+        <canvas id="chartType" height="160"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">แยกตามแผนก</div>
+        <canvas id="chartDept" height="160"></canvas>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="sec-title">ลิงก์ด่วน — ทุกโมดูล</div>
+    <div class="ql-grid">
+      ${[
+        ['safety-incident.html','⚠️','บันทึกอุบัติเหตุ'],
+        ['safety-near-miss.html','👁','Near Miss'],
+        ['safety-investigation.html','🔬','สอบสวน (RCA)'],
+        ['safety-capa.html','🔧','CAPA'],
+        ['safety-inspection.html','🔍','ตรวจสอบ'],
+        ['safety-risk.html','⚡','ประเมินความเสี่ยง'],
+        ['safety-ptw.html','📋','ใบอนุญาต PTW'],
+        ['safety-committee.html','👥','กรรมการ คปอ.'],
+        ['safety-meeting.html','📅','ประชุม คปอ.'],
+        ['safety-training.html','📚','ฝึกอบรม'],
+        ['safety-equipment.html','🦺','อุปกรณ์'],
+        ['safety-emergency.html','🚨','แผนฉุกเฉิน'],
+        ['safety-legal.html','⚖️','กฎหมาย'],
+        ['safety-talk.html','🗣','Safety Talk'],
+        ['safety-chemical.html','⚗️','สารเคมี'],
+        ['safety-reports.html','📊','รายงาน'],
+      ].map(([href, icon, label]) => `<a href="${href}" class="ql-card"><span class="ql-icon">${icon}</span><span class="ql-label">${label}</span></a>`).join('')}
+    </div>
+
+    <!-- Recent Incidents -->
+    <div class="tbl-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:.85rem;font-weight:700;color:#0f172a">เหตุการณ์ล่าสุด</div>
+        <a href="safety-incident.html" style="font-size:.8rem;color:#0891b2;text-decoration:none">ดูทั้งหมด →</a>
+      </div>
+      ${recentRows.length === 0
+        ? `<div class="empty-state">ยังไม่มีข้อมูลในช่วงเวลาที่เลือก</div>`
+        : `<table class="tbl">
+          <thead><tr>
+            <th>หมายเลข</th><th>วันที่</th><th>ประเภท</th><th>แผนก</th><th>สถานที่</th><th>สถานะ</th>
+          </tr></thead>
+          <tbody>${recentRows.map(r => {
+            const t = INCIDENT_TYPES[r.incidentType] || { labelTh: r.incidentType, color: '#64748b', bg: '#f1f5f9' };
+            const s = INCIDENT_STATUS[r.status] || { label: r.status, color: '#64748b', bg: '#f1f5f9' };
+            return `<tr onclick="location.href='safety-incident.html?id=${r.id}'" style="cursor:pointer">
+              <td><span style="font-weight:700;color:#0891b2">${r.incidentId||r.id.slice(0,8)}</span></td>
+              <td>${r.incidentDate||'—'}</td>
+              <td><span class="badge" style="background:${t.bg};color:${t.color}">${t.labelTh}</span></td>
+              <td>${r.department||'—'}</td>
+              <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.location||'—'}</td>
+              <td><span class="badge" style="background:${s.bg||'#f1f5f9'};color:${s.color}">${s.label}</span></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`}
+    </div>
+
+    <!-- Active PTW -->
+    ${activePermits.length > 0 ? `
+    <div class="tbl-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:.85rem;font-weight:700;color:#0f172a">📋 ใบอนุญาตทำงาน (PTW) ที่ Active</div>
+        <a href="safety-ptw.html" style="font-size:.8rem;color:#0891b2;text-decoration:none">ดูทั้งหมด →</a>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>เลขที่</th><th>ประเภท</th><th>งาน</th><th>สถานที่</th><th>หมดอายุ</th></tr></thead>
+        <tbody>${activePermits.slice(0,5).map(p=>{
+          const dLeft = p.workEndDate ? Math.ceil((new Date(p.workEndDate)-new Date())/86400000) : null;
+          return `<tr onclick="location.href='safety-ptw.html'" style="cursor:pointer">
+            <td style="font-weight:700;color:#7c3aed">${p.permitId||'—'}</td>
+            <td style="font-size:.78rem">${p.permitType||'—'}</td>
+            <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.workDescription||'—'}</td>
+            <td>${p.location||'—'}</td>
+            <td>${dLeft===null?'—':dLeft<0?`<span style="color:#dc2626;font-weight:700">หมดอายุ</span>`:dLeft<=1?`<span style="color:#dc2626;font-weight:700">${dLeft}d</span>`:dLeft<=3?`<span style="color:#d97706;font-weight:700">${dLeft}d</span>`:`${dLeft}d`}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>` : ''}
+
+    <!-- CAPA Overdue -->
+    ${overdueCapa.length > 0 ? `
+    <div class="tbl-card" style="border-left:4px solid #dc2626">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:.85rem;font-weight:700;color:#dc2626">🔴 CAPA เกินกำหนด (${overdueCapa.length} รายการ)</div>
+        <a href="safety-capa.html" style="font-size:.8rem;color:#dc2626;text-decoration:none">จัดการ →</a>
+      </div>
+      <table class="tbl">
+        <thead><tr><th>CAPA ID</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th><th>ครบกำหนด</th></tr></thead>
+        <tbody>${overdueCapa.slice(0,5).map(c=>`<tr onclick="location.href='safety-capa.html'" style="cursor:pointer">
+          <td style="font-weight:700;color:#dc2626">${c.capaId||c.id?.slice(0,8)||'—'}</td>
+          <td>${(c.description||'').slice(0,60)}${(c.description||'').length>60?'...':''}</td>
+          <td>${c.assignedTo||'—'}</td>
+          <td style="color:#dc2626;font-weight:700">${c.dueDate||'—'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>` : ''}
+
+  </div>`;
+
+  // ── Charts ────────────────────────────────────────────────────────────────
+  Object.values(CHARTS).forEach(c => { try { c.destroy(); } catch{} });
+
+  const fontFam = { family: 'Sarabun' };
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  const tc = document.getElementById('chartTrend');
+  if (tc && trend.length) {
+    CHARTS.trend = new Chart(tc, {
+      type: 'line',
+      data: { labels: trend.map(m => months[m.month-1]), datasets: [
+        { label:'อุบัติเหตุ', data:trend.map(m=>m.accident||m.count||0), borderColor:'#dc2626', backgroundColor:'rgba(220,38,38,.07)', tension:.35, pointRadius:4, pointBackgroundColor:'#dc2626' },
+        { label:'Near Miss',  data:trend.map(m=>m.nearMiss||0),           borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.07)',  tension:.35, pointRadius:4, pointBackgroundColor:'#2563eb' },
+      ]},
+      options: { responsive:true, plugins:{ legend:{ position:'bottom', labels:{ font:fontFam, boxWidth:12 } } }, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1, font:fontFam } }, x:{ ticks:{ font:fontFam } } } },
+    });
+  }
+
+  const tyc = document.getElementById('chartType');
+  if (tyc && byType.length) {
+    CHARTS.type = new Chart(tyc, {
+      type: 'doughnut',
+      data: { labels: byType.map(([l])=>l), datasets:[{ data:byType.map(([,v])=>v), backgroundColor:['#dc2626','#ea580c','#d97706','#2563eb','#7c3aed','#0891b2','#16a34a','#475569'], borderWidth:2, borderColor:'#fff' }] },
+      options: { responsive:true, cutout:'55%', plugins:{ legend:{ position:'bottom', labels:{ font:fontFam, boxWidth:10, padding:8 } } } },
+    });
+  } else if (tyc) { tyc.parentElement.innerHTML += '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:.82rem">ยังไม่มีข้อมูล</div>'; }
+
+  const dc = document.getElementById('chartDept');
+  if (dc && byDept.length) {
+    CHARTS.dept = new Chart(dc, {
+      type: 'bar',
+      data: { labels: byDept.map(([l])=>l), datasets:[{ data:byDept.map(([,v])=>v), backgroundColor:'#0891b2cc', borderRadius:4 }] },
+      options: { indexAxis:'y', responsive:true, plugins:{ legend:{ display:false } }, scales:{ x:{ beginAtZero:true, ticks:{ stepSize:1, font:fontFam } }, y:{ ticks:{ font:{...fontFam, size:11} } } } },
+    });
+  } else if (dc) { dc.parentElement.innerHTML += '<div style="text-align:center;padding:20px;color:#94a3b8;font-size:.82rem">ยังไม่มีข้อมูล</div>'; }
+}
+
+// ── controls ────────────────────────────────────────────────────────────────
+window.__setPeriod = p => {
+  _period = p;
+  const cr = document.getElementById('customRange');
+  if (cr) cr.style.display = p==='custom' ? 'flex' : 'none';
+  render(p);
+};
+
+// ── boot ────────────────────────────────────────────────────────────────────
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(profile, 'safety-dashboard', 'KPO Safety Dashboard');
+render('ytd');
+</script>
+</body>
+</html>

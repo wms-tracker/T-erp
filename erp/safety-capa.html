@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CAPA Management — KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listCapaRecords, createCapa, updateCapa,
+  countOpenCapa, countOverdueCapa, CAPA_STATUS, DEPARTMENTS
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _rows = [];
+const F = { status: '', q: '', page: 0, pageSize: 20 };
+
+function applyFilters(rows) {
+  let r = [...rows];
+  if (F.status) r = r.filter(x => x.status === F.status);
+  if (F.q) {
+    const q = F.q.toLowerCase();
+    r = r.filter(x => (x.capaId||'').toLowerCase().includes(q) || (x.description||'').toLowerCase().includes(q) || (x.assignedTo||'').toLowerCase().includes(q));
+  }
+  return r;
+}
+
+function buildLayout(openC, overdueC) {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `
+  <style>
+    .si{padding:0 20px 32px;max-width:1400px;margin:0 auto;}
+    .si-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 16px;}
+    .si-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .kpi-row{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+    .kpi-mini{background:#fff;border-radius:10px;padding:14px 18px;min-width:150px;box-shadow:0 1px 3px rgba(0,0,0,.07);border-top:3px solid #1e40af;}
+    .kpi-mini .val{font-size:2rem;font-weight:800;color:#1e40af;}
+    .kpi-mini .lbl{font-size:.75rem;color:#64748b;margin-top:2px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#7c3aed;color:#fff;} .btn-primary:hover{background:#6d28d9;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #f1f5f9;margin-bottom:8px;}
+    select,input[type=text]{padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;color:#334155;background:#fff;}
+    .tbl-wrap{overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
+    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .overdue{color:#dc2626;font-weight:700;}
+    .pager{display:flex;align-items:center;gap:8px;padding:14px 0;justify-content:flex-end;font-size:.82rem;color:#64748b;}
+    .pager button{padding:4px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-family:Sarabun,sans-serif;font-size:.82rem;cursor:pointer;}
+    .pager button:disabled{opacity:.4;cursor:default;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
+    .modal-panel{background:#fff;height:100dvh;width:min(580px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
+    .modal-head{padding:20px 24px 16px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
+    .modal-head-title{font-size:1rem;font-weight:700;color:#0f172a;}
+    .modal-body{padding:20px 24px;flex:1;}
+    .modal-foot{padding:16px 24px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
+    .form-group{margin-bottom:14px;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
+    .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
+    .form-ctrl:focus{outline:none;border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,.1);}
+    textarea.form-ctrl{resize:vertical;min-height:72px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .form-section{font-size:.78rem;font-weight:700;color:#7c3aed;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #ede9fe;padding-bottom:6px;margin:20px 0 12px;}
+  </style>
+
+  <div class="si">
+    <div class="si-header">
+      <div class="si-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        CAPA Management
+      </div>
+      <button class="btn btn-primary" onclick="__openCreate()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        เพิ่ม CAPA ใหม่
+      </button>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-mini" style="border-color:${overdueC>0?'#dc2626':'#7c3aed'}">
+        <div class="val" style="color:${overdueC>0?'#dc2626':'#7c3aed'}">${openC}</div>
+        <div class="lbl">ค้างดำเนินการ</div>
+      </div>
+      <div class="kpi-mini" style="border-color:${overdueC>0?'#dc2626':'#16a34a'}">
+        <div class="val" style="color:${overdueC>0?'#dc2626':'#16a34a'}">${overdueC}</div>
+        <div class="lbl">เกินกำหนด</div>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <input type="text" id="fSearch" placeholder="ค้นหา CAPA ID / รายละเอียด / ผู้รับผิดชอบ..." style="width:280px" oninput="__filter()">
+      <select id="fStatus" onchange="__filter()">
+        <option value="">สถานะ: ทั้งหมด</option>
+        ${Object.entries(CAPA_STATUS).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost" onclick="__clearFilter()">ล้าง</button>
+      <span id="rowCount" style="margin-left:auto;font-size:.8rem;color:#94a3b8"></span>
+    </div>
+
+    <div class="tbl-wrap" id="tblWrap"></div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <div id="modalBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div class="modal-head-title" id="modalTitle">เพิ่ม CAPA ใหม่</div>
+        <button class="btn btn-ghost" onclick="__closeModal(null)" style="padding:4px 10px">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>`;
+}
+
+function renderTable() {
+  const filtered = applyFilters(_rows);
+  const total = filtered.length;
+  const pages = Math.ceil(total / F.pageSize) || 1;
+  if (F.page >= pages) F.page = pages - 1;
+  const slice = filtered.slice(F.page * F.pageSize, (F.page + 1) * F.pageSize);
+  const today = new Date().toISOString().split('T')[0];
+  $('rowCount').textContent = `${total} รายการ`;
+
+  if (!filtered.length) {
+    $('tblWrap').innerHTML = `<div class="empty-state"><div style="font-size:2.5rem">🔧</div><div style="margin-top:8px">ยังไม่มี CAPA</div></div>`;
+    $('pager').innerHTML = '';
+    return;
+  }
+
+  $('tblWrap').innerHTML = `
+  <table class="tbl">
+    <thead><tr>
+      <th>CAPA ID</th><th>แหล่งที่มา</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th>
+      <th>ครบกำหนด</th><th>สถานะ</th>
+    </tr></thead>
+    <tbody>
+    ${slice.map(r => {
+      const s = CAPA_STATUS[r.status] || { label: r.status, color: '#64748b', bg: '#f1f5f9' };
+      const overdue = ['open','assigned','in_progress'].includes(r.status) && r.dueDate && r.dueDate < today;
+      return `<tr onclick="__openDetail('${r.id}')">
+        <td style="font-weight:700;color:#7c3aed">${r.capaId||r.id.slice(0,8)}</td>
+        <td>${r.source||'—'}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
+        <td>${r.assignedTo||'—'}</td>
+        <td class="${overdue?'overdue':''}">${r.dueDate||'—'}${overdue?' ⚠️':''}</td>
+        <td><span class="badge" style="background:${s.bg||'#f5f3ff'};color:${s.color}">${s.label}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+
+  $('pager').innerHTML = `
+    <span>${F.page*F.pageSize+1}–${Math.min((F.page+1)*F.pageSize,total)} / ${total}</span>
+    <button onclick="__page(-1)" ${F.page===0?'disabled':''}>‹</button>
+    <button onclick="__page(1)"  ${F.page>=pages-1?'disabled':''}>›</button>`;
+}
+
+function openCreate() {
+  $('modalTitle').textContent = 'เพิ่ม CAPA ใหม่';
+  $('modalBody').innerHTML = capaFormHTML({});
+  $('modalFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="__submitCreate()">บันทึก CAPA</button>`;
+  $('modalBg').style.display = 'flex';
+}
+
+function capaFormHTML(d) {
+  return `
+  <div class="form-section">ข้อมูล CAPA</div>
+  <div class="form-group">
+    <label class="form-label">แหล่งที่มาของปัญหา <span class="req">*</span></label>
+    <select class="form-ctrl" id="fSource">
+      <option value="">-- เลือกแหล่งที่มา --</option>
+      ${['อุบัติเหตุ/เหตุการณ์','Near Miss','การตรวจสอบความปลอดภัย','การประเมินความเสี่ยง','การร้องเรียน','ผล Audit','อื่นๆ'].map(s => `<option value="${s}" ${d.source===s?'selected':''}>${s}</option>`).join('')}
+    </select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียดปัญหา <span class="req">*</span></label>
+    <textarea class="form-ctrl" id="fDescription" placeholder="อธิบายปัญหาที่ต้องแก้ไข...">${d.description||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">มาตรการแก้ไข <span class="req">*</span></label>
+    <textarea class="form-ctrl" id="fCorrectiveAction" placeholder="มาตรการที่จะดำเนินการแก้ไข...">${d.correctiveAction||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">มาตรการป้องกัน</label>
+    <textarea class="form-ctrl" id="fPreventiveAction" placeholder="มาตรการป้องกันไม่ให้เกิดซ้ำ...">${d.preventiveAction||''}</textarea>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ผู้รับผิดชอบ <span class="req">*</span></label>
+      <input type="text" class="form-ctrl" id="fAssignedTo" placeholder="ชื่อผู้รับผิดชอบ" value="${d.assignedTo||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">แผนก</label>
+      <select class="form-ctrl" id="fDept">
+        <option value="">-- เลือกแผนก --</option>
+        ${DEPARTMENTS.map(dep => `<option value="${dep}" ${d.department===dep?'selected':''}>${dep}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันเริ่ม</label>
+      <input type="date" class="form-ctrl" id="fStartDate" value="${d.startDate||new Date().toISOString().split('T')[0]}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันครบกำหนด <span class="req">*</span></label>
+      <input type="date" class="form-ctrl" id="fDueDate" value="${d.dueDate||''}">
+    </div>
+  </div>`;
+}
+
+async function openDetail(id) {
+  const r = _rows.find(x => x.id === id) || await (async () => {
+    const {getIncident} = await import('./js/safety-data.js');
+    return null; // simplified
+  })();
+  if (!r) return;
+  const s = CAPA_STATUS[r.status] || { label: r.status, color: '#64748b' };
+  const today = new Date().toISOString().split('T')[0];
+  const overdue = ['open','assigned','in_progress'].includes(r.status) && r.dueDate && r.dueDate < today;
+
+  $('modalTitle').textContent = 'CAPA Detail';
+  $('modalBody').innerHTML = `
+  <div style="margin-bottom:16px">
+    <span style="font-size:.9rem;font-weight:700;color:#7c3aed">${r.capaId||id.slice(0,8)}</span>
+    <span class="badge" style="margin-left:8px;background:#f5f3ff;color:${s.color}">${s.label}</span>
+    ${overdue ? `<span class="badge" style="margin-left:6px;background:#fee2e2;color:#dc2626">⚠️ เกินกำหนด</span>` : ''}
+  </div>
+  <div style="margin-bottom:12px"><b>แหล่งที่มา:</b> ${r.source||'—'}</div>
+  <div style="margin-bottom:12px"><b>ปัญหา:</b> ${r.description||'—'}</div>
+  <div style="margin-bottom:12px"><b>มาตรการแก้ไข:</b> ${r.correctiveAction||'—'}</div>
+  <div style="margin-bottom:12px"><b>มาตรการป้องกัน:</b> ${r.preventiveAction||'—'}</div>
+  <div style="margin-bottom:12px"><b>ผู้รับผิดชอบ:</b> ${r.assignedTo||'—'} (${r.department||'—'})</div>
+  <div style="margin-bottom:12px"><b>ครบกำหนด:</b> <span class="${overdue?'overdue':''}">${r.dueDate||'—'}</span></div>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    ${r.status !== 'closed' ? `
+      ${r.status==='open' ? `<button class="btn btn-primary" onclick="__setCapaStatus('${id}','assigned')">มอบหมายแล้ว</button>` : ''}
+      ${r.status==='assigned' ? `<button class="btn btn-primary" onclick="__setCapaStatus('${id}','in_progress')">เริ่มดำเนินการ</button>` : ''}
+      ${r.status==='in_progress' ? `<button class="btn btn-primary" onclick="__setCapaStatus('${id}','pending_verification')">ส่งตรวจสอบ</button>` : ''}
+      ${r.status==='pending_verification' ? `<button class="btn btn-primary" onclick="__setCapaStatus('${id}','closed')">ปิด CAPA</button>` : ''}
+    ` : ''}
+  </div>`;
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="__closeModal(null)">ปิด</button>`;
+  $('modalBg').style.display = 'flex';
+}
+
+async function submitCreate() {
+  const required = ['fSource','fDescription','fCorrectiveAction','fAssignedTo','fDueDate'];
+  for (const id of required) {
+    if (!$(id)?.value?.trim()) { showToast('กรุณากรอกข้อมูลให้ครบ', '#dc2626'); return; }
+  }
+  const data = {
+    capaId: `CAPA-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${String(Math.floor(Math.random()*9000)+1000)}`,
+    source: $('fSource').value,
+    description: $('fDescription').value.trim(),
+    correctiveAction: $('fCorrectiveAction').value.trim(),
+    preventiveAction: $('fPreventiveAction').value.trim(),
+    assignedTo: $('fAssignedTo').value.trim(),
+    department: $('fDept').value,
+    startDate: $('fStartDate').value,
+    dueDate: $('fDueDate').value,
+  };
+  const btn = $('modalFoot').querySelector('.btn-primary');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    await createCapa(data, _profile.uid);
+    _rows = await listCapaRecords();
+    const [oc, od] = await Promise.all([countOpenCapa(), countOverdueCapa()]);
+    renderTable();
+    closeModal(null);
+    showToast('เพิ่ม CAPA เรียบร้อยแล้ว ✓', '#16a34a');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'บันทึก CAPA';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+async function setCapaStatus(id, status) {
+  await updateCapa(id, { status });
+  _rows = await listCapaRecords();
+  renderTable();
+  openDetail(id);
+  showToast(`อัปเดตสถานะ: ${CAPA_STATUS[status]?.label} ✓`, '#16a34a');
+}
+
+function showToast(msg, color = '#16a34a') {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function closeModal(e) {
+  if (e && e.target !== $('modalBg')) return;
+  $('modalBg').style.display = 'none';
+}
+
+window.__filter = () => { F.status = $('fStatus')?.value || ''; F.q = $('fSearch')?.value || ''; F.page = 0; renderTable(); };
+window.__clearFilter = () => { $('fStatus').value = $('fSearch').value = ''; Object.assign(F, {status:'',q:'',page:0}); renderTable(); };
+window.__page = d => { F.page += d; renderTable(); };
+window.__openCreate = openCreate;
+window.__openDetail = openDetail;
+window.__closeModal = closeModal;
+window.__submitCreate = submitCreate;
+window.__setCapaStatus = setCapaStatus;
+
+_profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager', 'warehouse']);
+renderShell(_profile, 'capa', 'CAPA Management');
+const [oc, od] = await Promise.all([countOpenCapa(), countOverdueCapa()]);
+buildLayout(oc, od);
+_rows = await listCapaRecords();
+renderTable();
+</script>
+</body>
+</html>

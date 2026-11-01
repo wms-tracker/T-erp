@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตรวจสอบความปลอดภัย</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listInspections, createInspection, updateInspection, getInspection,
+  DEFAULT_INSPECTION_ITEMS, DEFAULT_INSPECTION_CATEGORIES, INSPECTION_STATUS,
+  DEPARTMENTS,
+} from "./js/safety-data.js";
+
+let _profile, _view = 'list', _rows = [], _detail = null;
+let _items = [];   // [{category,item,result,note}]
+let _editId = null;
+
+const today = () => new Date().toISOString().split('T')[0];
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function passRate(items) {
+  const checked = items.filter(i => i.result !== 'na');
+  return checked.length ? Math.round(items.filter(i => i.result === 'pass').length / checked.length * 100) : null;
+}
+function rateColor(r) {
+  if (r === null) return '#64748b';
+  return r >= 90 ? '#16a34a' : r >= 70 ? '#d97706' : '#dc2626';
+}
+function badge(def, key) {
+  const o = def[key] || { label: key, color: '#64748b', bg: '#f1f5f9' };
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;background:${o.bg};color:${o.color}">${o.label}</span>`;
+}
+
+// ── styles ────────────────────────────────────────────────────────────────────
+const CSS = `<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Sarabun,sans-serif;background:#f8fafc;color:#0f172a;}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px 60px;}
+.hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:20px 0 14px;}
+.page-title{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.1s;text-decoration:none;}
+.btn-primary{background:#0f172a;color:#fff;} .btn-primary:hover{background:#1e293b;}
+.btn-green{background:#16a34a;color:#fff;}   .btn-green:hover{background:#15803d;}
+.btn-ghost{background:#f1f5f9;color:#475569;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-red{background:#dc2626;color:#fff;}     .btn-red:hover{background:#b91c1c;}
+/* stats bar */
+.stat-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.stat-card{background:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);flex:1;min-width:110px;}
+.stat-val{font-size:1.6rem;font-weight:900;line-height:1;}
+.stat-label{font-size:.72rem;color:#64748b;margin-top:3px;}
+/* filters */
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+.filter-row input, .filter-row select{padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.82rem;font-family:Sarabun,sans-serif;background:#fff;color:#0f172a;}
+/* table */
+.tbl-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
+.tbl{width:100%;border-collapse:collapse;font-size:.83rem;}
+.tbl th{text-align:left;padding:10px 14px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #f1f5f9;}
+.tbl td{padding:10px 14px;border-bottom:1px solid #f8fafc;}
+.tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+.tbl .empty{text-align:center;padding:40px;color:#94a3b8;}
+/* form */
+.form-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);padding:24px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+.fld{display:flex;flex-direction:column;gap:5px;}
+.fld.full{grid-column:1/-1;}
+.lbl{font-size:.78rem;font-weight:700;color:#475569;}
+input, select, textarea{padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;outline:none;color:#0f172a;background:#fff;}
+input:focus, select:focus, textarea:focus{border-color:#0891b2;}
+.sec-hd{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:12px 0 8px;border-bottom:1.5px solid #f1f5f9;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+/* checklist */
+.cat-group{margin-bottom:16px;}
+.cat-title{font-weight:700;font-size:.83rem;color:#334155;padding:6px 10px;background:#f8fafc;border-radius:8px 8px 0 0;border:1px solid #e2e8f0;}
+.item-row{display:grid;grid-template-columns:1fr auto auto auto auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-top:none;font-size:.83rem;}
+.item-row:last-child{border-radius:0 0 8px 8px;}
+.item-row:hover{background:#fafafa;}
+.result-btn{padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;background:#fff;transition:.1s;}
+.result-btn.pass.active{background:#dcfce7;border-color:#16a34a;color:#16a34a;}
+.result-btn.fail.active{background:#fee2e2;border-color:#dc2626;color:#dc2626;}
+.result-btn.na.active{background:#f1f5f9;border-color:#64748b;color:#64748b;}
+.note-inp{width:120px;padding:4px 6px;font-size:.75rem;}
+/* detail */
+.progress-bar{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:4px;transition:.3s;}
+/* print */
+@media print{
+  body{font-size:10pt;}
+  .no-print{display:none!important;}
+  .print-only{display:block!important;}
+  .form-wrap,.tbl-card{box-shadow:none;border:1px solid #e2e8f0;}
+  table{page-break-inside:auto;}
+  tr{page-break-inside:avoid;}
+}
+.print-only{display:none;}
+</style>`;
+
+// ── LOAD ──────────────────────────────────────────────────────────────────────
+async function loadList() {
+  _rows = await listInspections({ lim: 200 });
+  renderList();
+}
+
+// ── RENDER LIST ──────────────────────────────────────────────────────────────
+function renderList() {
+  const mc = document.getElementById('main-content');
+  const total = _rows.length;
+  const completed = _rows.filter(r => r.status === 'completed' || r.status === 'reviewed').length;
+  const rates = _rows.filter(r => r.items?.length).map(r => passRate(r.items)).filter(v => v !== null);
+  const avgRate = rates.length ? Math.round(rates.reduce((a,b) => a+b, 0) / rates.length) : null;
+  const countFail = _rows.reduce((s, r) => s + (r.items?.filter(i => i.result === 'fail').length || 0), 0);
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        ตรวจสอบความปลอดภัย
+      </div>
+      <button class="btn btn-primary" onclick="__newForm()">+ บันทึกการตรวจสอบ</button>
+    </div>
+
+    <div class="stat-bar no-print">
+      <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-label">ตรวจสอบทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-val">${completed}</div><div class="stat-label">เสร็จสิ้น</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${rateColor(avgRate)}">${avgRate !== null ? avgRate+'%' : '—'}</div><div class="stat-label">Pass Rate เฉลี่ย</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${countFail>0?'#dc2626':'#16a34a'}">${countFail}</div><div class="stat-label">รายการ Fail ทั้งหมด</div></div>
+    </div>
+
+    <div class="filter-row no-print">
+      <input type="date" id="f-start" placeholder="จาก" onchange="__filterList()">
+      <input type="date" id="f-end" placeholder="ถึง" onchange="__filterList()">
+      <select id="f-dept" onchange="__filterList()"><option value="">ทุกแผนก</option>${DEPARTMENTS.map(d=>`<option>${d}</option>`).join('')}</select>
+    </div>
+
+    <div class="tbl-card no-print">
+      <table class="tbl" id="inspTable">
+        <thead><tr>
+          <th>วันที่</th><th>พื้นที่/แผนก</th><th>ผู้ตรวจ</th><th>Pass Rate</th><th>Fail</th><th>สถานะ</th><th>ดำเนินการ</th>
+        </tr></thead>
+        <tbody id="inspBody">${buildRows(_rows)}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function buildRows(rows) {
+  if (!rows.length) return `<tr><td colspan="7" class="empty">ยังไม่มีข้อมูล</td></tr>`;
+  return rows.map(r => {
+    const rate = passRate(r.items || []);
+    const fails = (r.items || []).filter(i => i.result === 'fail').length;
+    return `<tr onclick="__openDetail('${r.id}')">
+      <td>${r.inspectionDate || '—'}</td>
+      <td>${r.area || r.department || '—'}</td>
+      <td>${r.inspector || '—'}</td>
+      <td>
+        ${rate !== null ? `
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:${rate}%;background:${rateColor(rate)}"></div></div>
+          <span style="color:${rateColor(rate)};font-weight:700">${rate}%</span>
+        </div>` : '—'}
+      </td>
+      <td><span style="color:${fails>0?'#dc2626':'#16a34a'};font-weight:700">${fails}</span></td>
+      <td>${badge(INSPECTION_STATUS, r.status || 'draft')}</td>
+      <td><button class="btn btn-ghost" style="font-size:.75rem;padding:4px 10px" onclick="event.stopPropagation();__editInsp('${r.id}')">แก้ไข</button></td>
+    </tr>`;
+  }).join('');
+}
+
+window.__filterList = () => {
+  const start = document.getElementById('f-start')?.value;
+  const end   = document.getElementById('f-end')?.value;
+  const dept  = document.getElementById('f-dept')?.value;
+  let rows = _rows;
+  if (start) rows = rows.filter(r => r.inspectionDate >= start);
+  if (end)   rows = rows.filter(r => r.inspectionDate <= end);
+  if (dept)  rows = rows.filter(r => (r.department || r.area) === dept);
+  const tbody = document.getElementById('inspBody');
+  if (tbody) tbody.innerHTML = buildRows(rows);
+};
+
+// ── NEW / EDIT FORM ───────────────────────────────────────────────────────────
+window.__newForm = () => {
+  _editId = null;
+  _items = DEFAULT_INSPECTION_ITEMS.map(i => ({ ...i, result: 'na', note: '' }));
+  _view = 'form';
+  renderForm();
+};
+
+window.__editInsp = async (id) => {
+  _editId = id;
+  const rec = _rows.find(r => r.id === id) || await getInspection(id);
+  if (!rec) return;
+  _items = (rec.items || []).map(i => ({ ...i }));
+  if (!_items.length) _items = DEFAULT_INSPECTION_ITEMS.map(i => ({ ...i, result: 'na', note: '' }));
+  _view = 'form';
+  renderForm(rec);
+};
+
+function renderForm(rec = {}) {
+  const mc = document.getElementById('main-content');
+  const cats = [...new Set(_items.map(i => i.category))];
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <button class="btn btn-ghost" onclick="__backToList()">← กลับ</button>
+        ${_editId ? 'แก้ไขการตรวจสอบ' : 'บันทึกการตรวจสอบใหม่'}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="window.print()">🖨 พิมพ์</button>
+        <button class="btn btn-green" onclick="__saveForm()">💾 บันทึก</button>
+      </div>
+    </div>
+
+    <div class="form-wrap">
+      <div class="sec-hd">ข้อมูลการตรวจสอบ</div>
+      <div class="form-grid" style="margin-bottom:20px">
+        <div class="fld"><label class="lbl">วันที่ตรวจสอบ *</label><input type="date" id="inspDate" value="${rec.inspectionDate || today()}" required></div>
+        <div class="fld"><label class="lbl">ผู้ตรวจสอบ *</label><input type="text" id="inspector" value="${rec.inspector || _profile?.displayName || ''}"></div>
+        <div class="fld"><label class="lbl">แผนก / พื้นที่</label>
+          <input type="text" id="area" value="${rec.area || rec.department || ''}" placeholder="เช่น คลังสินค้า 1, พื้นที่โกดัง A">
+        </div>
+        <div class="fld"><label class="lbl">สถานะ</label>
+          <select id="inspStatus">
+            <option value="draft" ${(rec.status||'draft')==='draft'?'selected':''}>Draft</option>
+            <option value="completed" ${rec.status==='completed'?'selected':''}>เสร็จสิ้น</option>
+            <option value="reviewed" ${rec.status==='reviewed'?'selected':''}>ตรวจสอบแล้ว</option>
+          </select>
+        </div>
+        <div class="fld full"><label class="lbl">หมายเหตุ / สรุปภาพรวม</label><textarea id="remark" rows="2" style="resize:vertical">${rec.remark || ''}</textarea></div>
+      </div>
+
+      <div class="sec-hd">
+        รายการตรวจสอบ
+        <span id="summaryBadge" style="font-size:.78rem;color:#16a34a;font-weight:600"></span>
+      </div>
+      <div id="itemsContainer">
+        ${cats.map(cat => renderCatGroup(cat)).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  updateSummary();
+}
+
+function renderCatGroup(cat) {
+  const catItems = _items.filter(i => i.category === cat);
+  return `
+  <div class="cat-group">
+    <div class="cat-title">${cat}</div>
+    ${catItems.map((it, gi) => {
+      const globalIdx = _items.indexOf(it);
+      return `
+      <div class="item-row" id="row-${globalIdx}">
+        <span>${it.item}</span>
+        <button class="result-btn pass ${it.result==='pass'?'active':''}" onclick="__setResult(${globalIdx},'pass')">✓ ผ่าน</button>
+        <button class="result-btn fail ${it.result==='fail'?'active':''}" onclick="__setResult(${globalIdx},'fail')">✗ ไม่ผ่าน</button>
+        <button class="result-btn na ${it.result==='na'?'active':''}" onclick="__setResult(${globalIdx},'na')">N/A</button>
+        <input class="note-inp" placeholder="หมายเหตุ" value="${it.note||''}" onchange="__setNote(${globalIdx},this.value)">
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+window.__setResult = (idx, val) => {
+  _items[idx].result = val;
+  const row = document.getElementById(`row-${idx}`);
+  if (!row) return;
+  row.querySelectorAll('.result-btn').forEach(b => b.classList.remove('active'));
+  row.querySelector(`.result-btn.${val}`)?.classList.add('active');
+  updateSummary();
+};
+window.__setNote = (idx, val) => { _items[idx].note = val; };
+
+function updateSummary() {
+  const pass = _items.filter(i => i.result === 'pass').length;
+  const fail = _items.filter(i => i.result === 'fail').length;
+  const checked = pass + fail;
+  const rate = checked ? Math.round(pass / checked * 100) : null;
+  const el = document.getElementById('summaryBadge');
+  if (el) el.textContent = rate !== null ? `Pass ${pass}/${checked} (${rate}%)  |  Fail ${fail}` : `ตรวจแล้ว ${checked}/${_items.length}`;
+}
+
+window.__saveForm = async () => {
+  const date = document.getElementById('inspDate')?.value;
+  if (!date) return alert('กรุณาระบุวันที่ตรวจสอบ');
+  const data = {
+    inspectionDate: date,
+    inspector:      document.getElementById('inspector')?.value || _profile?.displayName,
+    area:           document.getElementById('area')?.value || '',
+    status:         document.getElementById('inspStatus')?.value || 'draft',
+    remark:         document.getElementById('remark')?.value || '',
+    items:          _items,
+    passCount:      _items.filter(i => i.result === 'pass').length,
+    failCount:      _items.filter(i => i.result === 'fail').length,
+    naCount:        _items.filter(i => i.result === 'na').length,
+  };
+  try {
+    if (_editId) await updateInspection(_editId, data);
+    else await createInspection(data, _profile?.uid);
+    _editId = null;
+    _view = 'list';
+    await loadList();
+    renderList();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+window.__backToList = () => { _view = 'list'; renderList(); };
+
+// ── DETAIL VIEW ───────────────────────────────────────────────────────────────
+window.__openDetail = async (id) => {
+  const rec = _rows.find(r => r.id === id) || await getInspection(id);
+  if (!rec) return;
+  _detail = rec;
+  _view = 'detail';
+  renderDetail();
+};
+
+function renderDetail() {
+  const rec = _detail;
+  const items = rec.items || [];
+  const cats = [...new Set(items.map(i => i.category))];
+  const rate = passRate(items);
+  const fails = items.filter(i => i.result === 'fail');
+  const mc = document.getElementById('main-content');
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <button class="btn btn-ghost" onclick="__backToList()">← กลับ</button>
+        ผลการตรวจสอบ — ${rec.inspectionDate || ''}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="window.print()">🖨 พิมพ์</button>
+        <button class="btn btn-primary" onclick="__editInsp('${rec.id}')">✏️ แก้ไข</button>
+      </div>
+    </div>
+
+    <!-- Print header -->
+    <div class="print-only" style="margin-bottom:20px;border-bottom:2px solid #0f172a;padding-bottom:10px">
+      <h2 style="font-size:16pt;margin-bottom:4px">รายงานการตรวจสอบความปลอดภัย</h2>
+      <p>วันที่ตรวจสอบ: ${rec.inspectionDate} | พื้นที่: ${rec.area||'—'} | ผู้ตรวจ: ${rec.inspector||'—'}</p>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="stat-bar no-print">
+      <div class="stat-card"><div class="stat-val">${items.length}</div><div class="stat-label">รายการทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#16a34a">${rec.passCount ?? items.filter(i=>i.result==='pass').length}</div><div class="stat-label">Pass</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#dc2626">${rec.failCount ?? fails.length}</div><div class="stat-label">Fail</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${rateColor(rate)}">${rate !== null ? rate+'%' : '—'}</div><div class="stat-label">Pass Rate</div></div>
+    </div>
+
+    <!-- Info -->
+    <div class="form-wrap" style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+        <div><div class="lbl">วันที่</div><div>${rec.inspectionDate||'—'}</div></div>
+        <div><div class="lbl">ผู้ตรวจ</div><div>${rec.inspector||'—'}</div></div>
+        <div><div class="lbl">พื้นที่</div><div>${rec.area||rec.department||'—'}</div></div>
+        <div><div class="lbl">สถานะ</div><div>${badge(INSPECTION_STATUS, rec.status||'draft')}</div></div>
+        ${rec.remark ? `<div style="grid-column:1/-1"><div class="lbl">หมายเหตุ</div><div>${rec.remark}</div></div>` : ''}
+      </div>
+    </div>
+
+    <!-- Fail items highlight -->
+    ${fails.length ? `
+    <div class="tbl-card no-print" style="margin-bottom:14px;border-left:4px solid #dc2626">
+      <div style="padding:12px 16px;font-weight:700;color:#dc2626">⚠️ รายการที่ไม่ผ่าน (${fails.length} รายการ)</div>
+      <table class="tbl"><thead><tr><th>หมวด</th><th>รายการ</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>${fails.map(f=>`<tr><td>${f.category}</td><td>${f.item}</td><td>${f.note||'—'}</td></tr>`).join('')}</tbody></table>
+    </div>` : ''}
+
+    <!-- All items by category -->
+    <div class="form-wrap">
+      <div class="sec-hd">ผลการตรวจสอบทั้งหมด</div>
+      ${cats.map(cat => {
+        const catItems = items.filter(i => i.category === cat);
+        const catPass = catItems.filter(i => i.result === 'pass').length;
+        const catFail = catItems.filter(i => i.result === 'fail').length;
+        return `
+        <div class="cat-group">
+          <div class="cat-title" style="display:flex;justify-content:space-between">
+            <span>${cat}</span>
+            <span style="font-size:.75rem;color:${catFail>0?'#dc2626':'#16a34a'}">Pass ${catPass} / Fail ${catFail}</span>
+          </div>
+          ${catItems.map(it => `
+          <div class="item-row" style="grid-template-columns:1fr auto auto">
+            <span>${it.item}</span>
+            <span style="padding:3px 10px;border-radius:6px;font-size:.75rem;font-weight:700;background:${it.result==='pass'?'#dcfce7':it.result==='fail'?'#fee2e2':'#f1f5f9'};color:${it.result==='pass'?'#16a34a':it.result==='fail'?'#dc2626':'#64748b'}">
+              ${it.result==='pass'?'✓ ผ่าน':it.result==='fail'?'✗ ไม่ผ่าน':'N/A'}
+            </span>
+            <span style="font-size:.75rem;color:#64748b;min-width:80px">${it.note||''}</span>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Print signature -->
+    <div class="print-only" style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:30px;text-align:center">
+      ${['ผู้ตรวจสอบ','จป.วิชาชีพ','ผู้จัดการ'].map(n=>`<div><div style="border-top:1px solid #000;padding-top:6px;margin-top:50px">${n}</div></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-inspection', 'ตรวจสอบความปลอดภัย');
+loadList();
+</script>
+</body>
+</html>

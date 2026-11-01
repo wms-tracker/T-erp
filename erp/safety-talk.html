@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Safety Talk — KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    @media print {
+      body * { visibility: hidden !important; }
+      #printArea, #printArea * { visibility: visible !important; }
+      #printArea {
+        position: fixed; inset: 0; padding: 15mm 14mm;
+        font-family: Sarabun, sans-serif; font-size: 10pt; color: #000; background: #fff; z-index: 9999;
+      }
+      .pr-title { text-align: center; font-size: 14pt; font-weight: 800; margin-bottom: 4pt; }
+      .pr-sub   { text-align: center; font-size: 10pt; margin-bottom: 14pt; }
+      .pr-row   { display: flex; gap: 20pt; margin: 5pt 0; font-size: 9.5pt; }
+      .pr-field { flex: 1; }
+      .pr-label { font-weight: 700; font-size: 8.5pt; }
+      .pr-val   { border-bottom: .5pt solid #999; min-height: 14pt; padding: 1pt 0; }
+      .pr-table { border-collapse: collapse; width: 100%; font-size: 9pt; margin-top: 8pt; }
+      .pr-table th, .pr-table td { border: 1pt solid #999; padding: 4pt 6pt; }
+      .pr-table th { background: #f0f0f0; font-weight: 700; }
+      .pr-sign-row { display: flex; justify-content: space-around; margin-top: 32pt; }
+      .pr-sign-blk { text-align: center; }
+      .pr-sign-line { border-top: 1pt solid #666; margin-top: 32pt; padding-top: 4pt; font-size: 9pt; }
+      @page { margin: 0; size: A4; }
+    }
+  </style>
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="printArea" style="display:none"></div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listTalks, getTalk, createTalk, updateTalk, deleteTalk,
+  TALK_TYPES, TALK_TOPICS, DEPARTMENTS,
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _items = [], _editId = null;
+let _filterSearch = '', _filterType = '', _filterDept = '';
+const TODAY = () => new Date().toISOString().split('T')[0];
+const MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+// ── load ──────────────────────────────────────────────────────────────────
+async function loadData() { _items = await listTalks({ lim: 500 }); }
+
+// ── render ────────────────────────────────────────────────────────────────
+function renderContent() {
+  $('main-content').innerHTML = `
+  <style>
+    .tw{padding:0 20px 60px;max-width:1200px;margin:0 auto;}
+    .ph{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:18px 0 12px;}
+    .ph-title{font-size:1.15rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 10px;font-size:.78rem;}
+    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fecaca;} .btn-danger:hover{background:#fecaca;}
+    .sum-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+    .sum-chip{background:#fff;border-radius:10px;padding:10px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);text-align:center;min-width:80px;}
+    .sum-val{font-size:1.5rem;font-weight:900;line-height:1;}
+    .sum-lbl{font-size:.68rem;color:#64748b;font-weight:600;margin-top:2px;}
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+    .filter-bar input,.filter-bar select{padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;background:#fff;}
+    .filter-bar input:focus,.filter-bar select:focus{outline:none;border-color:#0891b2;}
+    /* Calendar strip */
+    .cal-strip{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:16px;}
+    .cal-day{min-width:52px;padding:8px 6px;border-radius:10px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.07);text-align:center;cursor:pointer;transition:.15s;border:2px solid transparent;}
+    .cal-day:hover{border-color:#0891b2;}
+    .cal-day.has-talk{background:#ecfdf5;border-color:#86efac;}
+    .cal-day-num{font-size:1.1rem;font-weight:700;line-height:1;}
+    .cal-day-lbl{font-size:.65rem;color:#64748b;margin-top:2px;}
+    .cal-day-dot{width:6px;height:6px;border-radius:50%;background:#16a34a;margin:3px auto 0;}
+    /* Cards */
+    .talk-list{display:flex;flex-direction:column;gap:10px;}
+    .talk-card{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.07);display:flex;gap:12px;align-items:flex-start;}
+    .talk-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;}
+    .talk-body{flex:1;min-width:0;}
+    .talk-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;}
+    .talk-date{font-size:.75rem;color:#64748b;font-weight:600;}
+    .talk-type{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:10px;}
+    .talk-topic{font-size:.9rem;font-weight:700;color:#0f172a;margin-bottom:3px;}
+    .talk-detail{font-size:.78rem;color:#64748b;}
+    .talk-actions{display:flex;gap:6px;flex-shrink:0;}
+    /* Panel */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;}
+    .overlay.open{display:block;}
+    .panel{position:fixed;top:0;right:0;height:100dvh;width:min(560px,100vw);background:#fff;z-index:201;overflow-y:auto;transform:translateX(100%);transition:.25s cubic-bezier(.4,0,.2,1);}
+    .panel.open{transform:none;}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1;}
+    .panel-title{font-size:1rem;font-weight:700;color:#0f172a;}
+    .panel-body{padding:20px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+    @media(max-width:500px){.form-row{grid-template-columns:1fr;}}
+    .form-row.full{grid-template-columns:1fr;}
+    .form-group{display:flex;flex-direction:column;gap:4px;}
+    .form-label{font-size:.78rem;font-weight:700;color:#374151;}
+    .form-label span{color:#dc2626;}
+    .form-input{padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;transition:.15s;}
+    .form-input:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    .topic-grid{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;}
+    .topic-btn{padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:20px;font-size:.75rem;font-weight:600;cursor:pointer;background:#fff;color:#475569;transition:.1s;}
+    .topic-btn:hover{background:#f1f5f9;}
+    .section-div{font-size:.8rem;font-weight:700;color:#475569;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid #e2e8f0;}
+    .att-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+    .att-row input{flex:1;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+  </style>
+  <div class="tw">
+    <div class="ph">
+      <div class="ph-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Safety Talk / Toolbox Talk
+      </div>
+      <button class="btn btn-primary" onclick="__openCreate()">+ บันทึก Safety Talk</button>
+    </div>
+
+    <div id="sumBar"></div>
+    <div id="calStrip"></div>
+
+    <div class="filter-bar">
+      <input type="text" id="fSearch" placeholder="🔍 ค้นหาหัวข้อ..." value="${_filterSearch}" oninput="__filter()" style="flex:1;min-width:160px">
+      <select id="fType" onchange="__filter()">
+        <option value="">ทุกประเภท</option>
+        ${Object.entries(TALK_TYPES).map(([k,v])=>`<option value="${k}" ${_filterType===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+      <select id="fDept" onchange="__filter()">
+        <option value="">ทุกแผนก</option>
+        ${(DEPARTMENTS||[]).map(d=>`<option value="${d}" ${_filterDept===d?'selected':''}>${d}</option>`).join('')}
+      </select>
+    </div>
+
+    <div id="talkList"></div>
+  </div>
+
+  <div class="overlay" id="overlay" onclick="__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <span class="panel-title" id="panelTitle">Safety Talk</span>
+      <button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </div>`;
+
+  renderSummary();
+  renderCalStrip();
+  renderList();
+}
+
+// ── summary ───────────────────────────────────────────────────────────────
+function renderSummary() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const thisMonth = _items.filter(i => i.talkDate?.startsWith(ym));
+  const total = _items.length;
+  const totalParticipants = _items.reduce((s,i) => s + (i.attendeeCount||0), 0);
+  const today  = _items.filter(i => i.talkDate === TODAY()).length;
+
+  $('sumBar').innerHTML = `<div class="sum-bar">
+    ${[
+      { val: today,           lbl: 'วันนี้',           color: '#0891b2' },
+      { val: thisMonth.length,lbl: 'เดือนนี้',         color: '#16a34a' },
+      { val: total,           lbl: 'ทั้งหมด',          color: '#475569' },
+      { val: totalParticipants, lbl: 'ผู้เข้าร่วมรวม', color: '#7c3aed' },
+    ].map(b=>`<div class="sum-chip"><div class="sum-val" style="color:${b.color}">${b.val}</div><div class="sum-lbl">${b.lbl}</div></div>`).join('')}
+  </div>`;
+}
+
+// ── calendar strip (last 14 days) ─────────────────────────────────────────
+function renderCalStrip() {
+  const talks = new Set(_items.map(i => i.talkDate));
+  const strip = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const ys = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const dow = ['อา','จ','อ','พ','พฤ','ศ','ส'][d.getDay()];
+    const hasTalk = talks.has(ys);
+    strip.push(`<div class="cal-day ${hasTalk?'has-talk':''}" title="${ys}">
+      <div class="cal-day-num">${d.getDate()}</div>
+      <div class="cal-day-lbl">${MONTHS_TH[d.getMonth()]} (${dow})</div>
+      ${hasTalk ? '<div class="cal-day-dot"></div>' : ''}
+    </div>`);
+  }
+  $('calStrip').innerHTML = `<div class="cal-strip">${strip.join('')}</div>`;
+}
+
+// ── list ──────────────────────────────────────────────────────────────────
+function filtered() {
+  let rows = _items;
+  if (_filterType)   rows = rows.filter(r => r.talkType === _filterType);
+  if (_filterDept)   rows = rows.filter(r => r.department === _filterDept);
+  if (_filterSearch) {
+    const q = _filterSearch.toLowerCase();
+    rows = rows.filter(r =>
+      (r.topic||'').toLowerCase().includes(q) ||
+      (r.conductor||'').toLowerCase().includes(q) ||
+      (r.summary||'').toLowerCase().includes(q));
+  }
+  return rows;
+}
+
+function renderList() {
+  const rows = filtered();
+  const el = $('talkList');
+  if (!el) return;
+  if (rows.length === 0) { el.innerHTML = `<div class="empty-state">🗣 ยังไม่มีบันทึก Safety Talk<br><small>คลิก "+ บันทึก Safety Talk" เพื่อเริ่มต้น</small></div>`; return; }
+  el.innerHTML = `<div class="talk-list">${rows.map(r => talkCard(r)).join('')}</div>`;
+}
+
+function talkCard(r) {
+  const tt = TALK_TYPES[r.talkType] || { icon:'🗣', label: r.talkType, color: '#0891b2' };
+  return `
+  <div class="talk-card">
+    <div class="talk-icon" style="background:${tt.color||'#0891b2'}18">${tt.icon}</div>
+    <div class="talk-body">
+      <div class="talk-meta">
+        <span class="talk-date">📅 ${r.talkDate||'—'} ${r.talkTime||''}</span>
+        <span class="talk-type" style="background:${tt.color||'#0891b2'}18;color:${tt.color||'#0891b2'}">${tt.label||r.talkType}</span>
+        ${r.department ? `<span style="font-size:.72rem;color:#64748b">🏭 ${r.department}</span>` : ''}
+        ${r.attendeeCount ? `<span style="font-size:.72rem;color:#7c3aed">👥 ${r.attendeeCount} คน</span>` : ''}
+        ${r.duration ? `<span style="font-size:.72rem;color:#64748b">⏱ ${r.duration} นาที</span>` : ''}
+      </div>
+      <div class="talk-topic">${r.topic||'ไม่ระบุหัวข้อ'}</div>
+      ${r.conductor ? `<div class="talk-detail">ผู้ดำเนินการ: ${r.conductor}</div>` : ''}
+      ${r.summary ? `<div class="talk-detail" style="margin-top:3px;white-space:pre-wrap">${r.summary.slice(0,120)}${r.summary.length>120?'...':''}</div>` : ''}
+      ${r.actionItems ? `<div style="margin-top:5px;font-size:.75rem;background:#fef9c3;padding:4px 8px;border-radius:6px;color:#854d0e">📌 ${r.actionItems.slice(0,80)}</div>` : ''}
+    </div>
+    <div class="talk-actions">
+      <button class="btn btn-ghost btn-sm" onclick="__openDetail('${r.id}')">ดู</button>
+      <button class="btn btn-ghost btn-sm" onclick="__openEdit('${r.id}')">✏️</button>
+      <button class="btn btn-ghost btn-sm" onclick="__printTalk('${r.id}')">🖨</button>
+      <button class="btn btn-danger btn-sm" onclick="__deleteTalk('${r.id}')">🗑</button>
+    </div>
+  </div>`;
+}
+
+// ── form ──────────────────────────────────────────────────────────────────
+function openCreate() {
+  _editId = null;
+  renderForm(null);
+}
+async function openEdit(id) {
+  _editId = id;
+  const r = _items.find(i => i.id === id) || await getTalk(id);
+  renderForm(r);
+}
+
+let _attendees = [];
+
+function renderForm(r) {
+  _attendees = r?.attendees ? [...r.attendees] : [];
+  const isEdit = !!r;
+  $('panelTitle').textContent = isEdit ? `✏️ แก้ไข Safety Talk` : '➕ บันทึก Safety Talk';
+  $('panelBody').innerHTML = `
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ประเภท <span>*</span></label>
+        <select class="form-input" id="fTalkType">
+          ${Object.entries(TALK_TYPES).map(([k,v])=>`<option value="${k}" ${(r?.talkType||'safety_talk')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันที่ <span>*</span></label>
+        <input type="date" class="form-input" id="fDate" value="${r?.talkDate||TODAY()}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">เวลา</label>
+        <input type="time" class="form-input" id="fTime" value="${r?.talkTime||'08:00'}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ระยะเวลา (นาที)</label>
+        <input type="number" class="form-input" id="fDuration" min="5" max="120" value="${r?.duration||15}">
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label class="form-label">หัวข้อ <span>*</span></label>
+        <input class="form-input" id="fTopic" placeholder="หัวข้อ Safety Talk..." value="${r?.topic||''}">
+        <div class="topic-grid" style="margin-top:6px">
+          ${TALK_TOPICS.map(t=>`<button type="button" class="topic-btn" onclick="__setTopic('${t.replace(/'/g,'\\\'')}')">${t}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">แผนก</label>
+        <input class="form-input" id="fDept" list="deptList" value="${r?.department||''}">
+        <datalist id="deptList">${(DEPARTMENTS||[]).map(d=>`<option value="${d}">`).join('')}</datalist>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ผู้ดำเนินการ</label>
+        <input class="form-input" id="fConductor" placeholder="ชื่อ-นามสกุล" value="${r?.conductor||''}">
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label class="form-label">สรุปเนื้อหา</label>
+        <textarea class="form-input" id="fSummary" rows="3" placeholder="สรุปเนื้อหาที่พูดคุย...">${r?.summary||''}</textarea>
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label class="form-label">Action Items (ข้อตกลง/สิ่งที่ต้องทำ)</label>
+        <textarea class="form-input" id="fAction" rows="2" placeholder="สิ่งที่ต้องดำเนินการต่อ...">${r?.actionItems||''}</textarea>
+      </div>
+    </div>
+
+    <div class="section-div">ผู้เข้าร่วม</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">จำนวนผู้เข้าร่วม (คน)</label>
+        <input type="number" class="form-input" id="fCount" min="0" value="${r?.attendeeCount||0}">
+      </div>
+    </div>
+    <div class="form-row full">
+      <div class="form-group">
+        <label class="form-label">รายชื่อผู้เข้าร่วม (ไม่บังคับ)</label>
+        <div id="attList">${_attendees.map((a,i)=>attRow(a,i)).join('')}</div>
+        <button type="button" class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%" onclick="__addAtt()">+ เพิ่มรายชื่อ</button>
+      </div>
+    </div>
+
+    <div class="form-row full">
+      <div class="form-group">
+        <label class="form-label">หมายเหตุ</label>
+        <input class="form-input" id="fNote" value="${r?.note||''}" placeholder="หมายเหตุเพิ่มเติม...">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="__submitForm(${isEdit})">💾 บันทึก</button>
+      <button class="btn btn-ghost" onclick="__closePanel()">ยกเลิก</button>
+    </div>`;
+  openPanel();
+}
+
+function attRow(name, i) {
+  return `<div class="att-row" id="att_${i}">
+    <input value="${name}" oninput="_attendees[${i}]=this.value" placeholder="ชื่อ-นามสกุล">
+    <button type="button" class="btn btn-danger btn-sm" onclick="__removeAtt(${i})">✕</button>
+  </div>`;
+}
+
+window.__addAtt = () => {
+  _attendees.push('');
+  const i = _attendees.length - 1;
+  const al = $('attList');
+  if (al) { const d = document.createElement('div'); d.innerHTML = attRow('', i); al.appendChild(d.firstElementChild); }
+};
+window.__removeAtt = i => { _attendees.splice(i,1); const el = $(`att_${i}`); if (el) el.remove(); };
+window.__setTopic = t => { const el = $('fTopic'); if (el) el.value = t; };
+
+// ── submit ────────────────────────────────────────────────────────────────
+window.__submitForm = async isEdit => {
+  const topic = $('fTopic')?.value?.trim();
+  const talkDate = $('fDate')?.value;
+  if (!topic || !talkDate) { alert('กรุณากรอกหัวข้อและวันที่'); return; }
+  const data = {
+    talkType:     $('fTalkType')?.value,
+    talkDate, talkTime: $('fTime')?.value||'',
+    duration:     parseInt($('fDuration')?.value)||15,
+    topic, department: $('fDept')?.value?.trim()||'',
+    conductor:    $('fConductor')?.value?.trim()||'',
+    summary:      $('fSummary')?.value?.trim()||'',
+    actionItems:  $('fAction')?.value?.trim()||'',
+    attendeeCount: parseInt($('fCount')?.value)||0,
+    attendees:    _attendees.filter(Boolean),
+    note:         $('fNote')?.value?.trim()||'',
+  };
+  if (isEdit) await updateTalk(_editId, data);
+  else        await createTalk(data, _profile.uid);
+  __closePanel();
+  await loadData(); renderSummary(); renderCalStrip(); renderList();
+};
+
+// ── detail view ────────────────────────────────────────────────────────────
+async function openDetail(id) {
+  const r = _items.find(i => i.id === id) || await getTalk(id);
+  if (!r) return;
+  const tt = TALK_TYPES[r.talkType] || { icon:'🗣', label: r.talkType, color:'#0891b2' };
+  $('panelTitle').textContent = `${tt.icon} รายละเอียด Safety Talk`;
+  $('panelBody').innerHTML = `
+    <div style="background:${tt.color||'#0891b2'}12;border-radius:10px;padding:16px;margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:800;color:#0f172a;margin-bottom:6px">${r.topic}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:.78rem;color:#64748b">
+        <span>📅 ${r.talkDate} ${r.talkTime||''}</span>
+        <span style="background:${tt.color||'#0891b2'}22;color:${tt.color||'#0891b2'};padding:2px 8px;border-radius:8px;font-weight:700">${tt.label}</span>
+        ${r.department?`<span>🏭 ${r.department}</span>`:''}
+        ${r.conductor?`<span>👤 ${r.conductor}</span>`:''}
+        ${r.duration?`<span>⏱ ${r.duration} นาที</span>`:''}
+        ${r.attendeeCount?`<span>👥 ${r.attendeeCount} คน</span>`:''}
+      </div>
+    </div>
+    ${r.summary?`<div style="margin-bottom:12px"><div style="font-size:.78rem;font-weight:700;color:#64748b;margin-bottom:4px">สรุปเนื้อหา</div><div style="font-size:.88rem;white-space:pre-wrap;color:#0f172a">${r.summary}</div></div>`:''}
+    ${r.actionItems?`<div style="background:#fef9c3;border-radius:8px;padding:10px 12px;margin-bottom:12px"><div style="font-size:.78rem;font-weight:700;color:#854d0e;margin-bottom:4px">📌 Action Items</div><div style="font-size:.85rem;white-space:pre-wrap">${r.actionItems}</div></div>`:''}
+    ${r.attendees?.length>0?`<div style="margin-bottom:12px"><div style="font-size:.78rem;font-weight:700;color:#64748b;margin-bottom:6px">รายชื่อผู้เข้าร่วม</div><div style="display:flex;flex-wrap:wrap;gap:4px">${r.attendees.map(a=>`<span style="background:#f1f5f9;border-radius:8px;padding:3px 10px;font-size:.78rem">${a}</span>`).join('')}</div></div>`:''}
+    ${r.note?`<div style="font-size:.82rem;color:#64748b">หมายเหตุ: ${r.note}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9">
+      <button class="btn btn-ghost btn-sm" onclick="__openEdit('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-ghost btn-sm" onclick="__printTalk('${r.id}')">🖨 พิมพ์</button>
+    </div>`;
+  openPanel();
+}
+
+// ── print ─────────────────────────────────────────────────────────────────
+window.__printTalk = async id => {
+  const r = _items.find(i => i.id === id) || await getTalk(id);
+  if (!r) return;
+  const tt = TALK_TYPES[r.talkType] || { icon:'🗣', label: r.talkType };
+  const today = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' });
+  const pa = $('printArea');
+  pa.style.display = 'block';
+  pa.innerHTML = `
+  <div class="pr-title">แบบบันทึกกิจกรรม ${tt.label}</div>
+  <div class="pr-sub">วันที่: ${r.talkDate} เวลา: ${r.talkTime||'—'} น. | ระยะเวลา: ${r.duration||'—'} นาที</div>
+  <div class="pr-row">
+    <div class="pr-field"><div class="pr-label">หัวข้อ</div><div class="pr-val">${r.topic}</div></div>
+  </div>
+  <div class="pr-row">
+    <div class="pr-field"><div class="pr-label">ผู้ดำเนินการ</div><div class="pr-val">${r.conductor||'—'}</div></div>
+    <div class="pr-field"><div class="pr-label">แผนก</div><div class="pr-val">${r.department||'—'}</div></div>
+  </div>
+  <div class="pr-row">
+    <div class="pr-field"><div class="pr-label">จำนวนผู้เข้าร่วม</div><div class="pr-val">${r.attendeeCount||0} คน</div></div>
+  </div>
+  ${r.summary?`<div class="pr-row"><div class="pr-field"><div class="pr-label">สรุปเนื้อหา</div><div class="pr-val" style="min-height:40pt;white-space:pre-wrap">${r.summary}</div></div></div>`:''}
+  ${r.actionItems?`<div class="pr-row"><div class="pr-field"><div class="pr-label">Action Items</div><div class="pr-val" style="min-height:30pt;white-space:pre-wrap">${r.actionItems}</div></div></div>`:''}
+  ${r.attendees?.length>0?`
+  <div style="margin-top:10pt;font-weight:700;font-size:10pt">รายชื่อผู้เข้าร่วม</div>
+  <table class="pr-table">
+    <thead><tr><th style="width:30pt">ลำดับ</th><th>ชื่อ-นามสกุล</th><th>ลายเซ็น</th></tr></thead>
+    <tbody>${r.attendees.map((a,i)=>`<tr><td style="text-align:center">${i+1}</td><td>${a}</td><td></td></tr>`).join('')}</tbody>
+  </table>` : `
+  <table class="pr-table" style="margin-top:10pt">
+    <thead><tr><th style="width:30pt">ลำดับ</th><th>ชื่อ-นามสกุล</th><th>แผนก</th><th>ลายเซ็น</th></tr></thead>
+    <tbody>${Array.from({length:12},(_,i)=>`<tr><td style="text-align:center">${i+1}</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`).join('')}</tbody>
+  </table>`}
+  <div class="pr-sign-row">
+    ${['ผู้ดำเนินการ','หัวหน้างาน','จป. วิชาชีพ'].map(n=>`<div class="pr-sign-blk"><div class="pr-sign-line">(...........................)\n${n}</div></div>`).join('')}
+  </div>`;
+  window.print();
+  setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 1000);
+};
+
+// ── delete ────────────────────────────────────────────────────────────────
+window.__deleteTalk = async id => {
+  if (!confirm('ลบรายการนี้?')) return;
+  await deleteTalk(id);
+  await loadData(); renderSummary(); renderCalStrip(); renderList();
+};
+
+// ── panel & controls ──────────────────────────────────────────────────────
+function openPanel() {
+  $('overlay').classList.add('open');
+  setTimeout(() => $('panel').classList.add('open'), 10);
+}
+window.__closePanel = () => { $('panel').classList.remove('open'); $('overlay').classList.remove('open'); };
+window.__filter = () => {
+  _filterSearch = $('fSearch')?.value||'';
+  _filterType   = $('fType')?.value||'';
+  _filterDept   = $('fDept')?.value||'';
+  renderList();
+};
+window.__openCreate = openCreate;
+window.__openEdit   = openEdit;
+window.__openDetail = openDetail;
+
+// ── boot ──────────────────────────────────────────────────────────────────
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-talk', 'Safety Talk');
+await loadData();
+renderContent();
+</script>
+</body>
+</html>

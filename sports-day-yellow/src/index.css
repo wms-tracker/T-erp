@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply font-sans text-ink antialiased; }
+}
+
+@layer components {
+  .input {
+    @apply block w-full min-h-[42px] rounded-lg border border-gray-300 bg-white px-3 py-2 text-base text-ink placeholder:text-gray-400
+      focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40 disabled:bg-gray-100 sm:text-sm;
+  }
+}
+
+@keyframes toast { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
