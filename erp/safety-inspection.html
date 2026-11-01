@@ -3,676 +3,416 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ตรวจสอบความปลอดภัย — KPO Safety</title>
+  <title>ตรวจสอบความปลอดภัย</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b">กำลังโหลด...</div>
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
 import {
   listInspections, createInspection, updateInspection, getInspection,
-  listInspectionTemplates, createInspectionTemplate, updateInspectionTemplate, deleteInspectionTemplate, getInspectionTemplate,
-  DEFAULT_INSPECTION_ITEMS, DEFAULT_INSPECTION_CATEGORIES,
-  INSPECTION_STATUS, DEPARTMENTS, createCapa
+  DEFAULT_INSPECTION_ITEMS, DEFAULT_INSPECTION_CATEGORIES, INSPECTION_STATUS,
+  DEPARTMENTS,
 } from "./js/safety-data.js";
 
-const $ = id => document.getElementById(id);
-let _profile;
-let _inspections = [], _templates = [];
-// view: 'list' | 'templates' | 'conduct' | 'view'
-let _view = 'list';
-let _conductData = null; // { templateId, templateName, items: [{category,item,result,note,responsible,dueDate}] }
-let _viewId = null;
+let _profile, _view = 'list', _rows = [], _detail = null;
+let _items = [];   // [{category,item,result,note}]
+let _editId = null;
 
-// ─── main layout ──────────────────────────────────────────────────────────
-function buildLayout() {
+const today = () => new Date().toISOString().split('T')[0];
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+function passRate(items) {
+  const checked = items.filter(i => i.result !== 'na');
+  return checked.length ? Math.round(items.filter(i => i.result === 'pass').length / checked.length * 100) : null;
+}
+function rateColor(r) {
+  if (r === null) return '#64748b';
+  return r >= 90 ? '#16a34a' : r >= 70 ? '#d97706' : '#dc2626';
+}
+function badge(def, key) {
+  const o = def[key] || { label: key, color: '#64748b', bg: '#f1f5f9' };
+  return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:700;background:${o.bg};color:${o.color}">${o.label}</span>`;
+}
+
+// ── styles ────────────────────────────────────────────────────────────────────
+const CSS = `<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Sarabun,sans-serif;background:#f8fafc;color:#0f172a;}
+.wrap{max-width:1200px;margin:0 auto;padding:0 20px 60px;}
+.hd{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:20px 0 14px;}
+.page-title{font-size:1.2rem;font-weight:700;display:flex;align-items:center;gap:8px;}
+.btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:.1s;text-decoration:none;}
+.btn-primary{background:#0f172a;color:#fff;} .btn-primary:hover{background:#1e293b;}
+.btn-green{background:#16a34a;color:#fff;}   .btn-green:hover{background:#15803d;}
+.btn-ghost{background:#f1f5f9;color:#475569;} .btn-ghost:hover{background:#e2e8f0;}
+.btn-red{background:#dc2626;color:#fff;}     .btn-red:hover{background:#b91c1c;}
+/* stats bar */
+.stat-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.stat-card{background:#fff;border-radius:10px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.07);flex:1;min-width:110px;}
+.stat-val{font-size:1.6rem;font-weight:900;line-height:1;}
+.stat-label{font-size:.72rem;color:#64748b;margin-top:3px;}
+/* filters */
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+.filter-row input, .filter-row select{padding:6px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.82rem;font-family:Sarabun,sans-serif;background:#fff;color:#0f172a;}
+/* table */
+.tbl-card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
+.tbl{width:100%;border-collapse:collapse;font-size:.83rem;}
+.tbl th{text-align:left;padding:10px 14px;font-size:.72rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1.5px solid #f1f5f9;}
+.tbl td{padding:10px 14px;border-bottom:1px solid #f8fafc;}
+.tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+.tbl .empty{text-align:center;padding:40px;color:#94a3b8;}
+/* form */
+.form-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);padding:24px;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+.fld{display:flex;flex-direction:column;gap:5px;}
+.fld.full{grid-column:1/-1;}
+.lbl{font-size:.78rem;font-weight:700;color:#475569;}
+input, select, textarea{padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;outline:none;color:#0f172a;background:#fff;}
+input:focus, select:focus, textarea:focus{border-color:#0891b2;}
+.sec-hd{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:12px 0 8px;border-bottom:1.5px solid #f1f5f9;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+/* checklist */
+.cat-group{margin-bottom:16px;}
+.cat-title{font-weight:700;font-size:.83rem;color:#334155;padding:6px 10px;background:#f8fafc;border-radius:8px 8px 0 0;border:1px solid #e2e8f0;}
+.item-row{display:grid;grid-template-columns:1fr auto auto auto auto;gap:8px;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-top:none;font-size:.83rem;}
+.item-row:last-child{border-radius:0 0 8px 8px;}
+.item-row:hover{background:#fafafa;}
+.result-btn{padding:4px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;background:#fff;transition:.1s;}
+.result-btn.pass.active{background:#dcfce7;border-color:#16a34a;color:#16a34a;}
+.result-btn.fail.active{background:#fee2e2;border-color:#dc2626;color:#dc2626;}
+.result-btn.na.active{background:#f1f5f9;border-color:#64748b;color:#64748b;}
+.note-inp{width:120px;padding:4px 6px;font-size:.75rem;}
+/* detail */
+.progress-bar{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;}
+.progress-fill{height:100%;border-radius:4px;transition:.3s;}
+/* print */
+@media print{
+  body{font-size:10pt;}
+  .no-print{display:none!important;}
+  .print-only{display:block!important;}
+  .form-wrap,.tbl-card{box-shadow:none;border:1px solid #e2e8f0;}
+  table{page-break-inside:auto;}
+  tr{page-break-inside:avoid;}
+}
+.print-only{display:none;}
+</style>`;
+
+// ── LOAD ──────────────────────────────────────────────────────────────────────
+async function loadList() {
+  _rows = await listInspections({ lim: 200 });
+  renderList();
+}
+
+// ── RENDER LIST ──────────────────────────────────────────────────────────────
+function renderList() {
   const mc = document.getElementById('main-content');
-  mc.innerHTML = `
-  <style>
-    .si{padding:0 20px 32px;max-width:1300px;margin:0 auto;}
-    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 16px;}
-    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
-    .tab-bar{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;border-radius:10px;padding:4px;}
-    .tab{padding:7px 18px;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;border:none;background:transparent;color:#64748b;transition:.15s;}
-    .tab.active,.tab:hover{background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1);}
-    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
-    .btn-green{background:#16a34a;color:#fff;} .btn-green:hover{background:#15803d;}
-    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
-    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
-    .btn-danger:hover{background:#fecaca;}
-    .tbl-wrap{overflow-x:auto;}
-    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
-    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
-    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
-    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
-    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
-    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
-    /* Conduct view */
-    .conduct-header{background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;border-radius:14px;padding:20px 24px;margin-bottom:20px;}
-    .conduct-header h2{font-size:1.1rem;font-weight:700;margin-bottom:4px;}
-    .conduct-header .meta{font-size:.82rem;opacity:.85;}
-    .progress-bar-wrap{background:rgba(255,255,255,.25);border-radius:10px;height:8px;margin-top:12px;}
-    .progress-bar-fill{background:#fff;border-radius:10px;height:8px;transition:.3s;}
-    .progress-label{font-size:.78rem;opacity:.85;margin-top:4px;}
-    .category-section{margin-bottom:12px;}
-    .category-title{font-size:.82rem;font-weight:700;color:#0891b2;padding:8px 12px;background:#ecfeff;border-radius:8px;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
-    .checklist-item{background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin-bottom:8px;transition:.15s;}
-    .checklist-item.pass{border-color:#16a34a;background:#f0fdf4;}
-    .checklist-item.fail{border-color:#dc2626;background:#fff1f2;}
-    .checklist-item.na{border-color:#e2e8f0;background:#f8fafc;opacity:.75;}
-    .item-text{font-size:.85rem;color:#1e293b;margin-bottom:10px;font-weight:500;}
-    .result-btns{display:flex;gap:8px;flex-wrap:wrap;}
-    .result-btn{padding:6px 14px;border-radius:20px;border:2px solid #e2e8f0;font-family:Sarabun,sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;background:#fff;transition:.15s;}
-    .result-btn.sel-pass{background:#dcfce7;border-color:#16a34a;color:#15803d;}
-    .result-btn.sel-fail{background:#fee2e2;border-color:#dc2626;color:#dc2626;}
-    .result-btn.sel-na{background:#f1f5f9;border-color:#94a3b8;color:#64748b;}
-    .fail-detail{margin-top:10px;display:none;}
-    .fail-detail.show{display:block;}
-    .fail-detail input,.fail-detail textarea{width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;box-sizing:border-box;margin-bottom:6px;}
-    .fail-detail textarea{min-height:56px;resize:vertical;}
-    .conduct-footer{position:sticky;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:14px 0;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
-    /* tpl card */
-    .tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:4px;}
-    .tpl-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:18px;cursor:pointer;transition:.15s;}
-    .tpl-card:hover{border-color:#0891b2;box-shadow:0 2px 8px rgba(8,145,178,.15);}
-    .tpl-card-name{font-size:.95rem;font-weight:700;color:#0f172a;margin-bottom:4px;}
-    .tpl-card-meta{font-size:.78rem;color:#94a3b8;}
-    .tpl-card-actions{display:flex;gap:8px;margin-top:12px;}
-    /* view detail */
-    .view-header{background:#f8fafc;border-radius:12px;padding:16px 20px;margin-bottom:16px;}
-    .view-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:.82rem;color:#64748b;margin-top:6px;}
-    .summary-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
-    .sum-card{background:#fff;border-radius:10px;padding:12px 18px;flex:1;min-width:120px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07);}
-    .sum-card .val{font-size:1.6rem;font-weight:800;}
-    .sum-card .lbl{font-size:.72rem;color:#64748b;margin-top:2px;}
-    .fail-list{background:#fff;border-radius:12px;padding:16px;}
-    .fail-item-row{padding:10px 0;border-bottom:1px solid #f1f5f9;}
-    .fail-item-row:last-child{border-bottom:none;}
-    /* forms */
-    .form-group{margin-bottom:12px;}
-    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
-    .req{color:#dc2626;}
-    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
-    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
-    /* modal */
-    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
-    .modal-panel{background:#fff;height:100dvh;width:min(580px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
-    .modal-head{padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
-    .modal-body{padding:20px;flex:1;}
-    .modal-foot{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
-    textarea.form-ctrl{resize:vertical;min-height:72px;}
-  </style>
+  const total = _rows.length;
+  const completed = _rows.filter(r => r.status === 'completed' || r.status === 'reviewed').length;
+  const rates = _rows.filter(r => r.items?.length).map(r => passRate(r.items)).filter(v => v !== null);
+  const avgRate = rates.length ? Math.round(rates.reduce((a,b) => a+b, 0) / rates.length) : null;
+  const countFail = _rows.reduce((s, r) => s + (r.items?.filter(i => i.result === 'fail').length || 0), 0);
 
-  <div class="si" id="mainView">
-    <!-- content injected by renderView() -->
-  </div>
-
-  <div id="modalBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
-    <div class="modal-panel">
-      <div class="modal-head">
-        <div style="font-size:1rem;font-weight:700;color:#0f172a" id="modalTitle">—</div>
-        <button class="btn btn-ghost" onclick="__closeModal(null)" style="padding:4px 10px">✕</button>
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        ตรวจสอบความปลอดภัย
       </div>
-      <div class="modal-body" id="modalBody"></div>
-      <div class="modal-foot" id="modalFoot"></div>
+      <button class="btn btn-primary" onclick="__newForm()">+ บันทึกการตรวจสอบ</button>
+    </div>
+
+    <div class="stat-bar no-print">
+      <div class="stat-card"><div class="stat-val">${total}</div><div class="stat-label">ตรวจสอบทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-val">${completed}</div><div class="stat-label">เสร็จสิ้น</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${rateColor(avgRate)}">${avgRate !== null ? avgRate+'%' : '—'}</div><div class="stat-label">Pass Rate เฉลี่ย</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${countFail>0?'#dc2626':'#16a34a'}">${countFail}</div><div class="stat-label">รายการ Fail ทั้งหมด</div></div>
+    </div>
+
+    <div class="filter-row no-print">
+      <input type="date" id="f-start" placeholder="จาก" onchange="__filterList()">
+      <input type="date" id="f-end" placeholder="ถึง" onchange="__filterList()">
+      <select id="f-dept" onchange="__filterList()"><option value="">ทุกแผนก</option>${DEPARTMENTS.map(d=>`<option>${d}</option>`).join('')}</select>
+    </div>
+
+    <div class="tbl-card no-print">
+      <table class="tbl" id="inspTable">
+        <thead><tr>
+          <th>วันที่</th><th>พื้นที่/แผนก</th><th>ผู้ตรวจ</th><th>Pass Rate</th><th>Fail</th><th>สถานะ</th><th>ดำเนินการ</th>
+        </tr></thead>
+        <tbody id="inspBody">${buildRows(_rows)}</tbody>
+      </table>
     </div>
   </div>`;
 }
 
-function renderView() {
-  const mv = $('mainView');
-  if (_view === 'list')      mv.innerHTML = listViewHTML();
-  else if (_view === 'templates') mv.innerHTML = templatesViewHTML();
-  else if (_view === 'conduct')   renderConductView(mv);
-  else if (_view === 'view-result') renderResultView(mv);
+function buildRows(rows) {
+  if (!rows.length) return `<tr><td colspan="7" class="empty">ยังไม่มีข้อมูล</td></tr>`;
+  return rows.map(r => {
+    const rate = passRate(r.items || []);
+    const fails = (r.items || []).filter(i => i.result === 'fail').length;
+    return `<tr onclick="__openDetail('${r.id}')">
+      <td>${r.inspectionDate || '—'}</td>
+      <td>${r.area || r.department || '—'}</td>
+      <td>${r.inspector || '—'}</td>
+      <td>
+        ${rate !== null ? `
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="progress-bar" style="width:80px"><div class="progress-fill" style="width:${rate}%;background:${rateColor(rate)}"></div></div>
+          <span style="color:${rateColor(rate)};font-weight:700">${rate}%</span>
+        </div>` : '—'}
+      </td>
+      <td><span style="color:${fails>0?'#dc2626':'#16a34a'};font-weight:700">${fails}</span></td>
+      <td>${badge(INSPECTION_STATUS, r.status || 'draft')}</td>
+      <td><button class="btn btn-ghost" style="font-size:.75rem;padding:4px 10px" onclick="event.stopPropagation();__editInsp('${r.id}')">แก้ไข</button></td>
+    </tr>`;
+  }).join('');
 }
 
-// ─── List view ─────────────────────────────────────────────────────────────
-function listViewHTML() {
-  return `
-  <div class="page-header">
-    <div class="page-title">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      ตรวจสอบความปลอดภัย
+window.__filterList = () => {
+  const start = document.getElementById('f-start')?.value;
+  const end   = document.getElementById('f-end')?.value;
+  const dept  = document.getElementById('f-dept')?.value;
+  let rows = _rows;
+  if (start) rows = rows.filter(r => r.inspectionDate >= start);
+  if (end)   rows = rows.filter(r => r.inspectionDate <= end);
+  if (dept)  rows = rows.filter(r => (r.department || r.area) === dept);
+  const tbody = document.getElementById('inspBody');
+  if (tbody) tbody.innerHTML = buildRows(rows);
+};
+
+// ── NEW / EDIT FORM ───────────────────────────────────────────────────────────
+window.__newForm = () => {
+  _editId = null;
+  _items = DEFAULT_INSPECTION_ITEMS.map(i => ({ ...i, result: 'na', note: '' }));
+  _view = 'form';
+  renderForm();
+};
+
+window.__editInsp = async (id) => {
+  _editId = id;
+  const rec = _rows.find(r => r.id === id) || await getInspection(id);
+  if (!rec) return;
+  _items = (rec.items || []).map(i => ({ ...i }));
+  if (!_items.length) _items = DEFAULT_INSPECTION_ITEMS.map(i => ({ ...i, result: 'na', note: '' }));
+  _view = 'form';
+  renderForm(rec);
+};
+
+function renderForm(rec = {}) {
+  const mc = document.getElementById('main-content');
+  const cats = [...new Set(_items.map(i => i.category))];
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <button class="btn btn-ghost" onclick="__backToList()">← กลับ</button>
+        ${_editId ? 'แก้ไขการตรวจสอบ' : 'บันทึกการตรวจสอบใหม่'}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="window.print()">🖨 พิมพ์</button>
+        <button class="btn btn-green" onclick="__saveForm()">💾 บันทึก</button>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-ghost" onclick="__setView('templates')">จัดการ Template</button>
-      <button class="btn btn-primary" onclick="__openStartInspection()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        เริ่มการตรวจสอบ
-      </button>
-    </div>
-  </div>
 
-  <div class="tab-bar">
-    <button class="tab active">ประวัติการตรวจ (${_inspections.length})</button>
-  </div>
-
-  ${_inspections.length === 0
-    ? `<div class="empty-state"><div style="font-size:2.5rem">🔍</div><div style="margin-top:8px">ยังไม่มีประวัติการตรวจสอบ</div><div style="margin-top:4px;font-size:.8rem">กด "เริ่มการตรวจสอบ" เพื่อดำเนินการตรวจสอบ</div></div>`
-    : `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr>
-        <th>หมายเลข</th><th>วันที่</th><th>Template ที่ใช้</th><th>แผนก/พื้นที่</th>
-        <th>ผล (Pass/Fail/NA)</th><th>ผู้ตรวจ</th><th>สถานะ</th>
-      </tr></thead>
-      <tbody>
-      ${_inspections.map(r => {
-        const s = INSPECTION_STATUS[r.status] || { label: r.status||'—', color:'#64748b', bg:'#f9fafb' };
-        const passCount = (r.items||[]).filter(i => i.result==='pass').length;
-        const failCount = (r.items||[]).filter(i => i.result==='fail').length;
-        const naCount   = (r.items||[]).filter(i => i.result==='na').length;
-        return `<tr onclick="__openViewResult('${r.id}')">
-          <td style="font-weight:700;color:#0891b2">${r.inspId||r.id.slice(0,8)}</td>
-          <td>${r.inspectionDate||'—'}</td>
-          <td>${r.templateName||'—'}</td>
-          <td>${r.area||r.department||'—'}</td>
-          <td>
-            <span style="color:#16a34a;font-weight:600">✓${passCount}</span>
-            <span style="color:#dc2626;font-weight:600;margin-left:8px">✗${failCount}</span>
-            <span style="color:#94a3b8;margin-left:8px">—${naCount}</span>
-          </td>
-          <td>${r.inspector||'—'}</td>
-          <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
-        </tr>`;
-      }).join('')}
-      </tbody>
-    </table></div>`
-  }`;
-}
-
-// ─── Templates view ─────────────────────────────────────────────────────────
-function templatesViewHTML() {
-  return `
-  <div class="page-header">
-    <div class="page-title">จัดการ Template ตรวจสอบ</div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost" onclick="__setView('list')">← กลับ</button>
-      <button class="btn btn-primary" onclick="__openCreateTpl()">+ สร้าง Template ใหม่</button>
-      <button class="btn btn-ghost" onclick="__createDefaultTpl()">สร้าง Default Template</button>
-    </div>
-  </div>
-
-  <div class="tpl-grid">
-    ${_templates.map(t => {
-      const itemCount = (t.items||[]).length;
-      const catCount  = new Set((t.items||[]).map(i => i.category)).size;
-      return `<div class="tpl-card">
-        <div class="tpl-card-name">${t.name||'ไม่ระบุชื่อ'}</div>
-        <div class="tpl-card-meta">${catCount} หมวด · ${itemCount} รายการ</div>
-        ${t.description ? `<div style="font-size:.78rem;color:#64748b;margin-top:6px">${t.description}</div>` : ''}
-        <div class="tpl-card-actions">
-          <button class="btn btn-primary" style="font-size:.8rem;padding:5px 12px" onclick="event.stopPropagation();__startFromTemplate('${t.id}')">ใช้ Template นี้</button>
-          <button class="btn btn-ghost" style="font-size:.8rem;padding:5px 10px" onclick="event.stopPropagation();__openEditTpl('${t.id}')">แก้ไข</button>
-          <button class="btn btn-danger" style="font-size:.8rem;padding:5px 10px" onclick="event.stopPropagation();__deleteTpl('${t.id}')">ลบ</button>
+    <div class="form-wrap">
+      <div class="sec-hd">ข้อมูลการตรวจสอบ</div>
+      <div class="form-grid" style="margin-bottom:20px">
+        <div class="fld"><label class="lbl">วันที่ตรวจสอบ *</label><input type="date" id="inspDate" value="${rec.inspectionDate || today()}" required></div>
+        <div class="fld"><label class="lbl">ผู้ตรวจสอบ *</label><input type="text" id="inspector" value="${rec.inspector || _profile?.displayName || ''}"></div>
+        <div class="fld"><label class="lbl">แผนก / พื้นที่</label>
+          <input type="text" id="area" value="${rec.area || rec.department || ''}" placeholder="เช่น คลังสินค้า 1, พื้นที่โกดัง A">
         </div>
+        <div class="fld"><label class="lbl">สถานะ</label>
+          <select id="inspStatus">
+            <option value="draft" ${(rec.status||'draft')==='draft'?'selected':''}>Draft</option>
+            <option value="completed" ${rec.status==='completed'?'selected':''}>เสร็จสิ้น</option>
+            <option value="reviewed" ${rec.status==='reviewed'?'selected':''}>ตรวจสอบแล้ว</option>
+          </select>
+        </div>
+        <div class="fld full"><label class="lbl">หมายเหตุ / สรุปภาพรวม</label><textarea id="remark" rows="2" style="resize:vertical">${rec.remark || ''}</textarea></div>
+      </div>
+
+      <div class="sec-hd">
+        รายการตรวจสอบ
+        <span id="summaryBadge" style="font-size:.78rem;color:#16a34a;font-weight:600"></span>
+      </div>
+      <div id="itemsContainer">
+        ${cats.map(cat => renderCatGroup(cat)).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  updateSummary();
+}
+
+function renderCatGroup(cat) {
+  const catItems = _items.filter(i => i.category === cat);
+  return `
+  <div class="cat-group">
+    <div class="cat-title">${cat}</div>
+    ${catItems.map((it, gi) => {
+      const globalIdx = _items.indexOf(it);
+      return `
+      <div class="item-row" id="row-${globalIdx}">
+        <span>${it.item}</span>
+        <button class="result-btn pass ${it.result==='pass'?'active':''}" onclick="__setResult(${globalIdx},'pass')">✓ ผ่าน</button>
+        <button class="result-btn fail ${it.result==='fail'?'active':''}" onclick="__setResult(${globalIdx},'fail')">✗ ไม่ผ่าน</button>
+        <button class="result-btn na ${it.result==='na'?'active':''}" onclick="__setResult(${globalIdx},'na')">N/A</button>
+        <input class="note-inp" placeholder="หมายเหตุ" value="${it.note||''}" onchange="__setNote(${globalIdx},this.value)">
       </div>`;
     }).join('')}
-    ${_templates.length === 0 ? `<div style="grid-column:1/-1;text-align:center;padding:40px;color:#94a3b8">ยังไม่มี Template กด "สร้าง Default Template" เพื่อสร้างแบบตรวจสอบมาตรฐาน</div>` : ''}
   </div>`;
 }
 
-// ─── Conduct view ──────────────────────────────────────────────────────────
-function renderConductView(mv) {
-  const items = _conductData.items;
-  const total = items.length;
-  const done  = items.filter(i => i.result && i.result !== '').length;
-  const pct   = total > 0 ? Math.round(done/total*100) : 0;
-
-  // Group by category
-  const byCategory = {};
-  for (const [idx, item] of items.entries()) {
-    if (!byCategory[item.category]) byCategory[item.category] = [];
-    byCategory[item.category].push({ ...item, _idx: idx });
-  }
-
-  mv.innerHTML = `
-  <div class="conduct-header">
-    <h2>${_conductData.templateName}</h2>
-    <div class="meta">
-      <span id="conductDate">${_conductData.date||''}</span> ·
-      <span id="conductArea">${_conductData.area||''}</span> ·
-      ผู้ตรวจ: <span id="conductInspector">${_conductData.inspector||''}</span>
-    </div>
-    <div class="progress-bar-wrap">
-      <div class="progress-bar-fill" id="progressFill" style="width:${pct}%"></div>
-    </div>
-    <div class="progress-label" id="progressLabel">${done}/${total} รายการ (${pct}%)</div>
-  </div>
-
-  ${Object.entries(byCategory).map(([cat, catItems]) => `
-    <div class="category-section">
-      <div class="category-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        ${cat}
-      </div>
-      ${catItems.map(item => `
-        <div class="checklist-item ${item.result||''}" id="ci_${item._idx}">
-          <div class="item-text">${item.item}</div>
-          <div class="result-btns">
-            <button class="result-btn ${item.result==='pass'?'sel-pass':''}" onclick="__setResult(${item._idx},'pass')">✓ Pass</button>
-            <button class="result-btn ${item.result==='fail'?'sel-fail':''}" onclick="__setResult(${item._idx},'fail')">✗ Fail</button>
-            <button class="result-btn ${item.result==='na'?'sel-na':''}" onclick="__setResult(${item._idx},'na')">— N/A</button>
-          </div>
-          <div class="fail-detail ${item.result==='fail'?'show':''}" id="fd_${item._idx}">
-            <textarea placeholder="รายละเอียด / สิ่งที่พบ..." oninput="__setNote(${item._idx},this.value)">${item.note||''}</textarea>
-            <input type="text" placeholder="ผู้รับผิดชอบแก้ไข..." oninput="__setResponsible(${item._idx},this.value)" value="${item.responsible||''}">
-            <input type="date" title="วันครบกำหนด" oninput="__setDueDate(${item._idx},this.value)" value="${item.dueDate||''}">
-          </div>
-        </div>`).join('')}
-    </div>
-  `).join('')}
-
-  <div class="conduct-footer">
-    <button class="btn btn-ghost" onclick="__setView('list')">ยกเลิก</button>
-    <button class="btn btn-primary" onclick="__saveDraft()">บันทึก Draft</button>
-    <button class="btn btn-green" onclick="__submitInspection()">ส่งผลการตรวจสอบ</button>
-  </div>`;
-}
-
-window.__setResult = (idx, result) => {
-  _conductData.items[idx].result = result;
-  const ci  = document.getElementById(`ci_${idx}`);
-  const fd  = document.getElementById(`fd_${idx}`);
-  if (ci) { ci.className = `checklist-item ${result}`; }
-  if (fd) { fd.className = `fail-detail ${result==='fail'?'show':''}`; }
-  // update result buttons
-  const btns = ci?.querySelectorAll('.result-btn');
-  if (btns) {
-    btns[0].className = `result-btn ${result==='pass'?'sel-pass':''}`;
-    btns[1].className = `result-btn ${result==='fail'?'sel-fail':''}`;
-    btns[2].className = `result-btn ${result==='na'?'sel-na':''}`;
-  }
-  updateProgress();
+window.__setResult = (idx, val) => {
+  _items[idx].result = val;
+  const row = document.getElementById(`row-${idx}`);
+  if (!row) return;
+  row.querySelectorAll('.result-btn').forEach(b => b.classList.remove('active'));
+  row.querySelector(`.result-btn.${val}`)?.classList.add('active');
+  updateSummary();
 };
+window.__setNote = (idx, val) => { _items[idx].note = val; };
 
-window.__setNote        = (idx, v) => { _conductData.items[idx].note = v; };
-window.__setResponsible = (idx, v) => { _conductData.items[idx].responsible = v; };
-window.__setDueDate     = (idx, v) => { _conductData.items[idx].dueDate = v; };
-
-function updateProgress() {
-  const total = _conductData.items.length;
-  const done  = _conductData.items.filter(i => i.result).length;
-  const pct   = total > 0 ? Math.round(done/total*100) : 0;
-  const fill  = document.getElementById('progressFill');
-  const label = document.getElementById('progressLabel');
-  if (fill)  fill.style.width = pct + '%';
-  if (label) label.textContent = `${done}/${total} รายการ (${pct}%)`;
+function updateSummary() {
+  const pass = _items.filter(i => i.result === 'pass').length;
+  const fail = _items.filter(i => i.result === 'fail').length;
+  const checked = pass + fail;
+  const rate = checked ? Math.round(pass / checked * 100) : null;
+  const el = document.getElementById('summaryBadge');
+  if (el) el.textContent = rate !== null ? `Pass ${pass}/${checked} (${rate}%)  |  Fail ${fail}` : `ตรวจแล้ว ${checked}/${_items.length}`;
 }
 
-async function saveDraft() {
-  await saveInspection('draft');
-  showToast('บันทึก Draft แล้ว ✓', '#0891b2');
-}
-
-async function submitInspection() {
-  const unanswered = _conductData.items.filter(i => !i.result).length;
-  if (unanswered > 0 && !confirm(`ยังมี ${unanswered} รายการที่ยังไม่ได้ตอบ ต้องการส่งผลเลยหรือไม่?`)) return;
-  const id = await saveInspection('completed');
-  // Auto-create CAPA for fail items
-  const failItems = _conductData.items.filter(i => i.result === 'fail');
-  for (const fi of failItems) {
-    if (fi.responsible || fi.dueDate) {
-      await createCapa({
-        capaId: `CAPA-INS-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-        source: 'Safety Inspection',
-        sourceRef: id,
-        description: `[${fi.category}] ${fi.item}${fi.note?': '+fi.note:''}`,
-        correctiveAction: 'ต้องกำหนดมาตรการแก้ไข',
-        preventiveAction: '',
-        assignedTo: fi.responsible || '',
-        department: _conductData.area || '',
-        startDate: new Date().toISOString().split('T')[0],
-        dueDate: fi.dueDate || '',
-      }, _profile.uid).catch(() => {});
-    }
-  }
-  showToast(`ส่งผลการตรวจสอบแล้ว${failItems.length>0?` สร้าง CAPA ${failItems.filter(f=>f.responsible||f.dueDate).length} รายการ`:''} ✓`, '#16a34a');
-  _inspections = await listInspections({ lim: 100 });
-  _view = 'list';
-  renderView();
-}
-
-async function saveInspection(status) {
-  const passCount = _conductData.items.filter(i => i.result==='pass').length;
-  const failCount = _conductData.items.filter(i => i.result==='fail').length;
-  const naCount   = _conductData.items.filter(i => i.result==='na').length;
+window.__saveForm = async () => {
+  const date = document.getElementById('inspDate')?.value;
+  if (!date) return alert('กรุณาระบุวันที่ตรวจสอบ');
   const data = {
-    inspId: `INS-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${String(Math.floor(Math.random()*9000)+1000)}`,
-    templateId: _conductData.templateId,
-    templateName: _conductData.templateName,
-    inspectionDate: _conductData.date,
-    area: _conductData.area,
-    department: _conductData.area,
-    inspector: _conductData.inspector,
-    items: _conductData.items,
-    passCount, failCount, naCount,
-    status,
+    inspectionDate: date,
+    inspector:      document.getElementById('inspector')?.value || _profile?.displayName,
+    area:           document.getElementById('area')?.value || '',
+    status:         document.getElementById('inspStatus')?.value || 'draft',
+    remark:         document.getElementById('remark')?.value || '',
+    items:          _items,
+    passCount:      _items.filter(i => i.result === 'pass').length,
+    failCount:      _items.filter(i => i.result === 'fail').length,
+    naCount:        _items.filter(i => i.result === 'na').length,
   };
-  const ref = await createInspection(data, _profile.uid);
-  _conductData._savedId = ref.id;
-  return ref.id;
-}
-
-// ─── Result view ─────────────────────────────────────────────────────────
-async function openViewResult(id) {
-  _viewId = id;
-  const r = _inspections.find(x => x.id === id) || await getInspection(id);
-  if (!r) return;
-  _view = 'view-result';
-  renderResultView($('mainView'), r);
-}
-
-function renderResultView(mv, r) {
-  if (!r) { mv.innerHTML = '<div class="empty-state">ไม่พบข้อมูล</div>'; return; }
-  const pass = r.passCount || (r.items||[]).filter(i=>i.result==='pass').length;
-  const fail = r.failCount || (r.items||[]).filter(i=>i.result==='fail').length;
-  const na   = r.naCount   || (r.items||[]).filter(i=>i.result==='na').length;
-  const total = (r.items||[]).length;
-  const s = INSPECTION_STATUS[r.status] || { label: r.status, color:'#64748b', bg:'#f9fafb' };
-  const failItems = (r.items||[]).filter(i => i.result==='fail');
-  const byCategory = {};
-  for (const item of (r.items||[])) {
-    if (!byCategory[item.category]) byCategory[item.category] = [];
-    byCategory[item.category].push(item);
-  }
-
-  mv.innerHTML = `
-  <div style="display:flex;align-items:center;gap:10px;padding:20px 0 8px;flex-wrap:wrap">
-    <button class="btn btn-ghost" onclick="__setView('list')">← กลับ</button>
-    <span style="font-size:1.1rem;font-weight:700;color:#0891b2">${r.inspId||r.id.slice(0,8)}</span>
-    <span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span>
-  </div>
-
-  <div class="view-header">
-    <div style="font-size:1rem;font-weight:700">${r.templateName||'—'}</div>
-    <div class="view-meta">
-      <span>📅 ${r.inspectionDate||'—'}</span>
-      <span>📍 ${r.area||r.department||'—'}</span>
-      <span>👤 ผู้ตรวจ: ${r.inspector||'—'}</span>
-    </div>
-  </div>
-
-  <div class="summary-row">
-    <div class="sum-card" style="border-top:3px solid #16a34a"><div class="val" style="color:#16a34a">${pass}</div><div class="lbl">Pass</div></div>
-    <div class="sum-card" style="border-top:3px solid #dc2626"><div class="val" style="color:#dc2626">${fail}</div><div class="lbl">Fail</div></div>
-    <div class="sum-card" style="border-top:3px solid #94a3b8"><div class="val" style="color:#94a3b8">${na}</div><div class="lbl">N/A</div></div>
-    <div class="sum-card" style="border-top:3px solid #0891b2"><div class="val" style="color:#0891b2">${total>0?Math.round(pass/(total-na||1)*100):'—'}%</div><div class="lbl">Pass Rate</div></div>
-  </div>
-
-  ${failItems.length > 0 ? `
-  <div style="font-size:.9rem;font-weight:700;color:#dc2626;margin-bottom:10px">⚠️ รายการที่ Fail (${failItems.length})</div>
-  <div class="fail-list">
-    ${failItems.map(fi => `
-    <div class="fail-item-row">
-      <div style="font-size:.8rem;color:#94a3b8;font-weight:600">${fi.category}</div>
-      <div style="font-size:.85rem;font-weight:600;color:#dc2626;margin-top:2px">${fi.item}</div>
-      ${fi.note ? `<div style="font-size:.82rem;color:#475569;margin-top:4px">${fi.note}</div>` : ''}
-      <div style="display:flex;gap:16px;margin-top:6px;font-size:.78rem;color:#94a3b8;flex-wrap:wrap">
-        ${fi.responsible ? `<span>👤 ${fi.responsible}</span>` : ''}
-        ${fi.dueDate ? `<span>📅 ครบ ${fi.dueDate}</span>` : ''}
-      </div>
-    </div>`).join('')}
-  </div>` : ''}
-
-  <details style="margin-top:16px">
-    <summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:#0891b2;padding:8px 0">ดูรายการตรวจสอบทั้งหมด (${total} รายการ)</summary>
-    <div style="margin-top:8px">
-      ${Object.entries(byCategory).map(([cat, items]) => `
-        <div style="margin-bottom:12px">
-          <div style="font-size:.8rem;font-weight:700;color:#0891b2;padding:6px 10px;background:#ecfeff;border-radius:6px;margin-bottom:6px">${cat}</div>
-          ${items.map(item => {
-            const rc = item.result==='pass'?'#16a34a':item.result==='fail'?'#dc2626':'#94a3b8';
-            const rl = item.result==='pass'?'Pass':item.result==='fail'?'Fail':item.result==='na'?'N/A':'—';
-            return `<div style="display:flex;align-items:flex-start;gap:10px;padding:6px 8px;border-bottom:1px solid #f8fafc">
-              <span style="color:${rc};font-weight:700;font-size:.78rem;min-width:36px">${rl}</span>
-              <span style="font-size:.82rem;color:#334155">${item.item}</span>
-            </div>`;
-          }).join('')}
-        </div>`).join('')}
-    </div>
-  </details>`;
-}
-
-// ─── Start inspection modal ───────────────────────────────────────────────
-function openStartInspection() {
-  $('modalTitle').textContent = 'เริ่มการตรวจสอบ';
-  const tplOptions = _templates.map(t =>
-    `<option value="${t.id}">${t.name} (${(t.items||[]).length} รายการ)</option>`
-  ).join('');
-
-  $('modalBody').innerHTML = `
-  <div class="form-group">
-    <label class="form-label">Template <span class="req">*</span></label>
-    <select class="form-ctrl" id="mTpl">
-      <option value="">-- เลือก Template --</option>
-      ${tplOptions}
-    </select>
-    ${_templates.length === 0 ? `<div style="margin-top:6px;font-size:.78rem;color:#f59e0b">⚠️ ยังไม่มี Template กด "สร้าง Default Template" ก่อน</div>` : ''}
-  </div>
-  <div class="form-group">
-    <label class="form-label">วันที่ตรวจ <span class="req">*</span></label>
-    <input type="date" class="form-ctrl" id="mDate" value="${new Date().toISOString().split('T')[0]}">
-  </div>
-  <div class="form-group">
-    <label class="form-label">พื้นที่/แผนก <span class="req">*</span></label>
-    <select class="form-ctrl" id="mArea">
-      <option value="">-- เลือก --</option>
-      ${DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
-    </select>
-  </div>
-  <div class="form-group">
-    <label class="form-label">ผู้ตรวจสอบ <span class="req">*</span></label>
-    <input type="text" class="form-ctrl" id="mInspector" value="${_profile.displayName || _profile.email || ''}">
-  </div>`;
-
-  $('modalFoot').innerHTML = `
-    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
-    <button class="btn btn-primary" onclick="__confirmStartInspection()">เริ่มตรวจสอบ →</button>`;
-  $('modalBg').style.display = 'flex';
-}
-
-async function confirmStartInspection() {
-  const tplId    = $('mTpl')?.value;
-  const date     = $('mDate')?.value;
-  const area     = $('mArea')?.value;
-  const inspector= $('mInspector')?.value?.trim();
-  if (!tplId || !date || !area || !inspector) { showToast('กรุณากรอกข้อมูลให้ครบ', '#dc2626'); return; }
-
-  const tpl = _templates.find(t => t.id === tplId) || await getInspectionTemplate(tplId);
-  if (!tpl) { showToast('ไม่พบ Template', '#dc2626'); return; }
-
-  _conductData = {
-    templateId: tplId,
-    templateName: tpl.name,
-    date, area, inspector,
-    items: (tpl.items||[]).map(i => ({ ...i, result: '', note: '', responsible: '', dueDate: '' })),
-  };
-  closeModal(null);
-  _view = 'conduct';
-  renderView();
-}
-
-// ─── Template create/edit modal ───────────────────────────────────────────
-function openCreateTpl() {
-  $('modalTitle').textContent = 'สร้าง Template ใหม่';
-  $('modalBody').innerHTML = tplFormHTML({ name:'', description:'', items:[] });
-  $('modalFoot').innerHTML = `
-    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
-    <button class="btn btn-primary" onclick="__submitCreateTpl()">สร้าง Template</button>`;
-  $('modalBg').style.display = 'flex';
-}
-
-function tplFormHTML(d) {
-  return `
-  <div class="form-group">
-    <label class="form-label">ชื่อ Template <span class="req">*</span></label>
-    <input type="text" class="form-ctrl" id="tName" value="${d.name||''}" placeholder="เช่น Weekly Warehouse Check">
-  </div>
-  <div class="form-group">
-    <label class="form-label">คำอธิบาย</label>
-    <input type="text" class="form-ctrl" id="tDesc" value="${d.description||''}" placeholder="รายละเอียดเพิ่มเติม">
-  </div>
-  <div style="font-size:.8rem;color:#64748b;margin-top:8px;padding:10px;background:#f8fafc;border-radius:8px">
-    หลังสร้าง Template แล้ว สามารถเพิ่ม/ลบรายการตรวจสอบได้ในหน้าแก้ไข Template
-  </div>`;
-}
-
-async function submitCreateTpl() {
-  const name = $('tName')?.value?.trim();
-  if (!name) { showToast('กรุณาระบุชื่อ Template', '#dc2626'); return; }
-  const btn = $('modalFoot').querySelector('.btn-primary');
-  btn.disabled = true; btn.textContent = 'กำลังสร้าง...';
   try {
-    await createInspectionTemplate({ name, description: $('tDesc')?.value?.trim()||'', items:[] }, _profile.uid);
-    _templates = await listInspectionTemplates();
-    closeModal(null);
-    renderView();
-    showToast('สร้าง Template แล้ว ✓', '#16a34a');
-  } catch(e) {
-    btn.disabled = false; btn.textContent = 'สร้าง Template';
-    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
-  }
-}
-
-async function openEditTpl(id) {
-  const t = _templates.find(x => x.id === id) || await getInspectionTemplate(id);
-  if (!t) return;
-  $('modalTitle').textContent = 'แก้ไข Template';
-  const items = t.items || [];
-
-  $('modalBody').innerHTML = `
-  <div class="form-group">
-    <label class="form-label">ชื่อ Template <span class="req">*</span></label>
-    <input type="text" class="form-ctrl" id="etName" value="${t.name||''}">
-  </div>
-  <div class="form-group">
-    <label class="form-label">คำอธิบาย</label>
-    <input type="text" class="form-ctrl" id="etDesc" value="${t.description||''}">
-  </div>
-  <div style="font-size:.8rem;font-weight:600;color:#0891b2;margin:14px 0 8px">รายการตรวจสอบ (${items.length} รายการ)</div>
-  <div id="itemList">
-    ${items.map((item, i) => `
-    <div id="tplItem_${i}" style="display:flex;gap:8px;margin-bottom:6px">
-      <input type="text" class="form-ctrl" value="${item.category||''}" placeholder="หมวด" style="width:35%">
-      <input type="text" class="form-ctrl" value="${item.item||''}" placeholder="รายการตรวจ" style="flex:1">
-      <button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fee2e2;color:#dc2626;cursor:pointer;font-size:.8rem">✕</button>
-    </div>`).join('')}
-  </div>
-  <button class="btn btn-ghost" onclick="__addTplItem()" style="margin-top:8px;width:100%">+ เพิ่มรายการ</button>`;
-
-  $('modalFoot').innerHTML = `
-    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
-    <button class="btn btn-primary" onclick="__submitEditTpl('${id}')">บันทึกการแก้ไข</button>`;
-  $('modalBg').style.display = 'flex';
-}
-
-window.__addTplItem = () => {
-  const list = document.getElementById('itemList');
-  const n = list.children.length;
-  const row = document.createElement('div');
-  row.id = `tplItem_${n}`;
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px';
-  row.innerHTML = `
-    <input type="text" class="form-ctrl" placeholder="หมวด" style="width:35%">
-    <input type="text" class="form-ctrl" placeholder="รายการตรวจ" style="flex:1">
-    <button onclick="this.parentElement.remove()" style="padding:4px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fee2e2;color:#dc2626;cursor:pointer;font-size:.8rem">✕</button>`;
-  list.appendChild(row);
+    if (_editId) await updateInspection(_editId, data);
+    else await createInspection(data, _profile?.uid);
+    _editId = null;
+    _view = 'list';
+    await loadList();
+    renderList();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
 };
 
-async function submitEditTpl(id) {
-  const name = document.getElementById('etName')?.value?.trim();
-  if (!name) { showToast('กรุณาระบุชื่อ Template', '#dc2626'); return; }
-  const rows = document.getElementById('itemList')?.children || [];
-  const items = [];
-  for (const row of rows) {
-    const inputs = row.querySelectorAll('input');
-    const cat  = inputs[0]?.value?.trim();
-    const item = inputs[1]?.value?.trim();
-    if (cat && item) items.push({ category: cat, item });
-  }
-  const btn = $('modalFoot').querySelector('.btn-primary');
-  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
-  try {
-    await updateInspectionTemplate(id, { name, description: document.getElementById('etDesc')?.value?.trim()||'', items });
-    _templates = await listInspectionTemplates();
-    closeModal(null);
-    renderView();
-    showToast('บันทึก Template แล้ว ✓', '#16a34a');
-  } catch(e) {
-    btn.disabled = false; btn.textContent = 'บันทึกการแก้ไข';
-    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
-  }
+window.__backToList = () => { _view = 'list'; renderList(); };
+
+// ── DETAIL VIEW ───────────────────────────────────────────────────────────────
+window.__openDetail = async (id) => {
+  const rec = _rows.find(r => r.id === id) || await getInspection(id);
+  if (!rec) return;
+  _detail = rec;
+  _view = 'detail';
+  renderDetail();
+};
+
+function renderDetail() {
+  const rec = _detail;
+  const items = rec.items || [];
+  const cats = [...new Set(items.map(i => i.category))];
+  const rate = passRate(items);
+  const fails = items.filter(i => i.result === 'fail');
+  const mc = document.getElementById('main-content');
+
+  mc.innerHTML = CSS + `
+  <div class="wrap">
+    <div class="hd no-print">
+      <div class="page-title">
+        <button class="btn btn-ghost" onclick="__backToList()">← กลับ</button>
+        ผลการตรวจสอบ — ${rec.inspectionDate || ''}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="window.print()">🖨 พิมพ์</button>
+        <button class="btn btn-primary" onclick="__editInsp('${rec.id}')">✏️ แก้ไข</button>
+      </div>
+    </div>
+
+    <!-- Print header -->
+    <div class="print-only" style="margin-bottom:20px;border-bottom:2px solid #0f172a;padding-bottom:10px">
+      <h2 style="font-size:16pt;margin-bottom:4px">รายงานการตรวจสอบความปลอดภัย</h2>
+      <p>วันที่ตรวจสอบ: ${rec.inspectionDate} | พื้นที่: ${rec.area||'—'} | ผู้ตรวจ: ${rec.inspector||'—'}</p>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="stat-bar no-print">
+      <div class="stat-card"><div class="stat-val">${items.length}</div><div class="stat-label">รายการทั้งหมด</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#16a34a">${rec.passCount ?? items.filter(i=>i.result==='pass').length}</div><div class="stat-label">Pass</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:#dc2626">${rec.failCount ?? fails.length}</div><div class="stat-label">Fail</div></div>
+      <div class="stat-card"><div class="stat-val" style="color:${rateColor(rate)}">${rate !== null ? rate+'%' : '—'}</div><div class="stat-label">Pass Rate</div></div>
+    </div>
+
+    <!-- Info -->
+    <div class="form-wrap" style="margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">
+        <div><div class="lbl">วันที่</div><div>${rec.inspectionDate||'—'}</div></div>
+        <div><div class="lbl">ผู้ตรวจ</div><div>${rec.inspector||'—'}</div></div>
+        <div><div class="lbl">พื้นที่</div><div>${rec.area||rec.department||'—'}</div></div>
+        <div><div class="lbl">สถานะ</div><div>${badge(INSPECTION_STATUS, rec.status||'draft')}</div></div>
+        ${rec.remark ? `<div style="grid-column:1/-1"><div class="lbl">หมายเหตุ</div><div>${rec.remark}</div></div>` : ''}
+      </div>
+    </div>
+
+    <!-- Fail items highlight -->
+    ${fails.length ? `
+    <div class="tbl-card no-print" style="margin-bottom:14px;border-left:4px solid #dc2626">
+      <div style="padding:12px 16px;font-weight:700;color:#dc2626">⚠️ รายการที่ไม่ผ่าน (${fails.length} รายการ)</div>
+      <table class="tbl"><thead><tr><th>หมวด</th><th>รายการ</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>${fails.map(f=>`<tr><td>${f.category}</td><td>${f.item}</td><td>${f.note||'—'}</td></tr>`).join('')}</tbody></table>
+    </div>` : ''}
+
+    <!-- All items by category -->
+    <div class="form-wrap">
+      <div class="sec-hd">ผลการตรวจสอบทั้งหมด</div>
+      ${cats.map(cat => {
+        const catItems = items.filter(i => i.category === cat);
+        const catPass = catItems.filter(i => i.result === 'pass').length;
+        const catFail = catItems.filter(i => i.result === 'fail').length;
+        return `
+        <div class="cat-group">
+          <div class="cat-title" style="display:flex;justify-content:space-between">
+            <span>${cat}</span>
+            <span style="font-size:.75rem;color:${catFail>0?'#dc2626':'#16a34a'}">Pass ${catPass} / Fail ${catFail}</span>
+          </div>
+          ${catItems.map(it => `
+          <div class="item-row" style="grid-template-columns:1fr auto auto">
+            <span>${it.item}</span>
+            <span style="padding:3px 10px;border-radius:6px;font-size:.75rem;font-weight:700;background:${it.result==='pass'?'#dcfce7':it.result==='fail'?'#fee2e2':'#f1f5f9'};color:${it.result==='pass'?'#16a34a':it.result==='fail'?'#dc2626':'#64748b'}">
+              ${it.result==='pass'?'✓ ผ่าน':it.result==='fail'?'✗ ไม่ผ่าน':'N/A'}
+            </span>
+            <span style="font-size:.75rem;color:#64748b;min-width:80px">${it.note||''}</span>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+
+    <!-- Print signature -->
+    <div class="print-only" style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:30px;text-align:center">
+      ${['ผู้ตรวจสอบ','จป.วิชาชีพ','ผู้จัดการ'].map(n=>`<div><div style="border-top:1px solid #000;padding-top:6px;margin-top:50px">${n}</div></div>`).join('')}
+    </div>
+  </div>`;
 }
 
-async function deleteTpl(id) {
-  if (!confirm('ลบ Template นี้หรือไม่?')) return;
-  await deleteInspectionTemplate(id);
-  _templates = await listInspectionTemplates();
-  renderView();
-  showToast('ลบ Template แล้ว ✓', '#0891b2');
-}
-
-async function createDefaultTpl() {
-  if (!confirm('สร้าง Default Warehouse Safety Checklist Template หรือไม่?')) return;
-  await createInspectionTemplate({
-    name: 'Warehouse Safety Checklist (มาตรฐาน)',
-    description: 'แบบตรวจสอบมาตรฐานสำหรับคลังสินค้า',
-    items: DEFAULT_INSPECTION_ITEMS,
-  }, _profile.uid);
-  _templates = await listInspectionTemplates();
-  renderView();
-  showToast('สร้าง Default Template แล้ว ✓', '#16a34a');
-}
-
-async function startFromTemplate(id) {
-  const t = _templates.find(x => x.id === id);
-  if (t && (!t.items || t.items.length === 0)) {
-    showToast('Template นี้ยังไม่มีรายการ กรุณาเพิ่มรายการก่อน', '#f59e0b');
-    return;
-  }
-  openStartInspection();
-  // pre-select template after modal opens
-  setTimeout(() => { const sel = $('mTpl'); if (sel) sel.value = id; }, 50);
-}
-
-function showToast(msg, color = '#16a34a') {
-  const el = document.createElement('div');
-  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3500);
-}
-
-function closeModal(e) {
-  if (e && e.target !== $('modalBg')) return;
-  $('modalBg').style.display = 'none';
-}
-
-window.__setView              = v => { _view = v; renderView(); };
-window.__openStartInspection  = openStartInspection;
-window.__confirmStartInspection = confirmStartInspection;
-window.__openViewResult       = openViewResult;
-window.__openCreateTpl        = openCreateTpl;
-window.__openEditTpl          = openEditTpl;
-window.__submitCreateTpl      = submitCreateTpl;
-window.__submitEditTpl        = submitEditTpl;
-window.__deleteTpl            = deleteTpl;
-window.__createDefaultTpl     = createDefaultTpl;
-window.__startFromTemplate    = startFromTemplate;
-window.__saveDraft            = saveDraft;
-window.__submitInspection     = submitInspection;
-window.__closeModal           = closeModal;
-
-_profile = await requireRole(['safety_officer','kpo','admin','manager','warehouse']);
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
 renderShell(_profile, 'safety-inspection', 'ตรวจสอบความปลอดภัย');
-buildLayout();
-const [insp, tpls] = await Promise.all([listInspections({ lim: 100 }), listInspectionTemplates()]);
-_inspections = insp;
-_templates = tpls;
-renderView();
+loadList();
 </script>
 </body>
 </html>
