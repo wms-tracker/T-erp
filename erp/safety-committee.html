@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KPO Safety</title>
+  <title>กรรมการ คปอ. — KPO Safety</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -11,16 +11,314 @@
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
-const profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager']);
-renderShell(profile, '', 'KPO Safety');
-const mc = document.getElementById('main-content');
-mc.innerHTML = `<div style="padding:60px 24px;text-align:center;font-family:Sarabun,sans-serif">
-  <div style="font-size:3rem;margin-bottom:16px">🛡️</div>
-  <div style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:8px">หน้านี้อยู่ระหว่างพัฒนา</div>
-  <div style="color:#64748b;font-size:.9rem">จะพร้อมใช้งานใน Phase ถัดไป</div>
-  <div style="margin-top:24px;display:inline-block;padding:8px 20px;background:#f1f5f9;border-radius:20px;font-size:.82rem;color:#64748b">Coming Soon</div>
-  <div style="margin-top:20px"><a href="safety.html" style="color:#1e40af;font-size:.9rem">← กลับ Dashboard</a></div>
-</div>`;
+import {
+  listCommitteeMembers, getCommitteeMember, createCommitteeMember,
+  updateCommitteeMember, deleteCommitteeMember,
+  COMMITTEE_ROLES, MEMBER_STATUS, DEPARTMENTS
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _members = [];
+let _editId = null;
+
+// ─── Layout ──────────────────────────────────────────────────────────────
+function buildLayout() {
+  document.getElementById('main-content').innerHTML = `
+  <style>
+    .cm{padding:0 20px 40px;max-width:1100px;margin:0 auto;}
+    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 14px;}
+    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 11px;font-size:.78rem;}
+    .btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    /* org chart */
+    .org-wrap{overflow-x:auto;padding:4px 0 16px;}
+    .org-top{display:flex;justify-content:center;margin-bottom:16px;}
+    .org-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;}
+    .member-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;min-width:180px;max-width:220px;text-align:center;cursor:pointer;transition:.15s;position:relative;}
+    .member-card:hover{border-color:#0891b2;box-shadow:0 2px 8px rgba(8,145,178,.15);}
+    .member-card.chairman{border-color:#0891b2;background:linear-gradient(135deg,#ecfeff,#fff);}
+    .member-card.resigned,.member-card.expired{opacity:.55;}
+    .avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:700;margin:0 auto 8px;}
+    .card-name{font-size:.88rem;font-weight:700;color:#0f172a;margin-bottom:2px;}
+    .card-role{font-size:.75rem;color:#0891b2;font-weight:600;}
+    .card-dept{font-size:.73rem;color:#94a3b8;margin-top:2px;}
+    .card-actions{display:flex;gap:6px;justify-content:center;margin-top:10px;}
+    .term-badge{position:absolute;top:8px;right:8px;font-size:.65rem;font-weight:600;padding:1px 6px;border-radius:8px;}
+    /* Table */
+    .tbl-wrap{overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    /* Summary bar */
+    .summary-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+    .sum-chip{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;text-align:center;flex:1;min-width:100px;}
+    .sum-chip .val{font-size:1.4rem;font-weight:800;color:#0f172a;}
+    .sum-chip .lbl{font-size:.72rem;color:#94a3b8;margin-top:2px;}
+    /* Modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
+    .modal-panel{background:#fff;height:100dvh;width:min(520px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
+    .modal-head{padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
+    .modal-body{padding:20px;flex:1;}
+    .modal-foot{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
+    .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
+    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+    .tab-bar{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;border-radius:10px;padding:4px;}
+    .tab{padding:7px 18px;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;border:none;background:transparent;color:#64748b;transition:.15s;}
+    .tab.active,.tab:hover{background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+  </style>
+  <div class="cm" id="cmView"></div>
+  <div id="mBg" class="modal-bg" style="display:none" onclick="__closeMd(event)">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div style="font-size:1rem;font-weight:700;color:#0f172a" id="mdTitle">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="__closeMd(null)">✕</button>
+      </div>
+      <div class="modal-body" id="mdBody"></div>
+      <div class="modal-foot" id="mdFoot"></div>
+    </div>
+  </div>`;
+}
+
+let _viewMode = 'org'; // 'org' | 'list'
+
+function renderView() {
+  const v = $('cmView');
+  const active  = _members.filter(m => m.status === 'active');
+  const expired = _members.filter(m => m.status !== 'active');
+
+  v.innerHTML = `
+  <div class="page-header">
+    <div class="page-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      กรรมการ คปอ.
+    </div>
+    <button class="btn btn-primary" onclick="__openForm(null)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      เพิ่มกรรมการ
+    </button>
+  </div>
+
+  <div class="summary-bar">
+    <div class="sum-chip"><div class="val">${active.length}</div><div class="lbl">กรรมการปัจจุบัน</div></div>
+    <div class="sum-chip"><div class="val" style="color:#0891b2">${_members.filter(m=>m.committeeRole==='employer_rep').length}</div><div class="lbl">ผู้แทนนายจ้าง</div></div>
+    <div class="sum-chip"><div class="val" style="color:#7c3aed">${_members.filter(m=>m.committeeRole==='employee_rep').length}</div><div class="lbl">ผู้แทนลูกจ้าง</div></div>
+    <div class="sum-chip"><div class="val" style="color:#dc2626">${expired.length}</div><div class="lbl">หมดวาระ/ลาออก</div></div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab ${_viewMode==='org'?'active':''}" onclick="__vm('org')">แผนผังองค์กร</button>
+    <button class="tab ${_viewMode==='list'?'active':''}" onclick="__vm('list')">ตาราง</button>
+  </div>
+
+  ${_viewMode === 'org' ? orgViewHTML(active) : listViewHTML(_members)}`;
+}
+
+function orgViewHTML(active) {
+  if (active.length === 0) {
+    return `<div class="empty-state"><div style="font-size:2.5rem">👥</div><div style="margin-top:8px">ยังไม่มีข้อมูลกรรมการ</div><div style="margin-top:4px;font-size:.8rem">กด "เพิ่มกรรมการ" เพื่อเริ่มต้น</div></div>`;
+  }
+  const order = ['chairman','vice_chairman','secretary','safety_officer','employer_rep','employee_rep','member'];
+  const byRole = {};
+  for (const role of order) byRole[role] = active.filter(m => m.committeeRole === role);
+  const others = active.filter(m => !order.includes(m.committeeRole));
+
+  function card(m) {
+    const s = MEMBER_STATUS[m.status] || MEMBER_STATUS.active;
+    const roleLabel = COMMITTEE_ROLES.find(r => r.key === m.committeeRole)?.label || m.committeeRole || '—';
+    const initials = (m.name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    const isChair = m.committeeRole === 'chairman';
+    return `<div class="member-card ${isChair?'chairman':''}" onclick="__openDetail('${m.id}')">
+      <span class="term-badge" style="background:${s.bg};color:${s.color}">${s.label}</span>
+      <div class="avatar">${initials}</div>
+      <div class="card-name">${m.name||'—'}</div>
+      <div class="card-role">${roleLabel}</div>
+      <div class="card-dept">${m.department||''} ${m.position?'· '+m.position:''}</div>
+      ${m.termStart && m.termEnd ? `<div style="font-size:.7rem;color:#94a3b8;margin-top:4px">${m.termStart} – ${m.termEnd}</div>` : ''}
+      <div class="card-actions">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();__openForm('${m.id}')">แก้ไข</button>
+      </div>
+    </div>`;
+  }
+
+  let html = '';
+  if (byRole.chairman.length) html += `<div class="org-top">${byRole.chairman.map(card).join('')}</div>`;
+  const row2 = [...(byRole.vice_chairman||[]), ...(byRole.secretary||[])];
+  if (row2.length) html += `<div class="org-row">${row2.map(card).join('')}</div>`;
+  const row3 = [...(byRole.safety_officer||[]), ...(byRole.employer_rep||[])];
+  if (row3.length) html += `<div class="org-row">${row3.map(card).join('')}</div>`;
+  const row4 = [...(byRole.employee_rep||[]), ...(byRole.member||[]), ...others];
+  if (row4.length) html += `<div class="org-row">${row4.map(card).join('')}</div>`;
+  return `<div class="org-wrap">${html}</div>`;
+}
+
+function listViewHTML(members) {
+  if (members.length === 0) return `<div class="empty-state">ยังไม่มีข้อมูล</div>`;
+  return `<div class="tbl-wrap"><table class="tbl">
+    <thead><tr>
+      <th>ชื่อ-นามสกุล</th><th>ตำแหน่งใน คปอ.</th><th>แผนก</th><th>ตำแหน่งงาน</th>
+      <th>วาระ</th><th>เบอร์โทร</th><th>สถานะ</th><th></th>
+    </tr></thead>
+    <tbody>
+    ${members.map(m => {
+      const s = MEMBER_STATUS[m.status] || MEMBER_STATUS.active;
+      const roleLabel = COMMITTEE_ROLES.find(r => r.key === m.committeeRole)?.label || '—';
+      return `<tr>
+        <td style="font-weight:600">${m.name||'—'}</td>
+        <td>${roleLabel}</td>
+        <td>${m.department||'—'}</td>
+        <td>${m.position||'—'}</td>
+        <td style="font-size:.78rem;color:#64748b">${m.termStart||''}${m.termEnd?' – '+m.termEnd:''}</td>
+        <td>${m.phone||'—'}</td>
+        <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="__openForm('${m.id}')">แก้ไข</button>
+          <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="__del('${m.id}')">ลบ</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ─── Form modal ───────────────────────────────────────────────────────────
+async function openForm(id) {
+  _editId = id;
+  let m = null;
+  if (id) m = _members.find(x => x.id === id) || await getCommitteeMember(id);
+  $('mdTitle').textContent = id ? 'แก้ไขข้อมูลกรรมการ' : 'เพิ่มกรรมการ คปอ.';
+  $('mdBody').innerHTML = `
+  <div class="form-group">
+    <label class="form-label">ชื่อ-นามสกุล <span class="req">*</span></label>
+    <input type="text" class="form-ctrl" id="fName" value="${m?.name||''}" placeholder="ชื่อ นามสกุล">
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label class="form-label">ตำแหน่งใน คปอ. <span class="req">*</span></label>
+      <select class="form-ctrl" id="fRole">
+        ${COMMITTEE_ROLES.map(r => `<option value="${r.key}" ${m?.committeeRole===r.key?'selected':''}>${r.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานะ</label>
+      <select class="form-ctrl" id="fStatus">
+        ${Object.entries(MEMBER_STATUS).map(([k,v]) => `<option value="${k}" ${(m?.status||'active')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">แผนก</label>
+      <select class="form-ctrl" id="fDept">
+        <option value="">— ไม่ระบุ —</option>
+        ${DEPARTMENTS.map(d => `<option value="${d}" ${m?.department===d?'selected':''}>${d}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ตำแหน่งงาน</label>
+      <input type="text" class="form-ctrl" id="fPos" value="${m?.position||''}" placeholder="เช่น หัวหน้าแผนก">
+    </div>
+    <div class="form-group">
+      <label class="form-label">เบอร์โทรศัพท์</label>
+      <input type="tel" class="form-ctrl" id="fPhone" value="${m?.phone||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">อีเมล</label>
+      <input type="email" class="form-ctrl" id="fEmail" value="${m?.email||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันเริ่มต้นวาระ</label>
+      <input type="date" class="form-ctrl" id="fTermStart" value="${m?.termStart||''}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันสิ้นสุดวาระ</label>
+      <input type="date" class="form-ctrl" id="fTermEnd" value="${m?.termEnd||''}">
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หมายเหตุ</label>
+    <textarea class="form-ctrl" id="fNote" style="min-height:60px">${m?.note||''}</textarea>
+  </div>`;
+  $('mdFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__closeMd(null)">ยกเลิก</button>
+    ${id ? `<button class="btn btn-danger btn-sm" onclick="__del('${id}')">ลบ</button>` : ''}
+    <button class="btn btn-primary" id="mdSubmit" onclick="__submitForm()">${id?'บันทึกการแก้ไข':'เพิ่มกรรมการ'}</button>`;
+  $('mBg').style.display = 'flex';
+}
+
+function openDetail(id) { openForm(id); }
+
+async function submitForm() {
+  const name = $('fName')?.value?.trim();
+  if (!name) { showToast('กรุณาระบุชื่อ', '#dc2626'); return; }
+  const data = {
+    name,
+    committeeRole: $('fRole')?.value,
+    status:        $('fStatus')?.value || 'active',
+    department:    $('fDept')?.value || '',
+    position:      $('fPos')?.value?.trim() || '',
+    phone:         $('fPhone')?.value?.trim() || '',
+    email:         $('fEmail')?.value?.trim() || '',
+    termStart:     $('fTermStart')?.value || '',
+    termEnd:       $('fTermEnd')?.value || '',
+    note:          $('fNote')?.value?.trim() || '',
+  };
+  const btn = $('mdSubmit');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if (_editId) await updateCommitteeMember(_editId, data);
+    else await createCommitteeMember(data, _profile.uid);
+    _members = await listCommitteeMembers();
+    closeModal(null);
+    renderView();
+    showToast(_editId ? 'บันทึกแล้ว ✓' : 'เพิ่มกรรมการแล้ว ✓', '#16a34a');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = _editId ? 'บันทึกการแก้ไข' : 'เพิ่มกรรมการ';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+async function del(id) {
+  if (!confirm('ลบกรรมการนี้หรือไม่?')) return;
+  await deleteCommitteeMember(id);
+  _members = await listCommitteeMembers();
+  closeModal(null);
+  renderView();
+  showToast('ลบแล้ว', '#0891b2');
+}
+
+function closeModal(e) {
+  if (e && e.target !== $('mBg')) return;
+  $('mBg').style.display = 'none';
+}
+
+function showToast(msg, color = '#16a34a') {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+window.__openForm   = openForm;
+window.__openDetail = openDetail;
+window.__submitForm = submitForm;
+window.__closeMd    = closeModal;
+window.__del        = del;
+window.__vm         = v => { _viewMode = v; renderView(); };
+
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-committee', 'กรรมการ คปอ.');
+buildLayout();
+_members = await listCommitteeMembers();
+renderView();
 </script>
 </body>
 </html>

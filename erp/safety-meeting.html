@@ -3,24 +3,556 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KPO Safety</title>
+  <title>ประชุม คปอ. — KPO Safety</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Print-only styles for meeting minutes PDF */
+    @media print {
+      body * { visibility: hidden !important; }
+      #printArea, #printArea * { visibility: visible !important; }
+      #printArea {
+        position: fixed; inset: 0; padding: 24mm 20mm;
+        font-family: Sarabun, sans-serif; font-size: 11pt;
+        color: #000; background: #fff; z-index: 9999;
+      }
+      .print-header { text-align: center; margin-bottom: 18pt; }
+      .print-title { font-size: 15pt; font-weight: 700; margin-bottom: 4pt; }
+      .print-sub { font-size: 11pt; }
+      .print-meta { border: 1px solid #999; border-collapse: collapse; width: 100%; margin: 12pt 0; }
+      .print-meta td { border: 1px solid #999; padding: 5pt 8pt; font-size: 10pt; }
+      .print-section { margin-top: 14pt; }
+      .print-section-title { font-size: 12pt; font-weight: 700; border-bottom: 1.5pt solid #000; padding-bottom: 3pt; margin-bottom: 8pt; }
+      .print-attend { border-collapse: collapse; width: 100%; }
+      .print-attend th, .print-attend td { border: 1px solid #999; padding: 4pt 7pt; font-size: 10pt; }
+      .print-attend th { background: #f0f0f0; font-weight: 600; }
+      .agenda-item { margin-bottom: 10pt; }
+      .agenda-num { font-weight: 700; }
+      .resolution-box { border-left: 3pt solid #000; padding: 4pt 8pt; margin-top: 4pt; }
+      .sign-row { display: flex; justify-content: space-around; margin-top: 36pt; }
+      .sign-block { text-align: center; min-width: 140pt; }
+      .sign-line { border-top: 1pt solid #666; margin-top: 36pt; padding-top: 4pt; font-size: 10pt; }
+      @page { margin: 0; size: A4; }
+    }
+  </style>
 </head>
 <body>
 <div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<div id="printArea" style="display:none"></div>
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
-const profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager']);
-renderShell(profile, '', 'KPO Safety');
-const mc = document.getElementById('main-content');
-mc.innerHTML = `<div style="padding:60px 24px;text-align:center;font-family:Sarabun,sans-serif">
-  <div style="font-size:3rem;margin-bottom:16px">🛡️</div>
-  <div style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:8px">หน้านี้อยู่ระหว่างพัฒนา</div>
-  <div style="color:#64748b;font-size:.9rem">จะพร้อมใช้งานใน Phase ถัดไป</div>
-  <div style="margin-top:24px;display:inline-block;padding:8px 20px;background:#f1f5f9;border-radius:20px;font-size:.82rem;color:#64748b">Coming Soon</div>
-  <div style="margin-top:20px"><a href="safety.html" style="color:#1e40af;font-size:.9rem">← กลับ Dashboard</a></div>
-</div>`;
+import {
+  listMeetings, getMeeting, createMeeting, updateMeeting,
+  MEETING_STATUS, MEETING_TYPES,
+  listCommitteeMembers, COMMITTEE_ROLES
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _meetings = [], _members = [];
+// view: 'list' | 'form' | 'detail'
+let _view = 'list';
+let _editId = null;
+
+// ─── Agenda item helpers ──────────────────────────────────────────────────
+let _agendaItems = []; // [{title, detail, resolution, responsible, dueDate}]
+let _attendees   = []; // [{memberId, name, role, present}]
+
+// ─── Layout ──────────────────────────────────────────────────────────────
+function buildLayout() {
+  document.getElementById('main-content').innerHTML = `
+  <style>
+    .mt{padding:0 20px 40px;max-width:1200px;margin:0 auto;}
+    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 14px;}
+    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-green{background:#16a34a;color:#fff;} .btn-green:hover{background:#15803d;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 11px;font-size:.78rem;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .tbl-wrap{overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
+    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    /* Form */
+    .form-sect{background:#f8fafc;border-radius:12px;padding:16px 20px;margin-bottom:16px;}
+    .form-sect-title{font-size:.85rem;font-weight:700;color:#0891b2;margin-bottom:12px;}
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
+    .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
+    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    textarea.form-ctrl{resize:vertical;min-height:72px;}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+    /* Agenda builder */
+    .agenda-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:10px;}
+    .agenda-num-badge{background:#0891b2;color:#fff;border-radius:50%;width:24px;height:24px;font-size:.78rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;margin-right:8px;flex-shrink:0;}
+    .agenda-card-header{display:flex;align-items:center;margin-bottom:8px;}
+    .agenda-card-title{font-weight:700;font-size:.88rem;flex:1;}
+    /* Attendance */
+    .attend-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid #f1f5f9;}
+    .attend-row:last-child{border-bottom:none;}
+    .attend-check{width:20px;height:20px;cursor:pointer;}
+    /* Detail view */
+    .detail-card{background:#fff;border-radius:12px;padding:18px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.07);}
+    .detail-card-title{font-size:.82rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;}
+    .agenda-detail-item{padding:12px 0;border-bottom:1px solid #f1f5f9;}
+    .agenda-detail-item:last-child{border-bottom:none;}
+    .resolution-tag{display:inline-block;padding:2px 8px;border-radius:6px;background:#ecfeff;color:#0891b2;font-size:.75rem;font-weight:600;margin-top:4px;}
+  </style>
+  <div class="mt" id="mainView"></div>`;
+}
+
+// ─── Views ────────────────────────────────────────────────────────────────
+function renderView() {
+  const mv = $('mainView');
+  if (_view === 'list')   mv.innerHTML = listViewHTML();
+  if (_view === 'form')   mv.innerHTML = formViewHTML();
+  if (_view === 'detail') renderDetailView(mv);
+}
+
+function listViewHTML() {
+  return `
+  <div class="page-header">
+    <div class="page-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      ประชุม คปอ.
+    </div>
+    <button class="btn btn-primary" onclick="__newMeeting()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      สร้างรายงานการประชุม
+    </button>
+  </div>
+
+  ${_meetings.length === 0
+    ? `<div class="empty-state"><div style="font-size:2.5rem">📋</div><div style="margin-top:8px">ยังไม่มีบันทึกการประชุม</div></div>`
+    : `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr>
+        <th>หมายเลข</th><th>วันที่</th><th>ประเภท</th><th>วาระ</th><th>ผู้เข้าร่วม</th><th>สถานะ</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${_meetings.map(m => {
+        const s = MEETING_STATUS[m.status] || MEETING_STATUS.scheduled;
+        const typeLabel = MEETING_TYPES.find(t => t.key === m.meetingType)?.label || m.meetingType || '—';
+        const agendaCount = (m.agendaItems||[]).length;
+        const presentCount = (m.attendees||[]).filter(a => a.present).length;
+        const totalCount   = (m.attendees||[]).length;
+        return `<tr onclick="__openDetail('${m.id}')">
+          <td style="font-weight:700;color:#0891b2">${m.meetingNo||'—'}</td>
+          <td>${m.meetingDate||'—'}</td>
+          <td style="font-size:.78rem">${typeLabel}</td>
+          <td style="color:#64748b">${agendaCount} วาระ</td>
+          <td>${totalCount>0?`${presentCount}/${totalCount} คน`:'—'}</td>
+          <td><span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span></td>
+          <td onclick="event.stopPropagation()">
+            <button class="btn btn-ghost btn-sm" onclick="__printMeeting('${m.id}')">🖨 PDF</button>
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>`
+  }`;
+}
+
+// ─── Form view (full page, not modal) ─────────────────────────────────────
+function formViewHTML() {
+  const m = _editId ? _meetings.find(x => x.id === _editId) : null;
+  if (m && _agendaItems.length === 0) {
+    _agendaItems = (m.agendaItems || []).map(a => ({...a}));
+    _attendees   = (m.attendees || []).map(a => ({...a}));
+  }
+  if (!m && _agendaItems.length === 0) {
+    // prefill attendees from active members
+    _attendees = _members
+      .filter(mb => mb.status === 'active')
+      .map(mb => ({
+        memberId: mb.id,
+        name: mb.name,
+        role: COMMITTEE_ROLES.find(r => r.key === mb.committeeRole)?.label || mb.committeeRole || '',
+        present: true,
+      }));
+  }
+
+  return `
+  <div style="display:flex;align-items:center;gap:10px;padding:20px 0 8px">
+    <button class="btn btn-ghost" onclick="__setView('list')">← กลับ</button>
+    <div style="font-size:1.1rem;font-weight:700;color:#0f172a">${_editId ? 'แก้ไขรายงานการประชุม' : 'สร้างรายงานการประชุมใหม่'}</div>
+  </div>
+
+  <div class="form-sect">
+    <div class="form-sect-title">📋 ข้อมูลการประชุม</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">เลขที่การประชุม <span class="req">*</span></label>
+        <input type="text" class="form-ctrl" id="fMeetNo" value="${m?.meetingNo||''}" placeholder="เช่น คปอ.01/2568">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ประเภทการประชุม</label>
+        <select class="form-ctrl" id="fMeetType">
+          ${MEETING_TYPES.map(t => `<option value="${t.key}" ${m?.meetingType===t.key?'selected':''}>${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันที่ประชุม <span class="req">*</span></label>
+        <input type="date" class="form-ctrl" id="fMeetDate" value="${m?.meetingDate||new Date().toISOString().split('T')[0]}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">เวลา</label>
+        <input type="time" class="form-ctrl" id="fMeetTime" value="${m?.meetingTime||'09:00'}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานที่ประชุม</label>
+        <input type="text" class="form-ctrl" id="fVenue" value="${m?.venue||''}" placeholder="เช่น ห้องประชุม 1 ชั้น 2">
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานะ</label>
+        <select class="form-ctrl" id="fStatus">
+          ${Object.entries(MEETING_STATUS).map(([k,v]) => `<option value="${k}" ${(m?.status||'scheduled')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้บันทึกการประชุม</label>
+      <input type="text" class="form-ctrl" id="fRecorder" value="${m?.recorder||_profile.displayName||''}">
+    </div>
+  </div>
+
+  <!-- Attendees -->
+  <div class="form-sect">
+    <div class="form-sect-title">👥 ผู้เข้าร่วมประชุม</div>
+    <div id="attendeeList">
+      ${_attendees.map((a,i) => `
+      <div class="attend-row">
+        <input type="checkbox" class="attend-check" id="att_${i}" ${a.present?'checked':''} onchange="__toggleAtt(${i},this.checked)">
+        <div style="flex:1">
+          <div style="font-size:.85rem;font-weight:600">${a.name||'—'}</div>
+          <div style="font-size:.75rem;color:#94a3b8">${a.role||''}</div>
+        </div>
+        <input type="text" style="width:120px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.78rem;font-family:Sarabun,sans-serif" placeholder="หมายเหตุ" value="${a.note||''}" oninput="__attNote(${i},this.value)">
+      </div>`).join('')}
+      ${_attendees.length === 0 ? `<div style="color:#94a3b8;font-size:.82rem;padding:8px 0">ยังไม่มีสมาชิก — เพิ่มกรรมการก่อนในหน้า "กรรมการ คปอ."</div>` : ''}
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="__addGuest()" style="margin-top:8px">+ เพิ่มผู้เข้าร่วมภายนอก</button>
+  </div>
+
+  <!-- Agenda items -->
+  <div class="form-sect">
+    <div class="form-sect-title">📌 วาระการประชุม</div>
+    <div id="agendaList">
+      ${_agendaItems.map((a,i) => agendaCardHTML(a,i)).join('')}
+    </div>
+    <button class="btn btn-ghost" onclick="__addAgenda()" style="margin-top:8px;width:100%">+ เพิ่มวาระ</button>
+  </div>
+
+  <div class="form-sect">
+    <div class="form-sect-title">📝 หมายเหตุ / อื่นๆ</div>
+    <textarea class="form-ctrl" id="fNote">${m?.note||''}</textarea>
+  </div>
+
+  <div style="display:flex;gap:10px;justify-content:flex-end;padding:8px 0 24px">
+    <button class="btn btn-ghost" onclick="__setView('list')">ยกเลิก</button>
+    <button class="btn btn-primary" id="fmSaveBtn" onclick="__saveMeeting()">${_editId?'บันทึกการแก้ไข':'บันทึกรายงานการประชุม'}</button>
+  </div>`;
+}
+
+function agendaCardHTML(a, i) {
+  return `<div class="agenda-card" id="ag_${i}">
+    <div class="agenda-card-header">
+      <span class="agenda-num-badge">${i+1}</span>
+      <input type="text" style="flex:1;border:none;border-bottom:1.5px solid #e2e8f0;padding:4px 0;font-family:Sarabun,sans-serif;font-size:.88rem;font-weight:700;outline:none;background:transparent"
+        placeholder="ชื่อวาระ *" value="${a.title||''}" oninput="__agTitle(${i},this.value)">
+      <button onclick="__removeAgenda(${i})" style="padding:2px 8px;border:1px solid #fca5a5;border-radius:6px;background:#fee2e2;color:#dc2626;cursor:pointer;font-size:.8rem;margin-left:8px">✕</button>
+    </div>
+    <div style="margin-bottom:8px">
+      <label style="font-size:.75rem;color:#64748b;font-weight:600">รายละเอียด/เอกสาร</label>
+      <textarea style="width:100%;margin-top:4px;padding:7px 9px;border:1px solid #e2e8f0;border-radius:7px;font-family:Sarabun,sans-serif;font-size:.82rem;resize:vertical;min-height:56px;box-sizing:border-box"
+        placeholder="สรุปเนื้อหาวาระ..." oninput="__agDetail(${i},this.value)">${a.detail||''}</textarea>
+    </div>
+    <div style="margin-bottom:8px">
+      <label style="font-size:.75rem;color:#0891b2;font-weight:600">มติที่ประชุม</label>
+      <textarea style="width:100%;margin-top:4px;padding:7px 9px;border:1.5px solid #a5f3fc;border-radius:7px;font-family:Sarabun,sans-serif;font-size:.82rem;resize:vertical;min-height:48px;box-sizing:border-box;background:#ecfeff"
+        placeholder="บันทึกมติ/ข้อสรุป..." oninput="__agResolution(${i},this.value)">${a.resolution||''}</textarea>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div style="flex:1">
+        <label style="font-size:.75rem;color:#64748b;font-weight:600">ผู้รับผิดชอบ</label>
+        <input type="text" style="width:100%;margin-top:4px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:7px;font-family:Sarabun,sans-serif;font-size:.82rem;box-sizing:border-box"
+          value="${a.responsible||''}" oninput="__agResp(${i},this.value)" placeholder="ระบุผู้รับผิดชอบ">
+      </div>
+      <div style="flex:1">
+        <label style="font-size:.75rem;color:#64748b;font-weight:600">วันครบกำหนด</label>
+        <input type="date" style="width:100%;margin-top:4px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:7px;font-family:Sarabun,sans-serif;font-size:.82rem;box-sizing:border-box"
+          value="${a.dueDate||''}" oninput="__agDue(${i},this.value)">
+      </div>
+    </div>
+  </div>`;
+}
+
+window.__toggleAtt    = (i,v) => { _attendees[i].present = v; };
+window.__attNote      = (i,v) => { _attendees[i].note = v; };
+window.__agTitle      = (i,v) => { _agendaItems[i].title = v; };
+window.__agDetail     = (i,v) => { _agendaItems[i].detail = v; };
+window.__agResolution = (i,v) => { _agendaItems[i].resolution = v; };
+window.__agResp       = (i,v) => { _agendaItems[i].responsible = v; };
+window.__agDue        = (i,v) => { _agendaItems[i].dueDate = v; };
+
+window.__addAgenda = () => {
+  _agendaItems.push({ title:'', detail:'', resolution:'', responsible:'', dueDate:'' });
+  const list = $('agendaList');
+  if (list) {
+    const div = document.createElement('div');
+    div.innerHTML = agendaCardHTML(_agendaItems[_agendaItems.length-1], _agendaItems.length-1);
+    list.appendChild(div.firstElementChild);
+  }
+};
+
+window.__removeAgenda = i => {
+  _agendaItems.splice(i, 1);
+  const list = $('agendaList');
+  if (list) { list.innerHTML = _agendaItems.map(agendaCardHTML).join(''); }
+};
+
+window.__addGuest = () => {
+  const name = prompt('ชื่อผู้เข้าร่วมภายนอก:');
+  if (!name) return;
+  const role = prompt('ตำแหน่ง/หน่วยงาน (ถ้ามี):') || '';
+  _attendees.push({ memberId: null, name, role, present: true, note: '' });
+  const list = $('attendeeList');
+  if (list) {
+    const i = _attendees.length - 1;
+    const row = document.createElement('div');
+    row.className = 'attend-row';
+    row.innerHTML = `
+      <input type="checkbox" class="attend-check" checked onchange="__toggleAtt(${i},this.checked)">
+      <div style="flex:1"><div style="font-size:.85rem;font-weight:600">${name}</div><div style="font-size:.75rem;color:#94a3b8">${role}</div></div>
+      <input type="text" style="width:120px;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.78rem;font-family:Sarabun,sans-serif" placeholder="หมายเหตุ" oninput="__attNote(${i},this.value)">`;
+    list.appendChild(row);
+  }
+};
+
+async function saveMeeting() {
+  const meetingNo = $('fMeetNo')?.value?.trim();
+  const meetingDate = $('fMeetDate')?.value;
+  if (!meetingNo || !meetingDate) { showToast('กรุณาระบุเลขที่การประชุมและวันที่', '#dc2626'); return; }
+  const data = {
+    meetingNo,
+    meetingType:  $('fMeetType')?.value || 'ordinary',
+    meetingDate,
+    meetingTime:  $('fMeetTime')?.value || '',
+    venue:        $('fVenue')?.value?.trim() || '',
+    status:       $('fStatus')?.value || 'scheduled',
+    recorder:     $('fRecorder')?.value?.trim() || '',
+    agendaItems:  _agendaItems,
+    attendees:    _attendees,
+    note:         $('fNote')?.value?.trim() || '',
+  };
+  const btn = $('fmSaveBtn');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if (_editId) await updateMeeting(_editId, data);
+    else { const ref = await createMeeting(data, _profile.uid); _editId = ref.id; }
+    _meetings = await listMeetings({ lim: 100 });
+    _view = 'list';
+    _agendaItems = [];
+    renderView();
+    showToast('บันทึกรายงานการประชุมแล้ว ✓', '#16a34a');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = _editId ? 'บันทึกการแก้ไข' : 'บันทึกรายงานการประชุม';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+// ─── Detail view ──────────────────────────────────────────────────────────
+function renderDetailView(mv) {
+  const m = _meetings.find(x => x.id === _editId);
+  if (!m) { _view = 'list'; renderView(); return; }
+  const s = MEETING_STATUS[m.status] || MEETING_STATUS.scheduled;
+  const typeLabel = MEETING_TYPES.find(t => t.key === m.meetingType)?.label || '—';
+  const presentList = (m.attendees||[]).filter(a => a.present);
+  const absentList  = (m.attendees||[]).filter(a => !a.present);
+
+  mv.innerHTML = `
+  <div style="display:flex;align-items:center;gap:10px;padding:20px 0 8px;flex-wrap:wrap">
+    <button class="btn btn-ghost" onclick="__setView('list')">← กลับ</button>
+    <span style="font-size:1.1rem;font-weight:700;color:#0891b2">${m.meetingNo||'—'}</span>
+    <span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="__editMeeting('${m.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-primary btn-sm" onclick="__printMeeting('${m.id}')">🖨 พิมพ์/PDF</button>
+    </div>
+  </div>
+
+  <div class="detail-card">
+    <div class="detail-card-title">ข้อมูลการประชุม</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;font-size:.85rem">
+      <div><div style="font-size:.72rem;color:#94a3b8;font-weight:600">วันที่</div><div style="font-weight:600;margin-top:2px">${m.meetingDate||'—'} ${m.meetingTime||''}</div></div>
+      <div><div style="font-size:.72rem;color:#94a3b8;font-weight:600">ประเภท</div><div style="font-weight:600;margin-top:2px">${typeLabel}</div></div>
+      <div><div style="font-size:.72rem;color:#94a3b8;font-weight:600">สถานที่</div><div style="font-weight:600;margin-top:2px">${m.venue||'—'}</div></div>
+      <div><div style="font-size:.72rem;color:#94a3b8;font-weight:600">ผู้บันทึก</div><div style="font-weight:600;margin-top:2px">${m.recorder||'—'}</div></div>
+    </div>
+  </div>
+
+  <!-- Attendance -->
+  <div class="detail-card">
+    <div class="detail-card-title">ผู้เข้าร่วมประชุม (${presentList.length}/${(m.attendees||[]).length} คน)</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.78rem;font-weight:600;color:#16a34a;margin-bottom:6px">✓ เข้าร่วม (${presentList.length})</div>
+        ${presentList.map(a => `<div style="font-size:.82rem;padding:3px 0">${a.name} <span style="color:#94a3b8">${a.role?'· '+a.role:''}</span></div>`).join('') || '<div style="color:#94a3b8;font-size:.8rem">—</div>'}
+      </div>
+      ${absentList.length > 0 ? `
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:.78rem;font-weight:600;color:#dc2626;margin-bottom:6px">✗ ไม่ได้เข้าร่วม (${absentList.length})</div>
+        ${absentList.map(a => `<div style="font-size:.82rem;padding:3px 0">${a.name} ${a.note?'<span style="color:#94a3b8">('+a.note+')</span>':''}</div>`).join('')}
+      </div>` : ''}
+    </div>
+  </div>
+
+  <!-- Agenda -->
+  <div class="detail-card">
+    <div class="detail-card-title">วาระการประชุม (${(m.agendaItems||[]).length} วาระ)</div>
+    ${(m.agendaItems||[]).map((a,i) => `
+    <div class="agenda-detail-item">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <span style="background:#0891b2;color:#fff;border-radius:50%;width:22px;height:22px;font-size:.75rem;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${i+1}</span>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.9rem">${a.title||'ไม่ระบุชื่อวาระ'}</div>
+          ${a.detail ? `<div style="font-size:.82rem;color:#475569;margin-top:4px">${a.detail}</div>` : ''}
+          ${a.resolution ? `<div class="resolution-tag" style="margin-top:6px">มติ: ${a.resolution}</div>` : ''}
+          ${(a.responsible || a.dueDate) ? `
+          <div style="display:flex;gap:14px;margin-top:6px;font-size:.75rem;color:#94a3b8">
+            ${a.responsible ? `<span>👤 ${a.responsible}</span>` : ''}
+            ${a.dueDate ? `<span>📅 ครบ ${a.dueDate}</span>` : ''}
+          </div>` : ''}
+        </div>
+      </div>
+    </div>`).join('')}
+    ${(m.agendaItems||[]).length === 0 ? '<div style="color:#94a3b8;font-size:.82rem">ไม่มีวาระ</div>' : ''}
+  </div>
+
+  ${m.note ? `<div class="detail-card"><div class="detail-card-title">หมายเหตุ</div><div style="font-size:.85rem;color:#334155">${m.note}</div></div>` : ''}`;
+}
+
+// ─── Print / PDF ──────────────────────────────────────────────────────────
+async function printMeeting(id) {
+  const m = _meetings.find(x => x.id === id) || await getMeeting(id);
+  if (!m) return;
+  const typeLabel = MEETING_TYPES.find(t => t.key === m.meetingType)?.label || 'การประชุม คปอ.';
+  const presentList = (m.attendees||[]).filter(a => a.present);
+  const absentList  = (m.attendees||[]).filter(a => !a.present);
+
+  const pa = $('printArea');
+  pa.style.display = 'block';
+  pa.innerHTML = `
+  <div class="print-header">
+    <div class="print-title">รายงานการประชุม${typeLabel}</div>
+    <div class="print-sub">ครั้งที่ ${m.meetingNo||'—'}</div>
+  </div>
+
+  <table class="print-meta">
+    <tr>
+      <td style="width:30%;font-weight:600">วัน/เวลา</td>
+      <td>${m.meetingDate||'—'} เวลา ${m.meetingTime||'—'} น.</td>
+      <td style="width:30%;font-weight:600">สถานที่</td>
+      <td>${m.venue||'—'}</td>
+    </tr>
+    <tr>
+      <td style="font-weight:600">ผู้บันทึก</td>
+      <td>${m.recorder||'—'}</td>
+      <td style="font-weight:600">จำนวนผู้เข้าร่วม</td>
+      <td>${presentList.length} คน (จาก ${(m.attendees||[]).length} คน)</td>
+    </tr>
+  </table>
+
+  <div class="print-section">
+    <div class="print-section-title">ผู้เข้าร่วมประชุม</div>
+    <table class="print-attend">
+      <thead><tr><th>#</th><th>ชื่อ-สกุล</th><th>ตำแหน่ง</th><th>เข้าร่วม</th><th>หมายเหตุ</th></tr></thead>
+      <tbody>
+        ${(m.attendees||[]).map((a,i) => `<tr>
+          <td>${i+1}</td><td>${a.name||'—'}</td><td>${a.role||'—'}</td>
+          <td style="text-align:center">${a.present?'✓':'✗'}</td>
+          <td>${a.note||''}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="print-section">
+    <div class="print-section-title">วาระการประชุม</div>
+    ${(m.agendaItems||[]).map((a,i) => `
+    <div class="agenda-item">
+      <div><span class="agenda-num">วาระที่ ${i+1}</span> ${a.title||'—'}</div>
+      ${a.detail ? `<div style="margin:4pt 0 4pt 16pt">${a.detail}</div>` : ''}
+      ${a.resolution ? `<div class="resolution-box"><strong>มติ:</strong> ${a.resolution}</div>` : ''}
+      ${(a.responsible||a.dueDate) ? `<div style="margin-top:3pt;font-size:9pt;color:#555">${a.responsible?'ผู้รับผิดชอบ: '+a.responsible:''}${a.dueDate?' / ครบกำหนด: '+a.dueDate:''}</div>` : ''}
+    </div>`).join('')}
+  </div>
+
+  ${m.note ? `<div class="print-section"><div class="print-section-title">หมายเหตุ</div><div>${m.note}</div></div>` : ''}
+
+  <div class="sign-row">
+    <div class="sign-block">
+      <div class="sign-line">(...................................)<br>ประธาน คปอ.</div>
+    </div>
+    <div class="sign-block">
+      <div class="sign-line">(...................................)<br>เลขานุการ คปอ.</div>
+    </div>
+    <div class="sign-block">
+      <div class="sign-line">(...................................)<br>จป. วิชาชีพ</div>
+    </div>
+  </div>`;
+
+  window.print();
+  setTimeout(() => { pa.style.display = 'none'; pa.innerHTML = ''; }, 1000);
+}
+
+function editMeeting(id) {
+  _editId = id;
+  const m = _meetings.find(x => x.id === id);
+  _agendaItems = (m?.agendaItems || []).map(a => ({...a}));
+  _attendees   = (m?.attendees || []).map(a => ({...a}));
+  _view = 'form';
+  renderView();
+}
+
+function newMeeting() {
+  _editId = null;
+  _agendaItems = [];
+  _attendees = _members.filter(mb => mb.status === 'active').map(mb => ({
+    memberId: mb.id, name: mb.name,
+    role: COMMITTEE_ROLES.find(r => r.key === mb.committeeRole)?.label || '',
+    present: true,
+  }));
+  _view = 'form';
+  renderView();
+}
+
+function showToast(msg, color = '#16a34a') {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+window.__setView      = v => { _view = v; renderView(); };
+window.__newMeeting   = newMeeting;
+window.__openDetail   = id => { _editId = id; _view = 'detail'; renderView(); };
+window.__editMeeting  = editMeeting;
+window.__printMeeting = printMeeting;
+window.__saveMeeting  = saveMeeting;
+
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-meeting', 'ประชุม คปอ.');
+buildLayout();
+const [meetings, members] = await Promise.all([listMeetings({ lim: 100 }), listCommitteeMembers()]);
+_meetings = meetings;
+_members  = members.filter(m => m.status === 'active' || !m.status);
+renderView();
 </script>
 </body>
 </html>

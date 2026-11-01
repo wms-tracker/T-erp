@@ -456,3 +456,81 @@ export async function createRiskAssessment(data, createdBy) {
 export async function updateRiskAssessment(id, data) {
   await updateDoc(doc(db, COL.riskAssess, id), { ...data, updatedAt: serverTimestamp() });
 }
+
+// ────────────────────────────────────────────
+// Committee Members
+// ────────────────────────────────────────────
+export const COMMITTEE_ROLES = [
+  { key: 'chairman',         label: 'ประธาน คปอ.' },
+  { key: 'vice_chairman',    label: 'รองประธาน คปอ.' },
+  { key: 'secretary',        label: 'เลขานุการ คปอ.' },
+  { key: 'safety_officer',   label: 'จป.วิชาชีพ' },
+  { key: 'employer_rep',     label: 'ผู้แทนนายจ้าง' },
+  { key: 'employee_rep',     label: 'ผู้แทนลูกจ้าง' },
+  { key: 'member',           label: 'กรรมการ คปอ.' },
+];
+
+export const MEMBER_STATUS = {
+  active:   { label: 'ดำรงตำแหน่ง', color: '#16a34a', bg: '#dcfce7' },
+  resigned: { label: 'ลาออก',       color: '#dc2626', bg: '#fee2e2' },
+  expired:  { label: 'หมดวาระ',     color: '#d97706', bg: '#fef3c7' },
+};
+
+export async function listCommitteeMembers() {
+  const snap = await getDocs(query(collection(db, COL.committee), orderBy('createdAt', 'desc')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getCommitteeMember(id) {
+  const snap = await getDoc(doc(db, COL.committee, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createCommitteeMember(data, createdBy) {
+  return addDoc(collection(db, COL.committee), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateCommitteeMember(id, data) {
+  await updateDoc(doc(db, COL.committee, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteCommitteeMember(id) {
+  await deleteDoc(doc(db, COL.committee, id));
+}
+
+// ────────────────────────────────────────────
+// Committee Meetings
+// ────────────────────────────────────────────
+export const MEETING_STATUS = {
+  scheduled: { label: 'กำหนดการ',   color: '#2563eb', bg: '#eff6ff' },
+  completed: { label: 'เสร็จแล้ว',   color: '#16a34a', bg: '#dcfce7' },
+  cancelled: { label: 'ยกเลิก',     color: '#dc2626', bg: '#fee2e2' },
+};
+
+export const MEETING_TYPES = [
+  { key: 'ordinary',     label: 'การประชุมสามัญ (ประจำเดือน)' },
+  { key: 'extraordinary',label: 'การประชุมวิสามัญ' },
+  { key: 'annual',       label: 'การประชุมประจำปี' },
+];
+
+export async function listMeetings({ lim = 100 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.meetings), orderBy('meetingDate', 'desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getMeeting(id) {
+  const snap = await getDoc(doc(db, COL.meetings, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createMeeting(data, createdBy) {
+  return addDoc(collection(db, COL.meetings), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateMeeting(id, data) {
+  await updateDoc(doc(db, COL.meetings, id), { ...data, updatedAt: serverTimestamp() });
+}
