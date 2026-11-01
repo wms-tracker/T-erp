@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Near Miss Report — KPO Safety</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="root" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Sarabun,sans-serif;color:#64748b;">กำลังโหลด...</div>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell  } from "./js/shell.js";
+import {
+  listNearMiss, createNearMiss, updateNearMiss, getNearMiss,
+  NEAR_MISS_TYPES, RISK_LEVELS_NM, NM_STATUS, DEPARTMENTS,
+  createCapa
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile, _rows = [];
+const F = { type: '', status: '', q: '', page: 0, pageSize: 20 };
+
+function applyFilters(rows) {
+  let r = [...rows];
+  if (F.type)   r = r.filter(x => x.reportType === F.type);
+  if (F.status) r = r.filter(x => x.status === F.status);
+  if (F.q) {
+    const q = F.q.toLowerCase();
+    r = r.filter(x => (x.reportId||'').toLowerCase().includes(q)
+      || (x.description||'').toLowerCase().includes(q)
+      || (x.location||'').toLowerCase().includes(q));
+  }
+  return r;
+}
+
+function buildLayout() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `
+  <style>
+    .nm{padding:0 20px 32px;max-width:1200px;margin:0 auto;}
+    .nm-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 16px;}
+    .nm-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;text-decoration:none;}
+    .btn-primary{background:#2563eb;color:#fff;} .btn-primary:hover{background:#1d4ed8;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    /* type selector pills */
+    .type-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+    .type-pill{padding:8px 18px;border-radius:20px;border:2px solid #e2e8f0;font-family:Sarabun,sans-serif;font-size:.85rem;cursor:pointer;font-weight:500;transition:.15s;}
+    .type-pill:hover,.type-pill.selected{background:#2563eb;color:#fff;border-color:#2563eb;}
+    .filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #f1f5f9;margin-bottom:8px;}
+    select,input[type=text]{padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;color:#334155;background:#fff;}
+    .tbl-wrap{overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
+    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .pager{display:flex;align-items:center;gap:8px;padding:14px 0;justify-content:flex-end;font-size:.82rem;color:#64748b;}
+    .pager button{padding:4px 12px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;font-family:Sarabun,sans-serif;font-size:.82rem;cursor:pointer;}
+    .pager button:disabled{opacity:.4;cursor:default;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    /* Mobile-first report form modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:flex;align-items:flex-start;justify-content:flex-end;}
+    .modal-panel{background:#fff;height:100dvh;width:min(600px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column;}
+    .modal-head{padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;}
+    .modal-head-title{font-size:1rem;font-weight:700;color:#0f172a;}
+    .modal-body{padding:20px;flex:1;}
+    .modal-foot{padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff;}
+    .form-group{margin-bottom:14px;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:5px;}
+    .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.88rem;color:#0f172a;box-sizing:border-box;transition:.15s;}
+    .form-ctrl:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+    textarea.form-ctrl{resize:vertical;min-height:80px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:480px){.form-row{grid-template-columns:1fr;}}
+    .form-section{font-size:.78rem;font-weight:700;color:#2563eb;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #dbeafe;padding-bottom:6px;margin:20px 0 12px;}
+    /* risk level selector */
+    .risk-selector{display:flex;gap:8px;flex-wrap:wrap;}
+    .risk-opt{padding:7px 14px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;font-family:Sarabun,sans-serif;font-size:.82rem;font-weight:600;transition:.15s;}
+    .risk-opt.sel-low{background:#dcfce7;border-color:#16a34a;color:#16a34a;}
+    .risk-opt.sel-medium{background:#fef3c7;border-color:#d97706;color:#d97706;}
+    .risk-opt.sel-high{background:#fee2e2;border-color:#dc2626;color:#dc2626;}
+    /* anonymous toggle */
+    .anon-toggle{display:flex;align-items:center;gap:10px;padding:12px;background:#f8fafc;border-radius:10px;cursor:pointer;}
+    .anon-toggle input{width:18px;height:18px;cursor:pointer;}
+    .anon-label{font-size:.85rem;color:#475569;}
+    /* detail panel */
+    .detail-field{padding:8px 0;border-bottom:1px solid #f8fafc;}
+    .detail-key{font-size:.73rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;}
+    .detail-val{font-size:.88rem;color:#1e293b;margin-top:3px;}
+    .workflow-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+    .wf-btn{padding:7px 14px;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;border:1.5px solid #e2e8f0;background:#fff;color:#475569;}
+    .wf-btn:hover{background:#f1f5f9;}
+    .wf-btn.primary{background:#2563eb;color:#fff;border-color:#2563eb;}
+    .wf-btn.green{background:#16a34a;color:#fff;border-color:#16a34a;}
+  </style>
+
+  <div class="nm">
+    <div class="nm-header">
+      <div class="nm-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Near Miss / Unsafe Report
+      </div>
+      <button class="btn btn-primary" onclick="__openCreate()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        แจ้งเหตุการณ์
+      </button>
+    </div>
+
+    <div class="filter-row">
+      <input type="text" id="fSearch" placeholder="ค้นหาหมายเลข / สถานที่ / รายละเอียด..." style="width:260px" oninput="__filter()">
+      <select id="fType" onchange="__filter()">
+        <option value="">ประเภท: ทั้งหมด</option>
+        ${Object.entries(NEAR_MISS_TYPES).map(([k,v]) => `<option value="${k}">${v.labelTh}</option>`).join('')}
+      </select>
+      <select id="fStatus" onchange="__filter()">
+        <option value="">สถานะ: ทั้งหมด</option>
+        ${Object.entries(NM_STATUS).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <button class="btn btn-ghost" onclick="__clearFilter()">ล้าง</button>
+      <span id="rowCount" style="margin-left:auto;font-size:.8rem;color:#94a3b8"></span>
+    </div>
+
+    <div class="tbl-wrap" id="tblWrap"></div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <div id="modalBg" class="modal-bg" style="display:none" onclick="__closeModal(event)">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <div class="modal-head-title" id="modalTitle">แจ้งเหตุการณ์ใหม่</div>
+        <button class="btn btn-ghost" onclick="__closeModal(null)" style="padding:4px 10px">✕</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <div class="modal-foot" id="modalFoot"></div>
+    </div>
+  </div>`;
+}
+
+function renderTable() {
+  const filtered = applyFilters(_rows);
+  const total = filtered.length;
+  const pages = Math.ceil(total / F.pageSize) || 1;
+  if (F.page >= pages) F.page = pages - 1;
+  const slice = filtered.slice(F.page * F.pageSize, (F.page + 1) * F.pageSize);
+  $('rowCount').textContent = `${total} รายการ`;
+
+  if (!filtered.length) {
+    $('tblWrap').innerHTML = `<div class="empty-state"><div style="font-size:2.5rem">⚠️</div><div style="margin-top:8px">ยังไม่มีรายงาน Near Miss</div><div style="margin-top:4px;font-size:.8rem">กดปุ่ม "แจ้งเหตุการณ์" เพื่อบันทึกรายงานแรก</div></div>`;
+    $('pager').innerHTML = '';
+    return;
+  }
+
+  $('tblWrap').innerHTML = `
+  <table class="tbl">
+    <thead><tr>
+      <th>หมายเลข</th><th>วันที่</th><th>ประเภท</th><th>แผนก/สถานที่</th>
+      <th>ความเสี่ยง</th><th>รายละเอียด</th><th>สถานะ</th>
+    </tr></thead>
+    <tbody>
+    ${slice.map(r => {
+      const t = NEAR_MISS_TYPES[r.reportType] || { labelTh: r.reportType||'—', color:'#64748b', bg:'#f1f5f9' };
+      const rl = RISK_LEVELS_NM[r.riskLevel] || { label: r.riskLevel||'—', color:'#64748b', bg:'#f1f5f9' };
+      const s  = NM_STATUS[r.status]         || { label: r.status||'—', color:'#64748b', bg:'#f1f5f9' };
+      return `<tr onclick="__openDetail('${r.id}')">
+        <td style="font-weight:700;color:#7c3aed">${r.reportId||r.id.slice(0,8)}</td>
+        <td>${r.reportDate||'—'}</td>
+        <td><span class="badge" style="background:${t.bg};color:${t.color}">${t.labelTh}</span></td>
+        <td><div style="font-size:.82rem;font-weight:600">${r.department||'—'}</div><div style="font-size:.75rem;color:#94a3b8">${r.location||''}</div></td>
+        <td><span class="badge" style="background:${rl.bg};color:${rl.color}">${rl.label}</span></td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
+        <td><span class="badge" style="background:${s.bg||'#f1f5f9'};color:${s.color}">${s.label}</span></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>`;
+
+  $('pager').innerHTML = `
+    <span>${F.page*F.pageSize+1}–${Math.min((F.page+1)*F.pageSize,total)} / ${total}</span>
+    <button onclick="__page(-1)" ${F.page===0?'disabled':''}>‹</button>
+    <button onclick="__page(1)"  ${F.page>=pages-1?'disabled':''}>›</button>`;
+}
+
+// ─── create form ────────────────────────────────────────────────────────
+let _selectedType = 'near_miss';
+let _selectedRisk = 'medium';
+
+function openCreate() {
+  _selectedType = 'near_miss';
+  _selectedRisk = 'medium';
+  $('modalTitle').textContent = 'แจ้งเหตุการณ์ใหม่';
+  renderCreateForm();
+  $('modalFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__closeModal(null)">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="__submitCreate()">ส่งรายงาน</button>`;
+  $('modalBg').style.display = 'flex';
+}
+
+function renderCreateForm() {
+  $('modalBody').innerHTML = `
+  <div class="form-section">ประเภทเหตุการณ์</div>
+  <div class="type-pills" id="typePills">
+    ${Object.entries(NEAR_MISS_TYPES).map(([k,v]) =>
+      `<button class="type-pill ${_selectedType===k?'selected':''}" onclick="__selectType('${k}')">${v.labelTh}</button>`
+    ).join('')}
+  </div>
+
+  <div class="form-section">ข้อมูลเหตุการณ์</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันที่พบ <span class="req">*</span></label>
+      <input type="date" class="form-ctrl" id="fDate" value="${new Date().toISOString().split('T')[0]}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">เวลา</label>
+      <input type="time" class="form-ctrl" id="fTime">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">แผนก <span class="req">*</span></label>
+      <select class="form-ctrl" id="fDept">
+        <option value="">-- เลือกแผนก --</option>
+        ${DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานที่ <span class="req">*</span></label>
+      <input type="text" class="form-ctrl" id="fLocation" placeholder="ระบุจุดเกิดเหตุ">
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียดเหตุการณ์ <span class="req">*</span></label>
+    <textarea class="form-ctrl" id="fDescription" rows="4" placeholder="อธิบายสิ่งที่พบเห็น เกิดอะไรขึ้น มีอะไรเสียหายหรือไม่..."></textarea>
+  </div>
+
+  <div class="form-section">ระดับความเสี่ยง</div>
+  <div class="risk-selector" id="riskSelector">
+    ${Object.entries(RISK_LEVELS_NM).map(([k,v]) =>
+      `<button class="risk-opt ${_selectedRisk===k?`sel-${k}`:''}` +
+       `" onclick="__selectRisk('${k}')">${v.label}</button>`
+    ).join('')}
+  </div>
+
+  <div class="form-group" style="margin-top:16px">
+    <label class="form-label">ข้อเสนอแนะ / วิธีป้องกัน</label>
+    <textarea class="form-ctrl" id="fSuggestion" rows="3" placeholder="ข้อเสนอแนะเพื่อป้องกันการเกิดซ้ำ..."></textarea>
+  </div>
+
+  <div class="form-section">ผู้รายงาน</div>
+  <label class="anon-toggle" onclick="document.getElementById('fAnon').click()">
+    <input type="checkbox" id="fAnon" onclick="event.stopPropagation()">
+    <div>
+      <div class="anon-label" style="font-weight:600">แจ้งแบบไม่ระบุชื่อ (Anonymous)</div>
+      <div style="font-size:.75rem;color:#94a3b8;margin-top:2px">ชื่อผู้รายงานจะไม่ถูกบันทึก</div>
+    </div>
+  </label>
+  <div class="form-group" style="margin-top:12px" id="reporterField">
+    <label class="form-label">ชื่อผู้รายงาน</label>
+    <input type="text" class="form-ctrl" id="fReporter" placeholder="ชื่อ-นามสกุล (ถ้าต้องการระบุ)">
+  </div>`;
+
+  document.getElementById('fAnon').addEventListener('change', function() {
+    document.getElementById('reporterField').style.display = this.checked ? 'none' : 'block';
+  });
+}
+
+window.__selectType = k => {
+  _selectedType = k;
+  document.querySelectorAll('.type-pill').forEach(el => el.classList.remove('selected'));
+  event.target.classList.add('selected');
+};
+
+window.__selectRisk = k => {
+  _selectedRisk = k;
+  document.querySelectorAll('.risk-opt').forEach(el => {
+    el.className = 'risk-opt';
+  });
+  event.target.classList.add(`sel-${k}`);
+};
+
+async function submitCreate() {
+  const required = ['fDate','fDept','fLocation','fDescription'];
+  for (const id of required) {
+    if (!$(id)?.value?.trim()) { showToast('กรุณากรอกข้อมูลที่มี * ให้ครบ', '#dc2626'); $(id)?.focus(); return; }
+  }
+  const isAnon = $('fAnon')?.checked;
+  const data = {
+    reportDate:  $('fDate').value,
+    reportTime:  $('fTime').value,
+    reportType:  _selectedType,
+    department:  $('fDept').value,
+    location:    $('fLocation').value.trim(),
+    description: $('fDescription').value.trim(),
+    riskLevel:   _selectedRisk,
+    suggestion:  $('fSuggestion').value.trim(),
+    anonymous:   isAnon,
+    reporter:    isAnon ? 'ไม่ระบุชื่อ' : ($('fReporter').value.trim() || _profile.displayName || _profile.email || 'ไม่ระบุ'),
+  };
+  const btn = $('modalFoot').querySelector('.btn-primary');
+  btn.disabled = true; btn.textContent = 'กำลังส่ง...';
+  try {
+    await createNearMiss(data, isAnon ? 'anonymous' : _profile.uid);
+    _rows = await listNearMiss({ lim: 200 });
+    renderTable();
+    closeModal(null);
+    showToast('ส่งรายงานเรียบร้อยแล้ว ✓', '#16a34a');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'ส่งรายงาน';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+// ─── detail panel ────────────────────────────────────────────────────────
+async function openDetail(id) {
+  const r = _rows.find(x => x.id === id) || await getNearMiss(id);
+  if (!r) return;
+  const t  = NEAR_MISS_TYPES[r.reportType] || { labelTh: r.reportType||'—', color:'#64748b', bg:'#f1f5f9' };
+  const rl = RISK_LEVELS_NM[r.riskLevel]   || { label: r.riskLevel||'—', color:'#64748b', bg:'#f1f5f9' };
+  const s  = NM_STATUS[r.status]           || { label: r.status||'—', color:'#64748b', bg:'#f1f5f9' };
+
+  $('modalTitle').textContent = 'รายละเอียดรายงาน';
+  $('modalBody').innerHTML = `
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+    <span style="font-weight:800;font-size:.95rem;color:#7c3aed">${r.reportId||id.slice(0,8)}</span>
+    <span class="badge" style="background:${t.bg};color:${t.color}">${t.labelTh}</span>
+    <span class="badge" style="background:${rl.bg};color:${rl.color}">${rl.label}</span>
+    <span class="badge" style="background:${s.bg||'#f1f5f9'};color:${s.color}">${s.label}</span>
+    ${r.anonymous ? '<span class="badge" style="background:#f1f5f9;color:#64748b">Anonymous</span>' : ''}
+  </div>
+
+  <div class="detail-field"><div class="detail-key">วันที่ / เวลา</div><div class="detail-val">${r.reportDate||'—'} ${r.reportTime||''}</div></div>
+  <div class="detail-field"><div class="detail-key">แผนก / สถานที่</div><div class="detail-val">${r.department||'—'} — ${r.location||'—'}</div></div>
+  <div class="detail-field"><div class="detail-key">รายละเอียด</div><div class="detail-val" style="white-space:pre-wrap">${r.description||'—'}</div></div>
+  ${r.suggestion ? `<div class="detail-field"><div class="detail-key">ข้อเสนอแนะ</div><div class="detail-val" style="white-space:pre-wrap">${r.suggestion}</div></div>` : ''}
+  <div class="detail-field"><div class="detail-key">ผู้รายงาน</div><div class="detail-val">${r.reporter||'—'}</div></div>
+
+  <div class="form-section" style="margin-top:20px">อัปเดตสถานะ</div>
+  <div class="workflow-row">
+    ${r.status === 'open'        ? `<button class="wf-btn primary" onclick="__updateNMStatus('${id}','assessed')">ประเมินแล้ว</button>` : ''}
+    ${r.status === 'assessed'    ? `<button class="wf-btn primary" onclick="__updateNMStatus('${id}','assigned')">มอบหมายแล้ว</button>` : ''}
+    ${r.status === 'assigned'    ? `<button class="wf-btn primary" onclick="__updateNMStatus('${id}','in_progress')">เริ่มดำเนินการ</button>` : ''}
+    ${r.status === 'in_progress' ? `<button class="wf-btn green" onclick="__updateNMStatus('${id}','closed')">ปิดรายการ</button>` : ''}
+    ${['assessed','assigned','in_progress'].includes(r.status)
+      ? `<button class="wf-btn" onclick="__createCapaFromNM('${id}')">สร้าง CAPA</button>` : ''}
+  </div>`;
+  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="__closeModal(null)">ปิด</button>`;
+  $('modalBg').style.display = 'flex';
+}
+
+async function updateNMStatus(id, status) {
+  await updateNearMiss(id, { status });
+  _rows = await listNearMiss({ lim: 200 });
+  renderTable();
+  openDetail(id);
+  showToast(`อัปเดตสถานะ: ${NM_STATUS[status]?.label} ✓`, '#16a34a');
+}
+
+async function createCapaFromNM(id) {
+  const r = _rows.find(x => x.id === id);
+  if (!r) return;
+  try {
+    await createCapa({
+      capaId: `CAPA-NM-${Date.now()}`,
+      source: 'Near Miss Report',
+      sourceRef: r.reportId || id,
+      description: r.description,
+      correctiveAction: r.suggestion || 'ต้องกำหนดมาตรการแก้ไข',
+      preventiveAction: '',
+      assignedTo: '',
+      department: r.department || '',
+      startDate: new Date().toISOString().split('T')[0],
+      dueDate: '',
+    }, _profile.uid);
+    showToast('สร้าง CAPA จากรายงานนี้แล้ว ✓', '#16a34a');
+  } catch(e) {
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+function showToast(msg, color = '#16a34a') {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function closeModal(e) {
+  if (e && e.target !== $('modalBg')) return;
+  $('modalBg').style.display = 'none';
+}
+
+window.__filter      = () => { F.type = $('fType')?.value||''; F.status = $('fStatus')?.value||''; F.q = $('fSearch')?.value||''; F.page = 0; renderTable(); };
+window.__clearFilter = () => { $('fType').value = $('fStatus').value = $('fSearch').value = ''; Object.assign(F,{type:'',status:'',q:'',page:0}); renderTable(); };
+window.__page        = d => { F.page += d; renderTable(); };
+window.__openCreate  = openCreate;
+window.__openDetail  = openDetail;
+window.__closeModal  = closeModal;
+window.__submitCreate = submitCreate;
+window.__updateNMStatus = updateNMStatus;
+window.__createCapaFromNM = createCapaFromNM;
+
+_profile = await requireRole(['safety_officer','kpo','admin','manager','warehouse']);
+renderShell(_profile, 'near-miss', 'Near Miss Report');
+buildLayout();
+_rows = await listNearMiss({ lim: 200 });
+renderTable();
+if (location.hash === '#new') openCreate();
+</script>
+</body>
+</html>

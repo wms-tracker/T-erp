@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KPO Safety</title>
+  <title>ประเมินความเสี่ยง (HIRA) — KPO Safety</title>
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -11,16 +11,627 @@
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
-const profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager']);
-renderShell(profile, '', 'KPO Safety');
-const mc = document.getElementById('main-content');
-mc.innerHTML = `<div style="padding:60px 24px;text-align:center;font-family:Sarabun,sans-serif">
-  <div style="font-size:3rem;margin-bottom:16px">🛡️</div>
-  <div style="font-size:1.3rem;font-weight:700;color:#0f172a;margin-bottom:8px">หน้านี้อยู่ระหว่างพัฒนา</div>
-  <div style="color:#64748b;font-size:.9rem">จะพร้อมใช้งานใน Phase ถัดไป</div>
-  <div style="margin-top:24px;display:inline-block;padding:8px 20px;background:#f1f5f9;border-radius:20px;font-size:.82rem;color:#64748b">Coming Soon</div>
-  <div style="margin-top:20px"><a href="safety.html" style="color:#1e40af;font-size:.9rem">← กลับ Dashboard</a></div>
-</div>`;
+import {
+  listRiskAssessments, getRiskAssessment, createRiskAssessment, updateRiskAssessment,
+  RISK_LIKELIHOOD, RISK_SEVERITY, RISK_CONTROLS, getRiskLevel,
+  DEPARTMENTS
+} from "./js/safety-data.js";
+
+const $ = id => document.getElementById(id);
+let _profile;
+let _risks = [];
+// view: 'list' | 'form' | 'matrix' | 'detail'
+let _view = 'list';
+let _editId = null; // null = create, string = edit
+let _filterDept = '';
+let _filterLevel = '';
+let _search = '';
+
+// ─── Matrix cell definitions ─────────────────────────────────────────────
+// [row=severity 5..1][col=likelihood 1..5]
+function matrixColor(s, l) {
+  const score = s * l;
+  if (score <= 4)  return { bg: '#dcfce7', color: '#15803d', level: 'Low' };
+  if (score <= 9)  return { bg: '#fef9c3', color: '#a16207', level: 'Moderate' };
+  if (score <= 16) return { bg: '#fee2e2', color: '#dc2626', level: 'High' };
+  return             { bg: '#fef2f2', color: '#7f1d1d', level: 'Extreme' };
+}
+
+// ─── Layout ──────────────────────────────────────────────────────────────
+function buildLayout() {
+  const mc = document.getElementById('main-content');
+  mc.innerHTML = `
+  <style>
+    .hr{padding:0 20px 32px;max-width:1300px;margin:0 auto;}
+    .page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:20px 0 16px;}
+    .page-title{font-size:1.2rem;font-weight:700;color:#0f172a;display:flex;align-items:center;gap:8px;}
+    .tab-bar{display:flex;gap:4px;margin-bottom:16px;background:#f1f5f9;border-radius:10px;padding:4px;}
+    .tab{padding:7px 18px;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;border:none;background:transparent;color:#64748b;transition:.15s;}
+    .tab.active,.tab:hover{background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+    .btn{padding:7px 16px;border:none;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.83rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+    .btn-primary{background:#0891b2;color:#fff;} .btn-primary:hover{background:#0e7490;}
+    .btn-green{background:#16a34a;color:#fff;} .btn-green:hover{background:#15803d;}
+    .btn-ghost{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;} .btn-ghost:hover{background:#e2e8f0;}
+    .btn-sm{padding:5px 11px;font-size:.78rem;}
+    .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;}
+    .tbl-wrap{overflow-x:auto;}
+    .tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .tbl th{text-align:left;padding:9px 12px;font-size:.72rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1.5px solid #e2e8f0;}
+    .tbl td{padding:9px 12px;border-bottom:1px solid #f1f5f9;color:#334155;vertical-align:middle;}
+    .tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+    .empty-state{text-align:center;padding:60px 20px;color:#94a3b8;}
+    /* filter bar */
+    .filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+    .filter-bar input,.filter-bar select{padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.82rem;color:#334155;background:#fff;}
+    /* score chip */
+    .score-chip{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-size:.9rem;font-weight:800;}
+    /* Matrix */
+    .matrix-wrap{overflow-x:auto;padding-bottom:8px;}
+    .matrix-table{border-collapse:separate;border-spacing:3px;margin:0 auto;}
+    .matrix-table td,.matrix-table th{text-align:center;font-family:Sarabun,sans-serif;font-size:.78rem;}
+    .matrix-table .axis-label{font-weight:700;color:#475569;padding:4px 8px;}
+    .matrix-cell{width:80px;height:80px;border-radius:8px;font-size:.85rem;font-weight:700;cursor:default;position:relative;}
+    .matrix-cell .cell-score{font-size:1.2rem;font-weight:800;}
+    .matrix-cell .cell-level{font-size:.65rem;font-weight:600;margin-top:2px;}
+    .matrix-cell .cell-dot{position:absolute;top:6px;right:6px;width:10px;height:10px;border-radius:50%;background:rgba(0,0,0,.25);}
+    /* Form */
+    .form-section{background:#f8fafc;border-radius:12px;padding:16px 20px;margin-bottom:16px;}
+    .form-section-title{font-size:.85rem;font-weight:700;color:#0891b2;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    @media(max-width:640px){.form-grid{grid-template-columns:1fr;}}
+    .form-group{margin-bottom:0;}
+    .form-label{display:block;font-size:.8rem;font-weight:600;color:#475569;margin-bottom:4px;}
+    .req{color:#dc2626;}
+    .form-ctrl{width:100%;padding:8px 11px;border:1px solid #e2e8f0;border-radius:8px;font-family:Sarabun,sans-serif;font-size:.85rem;color:#0f172a;box-sizing:border-box;}
+    .form-ctrl:focus{outline:none;border-color:#0891b2;box-shadow:0 0 0 3px rgba(8,145,178,.1);}
+    textarea.form-ctrl{resize:vertical;min-height:72px;}
+    /* Risk score widget */
+    .risk-score-widget{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:16px;border:2px solid #e2e8f0;display:flex;gap:20px;align-items:center;flex-wrap:wrap;}
+    .rw-group{flex:1;min-width:200px;}
+    .rw-label{font-size:.75rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+    .rw-btns{display:flex;flex-wrap:wrap;gap:6px;}
+    .rw-btn{padding:5px 11px;border-radius:20px;border:2px solid #e2e8f0;font-family:Sarabun,sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;background:#fff;transition:.15s;}
+    .rw-btn.sel{border-color:#0891b2;background:#ecfeff;color:#0891b2;}
+    .rw-result{flex:0 0 120px;text-align:center;}
+    .rw-score{font-size:2.5rem;font-weight:900;line-height:1;}
+    .rw-lv{font-size:.78rem;font-weight:700;margin-top:4px;padding:3px 10px;border-radius:20px;display:inline-block;}
+    /* Detail view */
+    .detail-section{background:#fff;border-radius:12px;padding:16px 20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+    .detail-section-title{font-size:.82rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;}
+    .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;}
+    @media(max-width:600px){.detail-grid{grid-template-columns:1fr;}}
+    .detail-item .di-label{font-size:.72rem;color:#94a3b8;font-weight:600;}
+    .detail-item .di-val{font-size:.88rem;color:#0f172a;font-weight:500;margin-top:2px;}
+    .control-pill{display:inline-block;padding:3px 10px;border-radius:12px;font-size:.75rem;font-weight:600;margin:2px;background:#ecfeff;color:#0891b2;border:1px solid #a5f3fc;}
+    /* Hierarchy diagram */
+    .hierarchy{display:flex;flex-direction:column;gap:6px;}
+    .h-row{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;font-size:.82rem;}
+  </style>
+
+  <div class="hr" id="mainView"><!-- injected --></div>
+
+  <!-- Form modal (slide-in panel) -->
+  <div id="formBg" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:200;display:none;flex-direction:row;align-items:flex-start;justify-content:flex-end" onclick="__closeFm(event)">
+    <div style="background:#fff;height:100dvh;width:min(660px,100vw);overflow-y:auto;box-shadow:-4px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column">
+      <div style="padding:16px 20px;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1">
+        <div style="font-size:1rem;font-weight:700;color:#0f172a" id="fmTitle">—</div>
+        <button class="btn btn-ghost btn-sm" onclick="__closeFm(null)">✕</button>
+      </div>
+      <div id="fmBody" style="padding:20px;flex:1"></div>
+      <div id="fmFoot" style="padding:14px 20px;border-top:1px solid #f1f5f9;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:#fff"></div>
+    </div>
+  </div>`;
+}
+
+// ─── Views ────────────────────────────────────────────────────────────────
+function renderView() {
+  const mv = $('mainView');
+  if (_view === 'list')   mv.innerHTML = listViewHTML();
+  if (_view === 'matrix') mv.innerHTML = matrixViewHTML();
+  if (_view === 'detail') renderDetailView(mv);
+}
+
+// ─── List view ─────────────────────────────────────────────────────────────
+function listViewHTML() {
+  const filtered = _risks.filter(r => {
+    if (_filterDept && r.department !== _filterDept) return false;
+    const rl = getRiskLevel(r.riskScore || (r.likelihood * r.severity));
+    if (_filterLevel && rl.level !== _filterLevel) return false;
+    if (_search) {
+      const q = _search.toLowerCase();
+      if (!JSON.stringify(r).toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+
+  return `
+  <div class="page-header">
+    <div class="page-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      ประเมินความเสี่ยง (HIRA)
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost" onclick="__setView('matrix')">📊 Risk Matrix</button>
+      <button class="btn btn-primary" onclick="__openForm(null)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        ประเมินความเสี่ยงใหม่
+      </button>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="__setView('list')">Risk Register (${_risks.length})</button>
+    <button class="tab" onclick="__setView('matrix')">Risk Matrix</button>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" placeholder="ค้นหา..." value="${_search}" oninput="__srch(this.value)" style="min-width:180px">
+    <select onchange="__fDept(this.value)">
+      <option value="">ทุกแผนก</option>
+      ${DEPARTMENTS.map(d => `<option value="${d}" ${_filterDept===d?'selected':''}>${d}</option>`).join('')}
+    </select>
+    <select onchange="__fLevel(this.value)">
+      <option value="">ทุกระดับความเสี่ยง</option>
+      <option value="low" ${_filterLevel==='low'?'selected':''}>ต่ำ (Low)</option>
+      <option value="moderate" ${_filterLevel==='moderate'?'selected':''}>ปานกลาง (Moderate)</option>
+      <option value="high" ${_filterLevel==='high'?'selected':''}>สูง (High)</option>
+      <option value="extreme" ${_filterLevel==='extreme'?'selected':''}>สูงมาก (Extreme)</option>
+    </select>
+  </div>
+
+  ${filtered.length === 0
+    ? `<div class="empty-state"><div style="font-size:2.5rem">⚠️</div><div style="margin-top:8px">ยังไม่มีรายการประเมินความเสี่ยง</div><div style="margin-top:4px;font-size:.8rem">กด "ประเมินความเสี่ยงใหม่" เพื่อเริ่มทำ HIRA</div></div>`
+    : `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr>
+        <th>หมายเลข</th><th>กิจกรรม/งาน</th><th>อันตราย</th><th>แผนก</th>
+        <th>L×S (ก่อน)</th><th>ระดับ (ก่อน)</th><th>L×S (หลัง)</th><th>ระดับ (หลัง)</th><th>ผู้รับผิดชอบ</th><th></th>
+      </tr></thead>
+      <tbody>
+      ${filtered.map(r => {
+        const before = getRiskLevel(r.likelihood * r.severity);
+        const ra = r.residualLikelihood && r.residualSeverity;
+        const after  = ra ? getRiskLevel(r.residualLikelihood * r.residualSeverity) : null;
+        return `<tr onclick="__openDetail('${r.id}')">
+          <td style="font-weight:700;color:#0891b2">${r.raId||r.id.slice(0,8)}</td>
+          <td>${r.activity||'—'}</td>
+          <td style="max-width:200px">${r.hazard||'—'}</td>
+          <td>${r.department||'—'}</td>
+          <td>
+            <span class="score-chip" style="background:${before.bg};color:${before.color}">${r.likelihood * r.severity}</span>
+            <span style="font-size:.75rem;color:#94a3b8;margin-left:4px">${r.likelihood}×${r.severity}</span>
+          </td>
+          <td><span class="badge" style="background:${before.bg};color:${before.color}">${before.label}</span></td>
+          <td>${after
+            ? `<span class="score-chip" style="background:${after.bg};color:${after.color}">${r.residualLikelihood*r.residualSeverity}</span>
+               <span style="font-size:.75rem;color:#94a3b8;margin-left:4px">${r.residualLikelihood}×${r.residualSeverity}</span>`
+            : '—'}</td>
+          <td>${after ? `<span class="badge" style="background:${after.bg};color:${after.color}">${after.label}</span>` : '—'}</td>
+          <td>${r.responsible||'—'}</td>
+          <td onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="__openForm('${r.id}')">แก้ไข</button></td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>`
+  }`;
+}
+
+// ─── Matrix view ──────────────────────────────────────────────────────────
+function matrixViewHTML() {
+  // count risks per cell
+  const cellCounts = {};
+  for (const r of _risks) {
+    const key = `${r.severity}_${r.likelihood}`;
+    cellCounts[key] = (cellCounts[key] || 0) + 1;
+  }
+
+  // matrix: rows severity 5..1, cols likelihood 1..5
+  const sevLabels = ['', 'ไม่มีนัย', 'เล็กน้อย', 'ปานกลาง', 'รุนแรง', 'หายนะ'];
+  const lhLabels  = ['แทบจะไม่เกิด', 'ไม่น่าเกิด', 'อาจเกิด', 'น่าเกิด', 'เกือบแน่'];
+
+  return `
+  <div class="page-header">
+    <div class="page-title">Risk Matrix (5×5)</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" onclick="__setView('list')">← กลับ Risk Register</button>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab" onclick="__setView('list')">Risk Register (${_risks.length})</button>
+    <button class="tab active" onclick="__setView('matrix')">Risk Matrix</button>
+  </div>
+
+  <!-- Legend -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;font-size:.78rem;font-weight:600">
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#dcfce7;display:inline-block;border:1px solid #86efac"></span> ต่ำ (1-4)</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#fef9c3;display:inline-block;border:1px solid #fde68a"></span> ปานกลาง (5-9)</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#fee2e2;display:inline-block;border:1px solid #fca5a5"></span> สูง (10-16)</span>
+    <span style="display:flex;align-items:center;gap:4px"><span style="width:12px;height:12px;border-radius:3px;background:#fef2f2;display:inline-block;border:1px solid #f87171"></span> สูงมาก (17-25)</span>
+  </div>
+
+  <div class="matrix-wrap">
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <td rowspan="7" style="writing-mode:vertical-rl;transform:rotate(180deg);font-size:.8rem;font-weight:700;color:#0891b2;padding:0 4px;text-align:center">ความรุนแรง (Severity) →</td>
+          <td></td>
+          <td colspan="5" style="text-align:center;font-size:.8rem;font-weight:700;color:#0891b2;padding-bottom:6px">โอกาสเกิด (Likelihood) →</td>
+        </tr>
+        <tr>
+          <td class="axis-label">S\L</td>
+          ${lhLabels.map((l,i) => `<td class="axis-label">${i+1}<br><span style="font-size:.65rem;font-weight:400">${l}</span></td>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${[5,4,3,2,1].map(s => `
+        <tr>
+          <td class="axis-label" style="text-align:right">${s}<br><span style="font-size:.65rem;font-weight:400">${sevLabels[s]}</span></td>
+          ${[1,2,3,4,5].map(l => {
+            const m = matrixColor(s,l);
+            const score = s*l;
+            const count = cellCounts[`${s}_${l}`] || 0;
+            return `<td class="matrix-cell" style="background:${m.bg};color:${m.color}" title="L${l}×S${s}=${score} (${m.level})">
+              <div class="cell-score">${score}</div>
+              <div class="cell-level">${m.level}</div>
+              ${count > 0 ? `<div class="cell-dot" title="${count} รายการ" style="background:${m.color}">${count > 1 ? `<span style="position:absolute;top:-6px;right:-6px;background:#1e293b;color:#fff;border-radius:50%;width:16px;height:16px;font-size:.6rem;display:flex;align-items:center;justify-content:center">${count}</span>` : ''}</div>` : ''}
+            </td>`;
+          }).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Risk summary cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:20px">
+    ${[
+      { level:'extreme', label:'สูงมาก (Extreme)', color:'#7f1d1d', bg:'#fef2f2', range:'17-25' },
+      { level:'high',    label:'สูง (High)',        color:'#dc2626', bg:'#fee2e2', range:'10-16' },
+      { level:'moderate',label:'ปานกลาง',           color:'#d97706', bg:'#fef9c3', range:'5-9'  },
+      { level:'low',     label:'ต่ำ (Low)',          color:'#16a34a', bg:'#dcfce7', range:'1-4'  },
+    ].map(lv => {
+      const cnt = _risks.filter(r => {
+        const sc = (r.likelihood||1) * (r.severity||1);
+        return getRiskLevel(sc).level === lv.level;
+      }).length;
+      return `<div style="background:${lv.bg};border-radius:12px;padding:16px;text-align:center">
+        <div style="font-size:2rem;font-weight:900;color:${lv.color}">${cnt}</div>
+        <div style="font-size:.8rem;font-weight:700;color:${lv.color}">${lv.label}</div>
+        <div style="font-size:.72rem;color:${lv.color};opacity:.7">คะแนน ${lv.range}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+// ─── Detail view ──────────────────────────────────────────────────────────
+function renderDetailView(mv) {
+  const r = _risks.find(x => x.id === _editId);
+  if (!r) { _view = 'list'; renderView(); return; }
+  const before = getRiskLevel(r.likelihood * r.severity);
+  const ra = r.residualLikelihood && r.residualSeverity;
+  const after  = ra ? getRiskLevel(r.residualLikelihood * r.residualSeverity) : null;
+
+  mv.innerHTML = `
+  <div style="display:flex;align-items:center;gap:10px;padding:20px 0 8px;flex-wrap:wrap">
+    <button class="btn btn-ghost" onclick="__setView('list')">← กลับ</button>
+    <span style="font-size:1.1rem;font-weight:700;color:#0891b2">${r.raId||r.id.slice(0,8)}</span>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-section-title">ข้อมูลทั่วไป</div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="di-label">กิจกรรม/งาน</div><div class="di-val">${r.activity||'—'}</div></div>
+      <div class="detail-item"><div class="di-label">แผนก</div><div class="di-val">${r.department||'—'}</div></div>
+      <div class="detail-item"><div class="di-label">สถานที่</div><div class="di-val">${r.location||'—'}</div></div>
+      <div class="detail-item"><div class="di-label">ผู้ประเมิน</div><div class="di-val">${r.assessedBy||'—'}</div></div>
+      <div class="detail-item"><div class="di-label">วันที่ประเมิน</div><div class="di-val">${r.assessDate||'—'}</div></div>
+      <div class="detail-item"><div class="di-label">ผู้รับผิดชอบ</div><div class="di-val">${r.responsible||'—'}</div></div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="di-label">อันตรายที่ระบุ (Hazard)</div>
+      <div class="di-val" style="margin-top:4px">${r.hazard||'—'}</div>
+    </div>
+    ${r.consequence ? `<div style="margin-top:8px"><div class="di-label">ผลที่อาจเกิดขึ้น (Consequence)</div><div class="di-val" style="margin-top:4px">${r.consequence}</div></div>` : ''}
+    ${r.affectedPersons ? `<div style="margin-top:8px"><div class="di-label">ผู้ที่ได้รับผลกระทบ</div><div class="di-val" style="margin-top:4px">${r.affectedPersons}</div></div>` : ''}
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="detail-section">
+      <div class="detail-section-title">ก่อนควบคุม (Before Control)</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:900;color:${before.color}">${r.likelihood*r.severity}</div>
+          <div style="font-size:.78rem;color:#94a3b8">${r.likelihood}×${r.severity}</div>
+        </div>
+        <div>
+          <span class="badge" style="background:${before.bg};color:${before.color};font-size:.85rem;padding:4px 12px">${before.label}</span>
+          <div style="margin-top:6px;font-size:.78rem;color:#64748b">โอกาส: ${r.likelihood} · ความรุนแรง: ${r.severity}</div>
+        </div>
+      </div>
+    </div>
+    ${after ? `
+    <div class="detail-section">
+      <div class="detail-section-title">หลังควบคุม (Residual Risk)</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:900;color:${after.color}">${r.residualLikelihood*r.residualSeverity}</div>
+          <div style="font-size:.78rem;color:#94a3b8">${r.residualLikelihood}×${r.residualSeverity}</div>
+        </div>
+        <div>
+          <span class="badge" style="background:${after.bg};color:${after.color};font-size:.85rem;padding:4px 12px">${after.label}</span>
+          <div style="margin-top:6px;font-size:.78rem;color:#64748b">โอกาส: ${r.residualLikelihood} · ความรุนแรง: ${r.residualSeverity}</div>
+        </div>
+      </div>
+    </div>` : '<div></div>'}
+  </div>
+
+  ${r.controls && Object.values(r.controls).some(Boolean) ? `
+  <div class="detail-section">
+    <div class="detail-section-title">มาตรการควบคุม (Hierarchy of Controls)</div>
+    <div class="hierarchy">
+      ${RISK_CONTROLS.map((c, i) => {
+        const val = r.controls?.[c.key];
+        if (!val) return '';
+        const hue = ['#16a34a','#2563eb','#7c3aed','#d97706','#dc2626'][i];
+        return `<div class="h-row" style="background:${hue}15;border-left:4px solid ${hue}">
+          <span style="font-size:.75rem;font-weight:700;color:${hue};min-width:130px">${c.label.split('—')[0].trim()}</span>
+          <span style="font-size:.83rem;color:#334155">${val}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>` : ''}
+
+  <div style="display:flex;gap:10px;padding:16px 0">
+    <button class="btn btn-primary" onclick="__openForm('${r.id}')">แก้ไข</button>
+    <button class="btn btn-ghost" onclick="__setView('list')">← กลับ</button>
+  </div>`;
+}
+
+// ─── HIRA Form ────────────────────────────────────────────────────────────
+let _fmL = 1, _fmS = 1, _fmRL = 1, _fmRS = 1;
+
+async function openForm(id) {
+  _editId = id;
+  let r = null;
+  if (id) {
+    r = _risks.find(x => x.id === id) || await getRiskAssessment(id);
+    _fmL  = r?.likelihood || 1;
+    _fmS  = r?.severity || 1;
+    _fmRL = r?.residualLikelihood || 1;
+    _fmRS = r?.residualSeverity || 1;
+  } else {
+    _fmL = _fmS = _fmRL = _fmRS = 1;
+  }
+  $('fmTitle').textContent = id ? 'แก้ไขการประเมินความเสี่ยง' : 'ประเมินความเสี่ยงใหม่ (HIRA)';
+  $('fmBody').innerHTML = hiraFormHTML(r);
+  updateScoreWidget('before');
+  updateScoreWidget('after');
+  $('fmFoot').innerHTML = `
+    <button class="btn btn-ghost" onclick="__closeFm(null)">ยกเลิก</button>
+    <button class="btn btn-primary" id="fmSubmitBtn" onclick="__submitHIRA()">${id ? 'บันทึกการแก้ไข' : 'บันทึกการประเมิน'}</button>`;
+  $('formBg').style.display = 'flex';
+}
+
+function hiraFormHTML(r) {
+  const likOpts = RISK_LIKELIHOOD.map(o =>
+    `<option value="${o.value}" ${(r?.likelihood==o.value)?'selected':''}>${o.label}</option>`).join('');
+  const sevOpts = RISK_SEVERITY.map(o =>
+    `<option value="${o.value}" ${(r?.severity==o.value)?'selected':''}>${o.label}</option>`).join('');
+  const likOptsR = RISK_LIKELIHOOD.map(o =>
+    `<option value="${o.value}" ${(r?.residualLikelihood==o.value)?'selected':''}>${o.label}</option>`).join('');
+  const sevOptsR = RISK_SEVERITY.map(o =>
+    `<option value="${o.value}" ${(r?.residualSeverity==o.value)?'selected':''}>${o.label}</option>`).join('');
+
+  return `
+  <div class="form-section">
+    <div class="form-section-title">📋 ข้อมูลพื้นฐาน</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">แผนก <span class="req">*</span></label>
+        <select class="form-ctrl" id="fDept">
+          <option value="">-- เลือก --</option>
+          ${DEPARTMENTS.map(d => `<option value="${d}" ${r?.department===d?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันที่ประเมิน <span class="req">*</span></label>
+        <input type="date" class="form-ctrl" id="fDate" value="${r?.assessDate || new Date().toISOString().split('T')[0]}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">กิจกรรม/งาน <span class="req">*</span></label>
+        <input type="text" class="form-ctrl" id="fActivity" value="${r?.activity||''}" placeholder="เช่น งานขนถ่ายสินค้าด้วย Forklift">
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานที่</label>
+        <input type="text" class="form-ctrl" id="fLocation" value="${r?.location||''}" placeholder="เช่น คลังสินค้า A">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:12px">
+      <label class="form-label">อันตรายที่ระบุ (Hazard) <span class="req">*</span></label>
+      <textarea class="form-ctrl" id="fHazard" placeholder="ระบุอันตรายที่อาจเกิดขึ้น...">${r?.hazard||''}</textarea>
+    </div>
+    <div class="form-grid" style="margin-top:4px">
+      <div class="form-group">
+        <label class="form-label">ผลที่อาจเกิดขึ้น (Consequence)</label>
+        <textarea class="form-ctrl" id="fConsequence" style="min-height:56px" placeholder="ผลกระทบต่อบุคคล/ทรัพย์สิน...">${r?.consequence||''}</textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ผู้ที่ได้รับผลกระทบ</label>
+        <input type="text" class="form-ctrl" id="fAffected" value="${r?.affectedPersons||''}" placeholder="เช่น พนักงานขับรถ Forklift">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-section-title">📊 ประเมินความเสี่ยง ก่อนมาตรการควบคุม</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">โอกาสเกิด (Likelihood)</label>
+        <select class="form-ctrl" id="fL" onchange="__updateL(this.value)">${likOpts}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ความรุนแรง (Severity)</label>
+        <select class="form-ctrl" id="fS" onchange="__updateS(this.value)">${sevOpts}</select>
+      </div>
+    </div>
+    <div id="scoreWidgetBefore" style="margin-top:10px"></div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-section-title">🛡️ มาตรการควบคุม (Hierarchy of Controls)</div>
+    ${RISK_CONTROLS.map((c,i) => {
+      const hue = ['#16a34a','#2563eb','#7c3aed','#d97706','#dc2626'][i];
+      return `<div class="form-group" style="margin-bottom:10px">
+        <label class="form-label" style="color:${hue}">${c.label}</label>
+        <input type="text" class="form-ctrl" id="ctrl_${c.key}" value="${r?.controls?.[c.key]||''}" placeholder="ระบุมาตรการ (ถ้ามี)">
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div class="form-section">
+    <div class="form-section-title">📉 ความเสี่ยงที่เหลือ (Residual Risk) หลังควบคุม</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">โอกาสเกิด (หลังควบคุม)</label>
+        <select class="form-ctrl" id="fRL" onchange="__updateRL(this.value)">${likOptsR}</select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ความรุนแรง (หลังควบคุม)</label>
+        <select class="form-ctrl" id="fRS" onchange="__updateRS(this.value)">${sevOptsR}</select>
+      </div>
+    </div>
+    <div id="scoreWidgetAfter" style="margin-top:10px"></div>
+  </div>
+
+  <div class="form-section">
+    <div class="form-section-title">👤 ผู้รับผิดชอบ</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">ผู้ประเมิน</label>
+        <input type="text" class="form-ctrl" id="fAssessedBy" value="${r?.assessedBy || _profile.displayName||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">ผู้รับผิดชอบดำเนินการ</label>
+        <input type="text" class="form-ctrl" id="fResponsible" value="${r?.responsible||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">วันครบกำหนดทบทวน</label>
+        <input type="date" class="form-ctrl" id="fReviewDate" value="${r?.reviewDate||''}">
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:10px">
+      <label class="form-label">หมายเหตุ</label>
+      <textarea class="form-ctrl" id="fNotes" style="min-height:56px">${r?.notes||''}</textarea>
+    </div>
+  </div>`;
+}
+
+function updateScoreWidget(which) {
+  const l = which === 'before' ? _fmL : _fmRL;
+  const s = which === 'before' ? _fmS : _fmRS;
+  const rl = getRiskLevel(l * s);
+  const el = $(which === 'before' ? 'scoreWidgetBefore' : 'scoreWidgetAfter');
+  if (!el) return;
+  el.innerHTML = `<div style="display:flex;align-items:center;gap:16px;background:${rl.bg};border-radius:10px;padding:12px 16px">
+    <div style="text-align:center">
+      <div style="font-size:2rem;font-weight:900;color:${rl.color}">${l*s}</div>
+      <div style="font-size:.72rem;color:${rl.color};opacity:.8">${l}×${s}</div>
+    </div>
+    <div>
+      <span class="badge" style="background:${rl.bg};color:${rl.color};border:1.5px solid ${rl.color};font-size:.88rem;padding:4px 14px">${rl.label}</span>
+      <div style="font-size:.75rem;color:${rl.color};margin-top:4px;opacity:.8">
+        ${l===5?'เกือบแน่นอน':l===4?'น่าจะเกิด':l===3?'อาจเกิดขึ้น':l===2?'ไม่น่าจะเกิด':'แทบจะไม่เกิด'}
+        × ${s===5?'หายนะ':s===4?'รุนแรง':s===3?'ปานกลาง':s===2?'เล็กน้อย':'ไม่มีนัยสำคัญ'}
+      </div>
+    </div>
+  </div>`;
+}
+
+window.__updateL  = v => { _fmL  = +v; updateScoreWidget('before'); };
+window.__updateS  = v => { _fmS  = +v; updateScoreWidget('before'); };
+window.__updateRL = v => { _fmRL = +v; updateScoreWidget('after'); };
+window.__updateRS = v => { _fmRS = +v; updateScoreWidget('after'); };
+
+async function submitHIRA() {
+  const dept     = $('fDept')?.value;
+  const date     = $('fDate')?.value;
+  const activity = $('fActivity')?.value?.trim();
+  const hazard   = $('fHazard')?.value?.trim();
+  if (!dept || !date || !activity || !hazard) { showToast('กรุณากรอกข้อมูลที่จำเป็น (แผนก, วันที่, กิจกรรม, อันตราย)', '#dc2626'); return; }
+
+  const controls = {};
+  for (const c of RISK_CONTROLS) {
+    const v = $(`ctrl_${c.key}`)?.value?.trim();
+    if (v) controls[c.key] = v;
+  }
+
+  const data = {
+    raId:               _editId ? (_risks.find(x=>x.id===_editId)?.raId || `RA-${Date.now()}`) : `RA-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${Math.floor(Math.random()*9000)+1000}`,
+    department:         dept,
+    assessDate:         date,
+    activity,
+    location:           $('fLocation')?.value?.trim() || '',
+    hazard,
+    consequence:        $('fConsequence')?.value?.trim() || '',
+    affectedPersons:    $('fAffected')?.value?.trim() || '',
+    likelihood:         _fmL,
+    severity:           _fmS,
+    riskScore:          _fmL * _fmS,
+    controls,
+    residualLikelihood: _fmRL,
+    residualSeverity:   _fmRS,
+    residualScore:      _fmRL * _fmRS,
+    assessedBy:         $('fAssessedBy')?.value?.trim() || '',
+    responsible:        $('fResponsible')?.value?.trim() || '',
+    reviewDate:         $('fReviewDate')?.value || '',
+    notes:              $('fNotes')?.value?.trim() || '',
+  };
+
+  const btn = $('fmSubmitBtn');
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if (_editId) {
+      await updateRiskAssessment(_editId, data);
+    } else {
+      await createRiskAssessment(data, _profile.uid);
+    }
+    _risks = await listRiskAssessments({ lim: 200 });
+    closeForm(null);
+    _view = 'list';
+    renderView();
+    showToast(_editId ? 'บันทึกการแก้ไขแล้ว ✓' : 'บันทึกการประเมินแล้ว ✓', '#16a34a');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = _editId ? 'บันทึกการแก้ไข' : 'บันทึกการประเมิน';
+    showToast('เกิดข้อผิดพลาด: ' + e.message, '#dc2626');
+  }
+}
+
+function closeForm(e) {
+  if (e && e.target !== $('formBg')) return;
+  $('formBg').style.display = 'none';
+}
+
+function showToast(msg, color = '#16a34a') {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;right:24px;background:${color};color:#fff;padding:12px 20px;border-radius:10px;font-family:Sarabun,sans-serif;font-size:.85rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.2)`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+window.__setView    = v => { _view = v; renderView(); };
+window.__openForm   = openForm;
+window.__closeFm    = closeForm;
+window.__submitHIRA = submitHIRA;
+window.__openDetail = id => { _editId = id; _view = 'detail'; renderView(); };
+window.__srch       = v => { _search = v; renderView(); };
+window.__fDept      = v => { _filterDept = v; renderView(); };
+window.__fLevel     = v => { _filterLevel = v; renderView(); };
+
+_profile = await requireRole(['safety_officer','kpo','admin','manager']);
+renderShell(_profile, 'safety-risk', 'ประเมินความเสี่ยง (HIRA)');
+buildLayout();
+_risks = await listRiskAssessments({ lim: 200 });
+renderView();
 </script>
 </body>
 </html>

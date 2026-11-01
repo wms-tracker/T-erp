@@ -9,16 +9,18 @@ import {
 // Collection names
 // ────────────────────────────────────────────
 export const COL = {
-  incidents:   "safetyIncidents",
-  inspections: "safetyInspections",
-  capa:        "safetyCapaRecords",
-  committee:   "safetyCommitteeMembers",
-  meetings:    "safetyMeetings",
-  training:    "safetyTraining",
-  equipment:   "safetyEquipment",
-  legal:       "safetyLegalRegisters",
-  drills:      "safetyEmergencyDrills",
-  nearMiss:    "safetyNearMiss",
+  incidents:    "safetyIncidents",
+  inspections:  "safetyInspections",
+  inspTpl:      "safetyInspectionTemplates",
+  capa:         "safetyCapaRecords",
+  committee:    "safetyCommitteeMembers",
+  meetings:     "safetyMeetings",
+  training:     "safetyTraining",
+  equipment:    "safetyEquipment",
+  legal:        "safetyLegalRegisters",
+  drills:       "safetyEmergencyDrills",
+  nearMiss:     "safetyNearMiss",
+  riskAssess:   "safetyRiskAssessments",
 };
 
 // ────────────────────────────────────────────
@@ -289,4 +291,168 @@ export async function createNearMiss(data, createdBy) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function updateNearMiss(id, data) {
+  await updateDoc(doc(db, COL.nearMiss, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function getNearMiss(id) {
+  const snap = await getDoc(doc(db, COL.nearMiss, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// ────────────────────────────────────────────
+// Near Miss reference data
+// ────────────────────────────────────────────
+export const NEAR_MISS_TYPES = {
+  near_miss:        { label: 'Near Miss',            labelTh: 'เฉียดอุบัติเหตุ',     color: '#2563eb', bg: '#eff6ff' },
+  unsafe_act:       { label: 'Unsafe Act',           labelTh: 'พฤติกรรมไม่ปลอดภัย',  color: '#7c3aed', bg: '#f5f3ff' },
+  unsafe_condition: { label: 'Unsafe Condition',     labelTh: 'สภาพไม่ปลอดภัย',     color: '#0891b2', bg: '#ecfeff' },
+};
+
+export const RISK_LEVELS_NM = {
+  low:      { label: 'ต่ำ (Low)',      color: '#16a34a', bg: '#f0fdf4' },
+  medium:   { label: 'ปานกลาง (Med)', color: '#d97706', bg: '#fffbeb' },
+  high:     { label: 'สูง (High)',     color: '#dc2626', bg: '#fee2e2' },
+};
+
+export const NM_STATUS = {
+  open:       { label: 'เปิด',               color: '#dc2626', bg: '#fee2e2' },
+  assessed:   { label: 'ประเมินแล้ว',         color: '#d97706', bg: '#fffbeb' },
+  assigned:   { label: 'มอบหมายแล้ว',         color: '#7c3aed', bg: '#f5f3ff' },
+  in_progress:{ label: 'กำลังดำเนินการ',      color: '#2563eb', bg: '#eff6ff' },
+  closed:     { label: 'ปิดแล้ว',             color: '#16a34a', bg: '#f0fdf4' },
+};
+
+// ────────────────────────────────────────────
+// Inspection Templates
+// ────────────────────────────────────────────
+export const DEFAULT_INSPECTION_CATEGORIES = [
+  'พื้นที่ปฏิบัติงาน', 'เครื่องจักร & อุปกรณ์', 'Forklift / Stacker', 'ระบบไฟฟ้า',
+  'ถังดับเพลิง & ระบบดับเพลิง', 'ทางออกฉุกเฉิน', 'PPE', 'Housekeeping',
+  'Loading / Unloading Area', 'Rack & Pallet', 'การจัดเก็บสารเคมี', 'อื่นๆ'
+];
+
+export const DEFAULT_INSPECTION_ITEMS = [
+  { category: 'พื้นที่ปฏิบัติงาน',      item: 'พื้นสะอาด ไม่มีน้ำมัน/น้ำ/สิ่งกีดขวาง' },
+  { category: 'พื้นที่ปฏิบัติงาน',      item: 'ทางเดินกว้างพอ และมีเครื่องหมายเส้นกำหนดชัดเจน' },
+  { category: 'พื้นที่ปฏิบัติงาน',      item: 'แสงสว่างเพียงพอ ไฟทำงานปกติ' },
+  { category: 'พื้นที่ปฏิบัติงาน',      item: 'ไม่มีวัสดุกองระเกะระกะ หรือวางผิดที่' },
+  { category: 'เครื่องจักร & อุปกรณ์',  item: 'ฝาครอบป้องกัน (Guard) ครบถ้วนและอยู่ในตำแหน่ง' },
+  { category: 'เครื่องจักร & อุปกรณ์',  item: 'สวิตช์ฉุกเฉิน (Emergency Stop) ทดสอบได้' },
+  { category: 'Forklift / Stacker',    item: 'Forklift ผ่านการตรวจสอบรายวัน (Pre-shift check)' },
+  { category: 'Forklift / Stacker',    item: 'ป้ายทะเบียน/สติกเกอร์น้ำหนักบรรทุกติดชัดเจน' },
+  { category: 'ระบบไฟฟ้า',             item: 'ตู้ไฟฟ้าปิดสนิท ไม่มีสิ่งกีดขวางด้านหน้า' },
+  { category: 'ระบบไฟฟ้า',             item: 'สายไฟไม่ขาด ไม่มีรอยไหม้ หรือต่อพ่วงเกิน' },
+  { category: 'ถังดับเพลิง & ระบบดับเพลิง', item: 'ถังดับเพลิงอยู่ในตำแหน่ง ไม่ถูกบดบัง' },
+  { category: 'ถังดับเพลิง & ระบบดับเพลิง', item: 'ถังดับเพลิงยังไม่หมดอายุ (ตรวจสอบ pin)' },
+  { category: 'ทางออกฉุกเฉิน',          item: 'ประตูฉุกเฉินไม่ถูกล็อก และมีป้ายบอกชัดเจน' },
+  { category: 'ทางออกฉุกเฉิน',          item: 'ไฟฉุกเฉินทำงานปกติ' },
+  { category: 'PPE',                    item: 'พนักงานสวม PPE ครบตามกำหนด (หมวก/รองเท้า/เสื้อ)' },
+  { category: 'PPE',                    item: 'PPE อยู่ในสภาพดี ไม่ชำรุดเสียหาย' },
+  { category: 'Housekeeping',           item: 'จุดทิ้งขยะเป็นระเบียบ แยกประเภทถูกต้อง' },
+  { category: 'Rack & Pallet',          item: 'Rack ไม่มีส่วนเสียหาย คาน/เสาตรง' },
+  { category: 'Rack & Pallet',          item: 'วางสินค้าไม่เกินน้ำหนักสูงสุด และไม่เกินความสูงกำหนด' },
+];
+
+export async function listInspectionTemplates() {
+  const snap = await getDocs(query(collection(db, COL.inspTpl), orderBy('createdAt', 'desc')));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function createInspectionTemplate(data, createdBy) {
+  return addDoc(collection(db, COL.inspTpl), {
+    ...data,
+    createdBy,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateInspectionTemplate(id, data) {
+  await updateDoc(doc(db, COL.inspTpl, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteInspectionTemplate(id) {
+  await deleteDoc(doc(db, COL.inspTpl, id));
+}
+
+export async function getInspectionTemplate(id) {
+  const snap = await getDoc(doc(db, COL.inspTpl, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function updateInspection(id, data) {
+  await updateDoc(doc(db, COL.inspections, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function getInspection(id) {
+  const snap = await getDoc(doc(db, COL.inspections, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export const INSPECTION_STATUS = {
+  draft:     { label: 'Draft',         color: '#6b7280', bg: '#f9fafb' },
+  completed: { label: 'เสร็จสิ้น',     color: '#16a34a', bg: '#f0fdf4' },
+  reviewed:  { label: 'ตรวจสอบแล้ว',  color: '#2563eb', bg: '#eff6ff' },
+};
+
+// ────────────────────────────────────────────
+// Risk Assessment (HIRA)
+// ────────────────────────────────────────────
+export const RISK_LIKELIHOOD = [
+  { value: 1, label: '1 - แทบจะไม่เกิด (Rare)' },
+  { value: 2, label: '2 - ไม่น่าจะเกิด (Unlikely)' },
+  { value: 3, label: '3 - อาจเกิดขึ้น (Possible)' },
+  { value: 4, label: '4 - น่าจะเกิด (Likely)' },
+  { value: 5, label: '5 - เกือบแน่นอน (Almost Certain)' },
+];
+
+export const RISK_SEVERITY = [
+  { value: 1, label: '1 - ไม่มีนัยสำคัญ (Insignificant)' },
+  { value: 2, label: '2 - เล็กน้อย (Minor)' },
+  { value: 3, label: '3 - ปานกลาง (Moderate)' },
+  { value: 4, label: '4 - รุนแรง (Major)' },
+  { value: 5, label: '5 - หายนะ (Catastrophic)' },
+];
+
+export const RISK_CONTROLS = [
+  { key: 'elimination',    label: '1. Elimination — ขจัดอันตราย' },
+  { key: 'substitution',  label: '2. Substitution — แทนที่ด้วยวิธีที่ปลอดภัยกว่า' },
+  { key: 'engineering',   label: '3. Engineering Control — ควบคุมทางวิศวกรรม' },
+  { key: 'administrative', label: '4. Administrative Control — ควบคุมทางบริหาร/ขั้นตอน' },
+  { key: 'ppe',           label: '5. PPE — อุปกรณ์ป้องกันส่วนบุคคล' },
+];
+
+export function getRiskLevel(score) {
+  if (score <= 4)  return { level: 'low',      label: 'ต่ำ (Low)',          color: '#16a34a', bg: '#dcfce7' };
+  if (score <= 9)  return { level: 'moderate', label: 'ปานกลาง (Moderate)', color: '#d97706', bg: '#fef3c7' };
+  if (score <= 16) return { level: 'high',     label: 'สูง (High)',          color: '#dc2626', bg: '#fee2e2' };
+  return             { level: 'extreme',    label: 'สูงมาก (Extreme)',    color: '#7f1d1d', bg: '#fef2f2' };
+}
+
+export async function listRiskAssessments({ dept, lim = 100 } = {}) {
+  const constraints = [orderBy('createdAt', 'desc'), limit(lim)];
+  if (dept) constraints.unshift(where('department', '==', dept));
+  const snap = await getDocs(query(collection(db, COL.riskAssess), ...constraints));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getRiskAssessment(id) {
+  const snap = await getDoc(doc(db, COL.riskAssess, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createRiskAssessment(data, createdBy) {
+  return addDoc(collection(db, COL.riskAssess), {
+    ...data,
+    createdBy,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateRiskAssessment(id, data) {
+  await updateDoc(doc(db, COL.riskAssess, id), { ...data, updatedAt: serverTimestamp() });
 }

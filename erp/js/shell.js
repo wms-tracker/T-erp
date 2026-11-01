@@ -139,6 +139,7 @@ const NAV = {
     { groupKey: 'safety-incident', icon: '⚠️', label: 'อุบัติเหตุ', items: [
       { key: 'incident-list',   label: 'รายการอุบัติเหตุ',              href: 'safety-incident.html' },
       { key: 'incident-create', label: 'บันทึกอุบัติเหตุ/เหตุการณ์',   href: 'safety-incident.html#new' },
+      { key: 'near-miss',       label: 'Near Miss / Unsafe Report',    href: 'safety-near-miss.html' },
     ]},
     { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
       { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย',   href: 'safety-inspection.html' },
@@ -270,6 +271,7 @@ const PAGE_DEPARTMENT = {
   "dashboard-manager.html":     "manager",
   "safety.html":                "safety_officer",
   "safety-incident.html":       "safety_officer",
+  "safety-near-miss.html":      "safety_officer",
   "safety-inspection.html":     "safety_officer",
   "safety-risk.html":           "safety_officer",
   "safety-capa.html":           "safety_officer",
