@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตรวจสอบภายใน (Audit) — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.35rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
+
+    /* Severity summary bar */
+    .sev-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.55rem;margin-bottom:1.2rem}
+    .sev-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.6rem .8rem;
+              display:flex;align-items:center;gap:.6rem}
+    .sev-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+    .sev-info .n{font-size:1.1rem;font-weight:700;line-height:1}
+    .sev-info .l{font-size:.7rem;color:#64748b;margin-top:.1rem}
+
+    /* Audit list */
+    .audit-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
+                 overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:1.5rem}
+    .audit-table th{background:#f8fafc;padding:.5rem .7rem;text-align:left;color:#64748b;
+                    font-weight:600;font-size:.77rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .audit-table td{padding:.5rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
+    .audit-table tr:hover td{background:#fafbff;cursor:pointer}
+    .badge{display:inline-block;padding:.12rem .48rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Findings table */
+    .finding-table{width:100%;border-collapse:collapse;font-size:.81rem;margin-top:.6rem}
+    .finding-table th{background:#f8fafc;padding:.42rem .6rem;text-align:left;color:#64748b;
+                       font-weight:600;font-size:.74rem;border-bottom:1px solid #e2e8f0}
+    .finding-table td{padding:.42rem .6rem;border-bottom:1px solid #f8fafc;vertical-align:top;color:#374151}
+    .finding-table tr:hover td{background:#fafbff}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:65px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+
+    /* Scope chips */
+    .scope-grid{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.3rem}
+    .scope-chip{padding:.2rem .5rem;border-radius:999px;border:1px solid #cbd5e1;
+                font-size:.73rem;cursor:pointer;background:#fff;transition:all .12s}
+    .scope-chip.sel{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Detail */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+
+    /* Progress bar */
+    .prog-bar{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;margin-top:.4rem}
+    .prog-fill{height:100%;border-radius:4px;transition:width .3s}
+
+    /* Tabs */
+    .tab-bar{display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:1rem}
+    .tab-btn{padding:.42rem 1rem;font-size:.83rem;cursor:pointer;border:none;background:none;
+             color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+    .tab-btn.active{color:#1e3a5f;font-weight:700;border-bottom-color:#1e3a5f}
+    .tab-panel{display:none}.tab-panel.active{display:block}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;
+         justify-content:center;transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+    .btn-danger{background:#dc2626;color:#fff;border:none}
+
+    @media(max-width:600px){.hide-sm{display:none}}
+    @media print{.fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}}
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__aud_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">การตรวจสอบ</h3>
+    <button class="btn-icon" onclick="window.__aud_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="สร้าง Audit" onclick="window.__aud_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  AUDIT_TYPES, AUDIT_STATUS, FINDING_SEVERITY, FINDING_STATUS, AUDIT_SCOPES,
+  listAudits, getAudit, createAudit, updateAudit, deleteAudit,
+  listFindings, createFinding, updateFinding, deleteFinding,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-audit', 'ตรวจสอบภายใน (Audit)');
+
+let _allAudits   = [];
+let _allFindings = [];
+let _fType       = 'all';
+let _fStatus     = 'all';
+let _search      = '';
+
+const typeMap = Object.fromEntries(AUDIT_TYPES.map(t => [t.key, t]));
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+
+/* ── load ── */
+async function load() {
+  [_allAudits, _allFindings] = await Promise.all([
+    listAudits({}),
+    listFindings({}),
+  ]);
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._allAudits];
+  if (_fType   !== 'all') rows = rows.filter(r => r.auditType === _fType);
+  if (_fStatus !== 'all') rows = rows.filter(r => r.status    === _fStatus);
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.auditTitle||'').toLowerCase().includes(q) ||
+      (r.leadAuditor||'').toLowerCase().includes(q) ||
+      (r.department||'').toLowerCase().includes(q)
+    );
+  }
+  renderStats();
+  renderSevCards();
+  renderTable(rows);
+}
+window.__aud_search  = v => { _search  = v; applyFilter(); };
+window.__aud_fType   = k => { _fType   = k; applyFilter(); };
+window.__aud_fStatus = k => {
+  _fStatus = k;
+  document.querySelectorAll('.filt-btn[data-g=st]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const openF = _allFindings.filter(f => f.status === 'open').length;
+  const overdueF = _allFindings.filter(f => f.status === 'open' && f.dueDate && f.dueDate < today).length;
+  const planned = _allAudits.filter(a => a.status === 'planned').length;
+  const closed  = _allFindings.length ? Math.round(_allFindings.filter(f => ['closed','verified'].includes(f.status)).length / _allFindings.length * 100) : 0;
+  document.getElementById('audStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_allAudits.length}</div><div class="l">Audit ทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#64748b">${planned}</div><div class="l">📅 วางแผนแล้ว</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${openF}</div><div class="l">⚠️ ข้อบกพร่องเปิด</div></div>
+    <div class="sum-card"><div class="n" style="color:#ea580c">${overdueF}</div><div class="l">🔴 เกินกำหนด</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${closed}%</div><div class="l">✅ Closure Rate</div></div>`;
+}
+
+/* ── severity summary cards ── */
+function renderSevCards() {
+  document.getElementById('audSevCards').innerHTML = Object.entries(FINDING_SEVERITY).map(([k,v]) => {
+    const n = _allFindings.filter(f => f.severity === k).length;
+    const open = _allFindings.filter(f => f.severity === k && f.status === 'open').length;
+    return `
+    <div class="sev-card">
+      <div class="sev-dot" style="background:${v.color}"></div>
+      <div class="sev-info">
+        <div class="n" style="color:${v.color}">${n}</div>
+        <div class="l">${v.label}</div>
+        ${open ? `<div style="font-size:.66rem;color:#dc2626">${open} เปิดอยู่</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── table ── */
+function renderTable(rows) {
+  if (!rows.length) {
+    document.getElementById('audTable').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+  document.getElementById('audTable').innerHTML = rows.map(r => {
+    const t  = typeMap[r.auditType] || { icon:'📋', label: r.auditType, color:'#64748b', bg:'#f8fafc' };
+    const st = AUDIT_STATUS[r.status] || AUDIT_STATUS.planned;
+    const fList = _allFindings.filter(f => f.auditId === r.id);
+    const openF = fList.filter(f => f.status === 'open').length;
+    const critF = fList.filter(f => f.severity === 'critical').length;
+    return `
+    <tr onclick="window.__aud_view('${r.id}')">
+      <td>
+        <div style="font-weight:600;color:#1e293b;font-size:.84rem">${r.auditTitle||'—'}</div>
+        <div style="font-size:.72rem;color:#94a3b8">${r.department||''}</div>
+      </td>
+      <td><span style="font-size:.9rem">${t.icon}</span>
+          <span style="font-size:.75rem;color:${t.color};font-weight:600;margin-left:.25rem">${t.label}</span></td>
+      <td class="hide-sm" style="font-size:.78rem">${r.auditDate||'—'}</td>
+      <td class="hide-sm" style="font-size:.78rem">${r.leadAuditor||'—'}</td>
+      <td>
+        <span style="font-size:.8rem;color:#374151">${fList.length} ข้อ</span>
+        ${openF  ? `<span style="font-size:.7rem;color:#dc2626;margin-left:.3rem">(${openF} เปิด)</span>` : ''}
+        ${critF  ? `<span class="badge" style="color:#dc2626;background:#fee2e2;margin-left:.3rem">!${critF}</span>` : ''}
+      </td>
+      <td>${badge(st.label, Object.values(AUDIT_STATUS).find((_,i)=>Object.keys(AUDIT_STATUS)[i]===r.status)?.color||'#64748b', st.bg||'#f8fafc')}</td>
+      <td class="hide-sm" style="font-size:.75rem;color:#64748b">${r.standard||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__aud_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+window.__aud_tab = idx => {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', i===idx));
+  document.querySelectorAll('.tab-panel').forEach((p,i) => p.classList.toggle('active', i===idx));
+};
+
+/* ── audit form ── */
+function auditFormHTML(r = {}) {
+  const typeOpts  = AUDIT_TYPES.map(t =>
+    `<option value="${t.key}" ${(r.auditType||'internal')===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const stOpts = Object.entries(AUDIT_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(r.status||'planned')===k?'selected':''}>${v.label}</option>`).join('');
+  const savedScopes = r.scopes || [];
+  const scopeHtml = AUDIT_SCOPES.map(s =>
+    `<span class="scope-chip ${savedScopes.includes(s)?'sel':''}" onclick="this.classList.toggle('sel')">${s}</span>`
+  ).join('');
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>ประเภท Audit</label>
+        <select id="f_type">${typeOpts}</select></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="f_status">${stOpts}</select></div>
+    </div>
+    <div class="fg"><label>ชื่อ Audit / หัวข้อ *</label>
+      <input id="f_title" value="${r.auditTitle||''}" placeholder="เช่น ตรวจสอบระบบความปลอดภัย ประจำปี 2568"></div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ตรวจสอบ *</label>
+        <input type="date" id="f_date" value="${r.auditDate||''}"></div>
+      <div class="fg"><label>หน่วยงาน / พื้นที่</label>
+        <input id="f_dept" value="${r.department||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>หัวหน้าผู้ตรวจสอบ</label>
+        <input id="f_lead" value="${r.leadAuditor||_profile.displayName||''}"></div>
+      <div class="fg"><label>ทีมผู้ตรวจสอบ</label>
+        <input id="f_team" value="${r.auditTeam||''}" placeholder="แยกด้วยลูกน้ำ"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>มาตรฐาน / อ้างอิง</label>
+        <input id="f_std" value="${r.standard||''}" placeholder="เช่น ISO 45001, กฎกระทรวง"></div>
+      <div class="fg"><label>วันที่ Audit ครั้งถัดไป</label>
+        <input type="date" id="f_next" value="${r.nextAuditDate||''}"></div>
+    </div>
+    <div class="fg"><label>ขอบเขต Audit (เลือกได้หลายข้อ)</label>
+      <div class="scope-grid">${scopeHtml}</div></div>
+    <div class="fg"><label>สรุปผลการตรวจสอบ</label>
+      <textarea id="f_summary">${r.summary||''}</textarea></div>
+    <div class="fg"><label>ข้อเสนอแนะ</label>
+      <textarea id="f_recommend">${r.recommendation||''}</textarea></div>`;
+}
+
+function collectAuditForm() {
+  return {
+    auditType:    document.getElementById('f_type')?.value,
+    status:       document.getElementById('f_status')?.value || 'planned',
+    auditTitle:   document.getElementById('f_title')?.value.trim(),
+    auditDate:    document.getElementById('f_date')?.value,
+    department:   document.getElementById('f_dept')?.value.trim(),
+    leadAuditor:  document.getElementById('f_lead')?.value.trim(),
+    auditTeam:    document.getElementById('f_team')?.value.trim(),
+    standard:     document.getElementById('f_std')?.value.trim(),
+    nextAuditDate:document.getElementById('f_next')?.value,
+    scopes:       [...document.querySelectorAll('.scope-chip.sel')].map(c => c.textContent.trim()),
+    summary:      document.getElementById('f_summary')?.value.trim(),
+    recommendation:document.getElementById('f_recommend')?.value.trim(),
+  };
+}
+
+/* ── new audit ── */
+window.__aud_openNew = () => {
+  openPanel('สร้าง Audit ใหม่', auditFormHTML(),
+    `<button class="btn" onclick="window.__aud_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__aud_saveNew()">💾 บันทึก</button>`);
+};
+window.__aud_saveNew = async () => {
+  const data = collectAuditForm();
+  if (!data.auditTitle || !data.auditDate) { alert('กรุณาระบุชื่อ Audit และวันที่'); return; }
+  await createAudit(data, _profile.uid);
+  window.__aud_closePanel();
+  await load();
+};
+
+/* ── view audit ── */
+window.__aud_view = async id => {
+  const r = await getAudit(id);
+  if (!r) return;
+  const t  = typeMap[r.auditType] || { icon:'📋', label: r.auditType||'—', color:'#64748b', bg:'#f8fafc' };
+  const st = AUDIT_STATUS[r.status] || AUDIT_STATUS.planned;
+  const findings = _allFindings.filter(f => f.auditId === id);
+  const openF = findings.filter(f => f.status === 'open').length;
+  const closedF = findings.filter(f => ['closed','verified'].includes(f.status)).length;
+  const pct = findings.length ? Math.round(closedF/findings.length*100) : 0;
+
+  const stColors = { planned:'#64748b', in_progress:'#2563eb', completed:'#16a34a', cancelled:'#94a3b8' };
+  const stBgs    = { planned:'#f1f5f9', in_progress:'#eff6ff', completed:'#dcfce7', cancelled:'#f8fafc' };
+
+  const findHtml = findings.length ? `
+    <table class="finding-table">
+      <thead><tr>
+        <th>ความรุนแรง</th><th>รายละเอียด</th><th>ผู้รับผิดชอบ</th><th>กำหนด</th><th>สถานะ</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${findings.map(f => {
+          const sev = FINDING_SEVERITY[f.severity] || FINDING_SEVERITY.observation;
+          const fst = FINDING_STATUS[f.status]     || FINDING_STATUS.open;
+          const today = new Date().toISOString().slice(0,10);
+          const overdue = f.status === 'open' && f.dueDate && f.dueDate < today;
+          return `
+          <tr>
+            <td>${badge(sev.label,sev.color,sev.bg)}</td>
+            <td style="font-size:.8rem;max-width:220px">${f.description||'—'}
+              ${f.requirement?`<div style="font-size:.7rem;color:#94a3b8">${f.requirement}</div>`:''}
+            </td>
+            <td style="font-size:.78rem">${f.responsible||'—'}</td>
+            <td style="font-size:.78rem;${overdue?'color:#dc2626;font-weight:700':''}">${f.dueDate||'—'}${overdue?' ⚠️':''}</td>
+            <td>${badge(fst.label,fst.color,fst.bg)}</td>
+            <td><button style="font-size:.72rem;padding:.15rem .4rem" class="btn"
+                onclick="window.__aud_editFinding('${f.id}','${id}')">✏️</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>` : `<p style="color:#94a3b8;font-size:.82rem;margin:.5rem 0">ยังไม่มีข้อบกพร่อง</p>`;
+
+  openPanel(`${t.icon} ${r.auditTitle||'—'}`, `
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="window.__aud_tab(0)">📋 ข้อมูล Audit</button>
+      <button class="tab-btn"        onclick="window.__aud_tab(1)">⚠️ ข้อบกพร่อง (${findings.length})</button>
+    </div>
+
+    <!-- Tab 0: Audit info -->
+    <div class="tab-panel active" id="tp0">
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem">
+        ${badge(t.label, t.color, t.bg)}
+        ${badge(st.label, stColors[r.status]||'#64748b', stBgs[r.status]||'#f8fafc')}
+      </div>
+      <div class="ds"><h4>รายละเอียด</h4>
+        <div class="info-grid">
+          <span class="k">วันที่ตรวจสอบ</span><span class="v">${r.auditDate||'—'}</span>
+          <span class="k">หน่วยงาน</span><span class="v">${r.department||'—'}</span>
+          <span class="k">หัวหน้าผู้ตรวจ</span><span class="v">${r.leadAuditor||'—'}</span>
+          <span class="k">ทีมผู้ตรวจ</span><span class="v">${r.auditTeam||'—'}</span>
+          <span class="k">มาตรฐาน</span><span class="v">${r.standard||'—'}</span>
+          <span class="k">ครั้งถัดไป</span><span class="v">${r.nextAuditDate||'—'}</span>
+        </div>
+      </div>
+      ${r.scopes?.length ? `<div class="ds"><h4>ขอบเขต</h4>
+        <div style="display:flex;flex-wrap:wrap;gap:.3rem">
+          ${r.scopes.map(s=>`<span class="badge" style="color:#1e3a5f;background:#eff6ff">${s}</span>`).join('')}
+        </div></div>` : ''}
+      <div class="ds"><h4>ความคืบหน้าการปิด NC</h4>
+        <div style="display:flex;justify-content:space-between;font-size:.78rem;color:#64748b;margin-bottom:.3rem">
+          <span>${closedF}/${findings.length} ปิดแล้ว</span><span>${pct}%</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${pct===100?'#16a34a':'#1e3a5f'}"></div></div>
+      </div>
+      ${r.summary ? `<div class="ds"><h4>สรุปผล</h4>
+        <p style="font-size:.82rem;color:#374151;margin:0;line-height:1.5">${r.summary}</p></div>` : ''}
+      ${r.recommendation ? `<div class="ds"><h4>ข้อเสนอแนะ</h4>
+        <p style="font-size:.82rem;color:#374151;margin:0;line-height:1.5">${r.recommendation}</p></div>` : ''}
+    </div>
+
+    <!-- Tab 1: Findings -->
+    <div class="tab-panel" id="tp1">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:.7rem">
+        <button class="btn btn-primary" onclick="window.__aud_openFinding('${r.id}')">＋ เพิ่มข้อบกพร่อง</button>
+      </div>
+      ${findHtml}
+    </div>`,
+
+    `<button class="btn no-print" onclick="window.__aud_openEdit('${r.id}')">✏️ แก้ไข</button>
+     <button class="btn no-print" onclick="window.print()">🖨️</button>
+     <button class="btn btn-danger no-print" onclick="window.__aud_delete('${r.id}')">🗑️</button>`);
+};
+
+/* ── edit audit ── */
+window.__aud_openEdit = async id => {
+  const r = await getAudit(id);
+  if (!r) return;
+  openPanel('แก้ไข Audit', auditFormHTML(r),
+    `<button class="btn" onclick="window.__aud_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__aud_saveEdit('${r.id}')">💾 บันทึก</button>`);
+};
+window.__aud_saveEdit = async id => {
+  const data = collectAuditForm();
+  if (!data.auditTitle) { alert('กรุณาระบุชื่อ Audit'); return; }
+  await updateAudit(id, data);
+  window.__aud_closePanel();
+  await load();
+};
+
+/* ── delete audit ── */
+window.__aud_delete = async id => {
+  if (!confirm('ลบ Audit นี้? (ข้อบกพร่องทั้งหมดจะยังคงอยู่)')) return;
+  await deleteAudit(id);
+  window.__aud_closePanel();
+  await load();
+};
+
+/* ── finding form ── */
+function findingFormHTML(f = {}) {
+  const sevOpts = Object.entries(FINDING_SEVERITY).map(([k,v]) =>
+    `<option value="${k}" ${(f.severity||'minor')===k?'selected':''}>${v.label}</option>`).join('');
+  const stOpts = Object.entries(FINDING_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(f.status||'open')===k?'selected':''}>${v.label}</option>`).join('');
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>ความรุนแรง *</label>
+        <select id="ff_sev">${sevOpts}</select></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="ff_status">${stOpts}</select></div>
+    </div>
+    <div class="fg"><label>รายละเอียดข้อบกพร่อง *</label>
+      <textarea id="ff_desc">${f.description||''}</textarea></div>
+    <div class="fg"><label>ข้อกำหนดที่เกี่ยวข้อง</label>
+      <input id="ff_req" value="${f.requirement||''}" placeholder="เช่น ISO 45001:2018 Clause 8.1.2"></div>
+    <div class="fg-row">
+      <div class="fg"><label>ผู้รับผิดชอบแก้ไข</label>
+        <input id="ff_resp" value="${f.responsible||''}"></div>
+      <div class="fg"><label>กำหนดแก้ไขภายใน</label>
+        <input type="date" id="ff_due" value="${f.dueDate||''}"></div>
+    </div>
+    <div class="fg"><label>หลักฐาน / หมายเหตุ</label>
+      <input id="ff_evidence" value="${f.evidence||''}"></div>
+    <div class="fg"><label>การแก้ไขที่ดำเนินการ</label>
+      <textarea id="ff_action">${f.correctiveAction||''}</textarea></div>`;
+}
+
+function collectFindingForm() {
+  return {
+    severity:        document.getElementById('ff_sev')?.value,
+    status:          document.getElementById('ff_status')?.value || 'open',
+    description:     document.getElementById('ff_desc')?.value.trim(),
+    requirement:     document.getElementById('ff_req')?.value.trim(),
+    responsible:     document.getElementById('ff_resp')?.value.trim(),
+    dueDate:         document.getElementById('ff_due')?.value,
+    evidence:        document.getElementById('ff_evidence')?.value.trim(),
+    correctiveAction:document.getElementById('ff_action')?.value.trim(),
+  };
+}
+
+let _currentAuditId = '';
+window.__aud_openFinding = auditId => {
+  _currentAuditId = auditId;
+  openPanel('เพิ่มข้อบกพร่อง (NC)', findingFormHTML(),
+    `<button class="btn" onclick="window.__aud_view('${auditId}')">← ย้อนกลับ</button>
+     <button class="btn btn-primary" onclick="window.__aud_saveFinding()">💾 บันทึก</button>`);
+};
+window.__aud_saveFinding = async () => {
+  const data = collectFindingForm();
+  if (!data.description) { alert('กรุณาระบุรายละเอียดข้อบกพร่อง'); return; }
+  await createFinding({ ...data, auditId: _currentAuditId }, _profile.uid);
+  _allFindings = await listFindings({});
+  window.__aud_view(_currentAuditId);
+};
+
+window.__aud_editFinding = async (fid, auditId) => {
+  _currentAuditId = auditId;
+  const f = _allFindings.find(x => x.id === fid);
+  if (!f) return;
+  openPanel('แก้ไขข้อบกพร่อง', findingFormHTML(f),
+    `<button class="btn" onclick="window.__aud_view('${auditId}')">← ย้อนกลับ</button>
+     <button class="btn btn-danger" onclick="window.__aud_deleteFinding('${fid}','${auditId}')">🗑️</button>
+     <button class="btn btn-primary" onclick="window.__aud_updateFinding('${fid}','${auditId}')">💾 บันทึก</button>`);
+};
+window.__aud_updateFinding = async (fid, auditId) => {
+  const data = collectFindingForm();
+  await updateFinding(fid, data);
+  _allFindings = await listFindings({});
+  window.__aud_view(auditId);
+};
+window.__aud_deleteFinding = async (fid, auditId) => {
+  if (!confirm('ลบข้อบกพร่องนี้?')) return;
+  await deleteFinding(fid);
+  _allFindings = await listFindings({});
+  window.__aud_view(auditId);
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหา Audit, ผู้ตรวจ, หน่วยงาน..."
+             oninput="window.__aud_search(this.value)">
+      <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+        ${AUDIT_TYPES.map(t =>
+          `<button class="filt-btn" onclick="window.__aud_fType('${t.key}')">${t.icon} ${t.label}</button>`
+        ).join('')}
+        <button class="filt-btn active" onclick="window.__aud_fType('all')">ทั้งหมด</button>
+      </div>
+      <button class="btn no-print" onclick="window.__aud_openNew()">＋ สร้าง Audit</button>
+    </div>
+    <!-- Status filter -->
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-g="st" data-k="all"         onclick="window.__aud_fStatus('all')">ทุกสถานะ</button>
+      <button class="filt-btn"        data-g="st" data-k="planned"     onclick="window.__aud_fStatus('planned')">📅 วางแผน</button>
+      <button class="filt-btn"        data-g="st" data-k="in_progress" onclick="window.__aud_fStatus('in_progress')">🔍 กำลังตรวจ</button>
+      <button class="filt-btn"        data-g="st" data-k="completed"   onclick="window.__aud_fStatus('completed')">✅ เสร็จสิ้น</button>
+    </div>
+    <!-- Stats -->
+    <div class="sum-row" id="audStats"></div>
+    <!-- Severity cards -->
+    <div class="sev-row" id="audSevCards"></div>
+    <!-- Table -->
+    <table class="audit-table">
+      <thead>
+        <tr>
+          <th>ชื่อ Audit</th>
+          <th>ประเภท</th>
+          <th class="hide-sm">วันที่</th>
+          <th class="hide-sm">ผู้ตรวจ</th>
+          <th>NC Findings</th>
+          <th>สถานะ</th>
+          <th class="hide-sm">มาตรฐาน</th>
+        </tr>
+      </thead>
+      <tbody id="audTable">
+        <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

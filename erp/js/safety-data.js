@@ -31,6 +31,8 @@ export const COL = {
   actionPlan:    "safetyActionPlan",
   envMonitor:    "safetyEnvMonitor",
   waste:         "safetyWaste",
+  audits:        "safetyAudits",
+  auditFindings: "safetyAuditFindings",
 };
 
 // ────────────────────────────────────────────
@@ -1544,4 +1546,96 @@ export async function updateWasteRecord(id, data) {
 
 export async function deleteWasteRecord(id) {
   await deleteDoc(doc(db, COL.waste, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 25 — Safety Audit Management
+// ────────────────────────────────────────────
+export const AUDIT_TYPES = [
+  { key:'internal',    label:'ตรวจสอบภายใน',           icon:'🏢', color:'#1e3a5f', bg:'#eff6ff' },
+  { key:'external',    label:'ตรวจสอบภายนอก',          icon:'🏛', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'regulatory',  label:'หน่วยงานรัฐ (กรมแรงงาน)', icon:'📜', color:'#dc2626', bg:'#fee2e2' },
+  { key:'iso45001',    label:'ISO 45001 / มรท.',        icon:'🏅', color:'#0891b2', bg:'#ecfeff' },
+  { key:'self',        label:'Self-Assessment',         icon:'📋', color:'#16a34a', bg:'#dcfce7' },
+];
+
+export const AUDIT_STATUS = {
+  planned:     { label:'วางแผนแล้ว',      color:'#64748b', bg:'#f1f5f9' },
+  in_progress: { label:'กำลังตรวจสอบ',    color:'#2563eb', bg:'#eff6ff' },
+  completed:   { label:'เสร็จสิ้น',        color:'#16a34a', bg:'#dcfce7' },
+  cancelled:   { label:'ยกเลิก',           color:'#94a3b8', bg:'#f8fafc' },
+};
+
+export const FINDING_SEVERITY = {
+  critical:    { label:'Critical (วิกฤต)',    color:'#dc2626', bg:'#fee2e2', score:4 },
+  major:       { label:'Major (สำคัญ)',       color:'#ea580c', bg:'#fff7ed', score:3 },
+  minor:       { label:'Minor (เล็กน้อย)',    color:'#d97706', bg:'#fef3c7', score:2 },
+  observation: { label:'Observation (สังเกต)',color:'#2563eb', bg:'#eff6ff', score:1 },
+  positive:    { label:'Positive Finding',    color:'#16a34a', bg:'#dcfce7', score:0 },
+};
+
+export const FINDING_STATUS = {
+  open:       { label:'เปิดอยู่',   color:'#dc2626', bg:'#fee2e2' },
+  in_progress:{ label:'กำลังแก้ไข', color:'#d97706', bg:'#fef3c7' },
+  closed:     { label:'ปิดแล้ว',    color:'#16a34a', bg:'#dcfce7' },
+  verified:   { label:'ยืนยันแล้ว', color:'#0891b2', bg:'#ecfeff' },
+};
+
+export const AUDIT_SCOPES = [
+  'ระบบจัดการความปลอดภัย (SMS)', 'การจัดการอุบัติเหตุ', 'การฝึกอบรม',
+  'การตรวจสอบสถานที่', 'อุปกรณ์ PPE', 'สารเคมีอันตราย', 'ไฟฟ้าและพลังงาน',
+  'การจัดการผู้รับเหมา', 'แผนฉุกเฉิน', 'สุขอนามัยอาชีพ', 'สิ่งแวดล้อม',
+  'เอกสารและบันทึก', 'กฎหมายและข้อกำหนด', 'JSA/Risk Assessment',
+];
+
+export async function listAudits({ status, type, lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.audits), orderBy('auditDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (status) rows = rows.filter(r => r.status === status);
+  if (type)   rows = rows.filter(r => r.auditType === type);
+  return rows;
+}
+
+export async function getAudit(id) {
+  const snap = await getDoc(doc(db, COL.audits, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createAudit(data, createdBy) {
+  return addDoc(collection(db, COL.audits), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateAudit(id, data) {
+  await updateDoc(doc(db, COL.audits, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteAudit(id) {
+  await deleteDoc(doc(db, COL.audits, id));
+}
+
+export async function listFindings({ auditId, severity, status: fStatus, lim = 500 } = {}) {
+  let constraints = [orderBy('createdAt','desc'), limit(lim)];
+  if (auditId) constraints.unshift(where('auditId','==',auditId));
+  const snap = await getDocs(query(collection(db, COL.auditFindings), ...constraints));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (severity) rows = rows.filter(r => r.severity === severity);
+  if (fStatus)  rows = rows.filter(r => r.status   === fStatus);
+  return rows;
+}
+
+export async function createFinding(data, createdBy) {
+  return addDoc(collection(db, COL.auditFindings), {
+    ...data, createdBy, status: data.status || 'open',
+    createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateFinding(id, data) {
+  await updateDoc(doc(db, COL.auditFindings, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteFinding(id) {
+  await deleteDoc(doc(db, COL.auditFindings, id));
 }
