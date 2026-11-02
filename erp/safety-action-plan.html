@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แผนปฏิบัติการความปลอดภัย — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Year / filter bar */
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+    .top-bar select{padding:.38rem .65rem;border-radius:8px;border:1px solid #cbd5e1;font-size:.85rem}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Overall progress card */
+    .plan-header{background:linear-gradient(135deg,#1e3a5f,#2563eb);color:#fff;
+                 border-radius:14px;padding:1.2rem 1.5rem;margin-bottom:1.2rem;
+                 display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap}
+    .plan-circle{position:relative;width:80px;height:80px;flex-shrink:0}
+    .plan-circle svg{transform:rotate(-90deg)}
+    .plan-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+              font-size:1.1rem;font-weight:700}
+    .plan-meta{flex:1;min-width:140px}
+    .plan-meta h3{margin:0 0 .3rem;font-size:1rem;font-weight:700}
+    .plan-meta p{margin:0;font-size:.8rem;opacity:.8}
+    .plan-chips{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
+    .plan-chip{padding:.2rem .6rem;border-radius:999px;font-size:.72rem;font-weight:600;
+               background:rgba(255,255,255,.2)}
+
+    /* Summary strip */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.4rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
+
+    /* Activity list */
+    .act-list{display:flex;flex-direction:column;gap:.7rem;margin-bottom:5rem}
+    .act-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;
+              overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+    .act-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.08)}
+    .act-card-top{padding:.8rem 1rem;display:flex;gap:.8rem;align-items:flex-start}
+    .act-icon{width:38px;height:38px;border-radius:9px;background:#f1f5f9;
+              display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+    .act-info{flex:1;min-width:0}
+    .act-name{font-weight:600;font-size:.88rem;color:#1e293b}
+    .act-sub{font-size:.75rem;color:#64748b;margin-top:.1rem;display:flex;gap:.5rem;flex-wrap:wrap}
+    .act-right{text-align:right;flex-shrink:0}
+    .act-pct{font-size:1.1rem;font-weight:700;line-height:1}
+    .act-date{font-size:.72rem;color:#94a3b8;margin-top:.15rem}
+
+    /* Progress bar */
+    .act-prog{padding:0 1rem .75rem}
+    .prog-track{background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;position:relative}
+    .prog-fill{height:8px;border-radius:4px;transition:width .5s}
+    .prog-labels{display:flex;justify-content:space-between;font-size:.72rem;color:#94a3b8;margin-top:.2rem}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(600px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:70px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+    .prog-slider{display:flex;align-items:center;gap:.6rem}
+    .prog-slider input[type=range]{flex:1;accent-color:#1e3a5f}
+    .prog-slider .prog-val{width:42px;text-align:center;font-weight:700;color:#1e3a5f;font-size:.9rem}
+
+    /* Detail */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+    .badge{display:inline-block;padding:.12rem .45rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Update log */
+    .update-log{border-left:3px solid #e2e8f0;padding-left:.8rem;margin-top:.4rem}
+    .update-entry{margin-bottom:.5rem;font-size:.8rem}
+    .update-entry .ts{color:#94a3b8;font-size:.72rem}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+         transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+
+    /* Cat group header */
+    .cat-header{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+                letter-spacing:.05em;padding:.4rem 0;margin:.4rem 0 .2rem;
+                display:flex;align-items:center;gap:.4rem}
+
+    @media print{
+      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
+      .act-list{gap:.4rem}
+      .act-card{break-inside:avoid;border:1px solid #ccc}
+    }
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__sap_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">กิจกรรม</h3>
+    <button class="btn-icon" onclick="window.__sap_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="เพิ่มกิจกรรม" onclick="window.__sap_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  SAP_CATEGORIES, SAP_STATUS,
+  listActionPlan, getActionPlanItem,
+  createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-action-plan', 'แผนปฏิบัติการความปลอดภัย');
+
+const now = new Date();
+let _year    = now.getFullYear();
+let _all     = [];
+let _shown   = [];
+let _fCat    = 'all';
+let _fStatus = 'all';
+
+const catMap = Object.fromEntries(SAP_CATEGORIES.map(c => [c.key, c]));
+const badge  = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+
+/* ── helpers ── */
+function progColor(p) {
+  if (p >= 100) return '#16a34a';
+  if (p >= 60)  return '#2563eb';
+  if (p >= 30)  return '#d97706';
+  return '#dc2626';
+}
+function isDelayed(item) {
+  if (!item.endDate) return false;
+  if (item.status === 'completed' || item.status === 'cancelled') return false;
+  return new Date(item.endDate) < now;
+}
+
+/* ── load ── */
+async function load() {
+  _all = await listActionPlan({ year: _year });
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._all];
+  if (_fCat    !== 'all') rows = rows.filter(r => r.category === _fCat);
+  if (_fStatus !== 'all') rows = rows.filter(r => r.status   === _fStatus);
+  _shown = rows;
+  renderHeader();
+  renderStats();
+  renderList();
+}
+window.__sap_setYear = async y => {
+  _year = y; _fCat = 'all'; _fStatus = 'all';
+  document.querySelectorAll('.filt-btn').forEach(b => b.classList.toggle('active', b.dataset.k==='all'));
+  await load();
+};
+window.__sap_fCat = k => {
+  _fCat = k;
+  document.querySelectorAll('.filt-btn[data-g="cat"]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+window.__sap_fStatus = k => {
+  _fStatus = k;
+  document.querySelectorAll('.filt-btn[data-g="st"]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+
+/* ── header ── */
+function renderHeader() {
+  const items     = _all;
+  const completed = items.filter(i => i.status === 'completed').length;
+  const delayed   = items.filter(i => isDelayed(i)).length;
+  const inprog    = items.filter(i => i.status === 'in_progress').length;
+  const pct       = items.length ? Math.round(completed / items.length * 100) : 0;
+  const avgProg   = items.length
+    ? Math.round(items.reduce((a,b) => a+(b.progress||0), 0) / items.length) : 0;
+  const r = 36; const circ = 2 * Math.PI * r;
+  const dash = circ * (1 - avgProg/100);
+  document.getElementById('sapHeader').innerHTML = `
+    <div class="plan-header">
+      <div class="plan-circle">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle cx="40" cy="40" r="${r}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="8"/>
+          <circle cx="40" cy="40" r="${r}" fill="none" stroke="#fff" stroke-width="8"
+                  stroke-dasharray="${circ}" stroke-dashoffset="${dash}"
+                  stroke-linecap="round"/>
+        </svg>
+        <div class="plan-pct">${avgProg}%</div>
+      </div>
+      <div class="plan-meta">
+        <h3>แผนปฏิบัติการความปลอดภัย ${_year+543}</h3>
+        <p>${items.length} กิจกรรม · ความคืบหน้าเฉลี่ย ${avgProg}%</p>
+        <div class="plan-chips">
+          <span class="plan-chip">✅ ${completed} เสร็จ</span>
+          <span class="plan-chip">🔵 ${inprog} ดำเนินการ</span>
+          ${delayed ? `<span class="plan-chip" style="background:rgba(220,38,38,.4)">⚠️ ${delayed} ล่าช้า</span>` : ''}
+        </div>
+      </div>
+      <div style="text-align:center;min-width:80px">
+        <div style="font-size:1.8rem;font-weight:800">${pct}%</div>
+        <div style="font-size:.75rem;opacity:.8">เสร็จสิ้น</div>
+      </div>
+    </div>`;
+}
+
+/* ── stats ── */
+function renderStats() {
+  const s = SAP_STATUS;
+  document.getElementById('sapStats').innerHTML =
+    Object.entries(s).map(([k,v]) => {
+      const n = _all.filter(i => i.status === k).length;
+      return `<div class="sum-card"><div class="n" style="color:${v.color}">${n}</div>
+              <div class="l">${v.label}</div></div>`;
+    }).join('') +
+    `<div class="sum-card"><div class="n" style="color:#dc2626">${_all.filter(i=>isDelayed(i)).length}</div>
+     <div class="l">⏰ ล่าช้า</div></div>`;
+}
+
+/* ── list ── */
+function renderList() {
+  if (!_shown.length) {
+    document.getElementById('sapList').innerHTML =
+      `<div style="padding:3rem;text-align:center;color:#94a3b8">
+         ไม่มีกิจกรรมในแผน — กด ＋ เพื่อเพิ่ม</div>`;
+    return;
+  }
+  // group by category
+  const grouped = {};
+  _shown.forEach(item => {
+    const k = item.category || 'other';
+    if (!grouped[k]) grouped[k] = [];
+    grouped[k].push(item);
+  });
+  let html = '';
+  for (const [catKey, items] of Object.entries(grouped)) {
+    const cat = catMap[catKey] || { icon: '📌', label: catKey };
+    if (_fCat === 'all') {
+      html += `<div class="cat-header">${cat.icon} ${cat.label} <span style="color:#cbd5e1">(${items.length})</span></div>`;
+    }
+    html += items.map(item => actCard(item)).join('');
+  }
+  document.getElementById('sapList').innerHTML = html;
+}
+
+function actCard(item) {
+  const st   = SAP_STATUS[item.status] || SAP_STATUS.planned;
+  const cat  = catMap[item.category] || { icon: '📌' };
+  const prog = item.progress || 0;
+  const col  = progColor(prog);
+  const late = isDelayed(item) && item.status !== 'completed';
+  return `
+  <div class="act-card" onclick="window.__sap_view('${item.id}')">
+    <div class="act-card-top">
+      <div class="act-icon">${cat.icon}</div>
+      <div class="act-info">
+        <div class="act-name">${item.activityName||'—'}${late?` <span style="color:#dc2626;font-size:.72rem">⏰ ล่าช้า</span>`:''}</div>
+        <div class="act-sub">
+          ${badge(st.label,st.color,st.bg)}
+          <span>👤 ${item.responsible||'—'}</span>
+          ${item.quarter?`<span>Q${item.quarter}</span>`:''}
+        </div>
+      </div>
+      <div class="act-right">
+        <div class="act-pct" style="color:${col}">${prog}%</div>
+        <div class="act-date">${item.endDate||'—'}</div>
+      </div>
+    </div>
+    <div class="act-prog">
+      <div class="prog-track">
+        <div class="prog-fill" style="width:${prog}%;background:${col}"></div>
+      </div>
+      <div class="prog-labels">
+        <span>${item.startDate||'—'}</span>
+        <span>${item.target||''}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__sap_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── progress slider sync ── */
+window.__sap_syncProg = v => {
+  document.getElementById('progVal').textContent = v + '%';
+  const fill = document.getElementById('progFill');
+  if (fill) { fill.style.width = v+'%'; fill.style.background = progColor(+v); }
+};
+
+/* ── form ── */
+function formHTML(item = {}) {
+  const catOpts = SAP_CATEGORIES.map(c =>
+    `<option value="${c.key}" ${item.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
+  const stOpts = Object.entries(SAP_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(item.status||'planned')===k?'selected':''}>${v.label}</option>`).join('');
+  const prog = item.progress || 0;
+  const qOpts = [1,2,3,4].map(q =>
+    `<option value="${q}" ${item.quarter===q?'selected':''}>${q}</option>`).join('');
+  return `
+    <div class="fg"><label>ชื่อกิจกรรม / โครงการ *</label>
+      <input id="f_name" value="${item.activityName||''}" placeholder="เช่น อบรมดับเพลิงประจำปี"></div>
+    <div class="fg-row">
+      <div class="fg"><label>หมวดหมู่</label>
+        <select id="f_cat">${catOpts}</select></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="f_status">${stOpts}</select></div>
+    </div>
+    <div class="fg"><label>เป้าหมาย / ตัวชี้วัด</label>
+      <input id="f_target" value="${item.target||''}" placeholder="เช่น พนักงานผ่านการอบรม ≥ 95%"></div>
+    <div class="fg-row">
+      <div class="fg"><label>ผู้รับผิดชอบ</label>
+        <input id="f_resp" value="${item.responsible||''}"></div>
+      <div class="fg"><label>งบประมาณ (บาท)</label>
+        <input type="number" id="f_budget" value="${item.budget||0}" min="0"></div>
+    </div>
+    <div class="fg-row3">
+      <div class="fg"><label>วันที่เริ่ม</label>
+        <input type="date" id="f_start" value="${item.startDate||''}"></div>
+      <div class="fg"><label>วันที่แล้วเสร็จ</label>
+        <input type="date" id="f_end" value="${item.endDate||''}"></div>
+      <div class="fg"><label>ไตรมาส</label>
+        <select id="f_q"><option value="">—</option>${qOpts}</select></div>
+    </div>
+    <div class="fg">
+      <label>ความคืบหน้า (%)</label>
+      <div class="prog-slider">
+        <input type="range" id="f_prog" min="0" max="100" value="${prog}"
+               oninput="window.__sap_syncProg(this.value)">
+        <div class="prog-val" id="progVal">${prog}%</div>
+      </div>
+      <div class="prog-track" style="margin-top:.3rem;height:6px">
+        <div class="prog-fill" id="progFill" style="width:${prog}%;background:${progColor(prog)};height:6px;border-radius:3px"></div>
+      </div>
+    </div>
+    <div class="fg"><label>รายละเอียด / แผนดำเนินงาน</label>
+      <textarea id="f_desc">${item.description||''}</textarea></div>
+    <div class="fg"><label>หมายเหตุ / อัปเดตล่าสุด</label>
+      <textarea id="f_notes">${item.notes||''}</textarea></div>`;
+}
+
+function collectForm() {
+  return {
+    year:         _year,
+    activityName: document.getElementById('f_name')?.value.trim(),
+    category:     document.getElementById('f_cat')?.value,
+    status:       document.getElementById('f_status')?.value,
+    target:       document.getElementById('f_target')?.value.trim(),
+    responsible:  document.getElementById('f_resp')?.value.trim(),
+    budget:       +document.getElementById('f_budget')?.value || 0,
+    startDate:    document.getElementById('f_start')?.value,
+    endDate:      document.getElementById('f_end')?.value,
+    quarter:      +document.getElementById('f_q')?.value || null,
+    progress:     +document.getElementById('f_prog')?.value || 0,
+    description:  document.getElementById('f_desc')?.value.trim(),
+    notes:        document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__sap_openNew = () => {
+  openPanel('เพิ่มกิจกรรมในแผน', formHTML(),
+    `<button class="btn" onclick="window.__sap_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__sap_saveNew()">💾 บันทึก</button>`);
+};
+window.__sap_saveNew = async () => {
+  const data = collectForm();
+  if (!data.activityName) { alert('กรุณาระบุชื่อกิจกรรม'); return; }
+  await createActionPlanItem(data, _profile.uid);
+  window.__sap_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__sap_view = async id => {
+  const item = await getActionPlanItem(id);
+  if (!item) return;
+  const st   = SAP_STATUS[item.status] || SAP_STATUS.planned;
+  const cat  = catMap[item.category]   || { icon:'📌', label: item.category };
+  const prog = item.progress || 0;
+  const col  = progColor(prog);
+  const late = isDelayed(item) && item.status !== 'completed';
+
+  openPanel(item.activityName||'—', `
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem">
+      ${badge(st.label,st.color,st.bg)}
+      <span style="font-size:.82rem;color:#64748b">${cat.icon} ${cat.label}</span>
+      ${late?`<span class="badge" style="color:#dc2626;background:#fee2e2">⏰ ล่าช้า</span>`:''}
+    </div>
+
+    <div class="ds"><h4>ความคืบหน้า</h4>
+      <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.4rem">
+        <div class="prog-track" style="flex:1;height:12px">
+          <div class="prog-fill" style="width:${prog}%;background:${col};height:12px;border-radius:6px"></div>
+        </div>
+        <div style="font-size:1.2rem;font-weight:700;color:${col};min-width:42px">${prog}%</div>
+      </div>
+    </div>
+
+    <div class="ds"><h4>ข้อมูลกิจกรรม</h4>
+      <div class="info-grid">
+        <span class="k">เป้าหมาย / KPI</span><span class="v">${item.target||'—'}</span>
+        <span class="k">ผู้รับผิดชอบ</span><span class="v">${item.responsible||'—'}</span>
+        <span class="k">งบประมาณ</span><span class="v">${item.budget?item.budget.toLocaleString()+' บาท':'—'}</span>
+        <span class="k">วันที่เริ่ม</span><span class="v">${item.startDate||'—'}</span>
+        <span class="k">วันที่แล้วเสร็จ</span><span class="v">${item.endDate||'—'}</span>
+        <span class="k">ไตรมาส</span><span class="v">${item.quarter?'Q'+item.quarter:'—'}</span>
+      </div>
+    </div>
+
+    ${item.description?`<div class="ds"><h4>รายละเอียด</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;line-height:1.6;white-space:pre-wrap">${item.description}</p></div>`:''}
+
+    ${item.notes?`<div class="ds"><h4>หมายเหตุ / อัปเดตล่าสุด</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;line-height:1.5;white-space:pre-wrap">${item.notes}</p></div>`:''}`,
+
+    `<button class="btn no-print" onclick="window.print()">🖨️ พิมพ์</button>
+     <button class="btn no-print" onclick="window.__sap_openEdit('${item.id}')">✏️ แก้ไข</button>
+     <button class="btn btn-danger no-print" onclick="window.__sap_delete('${item.id}')">🗑️ ลบ</button>`);
+};
+
+/* ── edit ── */
+window.__sap_openEdit = async id => {
+  const item = await getActionPlanItem(id);
+  if (!item) return;
+  openPanel('แก้ไขกิจกรรม', formHTML(item),
+    `<button class="btn" onclick="window.__sap_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__sap_saveEdit('${item.id}')">💾 บันทึก</button>`);
+};
+window.__sap_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.activityName) { alert('กรุณาระบุชื่อกิจกรรม'); return; }
+  await updateActionPlanItem(id, data);
+  window.__sap_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__sap_delete = async id => {
+  if (!confirm('ยืนยันลบกิจกรรมนี้?')) return;
+  await deleteActionPlanItem(id);
+  window.__sap_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <!-- Year + actions -->
+    <div class="top-bar">
+      <select onchange="window.__sap_setYear(+this.value)">
+        ${[0,1,2].map(i => { const y=now.getFullYear()-i;
+          return `<option value="${y}" ${y===_year?'selected':''}>${y+543}</option>`; }).join('')}
+      </select>
+      <button class="btn no-print" onclick="window.__sap_openNew()" style="white-space:nowrap">＋ เพิ่มกิจกรรม</button>
+      <button class="btn no-print" onclick="window.print()">🖨️ พิมพ์แผน</button>
+    </div>
+    <!-- Category filter -->
+    <div class="top-bar" style="margin-top:-.3rem">
+      <button class="filt-btn active" data-g="cat" data-k="all" onclick="window.__sap_fCat('all')">ทั้งหมด</button>
+      ${SAP_CATEGORIES.map(c =>
+        `<button class="filt-btn" data-g="cat" data-k="${c.key}" onclick="window.__sap_fCat('${c.key}')">${c.icon} ${c.label}</button>`
+      ).join('')}
+    </div>
+    <!-- Status filter -->
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-g="st" data-k="all" onclick="window.__sap_fStatus('all')">ทุกสถานะ</button>
+      ${Object.entries(SAP_STATUS).map(([k,v]) =>
+        `<button class="filt-btn" data-g="st" data-k="${k}" onclick="window.__sap_fStatus('${k}')" style="color:${v.color}">${v.label}</button>`
+      ).join('')}
+    </div>
+
+    <!-- Overall header -->
+    <div id="sapHeader"></div>
+    <!-- Stats -->
+    <div class="sum-row" id="sapStats"></div>
+    <!-- Activity list -->
+    <div class="act-list" id="sapList">
+      <p style="color:#94a3b8;font-style:italic">กำลังโหลด...</p>
+    </div>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

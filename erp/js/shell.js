@@ -167,9 +167,10 @@ const NAV = {
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย', href: 'safety-chemical.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
-      { key: 'safety-reports',  label: 'รายงานความปลอดภัย',   href: 'safety-reports.html' },
-      { key: 'safety-kpi',      label: 'เป้าหมาย KPI',         href: 'safety-kpi.html' },
-      { key: 'legal-compliance',label: 'กฎหมายความปลอดภัย',   href: 'safety-legal.html' },
+      { key: 'safety-reports',  label: 'รายงานความปลอดภัย',     href: 'safety-reports.html' },
+      { key: 'safety-kpi',      label: 'เป้าหมาย KPI',           href: 'safety-kpi.html' },
+      { key: 'safety-action-plan', label: 'แผนปฏิบัติการประจำปี', href: 'safety-action-plan.html' },
+      { key: 'legal-compliance',label: 'กฎหมายความปลอดภัย',     href: 'safety-legal.html' },
     ]},
   ],
   kpo: [
@@ -307,6 +308,7 @@ const PAGE_DEPARTMENT = {
   "safety-emergency-plan.html": "safety_officer",
   "safety-jsa.html":            "safety_officer",
   "safety-health.html":         "safety_officer",
+  "safety-action-plan.html":    "safety_officer",
 };
 
 // ===================================================================

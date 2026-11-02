@@ -28,6 +28,7 @@ export const COL = {
   chemicals:     "safetyChemicals",
   jsa:           "safetyJSA",
   healthRecords: "safetyHealthRecords",
+  actionPlan:    "safetyActionPlan",
 };
 
 // ────────────────────────────────────────────
@@ -1376,4 +1377,57 @@ export async function updateHealthRecord(id, data) {
 
 export async function deleteHealthRecord(id) {
   await deleteDoc(doc(db, COL.healthRecords, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 21 — Safety Action Plan
+// ────────────────────────────────────────────
+export const SAP_CATEGORIES = [
+  { key: 'training',    label: 'ฝึกอบรม',              icon: '📚' },
+  { key: 'inspection',  label: 'ตรวจสอบ',               icon: '🔍' },
+  { key: 'equipment',   label: 'อุปกรณ์ความปลอดภัย',    icon: '🦺' },
+  { key: 'emergency',   label: 'แผนฉุกเฉิน / ซ้อมแผน',  icon: '🚨' },
+  { key: 'bbs',         label: 'BBS / Safety Culture',  icon: '👁️' },
+  { key: 'health',      label: 'อาชีวอนามัย',            icon: '🏥' },
+  { key: 'legal',       label: 'กฎหมาย / มาตรฐาน',       icon: '⚖️' },
+  { key: 'risk',        label: 'ประเมินความเสี่ยง',       icon: '⚠️' },
+  { key: 'chemical',    label: 'สารเคมี',                icon: '⚗️' },
+  { key: 'environment', label: 'สิ่งแวดล้อมการทำงาน',    icon: '🌿' },
+  { key: 'other',       label: 'อื่นๆ',                  icon: '📌' },
+];
+
+export const SAP_STATUS = {
+  planned:     { label: 'วางแผนแล้ว',  color: '#94a3b8', bg: '#f1f5f9' },
+  in_progress: { label: 'กำลังดำเนินการ', color: '#2563eb', bg: '#eff6ff' },
+  completed:   { label: 'เสร็จสิ้น',   color: '#16a34a', bg: '#dcfce7' },
+  delayed:     { label: 'ล่าช้า',       color: '#dc2626', bg: '#fee2e2' },
+  cancelled:   { label: 'ยกเลิก',       color: '#64748b', bg: '#f8fafc' },
+};
+
+export async function listActionPlan({ year, category, status, lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.actionPlan), orderBy('createdAt','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (year)     rows = rows.filter(r => r.year === year);
+  if (category) rows = rows.filter(r => r.category === category);
+  if (status)   rows = rows.filter(r => r.status === status);
+  return rows;
+}
+
+export async function getActionPlanItem(id) {
+  const snap = await getDoc(doc(db, COL.actionPlan, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createActionPlanItem(data, createdBy) {
+  return addDoc(collection(db, COL.actionPlan), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateActionPlanItem(id, data) {
+  await updateDoc(doc(db, COL.actionPlan, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteActionPlanItem(id) {
+  await deleteDoc(doc(db, COL.actionPlan, id));
 }
