@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ผู้รับเหมา (Contractor Safety) — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.7rem;margin-bottom:1.2rem}
+    .stat-box{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem .5rem;text-align:center;cursor:pointer;transition:box-shadow .15s}
+    .stat-box:hover,.stat-box.active{box-shadow:0 0 0 2px #1e3a5f}
+    .stat-box .n{font-size:1.8rem;font-weight:700;line-height:1}
+    .stat-box .l{font-size:.72rem;color:#64748b;margin-top:.25rem}
+
+    .toolbar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+    .toolbar input,.toolbar select{flex:1;min-width:140px;max-width:220px}
+
+    /* Contractor card */
+    .ctc-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:.7rem;cursor:pointer;transition:box-shadow .15s}
+    .ctc-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
+    .ctc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem}
+    .ctc-name{font-weight:700;font-size:.95rem;color:#1e293b}
+    .ctc-badges{display:flex;gap:.35rem;flex-wrap:wrap}
+    .ctc-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.3rem .8rem;font-size:.8rem;color:#64748b}
+    .ctc-row span strong{color:#374151}
+
+    /* Worker list inside detail */
+    .worker-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.5rem}
+    .worker-table th{background:#f1f5f9;padding:.35rem .6rem;text-align:left;border:1px solid #e2e8f0}
+    .worker-table td{padding:.35rem .6rem;border:1px solid #e2e8f0;vertical-align:top}
+
+    /* Panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;top:0;right:0;height:100%;width:min(580px,100%);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.15);transform:translateX(100%);transition:transform .3s;z-index:201;overflow-y:auto;display:flex;flex-direction:column}
+    .side-panel.open{transform:none}
+    .panel-head{padding:1rem 1.2rem;background:#1e3a5f;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+    .panel-body{padding:1.2rem;flex:1}
+    .panel-foot{padding:1rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;gap:.6rem;justify-content:flex-end;flex-shrink:0}
+
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem}
+    .form-grid .full{grid-column:1/-1}
+    .section-head{font-size:.82rem;font-weight:700;color:#1e3a5f;border-bottom:1px solid #e2e8f0;padding-bottom:.3rem;margin:.8rem 0 .5rem;grid-column:1/-1}
+
+    .badge{display:inline-block;padding:.15rem .5rem;border-radius:6px;font-size:.72rem;font-weight:600}
+
+    /* Worker rows in form */
+    #workerRows .wr{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.4rem;margin-bottom:.4rem;align-items:center}
+    #workerRows .wr input,#workerRows .wr select{padding:.3rem .5rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.8rem;width:100%}
+
+    /* Detail view */
+    .dl-row{display:flex;gap:.5rem;padding:.45rem 0;border-bottom:1px solid #f1f5f9;font-size:.84rem}
+    .dl-k{color:#64748b;min-width:130px;flex-shrink:0}
+    .dl-v{color:#1e293b;flex:1}
+    .alert-box{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .8rem;font-size:.82rem;color:#dc2626;margin-top:.5rem}
+
+    @media print{
+      .toolbar,.no-print,#fabBtn{display:none!important}
+      .ctc-card{break-inside:avoid;border:1px solid #ddd}
+    }
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="overlay" onclick="window.__ctc_close()"></div>
+<div class="side-panel" id="panel">
+  <div class="panel-head">
+    <span id="panelTitle">เพิ่มผู้รับเหมา</span>
+    <button class="btn-icon" onclick="window.__ctc_close()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-foot" id="panelFoot"></div>
+</div>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  listContractors, getContractor, createContractor, updateContractor, deleteContractor,
+  CONTRACT_TYPES, CONTRACTOR_STATUS, INDUCTION_STATUS,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-contractor', 'ผู้รับเหมา (Contractor Safety)');
+
+/* ── state ── */
+let _rows   = [];
+let _filter = '';
+let _editId = null;
+let _workers= [];  // workers in current form
+
+const today = new Date();
+const fmt = d => {
+  if (!d) return '-';
+  const dt = new Date(d);
+  return `${dt.getDate().toString().padStart(2,'0')}/${(dt.getMonth()+1).toString().padStart(2,'0')}/${dt.getFullYear()+543}`;
+};
+const daysLeft = d => d ? Math.ceil((new Date(d) - today) / 86400000) : null;
+
+/* ── panel ── */
+const overlay = document.getElementById('overlay');
+const panel   = document.getElementById('panel');
+const pTitle  = document.getElementById('panelTitle');
+const pBody   = document.getElementById('panelBody');
+const pFoot   = document.getElementById('panelFoot');
+
+function openPanel(t) { pTitle.textContent = t; overlay.classList.add('open'); panel.classList.add('open'); }
+window.__ctc_close = () => { overlay.classList.remove('open'); panel.classList.remove('open'); _editId = null; _workers = []; };
+
+/* ── helpers ── */
+function badge(txt, color, bg) {
+  return `<span class="badge" style="background:${bg||'#e2e8f0'};color:${color||'#374151'}">${txt}</span>`;
+}
+function expiryBadge(d) {
+  const dl = daysLeft(d);
+  if (dl === null) return '';
+  if (dl < 0)  return badge('หมดอายุแล้ว','#dc2626','#fee2e2');
+  if (dl <= 30) return badge(`หมด ${dl} วัน`,'#d97706','#fef3c7');
+  return '';
+}
+function inductionBadge(s) {
+  const v = INDUCTION_STATUS[s] || {};
+  return badge(v.label||s,'#fff',v.color||'#6b7280');
+}
+
+/* ── worker row in form ── */
+function workerRow(i, w = {}) {
+  const indOpts = Object.entries(INDUCTION_STATUS).map(([k,v])=>
+    `<option value="${k}" ${(w.induction||'pending')===k?'selected':''}>${v.label}</option>`).join('');
+  return `<div class="wr" id="wr-${i}">
+    <input placeholder="ชื่อ-นามสกุล" value="${w.name||''}">
+    <input placeholder="ตำแหน่ง / งาน" value="${w.position||''}">
+    <select>${indOpts}</select>
+    <button type="button" class="btn-icon" style="color:#dc2626" onclick="window.__ctc_rmw(${i})">✕</button>
+  </div>`;
+}
+function collectWorkers() {
+  const rows = document.querySelectorAll('#workerRows .wr');
+  _workers = Array.from(rows).map(el => {
+    const ins = el.querySelectorAll('input,select');
+    return { name: ins[0].value.trim(), position: ins[1].value.trim(), induction: ins[2].value };
+  }).filter(w => w.name);
+}
+window.__ctc_addw = () => {
+  collectWorkers();
+  _workers.push({});
+  document.getElementById('workerRows').innerHTML = _workers.map((w,i) => workerRow(i,w)).join('');
+};
+window.__ctc_rmw = i => {
+  collectWorkers();
+  _workers.splice(i, 1);
+  document.getElementById('workerRows').innerHTML = _workers.map((w,j) => workerRow(j,w)).join('');
+};
+
+/* ── form ── */
+function formHtml(data = {}) {
+  const typeOpts = CONTRACT_TYPES.map(t =>
+    `<option value="${t.key}" ${data.contractType===t.key?'selected':''}>${t.label}</option>`).join('');
+  const stOpts = Object.entries(CONTRACTOR_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(data.status||'active')===k?'selected':''}>${v.label}</option>`).join('');
+
+  _workers = data.workers || [];
+  const workerHtml = _workers.map((w,i) => workerRow(i,w)).join('');
+
+  return `
+  <div class="form-grid">
+    <div class="section-head">ข้อมูลบริษัท</div>
+    <div class="full">
+      <label class="form-label">ชื่อบริษัทผู้รับเหมา <span style="color:#dc2626">*</span></label>
+      <input type="text" class="form-input" id="fName" placeholder="บริษัท ..." value="${data.companyName||''}">
+    </div>
+    <div>
+      <label class="form-label">ประเภทงาน</label>
+      <select class="form-select" id="fType"><option value="">-- เลือก --</option>${typeOpts}</select>
+    </div>
+    <div>
+      <label class="form-label">สถานะ</label>
+      <select class="form-select" id="fStatus">${stOpts}</select>
+    </div>
+    <div>
+      <label class="form-label">ผู้ติดต่อ</label>
+      <input type="text" class="form-input" id="fContact" value="${data.contactPerson||''}">
+    </div>
+    <div>
+      <label class="form-label">เบอร์โทร</label>
+      <input type="tel" class="form-input" id="fPhone" value="${data.phone||''}">
+    </div>
+
+    <div class="section-head">ช่วงสัญญา</div>
+    <div>
+      <label class="form-label">วันเริ่มสัญญา</label>
+      <input type="date" class="form-input" id="fContractStart" value="${data.contractStart||''}">
+    </div>
+    <div>
+      <label class="form-label">วันสิ้นสุดสัญญา</label>
+      <input type="date" class="form-input" id="fContractEnd" value="${data.contractEnd||''}">
+    </div>
+    <div class="full">
+      <label class="form-label">รายละเอียดงาน</label>
+      <textarea class="form-input" id="fWork" rows="2" placeholder="อธิบายขอบเขตงาน...">${data.workScope||''}</textarea>
+    </div>
+
+    <div class="section-head">เอกสารความปลอดภัย</div>
+    <div>
+      <label class="form-label">วันหมดอายุ Safety Document</label>
+      <input type="date" class="form-input" id="fDocExp" value="${data.safetyDocExpiry||''}">
+    </div>
+    <div>
+      <label class="form-label">วัน Induction อบรม</label>
+      <input type="date" class="form-input" id="fIndDate" value="${data.inductionDate||''}">
+    </div>
+    <div>
+      <label class="form-label">วันหมดอายุ Induction</label>
+      <input type="date" class="form-input" id="fIndExp" value="${data.inductionExpiry||''}">
+    </div>
+    <div>
+      <label class="form-label">ประกันภัยหมดอายุ</label>
+      <input type="date" class="form-input" id="fInsExp" value="${data.insuranceExpiry||''}">
+    </div>
+
+    <div class="section-head" style="display:flex;justify-content:space-between;align-items:center">
+      <span>รายชื่อผู้ปฏิบัติงาน</span>
+      <button type="button" class="btn" style="font-size:.75rem;padding:.2rem .6rem" onclick="window.__ctc_addw()">+ เพิ่ม</button>
+    </div>
+    <div class="full" id="workerRows">${workerHtml||'<p style="font-size:.8rem;color:#94a3b8">ยังไม่มีรายชื่อ กดปุ่ม + เพิ่ม</p>'}</div>
+
+    <div>
+      <label class="form-label">จำนวนพนักงาน (คน)</label>
+      <input type="number" class="form-input" id="fCount" min="0" value="${data.workerCount||0}">
+    </div>
+    <div>
+      <label class="form-label">พื้นที่ปฏิบัติงาน</label>
+      <input type="text" class="form-input" id="fArea" placeholder="เช่น โซน A, โกดัง 3" value="${data.workArea||''}">
+    </div>
+    <div class="full">
+      <label class="form-label">หมายเหตุ</label>
+      <textarea class="form-input" id="fNote" rows="2">${data.notes||''}</textarea>
+    </div>
+  </div>`;
+}
+
+/* ── open form ── */
+window.__ctc_openForm = (data = {}) => {
+  _editId = data.id || null;
+  pBody.innerHTML = formHtml(data);
+  pFoot.innerHTML = `
+    ${_editId ? `<button class="btn btn-danger" onclick="window.__ctc_delete()">ลบ</button><span style="flex:1"></span>` : ''}
+    <button class="btn" onclick="window.__ctc_close()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window.__ctc_save()">💾 บันทึก</button>`;
+  openPanel(_editId ? 'แก้ไขผู้รับเหมา' : 'เพิ่มผู้รับเหมา');
+};
+
+/* ── save ── */
+window.__ctc_save = async () => {
+  const name = document.getElementById('fName').value.trim();
+  if (!name) { alert('กรุณากรอกชื่อบริษัทผู้รับเหมา'); return; }
+  collectWorkers();
+  const data = {
+    companyName:      name,
+    contractType:     document.getElementById('fType').value,
+    status:           document.getElementById('fStatus').value,
+    contactPerson:    document.getElementById('fContact').value.trim(),
+    phone:            document.getElementById('fPhone').value.trim(),
+    contractStart:    document.getElementById('fContractStart').value,
+    contractEnd:      document.getElementById('fContractEnd').value,
+    workScope:        document.getElementById('fWork').value.trim(),
+    safetyDocExpiry:  document.getElementById('fDocExp').value,
+    inductionDate:    document.getElementById('fIndDate').value,
+    inductionExpiry:  document.getElementById('fIndExp').value,
+    insuranceExpiry:  document.getElementById('fInsExp').value,
+    workerCount:      +document.getElementById('fCount').value || 0,
+    workArea:         document.getElementById('fArea').value.trim(),
+    notes:            document.getElementById('fNote').value.trim(),
+    workers:          _workers,
+  };
+  try {
+    if (_editId) await updateContractor(_editId, data);
+    else         await createContractor(data, _profile.uid);
+    window.__ctc_close();
+    await load();
+  } catch (e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+/* ── delete ── */
+window.__ctc_delete = async () => {
+  if (!confirm('ลบผู้รับเหมานี้?')) return;
+  await deleteContractor(_editId);
+  window.__ctc_close();
+  await load();
+};
+
+/* ── detail panel ── */
+window.__ctc_detail = async id => {
+  const r = await getContractor(id);
+  if (!r) return;
+  const st  = CONTRACTOR_STATUS[r.status] || {};
+  const ct  = CONTRACT_TYPES.find(t => t.key === r.contractType);
+  const cdl = daysLeft(r.contractEnd);
+  const ddl = daysLeft(r.safetyDocExpiry);
+  const idl = daysLeft(r.inductionExpiry);
+  const insdl = daysLeft(r.insuranceExpiry);
+
+  const alerts = [];
+  if (cdl !== null && cdl < 0)  alerts.push('⚠️ สัญญาหมดอายุแล้ว');
+  else if (cdl !== null && cdl <= 30) alerts.push(`⚠️ สัญญาจะหมดใน ${cdl} วัน`);
+  if (ddl !== null && ddl < 0)  alerts.push('⚠️ เอกสาร Safety หมดอายุแล้ว');
+  else if (ddl !== null && ddl <= 30) alerts.push(`⚠️ เอกสาร Safety จะหมดใน ${ddl} วัน`);
+  if (idl !== null && idl < 0)  alerts.push('⚠️ Induction หมดอายุแล้ว — ต้องอบรมใหม่');
+  else if (idl !== null && idl <= 30) alerts.push(`⚠️ Induction จะหมดใน ${idl} วัน`);
+  if (insdl !== null && insdl < 0) alerts.push('⚠️ ประกันภัยหมดอายุแล้ว');
+
+  const workers = r.workers || [];
+  const workerTable = workers.length === 0 ? '<p style="font-size:.8rem;color:#94a3b8">ยังไม่มีรายชื่อ</p>' : `
+    <table class="worker-table">
+      <thead><tr><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>Induction</th></tr></thead>
+      <tbody>${workers.map(w => `<tr>
+        <td>${w.name||'-'}</td>
+        <td>${w.position||'-'}</td>
+        <td>${inductionBadge(w.induction||'pending')}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+  pBody.innerHTML = `
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem">
+      ${badge(st.label||r.status,'#fff',st.color||'#6b7280')}
+      ${ct ? badge(ct.label,'#1e3a5f','#e0e7ff') : ''}
+    </div>
+    ${alerts.length ? `<div class="alert-box">${alerts.join('<br>')}</div>` : ''}
+    <div class="dl-row"><span class="dl-k">บริษัท</span><span class="dl-v" style="font-weight:700">${r.companyName}</span></div>
+    <div class="dl-row"><span class="dl-k">ผู้ติดต่อ</span><span class="dl-v">${r.contactPerson||'-'}${r.phone?' ('+r.phone+')':''}</span></div>
+    <div class="dl-row"><span class="dl-k">ช่วงสัญญา</span><span class="dl-v">${fmt(r.contractStart)} — <span style="${cdl!==null&&cdl<0?'color:#dc2626;font-weight:600':cdl!==null&&cdl<=30?'color:#d97706;font-weight:600':''}">${fmt(r.contractEnd)}</span></span></div>
+    <div class="dl-row"><span class="dl-k">ขอบเขตงาน</span><span class="dl-v">${r.workScope||'-'}</span></div>
+    <div class="dl-row"><span class="dl-k">พื้นที่</span><span class="dl-v">${r.workArea||'-'}</span></div>
+    <div class="dl-row"><span class="dl-k">จำนวนพนักงาน</span><span class="dl-v">${r.workerCount||0} คน</span></div>
+    <div class="dl-row"><span class="dl-k">Safety Document</span><span class="dl-v" style="${ddl!==null&&ddl<0?'color:#dc2626;font-weight:600':ddl!==null&&ddl<=30?'color:#d97706;font-weight:600':''}">${fmt(r.safetyDocExpiry)}</span></div>
+    <div class="dl-row"><span class="dl-k">Induction อบรม</span><span class="dl-v">${fmt(r.inductionDate)}</span></div>
+    <div class="dl-row"><span class="dl-k">Induction หมดอายุ</span><span class="dl-v" style="${idl!==null&&idl<0?'color:#dc2626;font-weight:600':idl!==null&&idl<=30?'color:#d97706;font-weight:600':''}">${fmt(r.inductionExpiry)}</span></div>
+    <div class="dl-row"><span class="dl-k">ประกันภัยหมดอายุ</span><span class="dl-v" style="${insdl!==null&&insdl<0?'color:#dc2626;font-weight:600':''}">${fmt(r.insuranceExpiry)}</span></div>
+    ${r.notes ? `<div class="dl-row"><span class="dl-k">หมายเหตุ</span><span class="dl-v">${r.notes}</span></div>` : ''}
+    <div style="margin-top:1rem">
+      <div style="font-size:.82rem;font-weight:700;color:#1e3a5f;margin-bottom:.4rem">รายชื่อผู้ปฏิบัติงาน (${workers.length} คน)</div>
+      ${workerTable}
+    </div>`;
+  pFoot.innerHTML = `
+    <button class="btn" onclick="window.__ctc_close()">ปิด</button>
+    <button class="btn btn-primary" onclick="window.__ctc_openForm(${JSON.stringify(r).replace(/</g,'&lt;')})">✏️ แก้ไข</button>`;
+  openPanel('ข้อมูลผู้รับเหมา');
+};
+
+/* ── load & render ── */
+async function load() {
+  _rows = await listContractors({});
+  render();
+}
+
+function render() {
+  const q  = document.getElementById('srch')?.value?.toLowerCase() || '';
+  const sf = document.getElementById('sfilt')?.value || '';
+
+  const active    = _rows.filter(r => r.status === 'active');
+  const expired   = _rows.filter(r => {
+    if (r.status !== 'active') return false;
+    return (r.contractEnd && new Date(r.contractEnd) < today)
+        || (r.safetyDocExpiry && new Date(r.safetyDocExpiry) < today)
+        || (r.inductionExpiry && new Date(r.inductionExpiry) < today);
+  });
+  const expireSoon = _rows.filter(r => {
+    if (r.status !== 'active') return false;
+    const chk = [r.contractEnd, r.safetyDocExpiry, r.inductionExpiry, r.insuranceExpiry];
+    return chk.some(d => { const dl = daysLeft(d); return dl !== null && dl >= 0 && dl <= 30; });
+  });
+  const totalW = _rows.reduce((a,b) => a + (b.workerCount||0), 0);
+
+  let list = _rows;
+  if (_filter === 'active')  list = active;
+  else if (_filter === 'expired') list = expired;
+  else if (_filter === 'soon')    list = expireSoon;
+  if (sf)    list = list.filter(r => r.status === sf);
+  if (q)     list = list.filter(r =>
+    (r.companyName||'').toLowerCase().includes(q) ||
+    (r.contactPerson||'').toLowerCase().includes(q) ||
+    (r.workScope||'').toLowerCase().includes(q));
+
+  document.getElementById('ctcMain').innerHTML = `
+    <!-- Stats -->
+    <div class="stat-grid">
+      <div class="stat-box ${_filter===''?'active':''}" onclick="window.__ctc_sf('')">
+        <div class="n" style="color:#1e3a5f">${_rows.length}</div><div class="l">ผู้รับเหมาทั้งหมด</div></div>
+      <div class="stat-box ${_filter==='active'?'active':''}" onclick="window.__ctc_sf('active')">
+        <div class="n" style="color:#16a34a">${active.length}</div><div class="l">กำลังดำเนินงาน</div></div>
+      <div class="stat-box ${_filter==='expired'?'active':''}" onclick="window.__ctc_sf('expired')">
+        <div class="n" style="color:${expired.length>0?'#dc2626':'#16a34a'}">${expired.length}</div><div class="l">เอกสารหมดอายุ</div></div>
+      <div class="stat-box ${_filter==='soon'?'active':''}" onclick="window.__ctc_sf('soon')">
+        <div class="n" style="color:${expireSoon.length>0?'#d97706':'#16a34a'}">${expireSoon.length}</div><div class="l">ใกล้หมดอายุ (≤30 วัน)</div></div>
+      <div class="stat-box" style="cursor:default">
+        <div class="n" style="color:#1e3a5f">${totalW}</div><div class="l">พนักงานรับเหมาทั้งหมด</div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar no-print">
+      <input type="search" class="form-input" id="srch" placeholder="🔍 ค้นหาชื่อบริษัท / ผู้ติดต่อ" oninput="window.__ctc_renderOnly()">
+      <select class="form-select" id="sfilt" onchange="window.__ctc_renderOnly()">
+        <option value="">ทุกสถานะ</option>
+        ${Object.entries(CONTRACTOR_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary" onclick="window.__ctc_openForm()">+ เพิ่มผู้รับเหมา</button>
+      <button class="btn no-print" onclick="window.print()">🖨️</button>
+    </div>
+
+    <!-- List -->
+    <div id="ctcList">
+      ${list.length === 0
+        ? '<p style="color:#94a3b8;font-style:italic;text-align:center;padding:2rem">ไม่พบผู้รับเหมา</p>'
+        : list.map(r => ctcCard(r)).join('')}
+    </div>`;
+}
+
+function ctcCard(r) {
+  const st   = CONTRACTOR_STATUS[r.status] || {};
+  const ct   = CONTRACT_TYPES.find(t => t.key === r.contractType);
+  const cdl  = daysLeft(r.contractEnd);
+  const ddl  = daysLeft(r.safetyDocExpiry);
+  const idl  = daysLeft(r.inductionExpiry);
+
+  const alerts = [];
+  if (cdl !== null && cdl < 0)   alerts.push('สัญญาหมดอายุ');
+  if (ddl !== null && ddl < 0)   alerts.push('Safety Doc หมด');
+  if (idl !== null && idl < 0)   alerts.push('Induction หมด');
+  if (cdl !== null && cdl >= 0 && cdl <= 30) alerts.push(`สัญญาหมดใน ${cdl}ว`);
+  if (ddl !== null && ddl >= 0 && ddl <= 30) alerts.push(`Safety Doc หมดใน ${ddl}ว`);
+
+  return `
+  <div class="ctc-card" onclick="window.__ctc_detail('${r.id}')">
+    <div class="ctc-top">
+      <div>
+        <div class="ctc-name">${r.companyName}</div>
+        ${r.contactPerson ? `<div style="font-size:.78rem;color:#64748b">${r.contactPerson}${r.phone?' · '+r.phone:''}</div>` : ''}
+      </div>
+      <div class="ctc-badges">
+        ${badge(st.label||r.status,'#fff',st.color||'#6b7280')}
+        ${ct ? badge(ct.label,'#1e3a5f','#e0e7ff') : ''}
+        ${alerts.map(a => badge(a,'#dc2626','#fee2e2')).join('')}
+      </div>
+    </div>
+    <div class="ctc-row">
+      <span>ขอบเขตงาน: <strong>${r.workScope||'-'}</strong></span>
+      <span>พื้นที่: <strong>${r.workArea||'-'}</strong></span>
+      <span>พนักงาน: <strong>${r.workerCount||0} คน</strong></span>
+      <span>สัญญา: <strong>${fmt(r.contractStart)} — ${fmt(r.contractEnd)}</strong></span>
+      <span>Safety Doc หมด: <strong style="${ddl!==null&&ddl<0?'color:#dc2626':ddl!==null&&ddl<=30?'color:#d97706':''}">${fmt(r.safetyDocExpiry)}</strong></span>
+      <span>Induction หมด: <strong style="${idl!==null&&idl<0?'color:#dc2626':idl!==null&&idl<=30?'color:#d97706':''}">${fmt(r.inductionExpiry)}</strong></span>
+    </div>
+  </div>`;
+}
+
+window.__ctc_sf = k => { _filter = k; render(); };
+window.__ctc_renderOnly = () => render();
+
+/* ── inject & load ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend',
+  `<div style="padding:1rem 1.5rem 3rem" id="ctcMain"><p style="color:#94a3b8;font-style:italic">กำลังโหลด...</p></div>`);
+
+await load();
+</script>
+</body>
+</html>

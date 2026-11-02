@@ -141,6 +141,7 @@ const NAV = {
       { key: 'incident-create',      label: 'บันทึกอุบัติเหตุ/เหตุการณ์',  href: 'safety-incident.html#new' },
       { key: 'near-miss',            label: 'Near Miss / Unsafe Report',   href: 'safety-near-miss.html' },
       { key: 'safety-observation',   label: 'Safety Observation (BBS)',     href: 'safety-observation.html' },
+      { key: 'safety-contractor',    label: 'ผู้รับเหมา (Contractor)',       href: 'safety-contractor.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
     ]},
     { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
@@ -297,6 +298,7 @@ const PAGE_DEPARTMENT = {
   "safety-chemical.html":       "safety_officer",
   "safety-investigation.html":  "safety_officer",
   "safety-observation.html":    "safety_officer",
+  "safety-contractor.html":     "safety_officer",
 };
 
 // ===================================================================

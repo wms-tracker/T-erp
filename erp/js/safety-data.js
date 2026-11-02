@@ -21,7 +21,8 @@ export const COL = {
   drills:       "safetyEmergencyDrills",
   nearMiss:     "safetyNearMiss",
   riskAssess:   "safetyRiskAssessments",
-  observations: "safetyObservations",
+  observations:  "safetyObservations",
+  contractors:   "safetyContractors",
 };
 
 // ────────────────────────────────────────────
@@ -1059,4 +1060,57 @@ export async function updateObservation(id, data) {
 
 export async function deleteObservation(id) {
   await deleteDoc(doc(db, COL.observations, id));
+}
+
+// ────────────────────────────────────────────
+// Contractor Safety Management
+// ────────────────────────────────────────────
+export const CONTRACT_TYPES = [
+  { key: 'construction', label: 'ก่อสร้าง / ปรับปรุง' },
+  { key: 'maintenance',  label: 'ซ่อมบำรุง' },
+  { key: 'cleaning',     label: 'ทำความสะอาด' },
+  { key: 'delivery',     label: 'ขนส่ง / จัดส่ง' },
+  { key: 'it',           label: 'IT / ระบบ' },
+  { key: 'security',     label: 'รักษาความปลอดภัย' },
+  { key: 'other',        label: 'อื่นๆ' },
+];
+
+export const CONTRACTOR_STATUS = {
+  active:    { label: 'ดำเนินงาน',    color: '#16a34a', bg: '#dcfce7' },
+  expired:   { label: 'สัญญาหมดแล้ว', color: '#dc2626', bg: '#fee2e2' },
+  suspended: { label: 'ระงับชั่วคราว', color: '#d97706', bg: '#fef3c7' },
+  completed: { label: 'เสร็จสิ้นงาน', color: '#6b7280', bg: '#f9fafb' },
+};
+
+export const INDUCTION_STATUS = {
+  pending:   { label: 'รออบรม',      color: '#d97706', bg: '#fef3c7' },
+  completed: { label: 'อบรมแล้ว',    color: '#16a34a', bg: '#dcfce7' },
+  expired:   { label: 'หมดอายุ',     color: '#dc2626', bg: '#fee2e2' },
+  na:        { label: 'ไม่บังคับ',    color: '#6b7280', bg: '#f9fafb' },
+};
+
+export async function listContractors({ status, lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.contractors), orderBy('createdAt', 'desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (status) rows = rows.filter(r => r.status === status);
+  return rows;
+}
+
+export async function getContractor(id) {
+  const snap = await getDoc(doc(db, COL.contractors, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createContractor(data, createdBy) {
+  return addDoc(collection(db, COL.contractors), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateContractor(id, data) {
+  await updateDoc(doc(db, COL.contractors, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteContractor(id) {
+  await deleteDoc(doc(db, COL.contractors, id));
 }
