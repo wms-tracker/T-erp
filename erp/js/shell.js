@@ -143,6 +143,7 @@ const NAV = {
       { key: 'safety-observation',   label: 'Safety Observation (BBS)',     href: 'safety-observation.html' },
       { key: 'safety-contractor',    label: 'ผู้รับเหมา (Contractor)',       href: 'safety-contractor.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
+      { key: 'safety-jsa',          label: 'Job Safety Analysis (JSA)',    href: 'safety-jsa.html' },
     ]},
     { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
       { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย',   href: 'safety-inspection.html' },
@@ -303,6 +304,7 @@ const PAGE_DEPARTMENT = {
   "safety-contractor.html":     "safety_officer",
   "safety-kpi.html":            "safety_officer",
   "safety-emergency-plan.html": "safety_officer",
+  "safety-jsa.html":            "safety_officer",
 };
 
 // ===================================================================

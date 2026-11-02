@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Safety Analysis (JSA) — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Filter / search */
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.45rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.68rem;color:#64748b;margin-top:.18rem}
+
+    /* Card grid */
+    .jsa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:.9rem;margin-bottom:5rem}
+    .jsa-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;
+              cursor:pointer;transition:box-shadow .15s;position:relative}
+    .jsa-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)}
+    .jsa-card-risk{position:absolute;top:.75rem;right:.75rem;width:10px;height:10px;
+                   border-radius:50%}
+    .jsa-card-head{padding:.9rem 1rem .5rem}
+    .jsa-card-title{font-weight:700;font-size:.9rem;color:#1e293b;padding-right:1.2rem}
+    .jsa-card-sub{font-size:.75rem;color:#64748b;margin-top:.15rem;display:flex;gap:.6rem;flex-wrap:wrap}
+    .jsa-card-body{padding:.3rem 1rem .8rem;font-size:.8rem;color:#475569}
+    .jsa-card-foot{padding:.55rem 1rem;border-top:1px solid #f1f5f9;
+                   display:flex;justify-content:space-between;align-items:center;font-size:.75rem;color:#94a3b8}
+    .badge{display:inline-block;padding:.12rem .45rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(700px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
+
+    /* Form */
+    .fg{margin-bottom:.85rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:65px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+
+    /* Steps table in form */
+    .step-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .step-table th{background:#f8fafc;padding:.4rem .5rem;text-align:left;
+                    font-size:.75rem;color:#64748b;border-bottom:1px solid #e2e8f0}
+    .step-table td{padding:.35rem .4rem;border-bottom:1px solid #f8fafc;vertical-align:top}
+    .step-table input,.step-table select,.step-table textarea{
+      width:100%;padding:.25rem .4rem;border-radius:5px;border:1px solid #e2e8f0;
+      font-size:.78rem;box-sizing:border-box}
+    .step-table textarea{min-height:48px;resize:vertical}
+    .step-num-cell{width:30px;text-align:center;color:#94a3b8;font-size:.8rem;padding-top:.4rem}
+    .step-del-cell{width:28px;text-align:center}
+
+    /* Detail view */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+
+    .step-detail-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .step-detail-table th{background:#f8fafc;padding:.4rem .6rem;text-align:left;
+                           color:#64748b;font-size:.75rem;border-bottom:1px solid #e2e8f0}
+    .step-detail-table td{padding:.45rem .6rem;border-bottom:1px solid #f8fafc;color:#374151;vertical-align:top}
+    .step-detail-table tr:nth-child(even) td{background:#fafbff}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+         transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+
+    @media print{
+      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
+      .jsa-grid{grid-template-columns:1fr 1fr}
+      .jsa-card{break-inside:avoid}
+    }
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__jsa_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">JSA</h3>
+    <button class="btn-icon" onclick="window.__jsa_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="สร้าง JSA ใหม่" onclick="window.__jsa_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  JSA_STATUS, JSA_RISK, JSA_WORK_TYPES,
+  listJSA, getJSA, createJSA, updateJSA, deleteJSA,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-jsa', 'Job Safety Analysis (JSA)');
+
+let _all    = [];
+let _shown  = [];
+let _fStatus = 'all';
+let _search  = '';
+
+const riskMap  = JSA_RISK;
+const statusMap = JSA_STATUS;
+const wtMap    = Object.fromEntries(JSA_WORK_TYPES.map(w => [w.key, w.label]));
+const badge    = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+
+/* ── overall risk from steps ── */
+function calcOverallRisk(steps = []) {
+  const scores = steps.map(s => (riskMap[s.residualRisk]?.score || 0));
+  const max = Math.max(0, ...scores);
+  if (max >= 3) return 'high';
+  if (max >= 2) return 'medium';
+  return 'low';
+}
+
+/* ── load ── */
+async function load() {
+  _all = await listJSA({});
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._all];
+  if (_fStatus !== 'all') rows = rows.filter(r => r.status === _fStatus);
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.jobName||'').toLowerCase().includes(q) ||
+      (r.workArea||'').toLowerCase().includes(q) ||
+      (r.preparedBy||'').toLowerCase().includes(q)
+    );
+  }
+  _shown = rows;
+  renderStats();
+  renderCards();
+}
+
+window.__jsa_search  = v => { _search  = v; applyFilter(); };
+window.__jsa_fStatus = k => {
+  _fStatus = k;
+  document.querySelectorAll('.filt-btn').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const active   = _all.filter(j => j.status === 'active').length;
+  const draft    = _all.filter(j => j.status === 'draft').length;
+  const approved = _all.filter(j => j.status === 'approved').length;
+  const expired  = _all.filter(j => j.status === 'expired').length;
+  const highRisk = _all.filter(j => calcOverallRisk(j.steps) === 'high').length;
+  document.getElementById('jsaStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">JSA ทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#2563eb">${active}</div><div class="l">🟢 ใช้งาน</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${approved}</div><div class="l">✅ อนุมัติ</div></div>
+    <div class="sum-card"><div class="n" style="color:#94a3b8">${draft}</div><div class="l">📝 ร่าง</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${expired}</div><div class="l">⏰ หมดอายุ</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${highRisk}</div><div class="l">🔴 ความเสี่ยงสูง</div></div>`;
+}
+
+/* ── cards ── */
+function renderCards() {
+  if (!_shown.length) {
+    document.getElementById('jsaGrid').innerHTML =
+      `<div style="grid-column:1/-1;padding:3rem;text-align:center;color:#94a3b8">
+         ไม่พบ JSA — กด ＋ เพื่อสร้างใหม่</div>`;
+    return;
+  }
+  document.getElementById('jsaGrid').innerHTML = _shown.map(j => {
+    const st   = statusMap[j.status] || statusMap.draft;
+    const risk = calcOverallRisk(j.steps);
+    const rm   = riskMap[risk];
+    const steps = (j.steps||[]).length;
+    const wt   = wtMap[j.workType] || j.workType || '—';
+    const highSteps = (j.steps||[]).filter(s => s.residualRisk === 'high').length;
+    return `
+    <div class="jsa-card" onclick="window.__jsa_view('${j.id}')">
+      <div class="jsa-card-risk" style="background:${rm.color}" title="ความเสี่ยงรวม: ${rm.label}"></div>
+      <div class="jsa-card-head">
+        <div class="jsa-card-title">${j.jobName||'—'}</div>
+        <div class="jsa-card-sub">
+          <span>📍 ${j.workArea||'—'}</span>
+          <span>🔧 ${wt}</span>
+          ${badge(st.label,st.color,st.bg)}
+        </div>
+      </div>
+      <div class="jsa-card-body">
+        <span class="badge" style="color:${rm.color};background:${rm.bg}">⚠️ ความเสี่ยงรวม: ${rm.label}</span>
+        ${highSteps ? `<span class="badge" style="color:#dc2626;background:#fee2e2;margin-left:.3rem">🔴 ${highSteps} ขั้นตอนเสี่ยงสูง</span>` : ''}
+      </div>
+      <div class="jsa-card-foot">
+        <span>📋 ${steps} ขั้นตอน &nbsp;👤 ${j.preparedBy||'—'}</span>
+        <span>${j.effectiveDate||'—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer = '') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__jsa_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── dynamic step rows ── */
+let _steps = [];
+function stepsRowsHTML() {
+  return _steps.map((s,i) => `
+    <tr>
+      <td class="step-num-cell">${i+1}</td>
+      <td><textarea oninput="window.__jsa_setStep(${i},'description',this.value)"
+            placeholder="ขั้นตอนงาน...">${s.description||''}</textarea></td>
+      <td><textarea oninput="window.__jsa_setStep(${i},'hazards',this.value)"
+            placeholder="อันตรายที่อาจเกิด...">${s.hazards||''}</textarea></td>
+      <td>
+        <select onchange="window.__jsa_setStep(${i},'initialRisk',this.value)">
+          ${Object.entries(JSA_RISK).map(([k,v])=>`<option value="${k}" ${s.initialRisk===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </td>
+      <td><textarea oninput="window.__jsa_setStep(${i},'controls',this.value)"
+            placeholder="มาตรการควบคุม...">${s.controls||''}</textarea></td>
+      <td>
+        <select onchange="window.__jsa_setStep(${i},'residualRisk',this.value)">
+          ${Object.entries(JSA_RISK).map(([k,v])=>`<option value="${k}" ${(s.residualRisk||'low')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </td>
+      <td class="step-del-cell">
+        <button class="btn-icon" onclick="window.__jsa_rmStep(${i})">✕</button>
+      </td>
+    </tr>`).join('');
+}
+window.__jsa_addStep = () => {
+  _steps.push({ description:'', hazards:'', initialRisk:'medium', controls:'', residualRisk:'low' });
+  document.getElementById('jsaStepBody').innerHTML = stepsRowsHTML();
+};
+window.__jsa_setStep = (i,k,v) => { if (_steps[i]) _steps[i][k] = v; };
+window.__jsa_rmStep  = i => {
+  _steps.splice(i,1);
+  document.getElementById('jsaStepBody').innerHTML = stepsRowsHTML();
+};
+
+/* ── form HTML ── */
+function formHTML(j = {}) {
+  _steps = (j.steps||[]).map(s => ({...s}));
+  if (!_steps.length) _steps.push({ description:'', hazards:'', initialRisk:'medium', controls:'', residualRisk:'low' });
+  const stOpts = Object.entries(JSA_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(j.status||'draft')===k?'selected':''}>${v.label}</option>`).join('');
+  const wtOpts = JSA_WORK_TYPES.map(w =>
+    `<option value="${w.key}" ${j.workType===w.key?'selected':''}>${w.label}</option>`).join('');
+  return `
+    <div class="fg"><label>ชื่องาน / กิจกรรม *</label>
+      <input id="f_jobName" value="${j.jobName||''}" placeholder="เช่น ขนถ่ายสินค้าน้ำหนักมากด้วยโฟล์คลิฟท์"></div>
+    <div class="fg-row">
+      <div class="fg"><label>ประเภทงาน</label>
+        <select id="f_wt">${wtOpts}</select></div>
+      <div class="fg"><label>พื้นที่/สถานที่ปฏิบัติงาน</label>
+        <input id="f_area" value="${j.workArea||''}" placeholder="เช่น คลังสินค้า ชั้น 1"></div>
+    </div>
+    <div class="fg-row3">
+      <div class="fg"><label>ผู้จัดทำ</label>
+        <input id="f_prep" value="${j.preparedBy||''}"></div>
+      <div class="fg"><label>ผู้อนุมัติ</label>
+        <input id="f_appr" value="${j.approvedBy||''}"></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="f_status">${stOpts}</select></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่มีผล</label>
+        <input type="date" id="f_eff" value="${j.effectiveDate||''}"></div>
+      <div class="fg"><label>วันที่หมดอายุ</label>
+        <input type="date" id="f_exp" value="${j.expiryDate||''}"></div>
+    </div>
+    <div class="fg"><label>อุปกรณ์ PPE ที่ต้องใช้</label>
+      <input id="f_ppe" value="${j.ppe||''}" placeholder="เช่น หมวก, รองเท้านิรภัย, ถุงมือ"></div>
+    <div class="fg"><label>จำนวนผู้ปฏิบัติงาน / ทีมงาน</label>
+      <input id="f_workers" value="${j.workers||''}" placeholder="เช่น พนักงาน 2 คน + หัวหน้า 1 คน"></div>
+    <div class="fg"><label>เงื่อนไขพิเศษ / ข้อควรระวัง</label>
+      <textarea id="f_notes">${j.notes||''}</textarea></div>
+
+    <!-- Steps -->
+    <div class="fg">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        <span>ขั้นตอนการวิเคราะห์</span>
+        <button type="button" class="btn" style="padding:.2rem .5rem;font-size:.75rem"
+                onclick="window.__jsa_addStep()">+ เพิ่มขั้นตอน</button>
+      </label>
+      <div style="overflow-x:auto;margin-top:.4rem">
+        <table class="step-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ขั้นตอนงาน</th>
+              <th>อันตรายที่อาจเกิด</th>
+              <th>ความเสี่ยงก่อน</th>
+              <th>มาตรการควบคุม</th>
+              <th>ความเสี่ยงหลัง</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="jsaStepBody">${stepsRowsHTML()}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function collectForm() {
+  return {
+    jobName:      document.getElementById('f_jobName')?.value.trim(),
+    workType:     document.getElementById('f_wt')?.value,
+    workArea:     document.getElementById('f_area')?.value.trim(),
+    preparedBy:   document.getElementById('f_prep')?.value.trim(),
+    approvedBy:   document.getElementById('f_appr')?.value.trim(),
+    status:       document.getElementById('f_status')?.value,
+    effectiveDate:document.getElementById('f_eff')?.value,
+    expiryDate:   document.getElementById('f_exp')?.value,
+    ppe:          document.getElementById('f_ppe')?.value.trim(),
+    workers:      document.getElementById('f_workers')?.value.trim(),
+    notes:        document.getElementById('f_notes')?.value.trim(),
+    steps:        _steps.filter(s => s.description.trim()),
+  };
+}
+
+/* ── new ── */
+window.__jsa_openNew = () => {
+  openPanel('สร้าง JSA ใหม่', formHTML(),
+    `<button class="btn" onclick="window.__jsa_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__jsa_saveNew()">💾 บันทึก</button>`);
+};
+window.__jsa_saveNew = async () => {
+  const data = collectForm();
+  if (!data.jobName) { alert('กรุณาระบุชื่องาน'); return; }
+  await createJSA(data, _profile.uid);
+  window.__jsa_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__jsa_view = async id => {
+  const j = await getJSA(id);
+  if (!j) return;
+  const st   = statusMap[j.status] || statusMap.draft;
+  const risk = calcOverallRisk(j.steps);
+  const rm   = riskMap[risk];
+  const wt   = wtMap[j.workType] || j.workType || '—';
+  const steps = j.steps || [];
+
+  openPanel(j.jobName||'—', `
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem">
+      ${badge(st.label,st.color,st.bg)}
+      <span class="badge" style="color:${rm.color};background:${rm.bg}">⚠️ ความเสี่ยงรวม: ${rm.label}</span>
+    </div>
+
+    <div class="ds"><h4>ข้อมูลทั่วไป</h4>
+      <div class="info-grid">
+        <span class="k">ประเภทงาน</span><span class="v">${wt}</span>
+        <span class="k">พื้นที่ปฏิบัติงาน</span><span class="v">${j.workArea||'—'}</span>
+        <span class="k">ผู้จัดทำ</span><span class="v">${j.preparedBy||'—'}</span>
+        <span class="k">ผู้อนุมัติ</span><span class="v">${j.approvedBy||'—'}</span>
+        <span class="k">ทีมงาน</span><span class="v">${j.workers||'—'}</span>
+        <span class="k">PPE ที่ต้องใช้</span><span class="v">${j.ppe||'—'}</span>
+        <span class="k">วันที่มีผล</span><span class="v">${j.effectiveDate||'—'}</span>
+        <span class="k">วันที่หมดอายุ</span><span class="v">${j.expiryDate||'—'}</span>
+      </div>
+    </div>
+
+    ${j.notes ? `<div class="ds"><h4>ข้อควรระวัง</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;line-height:1.5">${j.notes}</p></div>` : ''}
+
+    ${steps.length ? `
+    <div class="ds"><h4>การวิเคราะห์ความปลอดภัย (${steps.length} ขั้นตอน)</h4>
+      <div style="overflow-x:auto">
+        <table class="step-detail-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>ขั้นตอนงาน</th>
+              <th>อันตรายที่อาจเกิด</th>
+              <th>เสี่ยงก่อน</th>
+              <th>มาตรการควบคุม</th>
+              <th>เสี่ยงหลัง</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${steps.map((s,i) => {
+              const ir = riskMap[s.initialRisk] || riskMap.medium;
+              const rr = riskMap[s.residualRisk] || riskMap.low;
+              return `<tr>
+                <td style="text-align:center;color:#94a3b8">${i+1}</td>
+                <td>${s.description||'—'}</td>
+                <td style="color:#dc2626">${s.hazards||'—'}</td>
+                <td>${badge(ir.label,ir.color,ir.bg)}</td>
+                <td style="color:#16a34a">${s.controls||'—'}</td>
+                <td>${badge(rr.label,rr.color,rr.bg)}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : ''}`,
+
+    `<button class="btn no-print" onclick="window.print()">🖨️ พิมพ์ JSA</button>
+     <button class="btn no-print" onclick="window.__jsa_openEdit('${j.id}')">✏️ แก้ไข</button>
+     <button class="btn btn-danger no-print" onclick="window.__jsa_delete('${j.id}')">🗑️ ลบ</button>`);
+};
+
+/* ── edit ── */
+window.__jsa_openEdit = async id => {
+  const j = await getJSA(id);
+  if (!j) return;
+  openPanel('แก้ไข JSA', formHTML(j),
+    `<button class="btn" onclick="window.__jsa_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__jsa_saveEdit('${j.id}')">💾 บันทึก</button>`);
+};
+window.__jsa_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.jobName) { alert('กรุณาระบุชื่องาน'); return; }
+  await updateJSA(id, data);
+  window.__jsa_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__jsa_delete = async id => {
+  if (!confirm('ยืนยันลบ JSA นี้?')) return;
+  await deleteJSA(id);
+  window.__jsa_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหาชื่องาน, พื้นที่, ผู้จัดทำ..."
+             oninput="window.__jsa_search(this.value)">
+      <button class="btn no-print" onclick="window.__jsa_openNew()" style="white-space:nowrap">＋ สร้าง JSA</button>
+      <button class="btn no-print" onclick="window.print()">🖨️</button>
+    </div>
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-k="all"      onclick="window.__jsa_fStatus('all')">ทั้งหมด</button>
+      <button class="filt-btn"        data-k="draft"    onclick="window.__jsa_fStatus('draft')">📝 ร่าง</button>
+      <button class="filt-btn"        data-k="approved" onclick="window.__jsa_fStatus('approved')">✅ อนุมัติ</button>
+      <button class="filt-btn"        data-k="active"   onclick="window.__jsa_fStatus('active')">🟢 ใช้งาน</button>
+      <button class="filt-btn"        data-k="expired"  onclick="window.__jsa_fStatus('expired')">⏰ หมดอายุ</button>
+    </div>
+    <div class="sum-row" id="jsaStats"></div>
+    <div class="jsa-grid" id="jsaGrid">
+      <p style="grid-column:1/-1;color:#94a3b8;font-style:italic">กำลังโหลด...</p>
+    </div>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

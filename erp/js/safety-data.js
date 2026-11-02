@@ -26,6 +26,7 @@ export const COL = {
   kpiTargets:    "safetyKpiTargets",
   emergencyPlans:"safetyEmergencyPlans",
   chemicals:     "safetyChemicals",
+  jsa:           "safetyJSA",
 };
 
 // ────────────────────────────────────────────
@@ -1251,4 +1252,61 @@ export async function updateChemical(id, data) {
 
 export async function deleteChemical(id) {
   await deleteDoc(doc(db, COL.chemicals, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 19 — Job Safety Analysis (JSA)
+// ────────────────────────────────────────────
+export const JSA_STATUS = {
+  draft:    { label: 'ร่าง',          color: '#94a3b8', bg: '#f1f5f9' },
+  approved: { label: 'อนุมัติแล้ว',   color: '#16a34a', bg: '#dcfce7' },
+  active:   { label: 'กำลังใช้งาน',   color: '#2563eb', bg: '#eff6ff' },
+  expired:  { label: 'หมดอายุ',       color: '#dc2626', bg: '#fee2e2' },
+  cancelled:{ label: 'ยกเลิก',        color: '#64748b', bg: '#f8fafc' },
+};
+
+export const JSA_RISK = {
+  high:   { label: 'สูง',    color: '#dc2626', bg: '#fee2e2', score: 3 },
+  medium: { label: 'ปานกลาง', color: '#d97706', bg: '#fef3c7', score: 2 },
+  low:    { label: 'ต่ำ',    color: '#16a34a', bg: '#dcfce7', score: 1 },
+};
+
+export const JSA_WORK_TYPES = [
+  { key: 'forklift',    label: 'ขับรถโฟล์คลิฟท์' },
+  { key: 'height',      label: 'ทำงานที่สูง' },
+  { key: 'confined',    label: 'ที่อับอากาศ' },
+  { key: 'electrical',  label: 'งานไฟฟ้า' },
+  { key: 'hot_work',    label: 'งานร้อน / เชื่อม' },
+  { key: 'chemical',    label: 'งานสารเคมี' },
+  { key: 'manual',      label: 'ยกของด้วยมือ' },
+  { key: 'machinery',   label: 'งานเครื่องจักร' },
+  { key: 'loading',     label: 'รับ-ส่งสินค้า' },
+  { key: 'maintenance', label: 'ซ่อมบำรุง' },
+  { key: 'other',       label: 'อื่นๆ' },
+];
+
+export async function listJSA({ status, lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.jsa), orderBy('createdAt','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (status) rows = rows.filter(r => r.status === status);
+  return rows;
+}
+
+export async function getJSA(id) {
+  const snap = await getDoc(doc(db, COL.jsa, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createJSA(data, createdBy) {
+  return addDoc(collection(db, COL.jsa), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateJSA(id, data) {
+  await updateDoc(doc(db, COL.jsa, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteJSA(id) {
+  await deleteDoc(doc(db, COL.jsa, id));
 }
