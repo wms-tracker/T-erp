@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>การจัดการของเสีย — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Top bar */
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.4rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
+
+    /* Waste type summary cards */
+    .type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:.7rem;margin-bottom:1.3rem}
+    .type-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem 1rem;
+               cursor:pointer;transition:box-shadow .15s;display:flex;align-items:center;gap:.7rem}
+    .type-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.08)}
+    .type-card.active-filter{box-shadow:0 0 0 2px #1e3a5f}
+    .type-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;
+               justify-content:center;font-size:1.2rem;flex-shrink:0}
+    .type-info .n{font-size:1.1rem;font-weight:700;line-height:1;color:#1e293b}
+    .type-info .l{font-size:.7rem;color:#64748b;margin-top:.1rem}
+
+    /* Table */
+    .waste-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
+                 overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:4rem}
+    .waste-table th{background:#f8fafc;padding:.52rem .7rem;text-align:left;color:#64748b;
+                     font-weight:600;font-size:.77rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .waste-table td{padding:.52rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
+    .waste-table tr:hover td{background:#fafbff;cursor:pointer}
+    .badge{display:inline-block;padding:.12rem .45rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(580px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:65px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+
+    /* Detail */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+    .hazard-note{background:#fff8f8;border:1px solid #fecdd3;border-radius:8px;
+                  padding:.6rem .8rem;font-size:.82rem;color:#dc2626;margin-bottom:.8rem}
+
+    /* Monthly bar mini-chart */
+    .month-chart{display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:.5rem}
+    .month-bar{flex:1;border-radius:2px 2px 0 0;background:#1e3a5f;min-height:3px;position:relative}
+    .month-bar:hover .month-tip{display:block}
+    .month-tip{display:none;position:absolute;bottom:105%;left:50%;transform:translateX(-50%);
+               background:#1e293b;color:#fff;font-size:.65rem;padding:.15rem .35rem;
+               border-radius:4px;white-space:nowrap;pointer-events:none}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+         transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+
+    @media(max-width:600px){.hide-sm{display:none}}
+    @media print{
+      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
+      .type-grid{grid-template-columns:repeat(4,1fr)}
+      .waste-table{font-size:.75rem}
+    }
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__wst_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">บันทึกของเสีย</h3>
+    <button class="btn-icon" onclick="window.__wst_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="บันทึกของเสีย" onclick="window.__wst_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  WASTE_TYPES, WASTE_DISPOSAL_METHODS, WASTE_STATUS, WASTE_UNITS,
+  listWaste, getWasteRecord,
+  createWasteRecord, updateWasteRecord, deleteWasteRecord,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-waste', 'การจัดการของเสีย');
+
+let _all     = [];
+let _shown   = [];
+let _fType   = 'all';
+let _fStatus = 'all';
+let _search  = '';
+
+const typeMap   = Object.fromEntries(WASTE_TYPES.map(t => [t.key, t]));
+const methodMap = Object.fromEntries(WASTE_DISPOSAL_METHODS.map(m => [m.key, m.label]));
+const badge     = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+
+/* ── load ── */
+async function load() {
+  _all = await listWaste({});
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._all];
+  if (_fType   !== 'all') rows = rows.filter(r => r.wasteType === _fType);
+  if (_fStatus !== 'all') rows = rows.filter(r => r.status    === _fStatus);
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.wasteName||'').toLowerCase().includes(q) ||
+      (r.sourceArea||'').toLowerCase().includes(q) ||
+      (r.vendor||'').toLowerCase().includes(q) ||
+      (r.manifestNo||'').toLowerCase().includes(q)
+    );
+  }
+  _shown = rows;
+  renderStats();
+  renderTypeCards();
+  renderTable();
+}
+window.__wst_search  = v => { _search  = v; applyFilter(); };
+window.__wst_fType   = k => {
+  _fType = k;
+  document.querySelectorAll('.type-card').forEach(c => c.classList.toggle('active-filter', c.dataset.k===k));
+  applyFilter();
+};
+window.__wst_fStatus = k => {
+  _fStatus = k;
+  document.querySelectorAll('.filt-btn[data-g=st]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const pending   = _all.filter(r => r.status === 'pending').length;
+  const disposed  = _all.filter(r => r.status === 'disposed').length;
+  const hazardous = _all.filter(r => ['hazardous','chemical','medical'].includes(r.wasteType)).length;
+  const totalQty  = _all.reduce((a,b) => a+(+b.quantity||0), 0);
+  document.getElementById('wstStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">บันทึกทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${pending}</div><div class="l">⏳ รอกำจัด</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${disposed}</div><div class="l">✅ กำจัดแล้ว</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${hazardous}</div><div class="l">☠️ ของเสียอันตราย</div></div>
+    <div class="sum-card"><div class="n" style="color:#1e3a5f">${totalQty.toLocaleString()}</div><div class="l">ปริมาณรวม</div></div>`;
+}
+
+/* ── type cards ── */
+function renderTypeCards() {
+  document.getElementById('wstTypes').innerHTML = WASTE_TYPES.map(t => {
+    const recs = _all.filter(r => r.wasteType === t.key);
+    const qty  = recs.reduce((a,b) => a+(+b.quantity||0), 0);
+    const pending = recs.filter(r => r.status === 'pending').length;
+    return `
+    <div class="type-card ${_fType===t.key?'active-filter':''}" data-k="${t.key}"
+         onclick="window.__wst_fType('${_fType===t.key?'all':t.key}')">
+      <div class="type-icon" style="background:${t.bg}">${t.icon}</div>
+      <div class="type-info">
+        <div class="n" style="color:${t.color}">${qty.toLocaleString()}</div>
+        <div class="l">${t.label} (${recs.length})</div>
+        ${pending?`<div style="font-size:.68rem;color:#d97706">⏳ ${pending} รอกำจัด</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── table ── */
+function renderTable() {
+  if (!_shown.length) {
+    document.getElementById('wstTable').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+  document.getElementById('wstTable').innerHTML = _shown.map(r => {
+    const t  = typeMap[r.wasteType] || { icon:'📦', label: r.wasteType, color:'#64748b', bg:'#f8fafc' };
+    const st = WASTE_STATUS[r.status] || WASTE_STATUS.pending;
+    const method = methodMap[r.disposalMethod] || r.disposalMethod || '—';
+    return `
+    <tr onclick="window.__wst_view('${r.id}')">
+      <td style="font-size:.8rem">${r.generatedDate||'—'}</td>
+      <td>
+        <span style="font-size:.95rem">${t.icon}</span>
+        <span style="font-size:.78rem;color:${t.color};font-weight:600;margin-left:.3rem">${t.label}</span>
+      </td>
+      <td>
+        <div style="font-weight:600;color:#1e293b;font-size:.85rem">${r.wasteName||'—'}</div>
+        <div style="font-size:.72rem;color:#94a3b8">${r.sourceArea||''}</div>
+      </td>
+      <td style="font-weight:600;color:#1e3a5f">${r.quantity||0} <span style="font-size:.72rem;color:#94a3b8">${r.unit||''}</span></td>
+      <td class="hide-sm" style="font-size:.78rem">${method}</td>
+      <td>${badge(st.label,st.color,st.bg)}</td>
+      <td class="hide-sm" style="font-size:.78rem;color:#64748b">${r.vendor||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__wst_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── form ── */
+function formHTML(r = {}) {
+  const tOpts = WASTE_TYPES.map(t =>
+    `<option value="${t.key}" ${r.wasteType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const mOpts = WASTE_DISPOSAL_METHODS.map(m =>
+    `<option value="${m.key}" ${r.disposalMethod===m.key?'selected':''}>${m.label}</option>`).join('');
+  const stOpts = Object.entries(WASTE_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(r.status||'pending')===k?'selected':''}>${v.label}</option>`).join('');
+  const unitOpts = WASTE_UNITS.map(u =>
+    `<option ${r.unit===u?'selected':''}>${u}</option>`).join('');
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>ประเภทของเสีย *</label>
+        <select id="f_type">${tOpts}</select></div>
+      <div class="fg"><label>ชื่อของเสีย / รายละเอียด *</label>
+        <input id="f_name" value="${r.wasteName||''}" placeholder="เช่น หลอดไฟฟลูออเรสเซนต์"></div>
+    </div>
+    <div class="fg-row3">
+      <div class="fg"><label>ปริมาณ</label>
+        <input type="number" id="f_qty" value="${r.quantity||0}" min="0" step="0.01"></div>
+      <div class="fg"><label>หน่วย</label>
+        <select id="f_unit">${unitOpts}</select></div>
+      <div class="fg"><label>วันที่เกิดของเสีย *</label>
+        <input type="date" id="f_genDate" value="${r.generatedDate||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>แหล่งกำเนิด / พื้นที่</label>
+        <input id="f_area" value="${r.sourceArea||''}" placeholder="เช่น โซน A คลังสินค้า"></div>
+      <div class="fg"><label>ผู้รับผิดชอบ</label>
+        <input id="f_resp" value="${r.responsible||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วิธีกำจัด</label>
+        <select id="f_method">${mOpts}</select></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="f_status">${stOpts}</select></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>บริษัทรับกำจัด / ผู้รับซื้อ</label>
+        <input id="f_vendor" value="${r.vendor||''}" placeholder="ชื่อบริษัท"></div>
+      <div class="fg"><label>เลขที่ Manifest / ใบกำกับ</label>
+        <input id="f_manifest" value="${r.manifestNo||''}" placeholder="MF-2567-001"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ส่งกำจัด</label>
+        <input type="date" id="f_dispDate" value="${r.disposalDate||''}"></div>
+      <div class="fg"><label>ค่าใช้จ่าย (บาท)</label>
+        <input type="number" id="f_cost" value="${r.cost||0}" min="0"></div>
+    </div>
+    <div class="fg"><label>หมายเหตุ / ข้อกำหนดพิเศษ</label>
+      <textarea id="f_notes">${r.notes||''}</textarea></div>`;
+}
+
+function collectForm() {
+  return {
+    wasteType:      document.getElementById('f_type')?.value,
+    wasteName:      document.getElementById('f_name')?.value.trim(),
+    quantity:       +document.getElementById('f_qty')?.value || 0,
+    unit:           document.getElementById('f_unit')?.value,
+    generatedDate:  document.getElementById('f_genDate')?.value,
+    sourceArea:     document.getElementById('f_area')?.value.trim(),
+    responsible:    document.getElementById('f_resp')?.value.trim(),
+    disposalMethod: document.getElementById('f_method')?.value,
+    status:         document.getElementById('f_status')?.value,
+    vendor:         document.getElementById('f_vendor')?.value.trim(),
+    manifestNo:     document.getElementById('f_manifest')?.value.trim(),
+    disposalDate:   document.getElementById('f_dispDate')?.value,
+    cost:           +document.getElementById('f_cost')?.value || 0,
+    notes:          document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__wst_openNew = () => {
+  openPanel('บันทึกของเสีย', formHTML(),
+    `<button class="btn" onclick="window.__wst_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__wst_saveNew()">💾 บันทึก</button>`);
+};
+window.__wst_saveNew = async () => {
+  const data = collectForm();
+  if (!data.wasteName || !data.generatedDate) { alert('กรุณาระบุชื่อของเสียและวันที่'); return; }
+  await createWasteRecord(data, _profile.uid);
+  window.__wst_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__wst_view = async id => {
+  const r = await getWasteRecord(id);
+  if (!r) return;
+  const t  = typeMap[r.wasteType] || { icon:'📦', label: r.wasteType||'—', color:'#64748b', bg:'#f8fafc' };
+  const st = WASTE_STATUS[r.status] || WASTE_STATUS.pending;
+  const method = methodMap[r.disposalMethod] || r.disposalMethod || '—';
+  const isHaz = ['hazardous','chemical','medical'].includes(r.wasteType);
+
+  openPanel(`${t.icon} ${r.wasteName||'—'}`, `
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem">
+      <span class="badge" style="color:${t.color};background:${t.bg};font-size:.8rem">${t.icon} ${t.label}</span>
+      ${badge(st.label,st.color,st.bg)}
+    </div>
+
+    ${isHaz ? `<div class="hazard-note">⚠️ ของเสียอันตราย — ต้องปฏิบัติตามกฎหมายการจัดการกากอุตสาหกรรม</div>` : ''}
+
+    <div class="ds"><h4>รายละเอียดของเสีย</h4>
+      <div class="info-grid">
+        <span class="k">ปริมาณ</span><span class="v" style="font-weight:700;font-size:.95rem">${r.quantity||0} ${r.unit||''}</span>
+        <span class="k">วันที่เกิด</span><span class="v">${r.generatedDate||'—'}</span>
+        <span class="k">แหล่งกำเนิด</span><span class="v">${r.sourceArea||'—'}</span>
+        <span class="k">ผู้รับผิดชอบ</span><span class="v">${r.responsible||'—'}</span>
+      </div>
+    </div>
+
+    <div class="ds"><h4>การกำจัด</h4>
+      <div class="info-grid">
+        <span class="k">วิธีกำจัด</span><span class="v">${method}</span>
+        <span class="k">บริษัทรับกำจัด</span><span class="v">${r.vendor||'—'}</span>
+        <span class="k">เลขที่ Manifest</span><span class="v" style="font-family:monospace">${r.manifestNo||'—'}</span>
+        <span class="k">วันที่ส่งกำจัด</span><span class="v">${r.disposalDate||'—'}</span>
+        <span class="k">ค่าใช้จ่าย</span><span class="v">${r.cost?r.cost.toLocaleString()+' บาท':'—'}</span>
+      </div>
+    </div>
+
+    ${r.notes ? `<div class="ds"><h4>หมายเหตุ</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;line-height:1.5">${r.notes}</p></div>` : ''}`,
+
+    `<button class="btn no-print" onclick="window.print()">🖨️ พิมพ์ Manifest</button>
+     <button class="btn no-print" onclick="window.__wst_openEdit('${r.id}')">✏️ แก้ไข</button>
+     <button class="btn btn-danger no-print" onclick="window.__wst_delete('${r.id}')">🗑️ ลบ</button>`);
+};
+
+/* ── edit ── */
+window.__wst_openEdit = async id => {
+  const r = await getWasteRecord(id);
+  if (!r) return;
+  openPanel('แก้ไขบันทึกของเสีย', formHTML(r),
+    `<button class="btn" onclick="window.__wst_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__wst_saveEdit('${r.id}')">💾 บันทึก</button>`);
+};
+window.__wst_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.wasteName) { alert('กรุณาระบุชื่อของเสีย'); return; }
+  await updateWasteRecord(id, data);
+  window.__wst_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__wst_delete = async id => {
+  if (!confirm('ยืนยันลบบันทึกนี้?')) return;
+  await deleteWasteRecord(id);
+  window.__wst_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหาชื่อของเสีย, พื้นที่, บริษัท, Manifest..."
+             oninput="window.__wst_search(this.value)">
+      <button class="btn no-print" onclick="window.__wst_openNew()" style="white-space:nowrap">＋ บันทึกของเสีย</button>
+      <button class="btn no-print" onclick="window.print()">🖨️</button>
+    </div>
+    <!-- Status filter -->
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-g="st" data-k="all"       onclick="window.__wst_fStatus('all')">ทุกสถานะ</button>
+      <button class="filt-btn"        data-g="st" data-k="pending"   onclick="window.__wst_fStatus('pending')">⏳ รอกำจัด</button>
+      <button class="filt-btn"        data-g="st" data-k="in_transit" onclick="window.__wst_fStatus('in_transit')">🚚 ระหว่างขนส่ง</button>
+      <button class="filt-btn"        data-g="st" data-k="disposed"  onclick="window.__wst_fStatus('disposed')">✅ กำจัดแล้ว</button>
+      <button class="filt-btn"        data-g="st" data-k="stored"    onclick="window.__wst_fStatus('stored')">📦 พักชั่วคราว</button>
+    </div>
+    <!-- Stats -->
+    <div class="sum-row" id="wstStats"></div>
+    <!-- Type cards -->
+    <div class="type-grid" id="wstTypes"></div>
+    <!-- Table -->
+    <table class="waste-table">
+      <thead>
+        <tr>
+          <th>วันที่</th>
+          <th>ประเภท</th>
+          <th>ชื่อของเสีย</th>
+          <th>ปริมาณ</th>
+          <th class="hide-sm">วิธีกำจัด</th>
+          <th>สถานะ</th>
+          <th class="hide-sm">บริษัทรับกำจัด</th>
+        </tr>
+      </thead>
+      <tbody id="wstTable">
+        <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

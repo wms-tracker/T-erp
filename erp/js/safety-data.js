@@ -30,6 +30,7 @@ export const COL = {
   healthRecords: "safetyHealthRecords",
   actionPlan:    "safetyActionPlan",
   envMonitor:    "safetyEnvMonitor",
+  waste:         "safetyWaste",
 };
 
 // ────────────────────────────────────────────
@@ -1483,4 +1484,64 @@ export async function updateEnvMonitorRecord(id, data) {
 
 export async function deleteEnvMonitorRecord(id) {
   await deleteDoc(doc(db, COL.envMonitor, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 23 — Waste Management
+// ────────────────────────────────────────────
+export const WASTE_TYPES = [
+  { key: 'general',    label: 'ขยะทั่วไป',        icon: '🗑️',  color: '#64748b', bg: '#f1f5f9' },
+  { key: 'hazardous',  label: 'ขยะอันตราย',       icon: '☠️',  color: '#dc2626', bg: '#fee2e2' },
+  { key: 'chemical',   label: 'ของเสียสารเคมี',    icon: '⚗️',  color: '#7c3aed', bg: '#f5f3ff' },
+  { key: 'recyclable', label: 'รีไซเคิล',          icon: '♻️',  color: '#16a34a', bg: '#dcfce7' },
+  { key: 'organic',    label: 'ขยะอินทรีย์',       icon: '🌿',  color: '#65a30d', bg: '#f7fee7' },
+  { key: 'electronic', label: 'ขยะอิเล็กทรอนิกส์', icon: '💻',  color: '#0891b2', bg: '#ecfeff' },
+  { key: 'medical',    label: 'ขยะติดเชื้อ',       icon: '🏥',  color: '#e11d48', bg: '#fff1f2' },
+  { key: 'other',      label: 'อื่นๆ',             icon: '📦',  color: '#94a3b8', bg: '#f8fafc' },
+];
+
+export const WASTE_DISPOSAL_METHODS = [
+  { key: 'vendor',      label: 'ส่งบริษัทรับกำจัด' },
+  { key: 'recycle',     label: 'รีไซเคิล / ขายซาก' },
+  { key: 'incinerate',  label: 'เผาทำลาย' },
+  { key: 'landfill',    label: 'ฝังกลบ' },
+  { key: 'treatment',   label: 'บำบัดภายใน' },
+  { key: 'return',      label: 'ส่งคืนผู้ผลิต' },
+  { key: 'other',       label: 'อื่นๆ' },
+];
+
+export const WASTE_STATUS = {
+  pending:    { label: 'รอกำจัด',      color: '#d97706', bg: '#fef3c7' },
+  in_transit: { label: 'อยู่ระหว่างขนส่ง', color: '#2563eb', bg: '#eff6ff' },
+  disposed:   { label: 'กำจัดแล้ว',    color: '#16a34a', bg: '#dcfce7' },
+  stored:     { label: 'เก็บพักชั่วคราว', color: '#94a3b8', bg: '#f1f5f9' },
+};
+
+export const WASTE_UNITS = ['กก.', 'ตัน', 'ลิตร', 'ถัง (200L)', 'ถุง', 'กล่อง', 'ชิ้น', 'ชุด'];
+
+export async function listWaste({ type, status, lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.waste), orderBy('generatedDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (type)   rows = rows.filter(r => r.wasteType === type);
+  if (status) rows = rows.filter(r => r.status    === status);
+  return rows;
+}
+
+export async function getWasteRecord(id) {
+  const snap = await getDoc(doc(db, COL.waste, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createWasteRecord(data, createdBy) {
+  return addDoc(collection(db, COL.waste), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateWasteRecord(id, data) {
+  await updateDoc(doc(db, COL.waste, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteWasteRecord(id) {
+  await deleteDoc(doc(db, COL.waste, id));
 }
