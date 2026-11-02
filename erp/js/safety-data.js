@@ -24,6 +24,7 @@ export const COL = {
   observations:  "safetyObservations",
   contractors:   "safetyContractors",
   kpiTargets:    "safetyKpiTargets",
+  emergencyPlans:"safetyEmergencyPlans",
 };
 
 // ────────────────────────────────────────────
@@ -1143,4 +1144,52 @@ export async function saveKpiTargets(year, targets, updatedBy) {
   await setDoc(doc(db, COL.kpiTargets, String(year)), {
     year, targets, updatedBy, updatedAt: serverTimestamp(),
   });
+}
+
+// ────────────────────────────────────────────
+// Phase 17 — Emergency Response Plans
+// ────────────────────────────────────────────
+export const EMERGENCY_TYPES = [
+  { key: 'fire',       label: '🔥 ไฟไหม้',                  color: '#dc2626', bg: '#fee2e2' },
+  { key: 'chemical',   label: '☣️ สารเคมีรั่วไหล',            color: '#d97706', bg: '#fef3c7' },
+  { key: 'medical',    label: '🚑 เหตุฉุกเฉินทางการแพทย์',    color: '#2563eb', bg: '#eff6ff' },
+  { key: 'earthquake', label: '🌍 แผ่นดินไหว',               color: '#7c3aed', bg: '#f5f3ff' },
+  { key: 'flood',      label: '🌊 น้ำท่วม',                  color: '#0891b2', bg: '#ecfeff' },
+  { key: 'power',      label: '⚡ ไฟฟ้าขัดข้อง',             color: '#ca8a04', bg: '#fefce8' },
+  { key: 'security',   label: '🔒 เหตุด้านความปลอดภัย',       color: '#64748b', bg: '#f1f5f9' },
+  { key: 'explosion',  label: '💥 การระเบิด',                color: '#9a3412', bg: '#fff7ed' },
+  { key: 'other',      label: '⚠️ อื่นๆ',                   color: '#475569', bg: '#f8fafc' },
+];
+
+export const PLAN_STATUS = {
+  active:      { label: 'ใช้งาน',       color: '#16a34a', bg: '#dcfce7' },
+  under_review:{ label: 'กำลังทบทวน',   color: '#d97706', bg: '#fef3c7' },
+  obsolete:    { label: 'ยกเลิก',        color: '#94a3b8', bg: '#f1f5f9' },
+};
+
+export async function listEmergencyPlans({ type, status, lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.emergencyPlans), orderBy('createdAt','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (type)   rows = rows.filter(r => r.type === type);
+  if (status) rows = rows.filter(r => r.status === status);
+  return rows;
+}
+
+export async function getEmergencyPlan(id) {
+  const snap = await getDoc(doc(db, COL.emergencyPlans, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createEmergencyPlan(data, createdBy) {
+  return addDoc(collection(db, COL.emergencyPlans), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateEmergencyPlan(id, data) {
+  await updateDoc(doc(db, COL.emergencyPlans, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteEmergencyPlan(id) {
+  await deleteDoc(doc(db, COL.emergencyPlans, id));
 }

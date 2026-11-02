@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แผนรับมือฉุกเฉิน — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Filter bar */
+    .filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem;align-items:center}
+    .filt-btn{padding:.3rem .8rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.8rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary cards */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.7rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.5rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.7rem;color:#64748b;margin-top:.2rem}
+
+    /* Plan cards grid */
+    .plan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.9rem;margin-bottom:5rem}
+    .plan-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;
+               cursor:pointer;transition:box-shadow .15s}
+    .plan-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)}
+    .plan-card-head{padding:1rem;display:flex;align-items:flex-start;gap:.7rem}
+    .plan-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;
+               justify-content:center;font-size:1.4rem;flex-shrink:0}
+    .plan-title{font-weight:600;font-size:.9rem;color:#1e293b;line-height:1.3}
+    .plan-sub{font-size:.75rem;color:#64748b;margin-top:.15rem}
+    .plan-card-body{padding:0 1rem .8rem;font-size:.8rem;color:#475569;line-height:1.5;
+                    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+    .plan-card-foot{padding:.6rem 1rem;border-top:1px solid #f1f5f9;
+                    display:flex;justify-content:space-between;align-items:center;font-size:.75rem;color:#94a3b8}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(600px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;gap:.5rem;
+                  justify-content:flex-end;flex-shrink:0}
+
+    /* Form fields */
+    .fg{margin-bottom:.9rem}
+    .fg label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:.3rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.45rem .65rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.85rem;box-sizing:border-box}
+    .fg textarea{min-height:90px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+
+    /* Steps list editor */
+    .steps-list{list-style:none;padding:0;margin:0}
+    .step-row{display:flex;gap:.4rem;align-items:flex-start;margin-bottom:.4rem}
+    .step-num{width:24px;height:24px;border-radius:50%;background:#1e3a5f;color:#fff;
+              font-size:.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.3rem}
+    .step-row input{flex:1;padding:.35rem .55rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.82rem}
+    .step-row .btn-icon{width:26px;height:26px;border-radius:6px;flex-shrink:0}
+
+    /* Contact rows */
+    .contact-row{display:grid;grid-template-columns:1fr 1fr auto;gap:.4rem;margin-bottom:.4rem;align-items:center}
+    .contact-row input{padding:.35rem .55rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.82rem}
+
+    /* Detail view sections */
+    .detail-section{margin-bottom:1.2rem}
+    .detail-section h4{font-size:.82rem;font-weight:700;color:#64748b;text-transform:uppercase;
+                        letter-spacing:.06em;margin:0 0 .5rem}
+    .steps-ol{padding-left:1.4rem;margin:0}
+    .steps-ol li{font-size:.85rem;color:#374151;margin-bottom:.35rem;line-height:1.4}
+    .contact-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+    .contact-tbl th{background:#f8fafc;padding:.4rem .6rem;text-align:left;
+                     border-bottom:1px solid #e2e8f0;color:#64748b}
+    .contact-tbl td{padding:.4rem .6rem;border-bottom:1px solid #f1f5f9;color:#374151}
+    .contact-tbl a{color:#2563eb;text-decoration:none}
+    .contact-tbl a:hover{text-decoration:underline}
+
+    /* Quick-ref print card */
+    .quick-ref{background:#fff;border:2px solid #1e3a5f;border-radius:12px;padding:1.2rem;margin-top:1rem}
+    .quick-ref h4{margin:0 0 .6rem;font-size:.85rem;color:#1e3a5f;display:flex;align-items:center;gap:.4rem}
+    .qr-steps{counter-reset:qs;padding-left:1.2rem;margin:0}
+    .qr-steps li{counter-increment:qs;font-size:.82rem;color:#1e293b;margin-bottom:.3rem}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+         transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+
+    /* Badge */
+    .badge{display:inline-block;padding:.15rem .5rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Print */
+    @media print{
+      .fab,.filter-bar,.panel-overlay,.side-panel,.sum-row,.no-print{display:none!important}
+      .plan-grid{grid-template-columns:repeat(2,1fr)}
+      .plan-card{break-inside:avoid}
+    }
+  </style>
+</head>
+<body>
+<!-- Overlay + slide panel -->
+<div class="panel-overlay" id="panelOverlay" onclick="window.__ep_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">แผนรับมือฉุกเฉิน</h3>
+    <button class="btn-icon" onclick="window.__ep_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab no-print" title="เพิ่มแผนฉุกเฉิน" onclick="window.__ep_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  EMERGENCY_TYPES, PLAN_STATUS,
+  listEmergencyPlans, getEmergencyPlan,
+  createEmergencyPlan, updateEmergencyPlan, deleteEmergencyPlan,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-emergency-plan', 'แผนรับมือฉุกเฉิน');
+
+let _plans = [];
+let _filterType = 'all';
+
+/* ── helpers ── */
+const typeMap  = Object.fromEntries(EMERGENCY_TYPES.map(t => [t.key, t]));
+const statusMap = PLAN_STATUS;
+const badge = (label, color, bg) =>
+  `<span class="badge" style="color:${color};background:${bg}">${label}</span>`;
+const fmt = d => d ? new Date(d.seconds ? d.seconds*1000 : d).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+
+function typeLabel(key) {
+  const t = typeMap[key];
+  return t ? `<span style="font-size:1rem">${t.label.split(' ')[0]}</span> ${t.label.split(' ').slice(1).join(' ')}` : key;
+}
+
+/* ── load ── */
+async function load() {
+  _plans = await listEmergencyPlans({});
+  renderStats();
+  renderCards();
+}
+
+/* ── stats ── */
+function renderStats() {
+  const active  = _plans.filter(p => p.status === 'active').length;
+  const review  = _plans.filter(p => p.status === 'under_review').length;
+  const types   = new Set(_plans.map(p => p.type)).size;
+  document.getElementById('epStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_plans.length}</div><div class="l">แผนทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${active}</div><div class="l">✅ ใช้งาน</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${review}</div><div class="l">⚠️ กำลังทบทวน</div></div>
+    <div class="sum-card"><div class="n" style="color:#1e3a5f">${types}</div><div class="l">ประเภทฉุกเฉิน</div></div>`;
+}
+
+/* ── cards ── */
+function renderCards() {
+  const filtered = _filterType === 'all' ? _plans : _plans.filter(p => p.type === _filterType);
+  const st = statusMap;
+  document.getElementById('epCards').innerHTML = filtered.length === 0
+    ? `<div style="grid-column:1/-1;padding:3rem;text-align:center;color:#94a3b8">
+         ยังไม่มีแผนรับมือฉุกเฉิน — กด ＋ เพื่อเพิ่มแผนใหม่</div>`
+    : filtered.map(p => {
+        const t  = typeMap[p.type] || { label: p.type, color: '#64748b', bg: '#f1f5f9' };
+        const s  = st[p.status] || st.active;
+        const steps = (p.responseSteps || []).length;
+        const ctcs  = (p.contacts || []).length;
+        return `
+        <div class="plan-card" onclick="window.__ep_view('${p.id}')">
+          <div class="plan-card-head">
+            <div class="plan-icon" style="background:${t.bg}">${t.label.split(' ')[0]}</div>
+            <div style="flex:1;min-width:0">
+              <div class="plan-title">${p.planName || '—'}</div>
+              <div class="plan-sub">${t.label.split(' ').slice(1).join(' ')} | ${badge(s.label,s.color,s.bg)}</div>
+            </div>
+          </div>
+          <div class="plan-card-body">${p.description || 'ไม่มีคำอธิบาย'}</div>
+          <div class="plan-card-foot">
+            <span>📋 ${steps} ขั้นตอน &nbsp;📞 ${ctcs} ผู้ติดต่อ</span>
+            <span>ทบทวน: ${p.nextReviewDate||'—'}</span>
+          </div>
+        </div>`;
+      }).join('');
+}
+
+/* ── filter ── */
+window.__ep_filter = key => {
+  _filterType = key;
+  document.querySelectorAll('.filt-btn').forEach(b => b.classList.toggle('active', b.dataset.key === key));
+  renderCards();
+};
+
+/* ── panel helpers ── */
+function openPanel(title, body, footer = '') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__ep_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── dynamic step rows ── */
+let _steps = [];
+window.__ep_addStep = () => {
+  _steps.push('');
+  document.getElementById('stepRows').innerHTML = _steps.map((s,i) => `
+    <li class="step-row">
+      <span class="step-num">${i+1}</span>
+      <input type="text" value="${s}" oninput="window.__ep_setStep(${i},this.value)" placeholder="ระบุขั้นตอน...">
+      <button class="btn-icon" onclick="window.__ep_rmStep(${i})">✕</button>
+    </li>`).join('');
+};
+window.__ep_setStep = (i,v) => { _steps[i] = v; };
+window.__ep_rmStep  = i => {
+  _steps.splice(i, 1);
+  document.getElementById('stepRows').innerHTML = _steps.map((s,j) => `
+    <li class="step-row">
+      <span class="step-num">${j+1}</span>
+      <input type="text" value="${s}" oninput="window.__ep_setStep(${j},this.value)" placeholder="ระบุขั้นตอน...">
+      <button class="btn-icon" onclick="window.__ep_rmStep(${j})">✕</button>
+    </li>`).join('');
+};
+
+/* ── dynamic contact rows ── */
+let _contacts = [];
+window.__ep_addContact = () => {
+  _contacts.push({ name: '', phone: '', role: '' });
+  renderContactRows();
+};
+window.__ep_setContact = (i,k,v) => { _contacts[i][k] = v; };
+window.__ep_rmContact  = i => { _contacts.splice(i,1); renderContactRows(); };
+function renderContactRows() {
+  document.getElementById('contactRows').innerHTML = _contacts.map((c,i) => `
+    <div class="contact-row">
+      <input type="text"  value="${c.name||''}"  placeholder="ชื่อ-นามสกุล"
+             oninput="window.__ep_setContact(${i},'name',this.value)">
+      <input type="text"  value="${c.phone||''}" placeholder="เบอร์โทร"
+             oninput="window.__ep_setContact(${i},'phone',this.value)">
+      <input type="text"  value="${c.role||''}"  placeholder="หน้าที่"
+             oninput="window.__ep_setContact(${i},'role',this.value)" style="flex:1">
+      <button class="btn-icon" onclick="window.__ep_rmContact(${i})">✕</button>
+    </div>`).join('');
+}
+
+/* ── form HTML ── */
+function formHTML(p = {}) {
+  _steps    = [...(p.responseSteps || [])];
+  _contacts = (p.contacts || []).map(c => ({ ...c }));
+  const typeOpts = EMERGENCY_TYPES.map(t =>
+    `<option value="${t.key}" ${p.type===t.key?'selected':''}>${t.label}</option>`).join('');
+  const statusOpts = Object.entries(PLAN_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(p.status||'active')===k?'selected':''}>${v.label}</option>`).join('');
+  return `
+    <div class="fg"><label>ชื่อแผน *</label>
+      <input id="f_name" value="${p.planName||''}" placeholder="เช่น แผนรับมือเพลิงไหม้คลังสินค้า"></div>
+    <div class="fg-row">
+      <div class="fg"><label>ประเภทเหตุฉุกเฉิน *</label>
+        <select id="f_type">${typeOpts}</select></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="f_status">${statusOpts}</select></div>
+    </div>
+    <div class="fg"><label>คำอธิบาย / เงื่อนไขที่เกิดเหตุ</label>
+      <textarea id="f_desc">${p.description||''}</textarea></div>
+    <div class="fg-row">
+      <div class="fg"><label>จุดรวมพล (Assembly Point)</label>
+        <input id="f_assembly" value="${p.assemblyPoint||''}" placeholder="เช่น ลานจอดรถด้านหน้า"></div>
+      <div class="fg"><label>หัวหน้าทีมรับมือ</label>
+        <input id="f_leader" value="${p.teamLeader||''}" placeholder="ชื่อ-นามสกุล"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ทบทวนครั้งสุดท้าย</label>
+        <input type="date" id="f_lastReview" value="${p.lastReviewDate||''}"></div>
+      <div class="fg"><label>วันที่ทบทวนครั้งถัดไป</label>
+        <input type="date" id="f_nextReview" value="${p.nextReviewDate||''}"></div>
+    </div>
+
+    <div class="fg">
+      <label>ขั้นตอนการรับมือ
+        <button type="button" class="btn" style="padding:.2rem .5rem;font-size:.75rem;margin-left:.5rem"
+                onclick="window.__ep_addStep()">+ เพิ่มขั้นตอน</button>
+      </label>
+      <ul class="steps-list" id="stepRows">
+        ${_steps.map((s,i) => `
+          <li class="step-row">
+            <span class="step-num">${i+1}</span>
+            <input type="text" value="${s}" oninput="window.__ep_setStep(${i},this.value)" placeholder="ระบุขั้นตอน...">
+            <button class="btn-icon" onclick="window.__ep_rmStep(${i})">✕</button>
+          </li>`).join('')}
+      </ul>
+    </div>
+
+    <div class="fg">
+      <label>รายชื่อผู้ติดต่อฉุกเฉิน
+        <button type="button" class="btn" style="padding:.2rem .5rem;font-size:.75rem;margin-left:.5rem"
+                onclick="window.__ep_addContact()">+ เพิ่มผู้ติดต่อ</button>
+      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:.4rem;margin-bottom:.3rem;
+                  font-size:.75rem;color:#64748b;padding:.2rem .4rem">
+        <span>ชื่อ</span><span>เบอร์โทร</span><span>หน้าที่</span><span></span>
+      </div>
+      <div id="contactRows">${_contacts.map((c,i) => `
+        <div class="contact-row">
+          <input type="text" value="${c.name||''}" placeholder="ชื่อ-นามสกุล"
+                 oninput="window.__ep_setContact(${i},'name',this.value)">
+          <input type="text" value="${c.phone||''}" placeholder="เบอร์โทร"
+                 oninput="window.__ep_setContact(${i},'phone',this.value)">
+          <input type="text" value="${c.role||''}" placeholder="หน้าที่"
+                 oninput="window.__ep_setContact(${i},'role',this.value)" style="flex:1">
+          <button class="btn-icon" onclick="window.__ep_rmContact(${i})">✕</button>
+        </div>`).join('')}</div>
+    </div>
+
+    <div class="fg"><label>อุปกรณ์ที่ต้องใช้</label>
+      <textarea id="f_equipment" rows="2" placeholder="เช่น ถังดับเพลิง, หน้ากาก N95, ...">${p.equipment||''}</textarea></div>
+    <div class="fg"><label>หมายเหตุ</label>
+      <textarea id="f_notes" rows="2">${p.notes||''}</textarea></div>`;
+}
+
+function collectForm() {
+  return {
+    planName:      document.getElementById('f_name')?.value.trim(),
+    type:          document.getElementById('f_type')?.value,
+    status:        document.getElementById('f_status')?.value,
+    description:   document.getElementById('f_desc')?.value.trim(),
+    assemblyPoint: document.getElementById('f_assembly')?.value.trim(),
+    teamLeader:    document.getElementById('f_leader')?.value.trim(),
+    lastReviewDate:document.getElementById('f_lastReview')?.value,
+    nextReviewDate:document.getElementById('f_nextReview')?.value,
+    responseSteps: _steps.filter(s => s.trim()),
+    contacts:      _contacts.filter(c => c.name || c.phone),
+    equipment:     document.getElementById('f_equipment')?.value.trim(),
+    notes:         document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__ep_openNew = () => {
+  openPanel(
+    'เพิ่มแผนรับมือฉุกเฉิน',
+    formHTML(),
+    `<button class="btn" onclick="window.__ep_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__ep_saveNew()">💾 บันทึก</button>`
+  );
+};
+window.__ep_saveNew = async () => {
+  const data = collectForm();
+  if (!data.planName) { alert('กรุณาระบุชื่อแผน'); return; }
+  await createEmergencyPlan(data, _profile.uid);
+  window.__ep_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__ep_view = async id => {
+  const p = await getEmergencyPlan(id);
+  if (!p) return;
+  const t  = typeMap[p.type] || { label: p.type, color: '#64748b', bg: '#f1f5f9' };
+  const s  = statusMap[p.status] || statusMap.active;
+  const steps = p.responseSteps || [];
+  const ctcs  = p.contacts || [];
+
+  openPanel(
+    p.planName,
+    `
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+      <span class="badge" style="color:${t.color};background:${t.bg};font-size:.8rem">${t.label}</span>
+      <span class="badge" style="color:${s.color};background:${s.bg};font-size:.8rem">${s.label}</span>
+    </div>
+
+    ${p.description ? `<div class="detail-section"><h4>คำอธิบาย</h4><p style="font-size:.85rem;color:#374151;line-height:1.6;margin:0">${p.description}</p></div>` : ''}
+
+    <div class="detail-section">
+      <h4>ข้อมูลทั่วไป</h4>
+      <table style="width:100%;font-size:.82rem;border-collapse:collapse">
+        <tr><td style="padding:.3rem .5rem;color:#64748b;width:40%">จุดรวมพล</td>
+            <td style="padding:.3rem .5rem;color:#1e293b">${p.assemblyPoint||'—'}</td></tr>
+        <tr><td style="padding:.3rem .5rem;color:#64748b">หัวหน้าทีม</td>
+            <td style="padding:.3rem .5rem;color:#1e293b">${p.teamLeader||'—'}</td></tr>
+        <tr><td style="padding:.3rem .5rem;color:#64748b">ทบทวนล่าสุด</td>
+            <td style="padding:.3rem .5rem;color:#1e293b">${p.lastReviewDate||'—'}</td></tr>
+        <tr><td style="padding:.3rem .5rem;color:#64748b">ทบทวนครั้งต่อไป</td>
+            <td style="padding:.3rem .5rem;color:#1e293b">${p.nextReviewDate||'—'}</td></tr>
+      </table>
+    </div>
+
+    ${steps.length ? `
+    <div class="detail-section">
+      <h4>ขั้นตอนการรับมือ (${steps.length} ขั้นตอน)</h4>
+      <ol class="steps-ol">${steps.map(s => `<li>${s}</li>`).join('')}</ol>
+    </div>` : ''}
+
+    ${ctcs.length ? `
+    <div class="detail-section">
+      <h4>ผู้ติดต่อฉุกเฉิน</h4>
+      <table class="contact-tbl">
+        <tr><th>ชื่อ</th><th>เบอร์โทร</th><th>หน้าที่</th></tr>
+        ${ctcs.map(c => `<tr>
+          <td>${c.name||'—'}</td>
+          <td><a href="tel:${c.phone||''}">${c.phone||'—'}</a></td>
+          <td>${c.role||'—'}</td>
+        </tr>`).join('')}
+      </table>
+    </div>` : ''}
+
+    ${p.equipment ? `
+    <div class="detail-section">
+      <h4>อุปกรณ์ที่ต้องใช้</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;white-space:pre-wrap">${p.equipment}</p>
+    </div>` : ''}
+
+    <!-- Quick reference card -->
+    ${steps.length ? `
+    <div class="quick-ref no-print">
+      <h4>📋 Quick Reference Card</h4>
+      <ol class="qr-steps">${steps.map(s => `<li>${s}</li>`).join('')}</ol>
+      ${ctcs.length ? `<div style="margin-top:.6rem;font-size:.78rem;color:#64748b">
+        📞 ${ctcs.map(c => `${c.name} ${c.phone}`).join(' &nbsp;|&nbsp; ')}
+      </div>` : ''}
+    </div>` : ''}`,
+
+    `<button class="btn no-print" onclick="window.print()">🖨️ พิมพ์</button>
+     <button class="btn no-print" onclick="window.__ep_openEdit('${p.id}')">✏️ แก้ไข</button>
+     <button class="btn btn-danger no-print" onclick="window.__ep_delete('${p.id}')">🗑️ ลบ</button>`
+  );
+};
+
+/* ── edit ── */
+window.__ep_openEdit = async id => {
+  const p = await getEmergencyPlan(id);
+  if (!p) return;
+  openPanel(
+    'แก้ไขแผนรับมือฉุกเฉิน',
+    formHTML(p),
+    `<button class="btn" onclick="window.__ep_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__ep_saveEdit('${p.id}')">💾 บันทึก</button>`
+  );
+};
+window.__ep_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.planName) { alert('กรุณาระบุชื่อแผน'); return; }
+  await updateEmergencyPlan(id, data);
+  window.__ep_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__ep_delete = async id => {
+  if (!confirm('ยืนยันลบแผนนี้?')) return;
+  await deleteEmergencyPlan(id);
+  window.__ep_closePanel();
+  await load();
+};
+
+/* ── inject + initial load ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem 4rem">
+    <!-- Filter bar -->
+    <div class="filter-bar">
+      <button class="filt-btn active" data-key="all" onclick="window.__ep_filter('all')">ทั้งหมด</button>
+      ${EMERGENCY_TYPES.map(t =>
+        `<button class="filt-btn" data-key="${t.key}" onclick="window.__ep_filter('${t.key}')">${t.label}</button>`
+      ).join('')}
+    </div>
+    <!-- Stats -->
+    <div class="sum-row" id="epStats"></div>
+    <!-- Cards -->
+    <div class="plan-grid" id="epCards">
+      <p style="grid-column:1/-1;color:#94a3b8;font-style:italic">กำลังโหลด...</p>
+    </div>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

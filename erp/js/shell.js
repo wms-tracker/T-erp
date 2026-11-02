@@ -157,8 +157,9 @@ const NAV = {
     { groupKey: 'safety-training', icon: '📚', label: 'ฝึกอบรม', items: [
       { key: 'training',         label: 'ฝึกอบรมความปลอดภัย',   href: 'safety-training.html' },
       { key: 'safety-equipment', label: 'อุปกรณ์ความปลอดภัย',   href: 'safety-equipment.html' },
-      { key: 'emergency',        label: 'แผนฉุกเฉิน',            href: 'safety-emergency.html' },
-      { key: 'safety-talk',      label: 'Safety Talk / Toolbox', href: 'safety-talk.html' },
+      { key: 'emergency',             label: 'ซ้อมแผนฉุกเฉิน',        href: 'safety-emergency.html' },
+      { key: 'safety-emergency-plan', label: 'แผนรับมือฉุกเฉิน',       href: 'safety-emergency-plan.html' },
+      { key: 'safety-talk',           label: 'Safety Talk / Toolbox', href: 'safety-talk.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย', href: 'safety-chemical.html' },
@@ -301,6 +302,7 @@ const PAGE_DEPARTMENT = {
   "safety-observation.html":    "safety_officer",
   "safety-contractor.html":     "safety_officer",
   "safety-kpi.html":            "safety_officer",
+  "safety-emergency-plan.html": "safety_officer",
 };
 
 // ===================================================================
