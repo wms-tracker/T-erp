@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตรวจสุขภาพอาชีวอนามัย — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Top bar */
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.45rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.68rem;color:#64748b;margin-top:.18rem}
+
+    /* Table */
+    .health-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
+                  overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:4rem}
+    .health-table th{background:#f8fafc;padding:.55rem .75rem;text-align:left;color:#64748b;
+                      font-weight:600;font-size:.78rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .health-table td{padding:.55rem .75rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
+    .health-table tr:hover td{background:#fafbff;cursor:pointer}
+    .badge{display:inline-block;padding:.13rem .48rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Due indicator */
+    .due-ok  {color:#16a34a;font-size:.75rem}
+    .due-warn{color:#d97706;font-size:.75rem}
+    .due-over{color:#dc2626;font-size:.75rem}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(620px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:65px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+
+    /* Test picker */
+    .test-picker{display:flex;flex-wrap:wrap;gap:.3rem}
+    .test-btn{padding:.22rem .55rem;border-radius:999px;border:1px solid #cbd5e1;
+              font-size:.75rem;cursor:pointer;background:#fff;transition:all .15s;white-space:nowrap}
+    .test-btn.sel{border-color:#1e3a5f;background:#eff6ff;color:#1e3a5f;font-weight:600}
+
+    /* Test result rows */
+    .test-result-row{display:grid;grid-template-columns:1fr auto auto;gap:.4rem;
+                     align-items:center;margin-bottom:.3rem}
+    .test-result-row .test-name{font-size:.8rem;color:#374151}
+    .test-result-row select{padding:.25rem .4rem;border-radius:6px;border:1px solid #cbd5e1;
+                             font-size:.78rem;width:auto}
+
+    /* Detail sections */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+    .test-detail-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .test-detail-table th{background:#f8fafc;padding:.38rem .6rem;text-align:left;
+                           color:#64748b;font-size:.75rem;border-bottom:1px solid #e2e8f0}
+    .test-detail-table td{padding:.38rem .6rem;border-bottom:1px solid #f8fafc;color:#374151}
+
+    /* Alert box */
+    .alert-box{background:#fff8f8;border:1px solid #fecdd3;border-radius:8px;
+               padding:.65rem .9rem;margin-bottom:.9rem;font-size:.82rem;color:#dc2626}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+         transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+
+    @media(max-width:600px){.hide-sm{display:none}}
+    @media print{
+      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
+      .health-table{font-size:.75rem}
+    }
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__hlt_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">ตรวจสุขภาพ</h3>
+    <button class="btn-icon" onclick="window.__hlt_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="บันทึกผลตรวจสุขภาพ" onclick="window.__hlt_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  HEALTH_EXAM_TYPES, HEALTH_TESTS, HEALTH_RESULT, FITNESS_STATUS,
+  listHealthRecords, getHealthRecord,
+  createHealthRecord, updateHealthRecord, deleteHealthRecord,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-health', 'ตรวจสุขภาพอาชีวอนามัย');
+
+let _all    = [];
+let _shown  = [];
+let _fResult = 'all';
+let _search  = '';
+
+const examTypeMap  = Object.fromEntries(HEALTH_EXAM_TYPES.map(e => [e.key, e.label]));
+const testLabelMap = Object.fromEntries(HEALTH_TESTS.map(t => [t.key, t.label]));
+const today = new Date(); today.setHours(0,0,0,0);
+
+function daysUntilNextExam(r) {
+  if (!r.nextExamDate) return null;
+  return Math.ceil((new Date(r.nextExamDate) - today) / 86400000);
+}
+function nextExamStyle(r) {
+  const d = daysUntilNextExam(r);
+  if (d === null) return { cls:'', txt:'—' };
+  if (d < 0)    return { cls:'due-over', txt:`เกินกำหนด ${Math.abs(d)} วัน` };
+  if (d <= 30)  return { cls:'due-warn', txt:`อีก ${d} วัน` };
+  return { cls:'due-ok', txt:`อีก ${d} วัน` };
+}
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+
+/* ── load ── */
+async function load() {
+  _all = await listHealthRecords({});
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._all];
+  if (_fResult !== 'all') rows = rows.filter(r => r.overallResult === _fResult);
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.employeeName||'').toLowerCase().includes(q) ||
+      (r.employeeId||'').includes(q) ||
+      (r.department||'').toLowerCase().includes(q)
+    );
+  }
+  _shown = rows;
+  renderStats();
+  renderTable();
+}
+window.__hlt_search  = v => { _search  = v; applyFilter(); };
+window.__hlt_fResult = k => {
+  _fResult = k;
+  document.querySelectorAll('.filt-btn').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const abnormal  = _all.filter(r => r.overallResult === 'abnormal').length;
+  const followup  = _all.filter(r => r.overallResult === 'followup').length;
+  const overdue   = _all.filter(r => { const d=daysUntilNextExam(r); return d!==null&&d<0; }).length;
+  const dueSoon   = _all.filter(r => { const d=daysUntilNextExam(r); return d!==null&&d>=0&&d<=30; }).length;
+  const unfit     = _all.filter(r => r.fitnessStatus === 'unfit').length;
+  document.getElementById('hltStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">บันทึกทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${abnormal}</div><div class="l">⚠️ ผิดปกติ</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${followup}</div><div class="l">🔍 ติดตามอาการ</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${overdue}</div><div class="l">⏰ เกินกำหนดตรวจ</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${dueSoon}</div><div class="l">📅 ตรวจภายใน 30 วัน</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${unfit}</div><div class="l">🚫 ทำงานไม่ได้</div></div>`;
+}
+
+/* ── table ── */
+function renderTable() {
+  if (!_shown.length) {
+    document.getElementById('hltTable').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+  document.getElementById('hltTable').innerHTML = _shown.map(r => {
+    const res = HEALTH_RESULT[r.overallResult] || HEALTH_RESULT.pending;
+    const fit = FITNESS_STATUS[r.fitnessStatus] || FITNESS_STATUS.pending;
+    const nxt = nextExamStyle(r);
+    const et  = examTypeMap[r.examType] || r.examType || '—';
+    return `
+    <tr onclick="window.__hlt_view('${r.id}')">
+      <td>
+        <div style="font-weight:600;color:#1e293b">${r.employeeName||'—'}</div>
+        <div style="font-size:.73rem;color:#94a3b8">${r.employeeId||''} ${r.department?'· '+r.department:''}</div>
+      </td>
+      <td class="hide-sm" style="font-size:.8rem">${et}</td>
+      <td style="font-size:.8rem">${r.examDate||'—'}</td>
+      <td>${badge(res.label,res.color,res.bg)}</td>
+      <td class="hide-sm">${badge(fit.label,fit.color,fit.bg)}</td>
+      <td><span class="${nxt.cls}">${nxt.txt}</span></td>
+      <td class="hide-sm" style="font-size:.78rem;color:#64748b">${r.examHospital||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__hlt_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── test picker ── */
+let _selTests = [];
+window.__hlt_toggleTest = key => {
+  const i = _selTests.indexOf(key);
+  if (i===-1) _selTests.push(key); else _selTests.splice(i,1);
+  document.querySelectorAll('.test-btn').forEach(b =>
+    b.classList.toggle('sel', _selTests.includes(b.dataset.t)));
+  renderTestResultRows();
+};
+
+let _testResults = {}; // key → result value
+window.__hlt_setTestResult = (key,val) => { _testResults[key] = val; };
+
+function renderTestResultRows() {
+  const el = document.getElementById('testResultRows');
+  if (!el) return;
+  el.innerHTML = _selTests.map(k => {
+    const lbl = testLabelMap[k] || k;
+    const cur  = _testResults[k] || 'normal';
+    return `<div class="test-result-row">
+      <span class="test-name">${lbl}</span>
+      <select onchange="window.__hlt_setTestResult('${k}',this.value)">
+        ${Object.entries(HEALTH_RESULT).map(([rv,rv2])=>
+          `<option value="${rv}" ${cur===rv?'selected':''}>${rv2.label}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('') || '<p style="color:#94a3b8;font-size:.8rem">เลือกรายการตรวจด้านบนก่อน</p>';
+}
+
+/* ── form ── */
+function formHTML(r = {}) {
+  _selTests    = [...(r.tests || [])];
+  _testResults = { ...(r.testResults || {}) };
+  const etOpts = HEALTH_EXAM_TYPES.map(e =>
+    `<option value="${e.key}" ${r.examType===e.key?'selected':''}>${e.label}</option>`).join('');
+  const resOpts = Object.entries(HEALTH_RESULT).map(([k,v]) =>
+    `<option value="${k}" ${(r.overallResult||'pending')===k?'selected':''}>${v.label}</option>`).join('');
+  const fitOpts = Object.entries(FITNESS_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(r.fitnessStatus||'pending')===k?'selected':''}>${v.label}</option>`).join('');
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>ชื่อพนักงาน *</label>
+        <input id="f_name" value="${r.employeeName||''}" placeholder="ชื่อ-นามสกุล"></div>
+      <div class="fg"><label>รหัสพนักงาน</label>
+        <input id="f_eid" value="${r.employeeId||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>แผนก</label>
+        <input id="f_dept" value="${r.department||''}"></div>
+      <div class="fg"><label>ตำแหน่ง</label>
+        <input id="f_pos" value="${r.position||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>ประเภทการตรวจ</label>
+        <select id="f_etype">${etOpts}</select></div>
+      <div class="fg"><label>สถานพยาบาล / โรงพยาบาล</label>
+        <input id="f_hosp" value="${r.examHospital||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ตรวจ</label>
+        <input type="date" id="f_examDate" value="${r.examDate||''}"></div>
+      <div class="fg"><label>วันที่ตรวจครั้งถัดไป</label>
+        <input type="date" id="f_nextDate" value="${r.nextExamDate||''}"></div>
+    </div>
+
+    <div class="fg">
+      <label>รายการตรวจ (เลือกได้หลายรายการ)</label>
+      <div class="test-picker">${HEALTH_TESTS.map(t =>
+        `<button type="button" class="test-btn ${_selTests.includes(t.key)?'sel':''}"
+                 data-t="${t.key}" onclick="window.__hlt_toggleTest('${t.key}')">${t.label}</button>`
+      ).join('')}</div>
+    </div>
+
+    <div class="fg">
+      <label>ผลการตรวจรายการ</label>
+      <div id="testResultRows">${_selTests.length
+        ? _selTests.map(k => {
+            const cur = _testResults[k]||'normal';
+            return `<div class="test-result-row">
+              <span class="test-name">${testLabelMap[k]||k}</span>
+              <select onchange="window.__hlt_setTestResult('${k}',this.value)">
+                ${Object.entries(HEALTH_RESULT).map(([rv,rv2])=>
+                  `<option value="${rv}" ${cur===rv?'selected':''}>${rv2.label}</option>`).join('')}
+              </select>
+            </div>`;}).join('')
+        : '<p style="color:#94a3b8;font-size:.8rem">เลือกรายการตรวจด้านบนก่อน</p>'
+      }</div>
+    </div>
+
+    <div class="fg-row">
+      <div class="fg"><label>ผลการตรวจโดยรวม</label>
+        <select id="f_result">${resOpts}</select></div>
+      <div class="fg"><label>ความสามารถในการทำงาน (Fitness)</label>
+        <select id="f_fitness">${fitOpts}</select></div>
+    </div>
+    <div class="fg"><label>ข้อจำกัดการทำงาน (ถ้ามี)</label>
+      <input id="f_restrict" value="${r.restriction||''}" placeholder="เช่น ห้ามยกของหนักเกิน 10 กก."></div>
+    <div class="fg"><label>คำแนะนำแพทย์ / หมายเหตุ</label>
+      <textarea id="f_notes">${r.doctorNotes||''}</textarea></div>`;
+}
+
+function collectForm() {
+  return {
+    employeeName:  document.getElementById('f_name')?.value.trim(),
+    employeeId:    document.getElementById('f_eid')?.value.trim(),
+    department:    document.getElementById('f_dept')?.value.trim(),
+    position:      document.getElementById('f_pos')?.value.trim(),
+    examType:      document.getElementById('f_etype')?.value,
+    examHospital:  document.getElementById('f_hosp')?.value.trim(),
+    examDate:      document.getElementById('f_examDate')?.value,
+    nextExamDate:  document.getElementById('f_nextDate')?.value,
+    tests:         [..._selTests],
+    testResults:   { ..._testResults },
+    overallResult: document.getElementById('f_result')?.value,
+    fitnessStatus: document.getElementById('f_fitness')?.value,
+    restriction:   document.getElementById('f_restrict')?.value.trim(),
+    doctorNotes:   document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__hlt_openNew = () => {
+  openPanel('บันทึกผลตรวจสุขภาพ', formHTML(),
+    `<button class="btn" onclick="window.__hlt_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__hlt_saveNew()">💾 บันทึก</button>`);
+};
+window.__hlt_saveNew = async () => {
+  const data = collectForm();
+  if (!data.employeeName) { alert('กรุณาระบุชื่อพนักงาน'); return; }
+  await createHealthRecord(data, _profile.uid);
+  window.__hlt_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__hlt_view = async id => {
+  const r = await getHealthRecord(id);
+  if (!r) return;
+  const res = HEALTH_RESULT[r.overallResult] || HEALTH_RESULT.pending;
+  const fit = FITNESS_STATUS[r.fitnessStatus] || FITNESS_STATUS.pending;
+  const nxt = nextExamStyle(r);
+  const et  = examTypeMap[r.examType] || '—';
+  const tests = r.tests || [];
+  const testRes = r.testResults || {};
+  const abnTests = tests.filter(t => testRes[t] && testRes[t] !== 'normal' && testRes[t] !== 'pending');
+
+  openPanel(`${r.employeeName||'—'} — ผลตรวจสุขภาพ`, `
+    ${abnTests.length ? `<div class="alert-box">⚠️ พบผลผิดปกติ: ${abnTests.map(t=>testLabelMap[t]||t).join(', ')}</div>` : ''}
+
+    <div class="ds"><h4>ข้อมูลพนักงาน</h4>
+      <div class="info-grid">
+        <span class="k">รหัส</span><span class="v">${r.employeeId||'—'}</span>
+        <span class="k">แผนก</span><span class="v">${r.department||'—'}</span>
+        <span class="k">ตำแหน่ง</span><span class="v">${r.position||'—'}</span>
+      </div>
+    </div>
+
+    <div class="ds"><h4>ข้อมูลการตรวจ</h4>
+      <div class="info-grid">
+        <span class="k">ประเภทการตรวจ</span><span class="v">${et}</span>
+        <span class="k">สถานพยาบาล</span><span class="v">${r.examHospital||'—'}</span>
+        <span class="k">วันที่ตรวจ</span><span class="v">${r.examDate||'—'}</span>
+        <span class="k">ตรวจครั้งถัดไป</span>
+        <span class="v"><span class="${nxt.cls}">${r.nextExamDate||'—'} ${nxt.cls?`(${nxt.txt})`:''}</span></span>
+      </div>
+    </div>
+
+    <div class="ds"><h4>ผลการตรวจ</h4>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem">
+        <span>ผลโดยรวม: ${badge(res.label,res.color,res.bg)}</span>
+        <span>Fitness: ${badge(fit.label,fit.color,fit.bg)}</span>
+      </div>
+      ${tests.length ? `
+      <table class="test-detail-table">
+        <thead><tr><th>รายการตรวจ</th><th>ผล</th></tr></thead>
+        <tbody>
+          ${tests.map(t => {
+            const rv = testRes[t] || 'pending';
+            const rm = HEALTH_RESULT[rv] || HEALTH_RESULT.pending;
+            return `<tr>
+              <td>${testLabelMap[t]||t}</td>
+              <td>${badge(rm.label,rm.color,rm.bg)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>` : '<p style="font-size:.8rem;color:#94a3b8">ไม่มีข้อมูลรายการตรวจ</p>'}
+    </div>
+
+    ${r.restriction?`<div class="ds"><h4>ข้อจำกัดการทำงาน</h4>
+      <p style="font-size:.83rem;color:#dc2626;margin:0;font-weight:500">${r.restriction}</p></div>`:''}
+
+    ${r.doctorNotes?`<div class="ds"><h4>คำแนะนำแพทย์</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;line-height:1.5">${r.doctorNotes}</p></div>`:''}`,
+
+    `<button class="btn no-print" onclick="window.print()">🖨️ พิมพ์</button>
+     <button class="btn no-print" onclick="window.__hlt_openEdit('${r.id}')">✏️ แก้ไข</button>
+     <button class="btn btn-danger no-print" onclick="window.__hlt_delete('${r.id}')">🗑️ ลบ</button>`);
+};
+
+/* ── edit ── */
+window.__hlt_openEdit = async id => {
+  const r = await getHealthRecord(id);
+  if (!r) return;
+  openPanel('แก้ไขผลตรวจสุขภาพ', formHTML(r),
+    `<button class="btn" onclick="window.__hlt_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__hlt_saveEdit('${r.id}')">💾 บันทึก</button>`);
+};
+window.__hlt_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.employeeName) { alert('กรุณาระบุชื่อพนักงาน'); return; }
+  await updateHealthRecord(id, data);
+  window.__hlt_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__hlt_delete = async id => {
+  if (!confirm('ยืนยันลบบันทึกนี้?')) return;
+  await deleteHealthRecord(id);
+  window.__hlt_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหาชื่อ, รหัสพนักงาน, แผนก..."
+             oninput="window.__hlt_search(this.value)">
+      <button class="btn no-print" onclick="window.__hlt_openNew()" style="white-space:nowrap">＋ บันทึกผลตรวจ</button>
+      <button class="btn no-print" onclick="window.print()">🖨️</button>
+    </div>
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-k="all"      onclick="window.__hlt_fResult('all')">ทั้งหมด</button>
+      <button class="filt-btn"        data-k="normal"   onclick="window.__hlt_fResult('normal')">✅ ปกติ</button>
+      <button class="filt-btn"        data-k="abnormal" onclick="window.__hlt_fResult('abnormal')">⚠️ ผิดปกติ</button>
+      <button class="filt-btn"        data-k="followup" onclick="window.__hlt_fResult('followup')">🔍 ติดตามอาการ</button>
+      <button class="filt-btn"        data-k="pending"  onclick="window.__hlt_fResult('pending')">⏳ รอผล</button>
+    </div>
+    <div class="sum-row" id="hltStats"></div>
+    <table class="health-table">
+      <thead>
+        <tr>
+          <th>พนักงาน</th>
+          <th class="hide-sm">ประเภทตรวจ</th>
+          <th>วันที่ตรวจ</th>
+          <th>ผลรวม</th>
+          <th class="hide-sm">Fitness</th>
+          <th>ตรวจถัดไป</th>
+          <th class="hide-sm">สถานพยาบาล</th>
+        </tr>
+      </thead>
+      <tbody id="hltTable">
+        <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

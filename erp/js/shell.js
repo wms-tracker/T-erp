@@ -161,6 +161,7 @@ const NAV = {
       { key: 'emergency',             label: 'ซ้อมแผนฉุกเฉิน',        href: 'safety-emergency.html' },
       { key: 'safety-emergency-plan', label: 'แผนรับมือฉุกเฉิน',       href: 'safety-emergency-plan.html' },
       { key: 'safety-talk',           label: 'Safety Talk / Toolbox', href: 'safety-talk.html' },
+      { key: 'safety-health',         label: 'ตรวจสุขภาพอาชีวอนามัย', href: 'safety-health.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย', href: 'safety-chemical.html' },
@@ -305,6 +306,7 @@ const PAGE_DEPARTMENT = {
   "safety-kpi.html":            "safety_officer",
   "safety-emergency-plan.html": "safety_officer",
   "safety-jsa.html":            "safety_officer",
+  "safety-health.html":         "safety_officer",
 };
 
 // ===================================================================

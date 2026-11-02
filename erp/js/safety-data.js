@@ -27,6 +27,7 @@ export const COL = {
   emergencyPlans:"safetyEmergencyPlans",
   chemicals:     "safetyChemicals",
   jsa:           "safetyJSA",
+  healthRecords: "safetyHealthRecords",
 };
 
 // ────────────────────────────────────────────
@@ -1309,4 +1310,70 @@ export async function updateJSA(id, data) {
 
 export async function deleteJSA(id) {
   await deleteDoc(doc(db, COL.jsa, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 20 — Occupational Health Monitoring
+// ────────────────────────────────────────────
+export const HEALTH_EXAM_TYPES = [
+  { key: 'pre_employment', label: 'ตรวจก่อนเข้างาน' },
+  { key: 'annual',         label: 'ตรวจประจำปี' },
+  { key: 'periodic',       label: 'ตรวจตามความเสี่ยง' },
+  { key: 'return_to_work', label: 'ตรวจกลับเข้าทำงาน' },
+  { key: 'exit',           label: 'ตรวจออกจากงาน' },
+  { key: 'special',        label: 'ตรวจพิเศษ' },
+];
+
+export const HEALTH_TESTS = [
+  { key: 'general',     label: 'ตรวจร่างกายทั่วไป' },
+  { key: 'blood',       label: 'เจาะเลือด CBC/Chemistry' },
+  { key: 'urine',       label: 'ตรวจปัสสาวะ' },
+  { key: 'vision',      label: 'ตรวจสายตา' },
+  { key: 'hearing',     label: 'ตรวจการได้ยิน (Audiometry)' },
+  { key: 'lung',        label: 'ตรวจสมรรถภาพปอด (Spirometry)' },
+  { key: 'xray',        label: 'X-Ray ทรวงอก' },
+  { key: 'ekg',         label: 'คลื่นไฟฟ้าหัวใจ (EKG)' },
+  { key: 'lead',        label: 'ตรวจสารตะกั่วในเลือด' },
+  { key: 'cholinesterase', label: 'Cholinesterase (สารเคมีกำจัดศัตรูพืช)' },
+];
+
+export const HEALTH_RESULT = {
+  normal:   { label: 'ปกติ',            color: '#16a34a', bg: '#dcfce7' },
+  abnormal: { label: 'ผิดปกติ',         color: '#dc2626', bg: '#fee2e2' },
+  followup: { label: 'ติดตามอาการ',     color: '#d97706', bg: '#fef3c7' },
+  pending:  { label: 'รอผล',            color: '#94a3b8', bg: '#f1f5f9' },
+};
+
+export const FITNESS_STATUS = {
+  fit:         { label: 'ทำงานได้ปกติ',       color: '#16a34a', bg: '#dcfce7' },
+  restricted:  { label: 'ทำงานได้บางส่วน',    color: '#d97706', bg: '#fef3c7' },
+  unfit:       { label: 'ไม่สามารถทำงานได้',   color: '#dc2626', bg: '#fee2e2' },
+  pending:     { label: 'รอประเมิน',           color: '#94a3b8', bg: '#f1f5f9' },
+};
+
+export async function listHealthRecords({ department, result, lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.healthRecords), orderBy('examDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (department) rows = rows.filter(r => r.department === department);
+  if (result)     rows = rows.filter(r => r.overallResult === result);
+  return rows;
+}
+
+export async function getHealthRecord(id) {
+  const snap = await getDoc(doc(db, COL.healthRecords, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createHealthRecord(data, createdBy) {
+  return addDoc(collection(db, COL.healthRecords), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateHealthRecord(id, data) {
+  await updateDoc(doc(db, COL.healthRecords, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteHealthRecord(id) {
+  await deleteDoc(doc(db, COL.healthRecords, id));
 }
