@@ -29,6 +29,7 @@ export const COL = {
   jsa:           "safetyJSA",
   healthRecords: "safetyHealthRecords",
   actionPlan:    "safetyActionPlan",
+  envMonitor:    "safetyEnvMonitor",
 };
 
 // ────────────────────────────────────────────
@@ -1430,4 +1431,56 @@ export async function updateActionPlanItem(id, data) {
 
 export async function deleteActionPlanItem(id) {
   await deleteDoc(doc(db, COL.actionPlan, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 22 — Workplace Environment Monitoring
+// ────────────────────────────────────────────
+export const ENV_PARAMETERS = [
+  { key: 'noise',       label: 'ระดับเสียง',           unit: 'dB(A)',  limit: 85,   limitLabel: '≤ 85 dB(A)',    icon: '🔊' },
+  { key: 'heat_wbgt',   label: 'ความร้อน (WBGT)',       unit: '°C',     limit: 34,   limitLabel: '≤ 34°C (งานเบา)', icon: '🌡️' },
+  { key: 'heat_air',    label: 'อุณหภูมิอากาศ',         unit: '°C',     limit: 38,   limitLabel: '≤ 38°C',        icon: '🌡️' },
+  { key: 'light',       label: 'ความเข้มแสง',           unit: 'lux',    limit: 300,  limitLabel: '≥ 300 lux',     icon: '💡', higher: true },
+  { key: 'humidity',    label: 'ความชื้นสัมพัทธ์',       unit: '%RH',    limit: 70,   limitLabel: '≤ 70 %RH',      icon: '💧' },
+  { key: 'dust_tsp',    label: 'ฝุ่นรวม (TSP)',         unit: 'mg/m³',  limit: 15,   limitLabel: '≤ 15 mg/m³',    icon: '🌫️' },
+  { key: 'dust_resp',   label: 'ฝุ่นหายใจเข้า',         unit: 'mg/m³',  limit: 5,    limitLabel: '≤ 5 mg/m³',     icon: '🌫️' },
+  { key: 'co',          label: 'ก๊าซคาร์บอนมอนอกไซด์ (CO)', unit: 'ppm', limit: 25, limitLabel: '≤ 25 ppm',      icon: '☁️' },
+  { key: 'co2',         label: 'ก๊าซคาร์บอนไดออกไซด์ (CO₂)', unit: 'ppm', limit: 5000, limitLabel: '≤ 5000 ppm', icon: '☁️' },
+  { key: 'voc',         label: 'สารอินทรีย์ระเหยง่าย (VOC)', unit: 'ppm', limit: 50, limitLabel: '≤ 50 ppm',     icon: '⚗️' },
+  { key: 'vibration',   label: 'การสั่นสะเทือน (มือ-แขน)', unit: 'm/s²', limit: 5, limitLabel: '≤ 5 m/s² (8h)', icon: '📳' },
+  { key: 'other',       label: 'พารามิเตอร์อื่นๆ',       unit: '',      limit: null, limitLabel: '—',             icon: '📊' },
+];
+
+export const ENV_RESULT = {
+  pass:    { label: 'ผ่านมาตรฐาน',    color: '#16a34a', bg: '#dcfce7' },
+  fail:    { label: 'เกินมาตรฐาน',    color: '#dc2626', bg: '#fee2e2' },
+  warning: { label: 'ใกล้เกินมาตรฐาน', color: '#d97706', bg: '#fef3c7' },
+  pending: { label: 'รอประเมิน',      color: '#94a3b8', bg: '#f1f5f9' },
+};
+
+export async function listEnvMonitor({ parameter, result, lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.envMonitor), orderBy('measureDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (parameter) rows = rows.filter(r => r.parameter === parameter);
+  if (result)    rows = rows.filter(r => r.result === result);
+  return rows;
+}
+
+export async function getEnvMonitorRecord(id) {
+  const snap = await getDoc(doc(db, COL.envMonitor, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createEnvMonitorRecord(data, createdBy) {
+  return addDoc(collection(db, COL.envMonitor), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateEnvMonitorRecord(id, data) {
+  await updateDoc(doc(db, COL.envMonitor, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteEnvMonitorRecord(id) {
+  await deleteDoc(doc(db, COL.envMonitor, id));
 }

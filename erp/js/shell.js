@@ -164,7 +164,8 @@ const NAV = {
       { key: 'safety-health',         label: 'ตรวจสุขภาพอาชีวอนามัย', href: 'safety-health.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
-      { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย', href: 'safety-chemical.html' },
+      { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',     href: 'safety-chemical.html' },
+      { key: 'safety-env',      label: 'ตรวจวัดสภาพแวดล้อมการทำงาน', href: 'safety-env.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
       { key: 'safety-reports',  label: 'รายงานความปลอดภัย',     href: 'safety-reports.html' },
@@ -309,6 +310,7 @@ const PAGE_DEPARTMENT = {
   "safety-jsa.html":            "safety_officer",
   "safety-health.html":         "safety_officer",
   "safety-action-plan.html":    "safety_officer",
+  "safety-env.html":            "safety_officer",
 };
 
 // ===================================================================

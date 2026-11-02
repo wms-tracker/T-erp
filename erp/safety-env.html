@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ตรวจวัดสภาพแวดล้อมการทำงาน — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Top bar */
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.4rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
+
+    /* Parameter overview cards */
+    .param-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.7rem;margin-bottom:1.3rem}
+    .param-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.8rem 1rem;
+                cursor:pointer;transition:box-shadow .15s;border-left:4px solid #e2e8f0}
+    .param-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.08)}
+    .param-card.pass {border-left-color:#16a34a}
+    .param-card.fail {border-left-color:#dc2626}
+    .param-card.warning{border-left-color:#d97706}
+    .param-card.none{border-left-color:#cbd5e1}
+    .param-top{display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem}
+    .param-icon{font-size:1.1rem}
+    .param-name{font-size:.8rem;font-weight:600;color:#374151}
+    .param-val{font-size:1.3rem;font-weight:700;line-height:1}
+    .param-limit{font-size:.72rem;color:#94a3b8;margin-top:.1rem}
+    .param-count{font-size:.72rem;color:#64748b;margin-top:.2rem}
+
+    /* Table */
+    .env-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
+               overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:4rem}
+    .env-table th{background:#f8fafc;padding:.52rem .7rem;text-align:left;color:#64748b;
+                   font-weight:600;font-size:.77rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .env-table td{padding:.52rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
+    .env-table tr:hover td{background:#fafbff;cursor:pointer}
+    .badge{display:inline-block;padding:.12rem .45rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Value indicator */
+    .val-box{font-size:.95rem;font-weight:700}
+    .val-exceed{color:#dc2626}
+    .val-warn   {color:#d97706}
+    .val-ok     {color:#16a34a}
+
+    /* Gauge mini */
+    .gauge-wrap{position:relative;width:48px;height:48px;flex-shrink:0}
+    .gauge-wrap svg{transform:rotate(-90deg)}
+    .gauge-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+               font-size:.6rem;font-weight:700;transform:rotate(0)}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(580px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:65px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+
+    /* Detail */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+    .big-val{font-size:2.5rem;font-weight:800;line-height:1;margin:.4rem 0 .1rem}
+
+    /* Trend mini-chart */
+    .trend-bar-wrap{display:flex;align-items:flex-end;gap:3px;height:48px;margin-top:.4rem}
+    .trend-bar{flex:1;border-radius:2px 2px 0 0;min-height:4px}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+         transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+
+    @media(max-width:600px){.hide-sm{display:none}}
+    @media print{
+      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
+      .param-grid{grid-template-columns:repeat(3,1fr)}
+    }
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__env_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">ผลการตรวจวัด</h3>
+    <button class="btn-icon" onclick="window.__env_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="บันทึกผลตรวจวัด" onclick="window.__env_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  ENV_PARAMETERS, ENV_RESULT,
+  listEnvMonitor, getEnvMonitorRecord,
+  createEnvMonitorRecord, updateEnvMonitorRecord, deleteEnvMonitorRecord,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-env', 'ตรวจวัดสภาพแวดล้อมการทำงาน');
+
+let _all     = [];
+let _shown   = [];
+let _fParam  = 'all';
+let _fResult = 'all';
+let _search  = '';
+
+const paramMap  = Object.fromEntries(ENV_PARAMETERS.map(p => [p.key, p]));
+const badge     = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+
+/* ── auto result ── */
+function autoResult(param, value) {
+  const p = paramMap[param];
+  if (!p || p.limit === null || value === null || value === undefined) return 'pending';
+  const v = +value;
+  if (isNaN(v)) return 'pending';
+  if (p.higher) {
+    if (v >= p.limit) return 'pass';
+    if (v >= p.limit * 0.8) return 'warning';
+    return 'fail';
+  } else {
+    if (v <= p.limit) return 'pass';
+    if (v <= p.limit * 1.1) return 'warning';
+    return 'fail';
+  }
+}
+
+/* ── load ── */
+async function load() {
+  _all = await listEnvMonitor({});
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._all];
+  if (_fParam  !== 'all') rows = rows.filter(r => r.parameter === _fParam);
+  if (_fResult !== 'all') rows = rows.filter(r => r.result    === _fResult);
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.location||'').toLowerCase().includes(q) ||
+      (r.measuredBy||'').toLowerCase().includes(q) ||
+      (r.instrument||'').toLowerCase().includes(q)
+    );
+  }
+  _shown = rows;
+  renderStats();
+  renderParamCards();
+  renderTable();
+}
+window.__env_search  = v => { _search  = v; applyFilter(); };
+window.__env_fParam  = k => {
+  _fParam = k;
+  document.querySelectorAll('.filt-btn[data-g=pr]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+window.__env_fResult = k => {
+  _fResult = k;
+  document.querySelectorAll('.filt-btn[data-g=rs]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const fail    = _all.filter(r => r.result === 'fail').length;
+  const warning = _all.filter(r => r.result === 'warning').length;
+  const pass    = _all.filter(r => r.result === 'pass').length;
+  const params  = new Set(_all.map(r => r.parameter)).size;
+  document.getElementById('envStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">บันทึกทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${pass}</div><div class="l">✅ ผ่านมาตรฐาน</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${warning}</div><div class="l">⚠️ ใกล้เกิน</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${fail}</div><div class="l">❌ เกินมาตรฐาน</div></div>
+    <div class="sum-card"><div class="n" style="color:#1e3a5f">${params}</div><div class="l">พารามิเตอร์</div></div>`;
+}
+
+/* ── param overview cards ── */
+function renderParamCards() {
+  document.getElementById('envParams').innerHTML = ENV_PARAMETERS.map(p => {
+    const recs = _all.filter(r => r.parameter === p.key);
+    if (!recs.length) return `
+      <div class="param-card none" onclick="window.__env_fParam('${p.key}')">
+        <div class="param-top"><span class="param-icon">${p.icon}</span>
+          <span class="param-name">${p.label}</span></div>
+        <div class="param-limit">${p.limitLabel}</div>
+        <div class="param-count" style="color:#cbd5e1">ยังไม่มีข้อมูล</div>
+      </div>`;
+    const latest  = recs[0];
+    const res     = latest.result || 'pending';
+    const rm      = ENV_RESULT[res] || ENV_RESULT.pending;
+    const failCt  = recs.filter(r => r.result === 'fail').length;
+    const pct     = p.limit ? Math.min(100, Math.round(+latest.value / p.limit * 100)) : 0;
+    const valClass = res === 'fail' ? 'val-exceed' : res === 'warning' ? 'val-warn' : 'val-ok';
+    return `
+      <div class="param-card ${res}" onclick="window.__env_fParam('${p.key}')">
+        <div class="param-top"><span class="param-icon">${p.icon}</span>
+          <span class="param-name">${p.label}</span></div>
+        <div class="param-val ${valClass}">${latest.value} <span style="font-size:.7rem;font-weight:400">${p.unit}</span></div>
+        <div class="param-limit">${p.limitLabel} &nbsp;${badge(rm.label,rm.color,rm.bg)}</div>
+        <div class="param-count">${recs.length} บันทึก ${failCt?`· <span style="color:#dc2626">${failCt} เกิน</span>`:''}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ── table ── */
+function renderTable() {
+  if (!_shown.length) {
+    document.getElementById('envTable').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+  document.getElementById('envTable').innerHTML = _shown.map(r => {
+    const p   = paramMap[r.parameter] || { label: r.parameter, unit: '', icon: '📊' };
+    const res = ENV_RESULT[r.result || 'pending'] || ENV_RESULT.pending;
+    const limit = p.limit;
+    const valClass = r.result === 'fail' ? 'val-exceed' : r.result === 'warning' ? 'val-warn' : r.result === 'pass' ? 'val-ok' : '';
+    return `
+    <tr onclick="window.__env_view('${r.id}')">
+      <td style="font-size:.8rem">${r.measureDate||'—'}</td>
+      <td>${p.icon} ${p.label}</td>
+      <td><span class="val-box ${valClass}">${r.value}</span> <span style="font-size:.75rem;color:#94a3b8">${p.unit}</span></td>
+      <td class="hide-sm" style="font-size:.78rem;color:#64748b">${limit !== null && limit !== undefined ? p.limitLabel : '—'}</td>
+      <td>${badge(res.label,res.color,res.bg)}</td>
+      <td class="hide-sm" style="font-size:.8rem">${r.location||'—'}</td>
+      <td class="hide-sm" style="font-size:.78rem;color:#64748b">${r.measuredBy||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__env_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── auto-result on form change ── */
+window.__env_autoResult = () => {
+  const param = document.getElementById('f_param')?.value;
+  const val   = document.getElementById('f_value')?.value;
+  if (!param || val === '') return;
+  const res   = autoResult(param, val);
+  const sel   = document.getElementById('f_result');
+  if (sel) sel.value = res;
+  const p = paramMap[param];
+  if (p && p.limit !== null) {
+    const pct = Math.min(150, Math.round(+val / p.limit * 100));
+    const col = res === 'fail' ? '#dc2626' : res === 'warning' ? '#d97706' : '#16a34a';
+    const fill = document.getElementById('autoProgFill');
+    const lbl  = document.getElementById('autoProgLbl');
+    if (fill) { fill.style.width = Math.min(100,pct)+'%'; fill.style.background = col; }
+    if (lbl)  lbl.textContent = pct + '% ของค่ามาตรฐาน';
+  }
+};
+
+/* ── form ── */
+function formHTML(r = {}) {
+  const pOpts = ENV_PARAMETERS.map(p =>
+    `<option value="${p.key}" ${r.parameter===p.key?'selected':''}>${p.icon} ${p.label} (${p.unit})</option>`).join('');
+  const resOpts = Object.entries(ENV_RESULT).map(([k,v]) =>
+    `<option value="${k}" ${(r.result||'pending')===k?'selected':''}>${v.label}</option>`).join('');
+  const curP = r.parameter ? paramMap[r.parameter] : null;
+  const initPct = curP && curP.limit && r.value
+    ? Math.min(100, Math.round(+r.value / curP.limit * 100)) : 0;
+  const initCol = r.result === 'fail' ? '#dc2626' : r.result === 'warning' ? '#d97706' : '#16a34a';
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>พารามิเตอร์ *</label>
+        <select id="f_param" onchange="window.__env_autoResult()">${pOpts}</select></div>
+      <div class="fg"><label>วันที่ตรวจวัด *</label>
+        <input type="date" id="f_date" value="${r.measureDate||''}"></div>
+    </div>
+    <div class="fg-row3">
+      <div class="fg"><label>ค่าที่วัดได้ *</label>
+        <input type="number" id="f_value" value="${r.value??''}" step="0.01"
+               oninput="window.__env_autoResult()" placeholder="0"></div>
+      <div class="fg"><label>หน่วย</label>
+        <input id="f_unit" value="${r.unit||''}" placeholder="dB(A), °C, lux..."></div>
+      <div class="fg"><label>ผลการประเมิน</label>
+        <select id="f_result">${resOpts}</select></div>
+    </div>
+    <!-- Auto gauge bar -->
+    <div style="background:#f8fafc;border-radius:8px;padding:.5rem .7rem;margin-bottom:.8rem">
+      <div style="font-size:.75rem;color:#64748b;margin-bottom:.3rem">เทียบค่ามาตรฐาน</div>
+      <div style="background:#e2e8f0;border-radius:4px;height:8px;overflow:hidden">
+        <div id="autoProgFill" style="height:8px;border-radius:4px;width:${initPct}%;background:${initCol};transition:width .3s"></div>
+      </div>
+      <div id="autoProgLbl" style="font-size:.72rem;color:#64748b;margin-top:.2rem">${initPct}% ของค่ามาตรฐาน</div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>จุดตรวจวัด / สถานที่</label>
+        <input id="f_loc" value="${r.location||''}" placeholder="เช่น โซน A คลังสินค้า ชั้น 1"></div>
+      <div class="fg"><label>เครื่องมือวัด</label>
+        <input id="f_instr" value="${r.instrument||''}" placeholder="เช่น Sound Level Meter SL-400"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>ผู้ตรวจวัด</label>
+        <input id="f_by" value="${r.measuredBy||''}"></div>
+      <div class="fg"><label>หน่วยงานที่ตรวจวัด / Lab</label>
+        <input id="f_lab" value="${r.lab||''}" placeholder="เช่น กรมสวัสดิการแรงงาน"></div>
+    </div>
+    <div class="fg"><label>มาตรฐานอ้างอิง</label>
+      <input id="f_std" value="${r.standard||''}" placeholder="เช่น กฎกระทรวงฯ พ.ศ. 2563 ≤ 85 dB(A)"></div>
+    <div class="fg"><label>มาตรการแก้ไข (กรณีเกินมาตรฐาน)</label>
+      <textarea id="f_action">${r.correctiveAction||''}</textarea></div>
+    <div class="fg"><label>หมายเหตุ</label>
+      <textarea id="f_notes">${r.notes||''}</textarea></div>`;
+}
+
+function collectForm() {
+  const param = document.getElementById('f_param')?.value;
+  const p = param ? paramMap[param] : null;
+  return {
+    parameter:       param,
+    measureDate:     document.getElementById('f_date')?.value,
+    value:           document.getElementById('f_value')?.value,
+    unit:            document.getElementById('f_unit')?.value.trim() || (p?.unit||''),
+    result:          document.getElementById('f_result')?.value,
+    location:        document.getElementById('f_loc')?.value.trim(),
+    instrument:      document.getElementById('f_instr')?.value.trim(),
+    measuredBy:      document.getElementById('f_by')?.value.trim(),
+    lab:             document.getElementById('f_lab')?.value.trim(),
+    standard:        document.getElementById('f_std')?.value.trim(),
+    correctiveAction:document.getElementById('f_action')?.value.trim(),
+    notes:           document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__env_openNew = () => {
+  openPanel('บันทึกผลตรวจวัดสภาพแวดล้อม', formHTML(),
+    `<button class="btn" onclick="window.__env_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__env_saveNew()">💾 บันทึก</button>`);
+};
+window.__env_saveNew = async () => {
+  const data = collectForm();
+  if (!data.parameter || !data.measureDate || data.value === '') { alert('กรุณาระบุพารามิเตอร์, วันที่ และค่าที่วัดได้'); return; }
+  await createEnvMonitorRecord(data, _profile.uid);
+  window.__env_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__env_view = async id => {
+  const r = await getEnvMonitorRecord(id);
+  if (!r) return;
+  const p   = paramMap[r.parameter] || { label: r.parameter, unit: '', icon: '📊', limit: null };
+  const res = ENV_RESULT[r.result || 'pending'] || ENV_RESULT.pending;
+  const pct = p.limit ? Math.min(150, Math.round(+r.value / p.limit * 100)) : 0;
+  const col = r.result === 'fail' ? '#dc2626' : r.result === 'warning' ? '#d97706' : '#16a34a';
+
+  openPanel(`${p.icon} ${p.label}`, `
+    <div style="text-align:center;padding:1rem 0 1.2rem;border-bottom:1px solid #f1f5f9;margin-bottom:1rem">
+      <div class="big-val" style="color:${col}">${r.value} <span style="font-size:1rem;color:#94a3b8">${r.unit||p.unit}</span></div>
+      <div style="margin:.5rem auto;max-width:240px">
+        <div style="background:#e2e8f0;border-radius:6px;height:12px;overflow:hidden">
+          <div style="height:12px;border-radius:6px;width:${Math.min(100,pct)}%;background:${col}"></div>
+        </div>
+        <div style="font-size:.75rem;color:#64748b;margin-top:.25rem">${pct}% ของค่ามาตรฐาน (${p.limitLabel||'—'})</div>
+      </div>
+      ${badge(res.label,res.color,res.bg)}
+    </div>
+
+    <div class="ds"><h4>รายละเอียดการตรวจวัด</h4>
+      <div class="info-grid">
+        <span class="k">วันที่ตรวจวัด</span><span class="v">${r.measureDate||'—'}</span>
+        <span class="k">จุดตรวจวัด</span><span class="v">${r.location||'—'}</span>
+        <span class="k">เครื่องมือวัด</span><span class="v">${r.instrument||'—'}</span>
+        <span class="k">ผู้ตรวจวัด</span><span class="v">${r.measuredBy||'—'}</span>
+        <span class="k">Lab / หน่วยงาน</span><span class="v">${r.lab||'—'}</span>
+        <span class="k">มาตรฐานอ้างอิง</span><span class="v">${r.standard||p.limitLabel||'—'}</span>
+      </div>
+    </div>
+
+    ${r.correctiveAction ? `<div class="ds"><h4>มาตรการแก้ไข</h4>
+      <p style="font-size:.83rem;color:#dc2626;margin:0;line-height:1.5">${r.correctiveAction}</p></div>` : ''}
+
+    ${r.notes ? `<div class="ds"><h4>หมายเหตุ</h4>
+      <p style="font-size:.83rem;color:#374151;margin:0;line-height:1.5">${r.notes}</p></div>` : ''}`,
+
+    `<button class="btn no-print" onclick="window.print()">🖨️ พิมพ์</button>
+     <button class="btn no-print" onclick="window.__env_openEdit('${r.id}')">✏️ แก้ไข</button>
+     <button class="btn btn-danger no-print" onclick="window.__env_delete('${r.id}')">🗑️ ลบ</button>`);
+};
+
+/* ── edit ── */
+window.__env_openEdit = async id => {
+  const r = await getEnvMonitorRecord(id);
+  if (!r) return;
+  openPanel('แก้ไขผลตรวจวัด', formHTML(r),
+    `<button class="btn" onclick="window.__env_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__env_saveEdit('${r.id}')">💾 บันทึก</button>`);
+};
+window.__env_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.parameter || !data.measureDate) { alert('กรุณาระบุพารามิเตอร์และวันที่'); return; }
+  await updateEnvMonitorRecord(id, data);
+  window.__env_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__env_delete = async id => {
+  if (!confirm('ยืนยันลบบันทึกนี้?')) return;
+  await deleteEnvMonitorRecord(id);
+  window.__env_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <!-- Search + actions -->
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหาสถานที่, ผู้ตรวจวัด, เครื่องมือ..."
+             oninput="window.__env_search(this.value)">
+      <button class="btn no-print" onclick="window.__env_openNew()" style="white-space:nowrap">＋ บันทึกผลตรวจ</button>
+      <button class="btn no-print" onclick="window.print()">🖨️</button>
+    </div>
+    <!-- Parameter filter -->
+    <div class="top-bar" style="margin-top:-.3rem">
+      <button class="filt-btn active" data-g="pr" data-k="all" onclick="window.__env_fParam('all')">ทั้งหมด</button>
+      ${ENV_PARAMETERS.map(p =>
+        `<button class="filt-btn" data-g="pr" data-k="${p.key}" onclick="window.__env_fParam('${p.key}')">${p.icon} ${p.label}</button>`
+      ).join('')}
+    </div>
+    <!-- Result filter -->
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-g="rs" data-k="all" onclick="window.__env_fResult('all')">ทุกผล</button>
+      ${Object.entries(ENV_RESULT).map(([k,v]) =>
+        `<button class="filt-btn" data-g="rs" data-k="${k}" onclick="window.__env_fResult('${k}')">${v.label}</button>`
+      ).join('')}
+    </div>
+    <!-- Stats -->
+    <div class="sum-row" id="envStats"></div>
+    <!-- Parameter overview -->
+    <div class="param-grid" id="envParams"></div>
+    <!-- Table -->
+    <table class="env-table">
+      <thead>
+        <tr>
+          <th>วันที่</th>
+          <th>พารามิเตอร์</th>
+          <th>ค่าที่วัดได้</th>
+          <th class="hide-sm">ค่ามาตรฐาน</th>
+          <th>ผล</th>
+          <th class="hide-sm">สถานที่</th>
+          <th class="hide-sm">ผู้ตรวจวัด</th>
+        </tr>
+      </thead>
+      <tbody id="envTable">
+        <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>
