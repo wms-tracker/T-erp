@@ -25,6 +25,7 @@ export const COL = {
   contractors:   "safetyContractors",
   kpiTargets:    "safetyKpiTargets",
   emergencyPlans:"safetyEmergencyPlans",
+  chemicals:     "safetyChemicals",
 };
 
 // ────────────────────────────────────────────
@@ -1192,4 +1193,62 @@ export async function updateEmergencyPlan(id, data) {
 
 export async function deleteEmergencyPlan(id) {
   await deleteDoc(doc(db, COL.emergencyPlans, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 18 — Chemical / Hazardous Material Register
+// ────────────────────────────────────────────
+export const GHS_CLASSES = [
+  { key: 'explosive',      label: 'วัตถุระเบิด',           symbol: '💥', color: '#dc2626', bg: '#fee2e2' },
+  { key: 'flammable',      label: 'ติดไฟได้',              symbol: '🔥', color: '#ea580c', bg: '#fff7ed' },
+  { key: 'oxidizing',      label: 'ออกซิไดซ์',             symbol: '🔶', color: '#d97706', bg: '#fef3c7' },
+  { key: 'compressed_gas', label: 'ก๊าซอัด',               symbol: '🟤', color: '#78350f', bg: '#fef3c7' },
+  { key: 'corrosive',      label: 'กัดกร่อน',              symbol: '⚗️', color: '#7c3aed', bg: '#f5f3ff' },
+  { key: 'toxic',          label: 'เป็นพิษเฉียบพลัน',       symbol: '☠️', color: '#9f1239', bg: '#fff1f2' },
+  { key: 'harmful',        label: 'อันตรายต่อสุขภาพ',       symbol: '⚠️', color: '#ca8a04', bg: '#fefce8' },
+  { key: 'env_hazard',     label: 'อันตรายต่อสิ่งแวดล้อม',  symbol: '🌿', color: '#15803d', bg: '#f0fdf4' },
+  { key: 'non_hazardous',  label: 'ไม่อันตราย',             symbol: '✅', color: '#16a34a', bg: '#dcfce7' },
+];
+
+export const PHYSICAL_STATES = [
+  { key: 'solid',  label: 'ของแข็ง' },
+  { key: 'liquid', label: 'ของเหลว' },
+  { key: 'gas',    label: 'ก๊าซ' },
+  { key: 'aerosol',label: 'ละอองฝอย' },
+  { key: 'powder', label: 'ผง' },
+  { key: 'paste',  label: 'ครีม/แป้ง' },
+];
+
+export const CHEM_STATUS = {
+  active:   { label: 'ใช้งาน',       color: '#16a34a', bg: '#dcfce7' },
+  low_stock:{ label: 'สต็อกต่ำ',     color: '#d97706', bg: '#fef3c7' },
+  disposed: { label: 'กำจัดแล้ว',    color: '#94a3b8', bg: '#f1f5f9' },
+  expired:  { label: 'หมดอายุ/SDS',  color: '#dc2626', bg: '#fee2e2' },
+};
+
+export async function listChemicals({ ghsClass, status, lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.chemicals), orderBy('createdAt','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (ghsClass) rows = rows.filter(r => (r.ghsClasses||[]).includes(ghsClass));
+  if (status)   rows = rows.filter(r => r.status === status);
+  return rows;
+}
+
+export async function getChemical(id) {
+  const snap = await getDoc(doc(db, COL.chemicals, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createChemical(data, createdBy) {
+  return addDoc(collection(db, COL.chemicals), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateChemical(id, data) {
+  await updateDoc(doc(db, COL.chemicals, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteChemical(id) {
+  await deleteDoc(doc(db, COL.chemicals, id));
 }
