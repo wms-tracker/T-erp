@@ -23,6 +23,7 @@ export const COL = {
   riskAssess:   "safetyRiskAssessments",
   observations:  "safetyObservations",
   contractors:   "safetyContractors",
+  kpiTargets:    "safetyKpiTargets",
 };
 
 // ────────────────────────────────────────────
@@ -1113,4 +1114,33 @@ export async function updateContractor(id, data) {
 
 export async function deleteContractor(id) {
   await deleteDoc(doc(db, COL.contractors, id));
+}
+
+// ────────────────────────────────────────────
+// KPI Targets (one doc per year, id = "YYYY")
+// ────────────────────────────────────────────
+export const KPI_DEFINITIONS = [
+  { key: 'incidents',         label: 'อุบัติเหตุทั้งหมด',           unit: 'ครั้ง',  direction: 'lower', defaultTarget: 0  },
+  { key: 'lti',               label: 'Lost Time Injury (LTI)',     unit: 'ครั้ง',  direction: 'lower', defaultTarget: 0  },
+  { key: 'lostDays',          label: 'วันสูญเสียจากอุบัติเหตุ',     unit: 'วัน',    direction: 'lower', defaultTarget: 0  },
+  { key: 'nearMiss',          label: 'Near Miss รายงาน',            unit: 'ครั้ง',  direction: 'higher', defaultTarget: 12 },
+  { key: 'capaCloseRate',     label: 'CAPA Closure Rate',          unit: '%',      direction: 'higher', defaultTarget: 90 },
+  { key: 'inspPassRate',      label: 'ผ่านการตรวจสอบ (Avg)',        unit: '%',      direction: 'higher', defaultTarget: 90 },
+  { key: 'trainingCompletion',label: 'Training Completion Rate',   unit: '%',      direction: 'higher', defaultTarget: 95 },
+  { key: 'safetyTalks',       label: 'Safety Talk (ต่อเดือน)',      unit: 'ครั้ง',  direction: 'higher', defaultTarget: 4  },
+  { key: 'legalCompliance',   label: 'Legal Compliance',           unit: '%',      direction: 'higher', defaultTarget: 100},
+  { key: 'bbs',               label: 'BBS Observations (ต่อเดือน)', unit: 'ครั้ง',  direction: 'higher', defaultTarget: 20 },
+  { key: 'drills',            label: 'ซ้อมแผนฉุกเฉิน (ต่อปี)',      unit: 'ครั้ง',  direction: 'higher', defaultTarget: 2  },
+  { key: 'contractorInduction',label:'Contractor Induction Rate',  unit: '%',      direction: 'higher', defaultTarget: 100},
+];
+
+export async function getKpiTargets(year) {
+  const snap = await getDoc(doc(db, COL.kpiTargets, String(year)));
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function saveKpiTargets(year, targets, updatedBy) {
+  await setDoc(doc(db, COL.kpiTargets, String(year)), {
+    year, targets, updatedBy, updatedAt: serverTimestamp(),
+  });
 }
