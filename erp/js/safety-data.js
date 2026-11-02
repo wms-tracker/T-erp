@@ -33,6 +33,7 @@ export const COL = {
   waste:         "safetyWaste",
   audits:        "safetyAudits",
   auditFindings: "safetyAuditFindings",
+  induction:     "safetyInduction",
 };
 
 // ────────────────────────────────────────────
@@ -1638,4 +1639,66 @@ export async function updateFinding(id, data) {
 
 export async function deleteFinding(id) {
   await deleteDoc(doc(db, COL.auditFindings, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 26 — Safety Induction
+// ────────────────────────────────────────────
+export const INDUCTION_TYPES = [
+  { key:'new_employee', label:'พนักงานใหม่',   icon:'🆕', color:'#1e3a5f', bg:'#eff6ff',  validDays:365 },
+  { key:'contractor',   label:'ผู้รับเหมา',     icon:'🔧', color:'#d97706', bg:'#fef3c7',  validDays:180 },
+  { key:'visitor',      label:'ผู้เยี่ยมชม',   icon:'🏷️', color:'#0891b2', bg:'#ecfeff',  validDays:1   },
+  { key:'transfer',     label:'โอนย้าย/เปลี่ยนแผนก', icon:'🔄', color:'#7c3aed', bg:'#f5f3ff', validDays:365 },
+  { key:'refresher',    label:'ทบทวนประจำปี',   icon:'🔁', color:'#16a34a', bg:'#dcfce7',  validDays:365 },
+];
+
+export const INDUCTION_TOPICS = [
+  'นโยบายความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมการทำงาน',
+  'กฎระเบียบและข้อห้ามภายในโรงงาน',
+  'การใช้อุปกรณ์ป้องกันส่วนบุคคล (PPE)',
+  'เส้นทางอพยพและจุดรวมพล',
+  'ขั้นตอนการแจ้งอุบัติเหตุและเหตุฉุกเฉิน',
+  'การใช้ถังดับเพลิงและอุปกรณ์ฉุกเฉิน',
+  'ความปลอดภัยในการยกและเคลื่อนย้ายสิ่งของ',
+  'ความปลอดภัยด้านไฟฟ้า',
+  'การจัดการสารเคมีอันตรายเบื้องต้น',
+  'การขับขี่ยานพาหนะในโรงงาน (Forklift/รถเข็น)',
+  'การทำงานในพื้นที่อับอากาศ (เบื้องต้น)',
+  'ความปลอดภัยในการทำงานที่สูง (เบื้องต้น)',
+  'การปฐมพยาบาลเบื้องต้น',
+  'ข้อกำหนดด้านสิ่งแวดล้อมและการจัดการของเสีย',
+  'บทบาทของ คปอ. และช่องทางรายงานปัญหา',
+];
+
+export async function listInduction({ type, status, lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.induction), orderBy('inductionDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (type)   rows = rows.filter(r => r.inductionType === type);
+  if (status) {
+    const today = new Date().toISOString().slice(0,10);
+    const soon  = new Date(Date.now() + 30*86400000).toISOString().slice(0,10);
+    if (status === 'valid')    rows = rows.filter(r => r.validUntil >= today);
+    if (status === 'expiring') rows = rows.filter(r => r.validUntil >= today && r.validUntil <= soon);
+    if (status === 'expired')  rows = rows.filter(r => !r.validUntil || r.validUntil < today);
+  }
+  return rows;
+}
+
+export async function getInductionRecord(id) {
+  const snap = await getDoc(doc(db, COL.induction, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createInductionRecord(data, createdBy) {
+  return addDoc(collection(db, COL.induction), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateInductionRecord(id, data) {
+  await updateDoc(doc(db, COL.induction, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteInductionRecord(id) {
+  await deleteDoc(doc(db, COL.induction, id));
 }

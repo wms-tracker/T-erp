@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ปฐมนิเทศความปลอดภัย — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.35rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
+
+    /* Type cards */
+    .type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.65rem;margin-bottom:1.2rem}
+    .type-card{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:.7rem 1rem;
+               cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:.7rem}
+    .type-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
+    .type-card.active-filter{border-color:#1e3a5f;background:#f0f4ff}
+    .type-icon{font-size:1.5rem;flex-shrink:0}
+    .type-info .n{font-size:1.1rem;font-weight:700;line-height:1}
+    .type-info .l{font-size:.7rem;color:#64748b;margin-top:.1rem}
+
+    /* Table */
+    .ind-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
+               overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:4rem}
+    .ind-table th{background:#f8fafc;padding:.52rem .7rem;text-align:left;color:#64748b;
+                  font-weight:600;font-size:.77rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .ind-table td{padding:.5rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
+    .ind-table tr:hover td{background:#fafbff;cursor:pointer}
+    .badge{display:inline-block;padding:.12rem .48rem;border-radius:999px;font-size:.7rem;font-weight:600}
+
+    /* Days remaining pill */
+    .days-pill{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;
+               font-weight:600;padding:.15rem .5rem;border-radius:999px}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(600px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:55px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+
+    /* Topic checklist */
+    .topic-list{list-style:none;padding:0;margin:0;max-height:280px;overflow-y:auto;
+                border:1px solid #e2e8f0;border-radius:8px;padding:.4rem .6rem}
+    .topic-list li{display:flex;align-items:flex-start;gap:.45rem;padding:.3rem 0;
+                   border-bottom:1px solid #f8fafc;font-size:.8rem}
+    .topic-list li:last-child{border:none}
+    .topic-list input[type=checkbox]{margin-top:.14rem;width:14px;height:14px;
+                                      flex-shrink:0;accent-color:#1e3a5f}
+    .topic-list label{cursor:pointer;color:#374151}
+
+    /* Detail */
+    .ds{margin-bottom:1.1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+
+    /* Certificate print */
+    @media print {
+      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
+      .cert-box{border:3px double #1e3a5f;padding:2rem;border-radius:12px;text-align:center}
+      .cert-box h2{color:#1e3a5f;font-size:1.5rem;margin-bottom:.5rem}
+      .cert-topic{display:inline-block;margin:.2rem .3rem;font-size:.8rem;
+                  padding:.15rem .5rem;border:1px solid #1e3a5f;border-radius:4px}
+    }
+
+    /* Progress bar */
+    .prog-bar{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-top:.25rem}
+    .prog-fill{height:100%;border-radius:3px;background:#1e3a5f;transition:width .3s}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;
+         justify-content:center;transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+    .btn-danger{background:#dc2626;color:#fff;border:none}
+
+    @media(max-width:600px){.hide-sm{display:none}}
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__ind_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">ปฐมนิเทศความปลอดภัย</h3>
+    <button class="btn-icon" onclick="window.__ind_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="บันทึกการปฐมนิเทศ" onclick="window.__ind_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  INDUCTION_TYPES, INDUCTION_TOPICS,
+  listInduction, getInductionRecord,
+  createInductionRecord, updateInductionRecord, deleteInductionRecord,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-induction', 'ปฐมนิเทศความปลอดภัย');
+
+let _all    = [];
+let _fType  = 'all';
+let _fStat  = 'all';
+let _search = '';
+
+const typeMap = Object.fromEntries(INDUCTION_TYPES.map(t => [t.key, t]));
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const today   = () => new Date().toISOString().slice(0,10);
+const addDays = (d,n) => { const dt = new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); };
+const diffDays= (a,b) => Math.round((new Date(a)-new Date(b))/86400000);
+
+function validUntilDate(r) {
+  if (r.validUntil) return r.validUntil;
+  const t = typeMap[r.inductionType];
+  if (!t || !r.inductionDate) return null;
+  return addDays(r.inductionDate, t.validDays);
+}
+
+function statusOf(r) {
+  const vu = validUntilDate(r);
+  if (!vu) return { label:'ไม่ระบุ', color:'#94a3b8', bg:'#f1f5f9' };
+  const td = today();
+  const soon = addDays(td, 30);
+  if (vu < td)  return { label:'หมดอายุ',    color:'#dc2626', bg:'#fee2e2' };
+  if (vu <= soon) return { label:'ใกล้หมดอายุ', color:'#d97706', bg:'#fef3c7' };
+  return { label:'ยังมีผล', color:'#16a34a', bg:'#dcfce7' };
+}
+
+/* ── load ── */
+async function load() {
+  _all = await listInduction({});
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  const td   = today();
+  const soon = addDays(td, 30);
+  let rows = [..._all];
+  if (_fType !== 'all') rows = rows.filter(r => r.inductionType === _fType);
+  if (_fStat !== 'all') {
+    rows = rows.filter(r => {
+      const vu = validUntilDate(r);
+      if (_fStat === 'valid')    return vu && vu >= td;
+      if (_fStat === 'expiring') return vu && vu >= td && vu <= soon;
+      if (_fStat === 'expired')  return !vu || vu < td;
+      return true;
+    });
+  }
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.personName||'').toLowerCase().includes(q) ||
+      (r.department||'').toLowerCase().includes(q) ||
+      (r.company||'').toLowerCase().includes(q) ||
+      (r.idCard||'').includes(q)
+    );
+  }
+  renderStats();
+  renderTypeCards();
+  renderTable(rows);
+}
+window.__ind_search = v => { _search = v; applyFilter(); };
+window.__ind_fType  = k => { _fType  = k; applyFilter(); };
+window.__ind_fStat  = k => {
+  _fStat = k;
+  document.querySelectorAll('.filt-btn[data-g=st]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const td   = today();
+  const soon = addDays(td, 30);
+  const valid    = _all.filter(r => { const v=validUntilDate(r); return v && v>=td; }).length;
+  const expiring = _all.filter(r => { const v=validUntilDate(r); return v && v>=td && v<=soon; }).length;
+  const expired  = _all.filter(r => { const v=validUntilDate(r); return !v||v<td; }).length;
+  document.getElementById('indStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">ทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${valid}</div><div class="l">✅ ยังมีผล</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${expiring}</div><div class="l">⏰ ใกล้หมด 30 วัน</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${expired}</div><div class="l">❌ หมดอายุ</div></div>`;
+}
+
+/* ── type cards ── */
+function renderTypeCards() {
+  const td = today();
+  document.getElementById('indTypes').innerHTML = INDUCTION_TYPES.map(t => {
+    const recs = _all.filter(r => r.inductionType === t.key);
+    const valid = recs.filter(r => { const v=validUntilDate(r); return v && v>=td; }).length;
+    return `
+    <div class="type-card ${_fType===t.key?'active-filter':''}"
+         onclick="window.__ind_fType('${_fType===t.key?'all':t.key}')">
+      <div class="type-icon">${t.icon}</div>
+      <div class="type-info">
+        <div class="n" style="color:${t.color}">${recs.length}</div>
+        <div class="l">${t.label}</div>
+        <div style="font-size:.66rem;color:#16a34a">${valid} ยังมีผล</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── table ── */
+function renderTable(rows) {
+  if (!rows.length) {
+    document.getElementById('indTable').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+  const td = today();
+  document.getElementById('indTable').innerHTML = rows.map(r => {
+    const t  = typeMap[r.inductionType] || { icon:'📋', label: r.inductionType, color:'#64748b', bg:'#f8fafc' };
+    const st = statusOf(r);
+    const vu = validUntilDate(r);
+    const days = vu ? diffDays(vu, td) : null;
+    const pct  = (r.topics||[]).length;
+    const daysPill = vu
+      ? `<span class="days-pill" style="color:${st.color};background:${st.bg}">
+           ${days>=0?`${days} วัน`:'หมดอายุ'}</span>`
+      : '—';
+    return `
+    <tr onclick="window.__ind_view('${r.id}')">
+      <td>
+        <div style="font-weight:600;color:#1e293b;font-size:.85rem">${r.personName||'—'}</div>
+        <div style="font-size:.72rem;color:#94a3b8">${r.department||r.company||''}</div>
+      </td>
+      <td><span style="font-size:.9rem">${t.icon}</span>
+          <span style="font-size:.75rem;color:${t.color};font-weight:600;margin-left:.25rem">${t.label}</span></td>
+      <td class="hide-sm" style="font-size:.78rem">${r.inductionDate||'—'}</td>
+      <td class="hide-sm">
+        <div style="font-size:.75rem;color:#374151">${pct}/${INDUCTION_TOPICS.length} หัวข้อ</div>
+        <div class="prog-bar" style="width:80px">
+          <div class="prog-fill" style="width:${Math.round(pct/INDUCTION_TOPICS.length*100)}%"></div>
+        </div>
+      </td>
+      <td class="hide-sm" style="font-size:.78rem">${vu||'—'}</td>
+      <td>${daysPill}</td>
+      <td>${badge(st.label,st.color,st.bg)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__ind_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── form ── */
+function formHTML(r = {}) {
+  const typeOpts = INDUCTION_TYPES.map(t =>
+    `<option value="${t.key}" ${(r.inductionType||'new_employee')===t.key?'selected':''}>${t.icon} ${t.label} (${t.validDays===1?'1 วัน':t.validDays+' วัน'})</option>`).join('');
+  const savedTopics = r.topics || [];
+  const topicHtml = INDUCTION_TOPICS.map((topic,i) =>
+    `<li><input type="checkbox" id="tp${i}" ${savedTopics.includes(topic)?'checked':''}>
+         <label for="tp${i}">${topic}</label></li>`).join('');
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>ชื่อผู้เข้ารับการปฐมนิเทศ *</label>
+        <input id="f_name" value="${r.personName||''}" placeholder="ชื่อ-นามสกุล"></div>
+      <div class="fg"><label>ประเภท *</label>
+        <select id="f_type" onchange="window.__ind_updateValidity()">${typeOpts}</select></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>แผนก / บริษัท</label>
+        <input id="f_dept" value="${r.department||r.company||''}" placeholder="แผนก หรือชื่อบริษัท"></div>
+      <div class="fg"><label>เลขบัตรประชาชน / รหัสพนักงาน</label>
+        <input id="f_id" value="${r.idCard||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ปฐมนิเทศ *</label>
+        <input type="date" id="f_date" value="${r.inductionDate||''}" onchange="window.__ind_updateValidity()"></div>
+      <div class="fg"><label>วันหมดอายุ</label>
+        <input type="date" id="f_valid" value="${r.validUntil||validUntilDate(r)||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>ผู้ให้การปฐมนิเทศ</label>
+        <input id="f_trainer" value="${r.trainer||_profile.displayName||''}"></div>
+      <div class="fg"><label>ผลการทดสอบ (คะแนน)</label>
+        <input type="number" id="f_score" value="${r.testScore||''}" min="0" max="100" placeholder="0-100"></div>
+    </div>
+    <div class="fg"><label>หัวข้อที่ครอบคลุม (${savedTopics.length}/${INDUCTION_TOPICS.length})</label>
+      <ul class="topic-list">${topicHtml}</ul></div>
+    <div class="fg"><label>หมายเหตุ</label>
+      <textarea id="f_notes">${r.notes||''}</textarea></div>`;
+}
+
+window.__ind_updateValidity = () => {
+  const type = document.getElementById('f_type')?.value;
+  const date = document.getElementById('f_date')?.value;
+  const t    = typeMap[type];
+  if (t && date) {
+    document.getElementById('f_valid').value = addDays(date, t.validDays);
+  }
+};
+
+function collectForm() {
+  const topics = [...document.querySelectorAll('.topic-list input:checked')]
+    .map(c => c.nextElementSibling.textContent.trim());
+  const dept = document.getElementById('f_dept')?.value.trim();
+  const type = document.getElementById('f_type')?.value;
+  return {
+    inductionType: type,
+    personName:    document.getElementById('f_name')?.value.trim(),
+    department:    ['new_employee','transfer'].includes(type) ? dept : '',
+    company:       ['contractor','visitor'].includes(type) ? dept : '',
+    idCard:        document.getElementById('f_id')?.value.trim(),
+    inductionDate: document.getElementById('f_date')?.value,
+    validUntil:    document.getElementById('f_valid')?.value,
+    trainer:       document.getElementById('f_trainer')?.value.trim(),
+    testScore:     document.getElementById('f_score')?.value ? +document.getElementById('f_score').value : null,
+    topics,
+    notes:         document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__ind_openNew = () => {
+  openPanel('บันทึกการปฐมนิเทศ', formHTML(),
+    `<button class="btn" onclick="window.__ind_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__ind_saveNew()">💾 บันทึก</button>`);
+};
+window.__ind_saveNew = async () => {
+  const data = collectForm();
+  if (!data.personName || !data.inductionDate) { alert('กรุณาระบุชื่อและวันที่'); return; }
+  await createInductionRecord(data, _profile.uid);
+  window.__ind_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__ind_view = async id => {
+  const r = await getInductionRecord(id);
+  if (!r) return;
+  const t  = typeMap[r.inductionType] || { icon:'📋', label: r.inductionType||'—', color:'#64748b', bg:'#f8fafc' };
+  const st = statusOf(r);
+  const vu = validUntilDate(r);
+  const td = today();
+  const days = vu ? diffDays(vu, td) : null;
+  const pct  = INDUCTION_TOPICS.length ? Math.round((r.topics||[]).length/INDUCTION_TOPICS.length*100) : 0;
+
+  const topicsHtml = INDUCTION_TOPICS.map(topic => {
+    const done = (r.topics||[]).includes(topic);
+    return `<li style="padding:.28rem 0;font-size:.8rem;display:flex;align-items:flex-start;gap:.4rem;border-bottom:1px solid #f8fafc">
+      <span>${done?'✅':'⬜'}</span>
+      <span style="${done?'':'color:#94a3b8'}">${topic}</span>
+    </li>`;
+  }).join('');
+
+  openPanel(`${t.icon} ${r.personName||'—'}`, `
+    <!-- Certificate-style header -->
+    <div class="cert-box" style="border:2px solid ${t.color};border-radius:10px;padding:1rem;
+         margin-bottom:1rem;background:${t.bg}">
+      <div style="font-size:.75rem;color:${t.color};font-weight:700;text-transform:uppercase;letter-spacing:.08em">
+        ใบรับรองการปฐมนิเทศความปลอดภัย</div>
+      <div style="font-size:1.2rem;font-weight:700;color:#1e293b;margin:.3rem 0">${r.personName||'—'}</div>
+      <div style="font-size:.8rem;color:#64748b">${r.department||r.company||'—'}</div>
+      <div style="margin-top:.5rem;display:flex;justify-content:center;gap:1rem;font-size:.78rem">
+        <span>📅 ${r.inductionDate||'—'}</span>
+        <span>⏰ ถึง ${vu||'—'}</span>
+        ${r.testScore!=null?`<span>📝 ${r.testScore}%</span>`:''}
+      </div>
+      <div style="margin-top:.5rem">
+        ${badge(st.label,st.color,st.bg)}
+        ${vu && days>=0 ? `<span style="font-size:.72rem;color:${st.color};margin-left:.3rem">เหลือ ${days} วัน</span>` : ''}
+      </div>
+    </div>
+
+    <div class="ds"><h4>รายละเอียด</h4>
+      <div class="info-grid">
+        <span class="k">ประเภท</span><span class="v">${t.icon} ${t.label}</span>
+        <span class="k">รหัส/บัตร</span><span class="v">${r.idCard||'—'}</span>
+        <span class="k">ผู้ให้การปฐมนิเทศ</span><span class="v">${r.trainer||'—'}</span>
+        <span class="k">คะแนนทดสอบ</span><span class="v">${r.testScore!=null?r.testScore+'%':'—'}</span>
+      </div>
+    </div>
+
+    <div class="ds"><h4>หัวข้อที่ครอบคลุม (${(r.topics||[]).length}/${INDUCTION_TOPICS.length} — ${pct}%)</h4>
+      <div class="prog-bar" style="margin-bottom:.6rem">
+        <div class="prog-fill" style="width:${pct}%;background:${pct===100?'#16a34a':'#1e3a5f'}"></div>
+      </div>
+      <ul style="list-style:none;padding:0;margin:0">${topicsHtml}</ul>
+    </div>
+
+    ${r.notes ? `<div class="ds"><h4>หมายเหตุ</h4>
+      <p style="font-size:.82rem;color:#374151;margin:0">${r.notes}</p></div>` : ''}`,
+
+    `<button class="btn no-print" onclick="window.__ind_openEdit('${r.id}')">✏️ แก้ไข</button>
+     <button class="btn no-print" onclick="window.print()">🖨️ พิมพ์ใบรับรอง</button>
+     <button class="btn btn-danger no-print" onclick="window.__ind_delete('${r.id}')">🗑️</button>`);
+};
+
+/* ── edit ── */
+window.__ind_openEdit = async id => {
+  const r = await getInductionRecord(id);
+  if (!r) return;
+  openPanel('แก้ไขการปฐมนิเทศ', formHTML(r),
+    `<button class="btn" onclick="window.__ind_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__ind_saveEdit('${r.id}')">💾 บันทึก</button>`);
+};
+window.__ind_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.personName) { alert('กรุณาระบุชื่อ'); return; }
+  await updateInductionRecord(id, data);
+  window.__ind_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__ind_delete = async id => {
+  if (!confirm('ลบบันทึกการปฐมนิเทศนี้?')) return;
+  await deleteInductionRecord(id);
+  window.__ind_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหาชื่อ, แผนก, บริษัท, รหัส..."
+             oninput="window.__ind_search(this.value)">
+      <button class="btn no-print" onclick="window.__ind_openNew()" style="white-space:nowrap">＋ บันทึกการปฐมนิเทศ</button>
+    </div>
+    <!-- Status filter -->
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-g="st" data-k="all"      onclick="window.__ind_fStat('all')">ทุกสถานะ</button>
+      <button class="filt-btn"        data-g="st" data-k="valid"     onclick="window.__ind_fStat('valid')">✅ ยังมีผล</button>
+      <button class="filt-btn"        data-g="st" data-k="expiring"  onclick="window.__ind_fStat('expiring')">⏰ ใกล้หมด 30 วัน</button>
+      <button class="filt-btn"        data-g="st" data-k="expired"   onclick="window.__ind_fStat('expired')">❌ หมดอายุ</button>
+    </div>
+    <!-- Stats -->
+    <div class="sum-row" id="indStats"></div>
+    <!-- Type cards -->
+    <div class="type-grid" id="indTypes"></div>
+    <!-- Table -->
+    <table class="ind-table">
+      <thead>
+        <tr>
+          <th>ชื่อผู้รับการปฐมนิเทศ</th>
+          <th>ประเภท</th>
+          <th class="hide-sm">วันที่</th>
+          <th class="hide-sm">หัวข้อ</th>
+          <th class="hide-sm">หมดอายุ</th>
+          <th>คงเหลือ</th>
+          <th>สถานะ</th>
+        </tr>
+      </thead>
+      <tbody id="indTable">
+        <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>
