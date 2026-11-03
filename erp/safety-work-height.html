@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>งานบนที่สูง — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  HEIGHT_WORK_TYPES, HEIGHT_PERMIT_STATUS, HEIGHT_CHECKLIST,
+  listWorkHeight, getWorkHeight, createWorkHeight, updateWorkHeight, deleteWorkHeight,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-work-height', 'งานบนที่สูง (Working at Height)');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records = [];
+
+function getWorkType(k) { return HEIGHT_WORK_TYPES.find(t=>t.key===k)||{label:k,icon:'📋'}; }
+
+function checklistPct(r) {
+  const checked = HEIGHT_CHECKLIST.filter(c=>(r.checklist||{})[c.key]).length;
+  return Math.round(checked/HEIGHT_CHECKLIST.length*100);
+}
+
+function kpiBar() {
+  const open      = records.filter(r=>r.status==='open').length;
+  const suspended = records.filter(r=>r.status==='suspended').length;
+  const avgPct    = records.length ? Math.round(records.reduce((s,r)=>s+checklistPct(r),0)/records.length) : 0;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${records.length}</div><div style="font-size:0.78rem;color:#6b7280;">ทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${open}</div><div style="font-size:0.78rem;color:#6b7280;">เปิดงานอยู่</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${suspended}</div><div style="font-size:0.78rem;color:#6b7280;">ระงับงาน</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${avgPct}%</div><div style="font-size:0.78rem;color:#6b7280;">Checklist เฉลี่ย</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:520px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .checklist-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:#f8faff;cursor:pointer;transition:background .12s;}
+      .checklist-item:hover{background:#eff4ff;}
+      .checklist-item.checked{background:#dcfce7;}
+      .checklist-item input[type=checkbox]{width:16px;height:16px;accent-color:#16a34a;flex-shrink:0;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>บันทึกงานบนที่สูง</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกงานบนที่สูง</button>
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>วันที่</th><th>งาน/สถานที่</th><th>ประเภท</th><th>ความสูง</th><th>ผู้ปฏิบัติ</th><th>Checklist</th><th>สถานะ</th><th>ดำเนินการ</th></tr></thead>
+        <tbody>
+          ${records.length===0?`<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:records.map(r=>{
+            const st=HEIGHT_PERMIT_STATUS[r.status]||{label:r.status||'—',color:'#555',bg:'#eee'};
+            const wt=getWorkType(r.workType);
+            const pct=checklistPct(r);
+            return `<tr>
+              <td>${fmt(r.workDate)}</td>
+              <td><b>${r.jobDescription||'—'}</b><div style="font-size:0.76rem;color:#666;">${r.location||''}</div></td>
+              <td>${wt.icon} ${wt.label}</td>
+              <td>${r.height?r.height+' ม.':'—'}</td>
+              <td>${(r.workers||[]).length} คน</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="flex:1;background:#e0e3f0;border-radius:10px;height:6px;overflow:hidden;min-width:50px;">
+                    <div style="width:${pct}%;height:100%;border-radius:10px;background:${pct===100?'#16a34a':pct>=70?'#d97706':'#dc2626'};"></div>
+                  </div>
+                  <span style="font-size:0.75rem;font-weight:700;color:${pct===100?'#16a34a':pct>=70?'#d97706':'#dc2626'};">${pct}%</span>
+                </div>
+              </td>
+              <td>${badge(st.label,st.color,st.bg)}</td>
+              <td>
+                ${r.status==='open'?`<button class="btn btn-success" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__closeRecord('${r.id}')">ปิดงาน</button>`:''}
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="wah-panel">
+      <div class="panel-header"><b id="panel-title">บันทึกงานบนที่สูง</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+let workerList = [];
+
+function formHTML(r) {
+  workerList = [...(r?.workers||[])];
+  const cl = r?.checklist || {};
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+
+    <div class="section-title">ข้อมูลงาน</div>
+    <div class="form-group"><label class="form-label">รายละเอียดงาน *</label><input id="f-job" class="form-control" value="${r?.jobDescription||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วันที่ทำงาน *</label><input id="f-date" class="form-control" type="date" value="${r?.workDate||today()}"/></div>
+      <div class="form-group"><label class="form-label">สถานที่</label><input id="f-loc" class="form-control" value="${r?.location||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ประเภทงาน</label>
+        <select id="f-type" class="form-control">
+          <option value="">— เลือก —</option>
+          ${HEIGHT_WORK_TYPES.map(t=>`<option value="${t.key}" ${r?.workType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+        </select></div>
+      <div class="form-group"><label class="form-label">ความสูง (เมตร)</label><input id="f-height" class="form-control" type="number" min="1.8" step="0.1" value="${r?.height||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">เวลาเริ่ม</label><input id="f-start" class="form-control" type="time" value="${r?.startTime||'08:00'}"/></div>
+      <div class="form-group"><label class="form-label">เวลาสิ้นสุด</label><input id="f-end" class="form-control" type="time" value="${r?.endTime||'17:00'}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">ผู้อนุมัติ / หัวหน้างาน</label><input id="f-supervisor" class="form-control" value="${r?.supervisor||profile.name||''}"/></div>
+
+    <div class="section-title">ผู้ปฏิบัติงาน</div>
+    <div id="worker-list" style="margin-bottom:8px;">
+      ${workerList.map((w,i)=>workerRowHTML(w,i)).join('')}
+    </div>
+    <button class="btn btn-outline" style="width:100%;margin-bottom:4px;" onclick="window.__addWorker()">+ เพิ่มผู้ปฏิบัติงาน</button>
+
+    <div class="section-title">Checklist ความปลอดภัย</div>
+    <div id="checklist-items">
+      ${HEIGHT_CHECKLIST.map(item=>{
+        const checked=!!cl[item.key];
+        return `<label class="checklist-item${checked?' checked':''}" id="cl-${item.key}" style="user-select:none;">
+          <input type="checkbox" id="chk-${item.key}" ${checked?'checked':''} onchange="window.__toggleCheck('${item.key}',this.checked)"/>
+          <span style="font-size:0.84rem;">${item.label}</span>
+        </label>`;
+      }).join('')}
+    </div>
+    <div style="font-size:0.78rem;color:#888;margin-top:6px;" id="cl-summary">ผ่าน 0/${HEIGHT_CHECKLIST.length} ข้อ</div>
+
+    <div class="section-title">หมายเหตุ</div>
+    <div class="form-group"><textarea id="f-notes" class="form-control" rows="2">${r?.notes||''}</textarea></div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+function workerRowHTML(w,i) {
+  return `<div style="display:flex;gap:8px;margin-bottom:6px;" id="wr-${i}">
+    <input class="form-control" placeholder="ชื่อผู้ปฏิบัติงาน" value="${w.name||''}" oninput="window.__updateWorker(${i},'name',this.value)" style="flex:2;"/>
+    <input class="form-control" placeholder="เบอร์โทร" value="${w.phone||''}" oninput="window.__updateWorker(${i},'phone',this.value)" style="flex:1;"/>
+    <button style="background:none;border:none;color:#c00;cursor:pointer;font-size:1rem;padding:0 4px;" onclick="window.__removeWorker(${i})">✕</button>
+  </div>`;
+}
+
+let checklistState = {};
+window.__toggleCheck = (key,val) => {
+  checklistState[key]=val;
+  const el=document.getElementById(`cl-${key}`);
+  if(el) el.classList.toggle('checked',val);
+  updateClSummary();
+};
+function updateClSummary() {
+  const passed=HEIGHT_CHECKLIST.filter(c=>checklistState[c.key]).length;
+  const el=document.getElementById('cl-summary');
+  if(el) el.textContent=`ผ่าน ${passed}/${HEIGHT_CHECKLIST.length} ข้อ`;
+}
+window.__addWorker = () => {
+  workerList.push({name:'',phone:''});
+  const i=workerList.length-1;
+  document.getElementById('worker-list').insertAdjacentHTML('beforeend',workerRowHTML(workerList[i],i));
+};
+window.__removeWorker = i => { workerList.splice(i,1); refreshWorkerList(); };
+window.__updateWorker = (i,key,val) => { if(workerList[i]) workerList[i][key]=val; };
+function refreshWorkerList() {
+  document.getElementById('worker-list').innerHTML=workerList.map((w,i)=>workerRowHTML(w,i)).join('');
+}
+
+window.__openPanel = () => {
+  checklistState={};
+  workerList=[];
+  document.getElementById('panel-title').textContent='บันทึกงานบนที่สูง';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('wah-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('wah-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getWorkHeight(id); if(!r) return;
+  checklistState={...(r.checklist||{})};
+  document.getElementById('panel-title').textContent='แก้ไขบันทึกงานบนที่สูง';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  updateClSummary();
+  document.getElementById('wah-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closeRecord = async id => {
+  if(!confirm('ยืนยันการปิดงาน?')) return;
+  await updateWorkHeight(id,{ status:'closed', closedAt:new Date().toISOString(), closedBy:profile.name||profile.uid });
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const job=document.getElementById('f-job').value.trim();
+  const date=document.getElementById('f-date').value;
+  if(!job||!date){ msg.textContent='* กรุณาระบุงานและวันที่'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+
+  // collect current checklist from DOM
+  const cl={};
+  HEIGHT_CHECKLIST.forEach(c=>{ cl[c.key]=!!(document.getElementById(`chk-${c.key}`)?.checked); });
+
+  const data={
+    jobDescription:job,
+    workDate:date,
+    location:document.getElementById('f-loc').value.trim(),
+    workType:document.getElementById('f-type').value,
+    height:parseFloat(document.getElementById('f-height').value)||0,
+    startTime:document.getElementById('f-start').value,
+    endTime:document.getElementById('f-end').value,
+    supervisor:document.getElementById('f-supervisor').value.trim(),
+    workers:workerList.filter(w=>w.name),
+    checklist:cl,
+    notes:document.getElementById('f-notes').value.trim(),
+    status:'open',
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id){ data.status=(await getWorkHeight(id))?.status||'open'; await updateWorkHeight(id,data); }
+    else await createWorkHeight(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบบันทึกนี้?')) return;
+  await deleteWorkHeight(id); await loadAll();
+};
+
+async function loadAll() { records=await listWorkHeight(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>

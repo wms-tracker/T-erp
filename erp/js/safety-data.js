@@ -47,6 +47,7 @@ export const COL = {
   recognition:   "safetyRecognition",
   ergonomic:     "safetyErgonomic",
   safetyAlert:   "safetySafetyAlert",
+  workHeight:    "safetyWorkHeight",
 };
 
 // ────────────────────────────────────────────
@@ -2346,4 +2347,49 @@ export async function updateAlert(id, data) {
 }
 export async function deleteAlert(id) {
   await deleteDoc(doc(db, COL.safetyAlert, id));
+}
+
+// ─── Phase 41: Working at Height ────────────────────────────────────────────
+export const HEIGHT_WORK_TYPES = [
+  { key:'scaffold',   label:'นั่งร้าน (Scaffolding)',        icon:'🏗️' },
+  { key:'ladder',     label:'บันได (Ladder)',                icon:'🪜' },
+  { key:'mewp',       label:'รถกระเช้า (MEWP/EWP)',          icon:'🚜' },
+  { key:'rope',       label:'งานเชือก (Rope Access)',         icon:'🧗' },
+  { key:'roof',       label:'หลังคา (Roof Work)',             icon:'🏠' },
+  { key:'elevated',   label:'แท่นยกระดับ (Elevated Platform)',icon:'📦' },
+  { key:'other',      label:'อื่นๆ',                         icon:'📋' },
+];
+export const HEIGHT_PERMIT_STATUS = {
+  open:     { label:'เปิดงาน',      color:'#dc2626', bg:'#fee2e2' },
+  closed:   { label:'ปิดงานแล้ว',  color:'#16a34a', bg:'#dcfce7' },
+  suspended:{ label:'ระงับงาน',    color:'#d97706', bg:'#fef3c7' },
+};
+export const HEIGHT_CHECKLIST = [
+  { key:'harness_ok',      label:'ตรวจ Full Body Harness / เข็มขัดนิรภัย' },
+  { key:'anchor_ok',       label:'จุดยึด (Anchor Point) แข็งแรงและเพียงพอ' },
+  { key:'lanyard_ok',      label:'สายช็อก (Lanyard/Energy Absorber) ไม่เสียหาย' },
+  { key:'scaffold_ok',     label:'นั่งร้าน/แท่นปลอดภัย และมี Toe Board' },
+  { key:'barrier_ok',      label:'กั้นพื้นที่ใต้งาน ป้องกันของตก' },
+  { key:'helmet_ok',       label:'หมวกนิรภัยครบทุกคน' },
+  { key:'weather_ok',      label:'สภาพอากาศปลอดภัย ไม่มีฝน/ลมแรง' },
+  { key:'trained_ok',      label:'ผู้ปฏิบัติงานผ่านการฝึกอบรมงานบนที่สูง' },
+  { key:'rescue_ok',       label:'มีแผนช่วยเหลือฉุกเฉิน (Rescue Plan)' },
+  { key:'communication_ok',label:'ระบบสื่อสารระหว่างผู้ปฏิบัติงานและผู้ควบคุม' },
+];
+export async function listWorkHeight() {
+  const s = await getDocs(query(collection(db, COL.workHeight), orderBy('workDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getWorkHeight(id) {
+  const d = await getDoc(doc(db, COL.workHeight, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createWorkHeight(data, createdBy) {
+  return addDoc(collection(db, COL.workHeight), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateWorkHeight(id, data) {
+  await updateDoc(doc(db, COL.workHeight, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteWorkHeight(id) {
+  await deleteDoc(doc(db, COL.workHeight, id));
 }
