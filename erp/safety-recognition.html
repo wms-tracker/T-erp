@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>รางวัลความปลอดภัย — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  RECOGNITION_TYPES, RECOGNITION_PERIOD,
+  listRecognition, getRecognition, createRecognition, updateRecognition, deleteRecognition,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-recognition', 'รางวัลความปลอดภัย');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records = [], filterYear = new Date().getFullYear().toString(), filterType = '';
+
+function getType(k) { return RECOGNITION_TYPES.find(t=>t.key===k)||{label:k,icon:'🎖️',color:'#555',bg:'#eee'}; }
+
+function filtered() {
+  return records.filter(r=>{
+    if(filterYear && !(r.awardDate||'').startsWith(filterYear)) return false;
+    if(filterType && r.awardType !== filterType) return false;
+    return true;
+  });
+}
+
+function yearOptions() {
+  const yr = new Date().getFullYear().toString();
+  const years=[..new Set(records.map(r=>(r.awardDate||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  if(!years.includes(yr)) years.unshift(yr);
+  return years.map(y=>`<option value="${y}" ${y===filterYear?'selected':''}>${y}</option>`).join('');
+}
+
+function renderPage() {
+  const rows=filtered();
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:460px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .award-card{background:#fff;border:2px solid #e0e3f0;border-radius:14px;padding:16px;margin-bottom:12px;transition:box-shadow .15s;}
+      .award-card:hover{box-shadow:0 4px 14px rgba(20,30,80,0.1);}
+    </style>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#f59e0b;">${records.length}</div><div style="font-size:0.78rem;color:#6b7280;">รางวัลทั้งหมด</div></div>
+      <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#0891b2;">${records.filter(r=>(r.awardDate||'').startsWith(new Date().getFullYear())).length}</div><div style="font-size:0.78rem;color:#6b7280;">ปีนี้</div></div>
+      <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${[..new Set(records.map(r=>r.recipient).filter(Boolean))].length}</div><div style="font-size:0.78rem;color:#6b7280;">ผู้ได้รับรางวัล</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการรางวัล</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ มอบรางวัล</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:90px;" onchange="window.__setYear(this.value)">
+          ${yearOptions()}
+        </select>
+        <select class="form-control" style="width:auto;min-width:200px;" onchange="window.__setType(this.value)">
+          <option value="">ทุกประเภท</option>
+          ${RECOGNITION_TYPES.map(t=>`<option value="${t.key}" ${t.key===filterType?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        ${rows.length===0?`<div style="text-align:center;color:#999;padding:32px;">ไม่พบข้อมูล</div>`:rows.map(r=>{
+          const tp=getType(r.awardType);
+          const per=RECOGNITION_PERIOD[r.period]||{label:r.period||'',icon:'📅'};
+          return `<div class="award-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="font-size:2rem;line-height:1;">${tp.icon}</div>
+                <div>
+                  <div style="font-weight:700;font-size:0.95rem;">${r.recipient||'—'}</div>
+                  <div style="font-size:0.82rem;color:#555;margin-top:2px;">${badge(tp.label,tp.color,tp.bg)} ${per.icon} ${per.label}</div>
+                  <div style="font-size:0.78rem;color:#888;margin-top:4px;">${fmt(r.awardDate)} • มอบโดย: ${r.awardedBy||'—'}</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0;">
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </div>
+            </div>
+            ${r.reason?`<div style="font-size:0.82rem;color:#444;margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f8;">${r.reason}</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="recog-panel">
+      <div class="panel-header"><b id="panel-title">มอบรางวัลความปลอดภัย</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+function formHTML(r) {
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div class="form-group"><label class="form-label">ประเภทรางวัล *</label>
+      <select id="f-type" class="form-control">
+        <option value="">— เลือก —</option>
+        ${RECOGNITION_TYPES.map(t=>`<option value="${t.key}" ${r?.awardType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">ผู้ได้รับรางวัล *</label><input id="f-recipient" class="form-control" value="${r?.recipient||''}"/></div>
+    <div class="form-group"><label class="form-label">แผนก</label><input id="f-dept" class="form-control" value="${r?.department||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วันที่มอบรางวัล *</label><input id="f-date" class="form-control" type="date" value="${r?.awardDate||today()}"/></div>
+      <div class="form-group"><label class="form-label">รอบรางวัล</label>
+        <select id="f-period" class="form-control">
+          ${Object.entries(RECOGNITION_PERIOD).map(([k,v])=>`<option value="${k}" ${r?.period===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="form-group"><label class="form-label">มอบโดย</label><input id="f-by" class="form-control" value="${r?.awardedBy||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">เหตุผล / รายละเอียด</label><textarea id="f-reason" class="form-control" rows="3">${r?.reason||''}</textarea></div>
+    <div class="form-group"><label class="form-label">รางวัล/ของรางวัล</label><input id="f-prize" class="form-control" value="${r?.prize||''}"/></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__setYear = v => { filterYear=v; renderPage(); };
+window.__setType = v => { filterType=v; renderPage(); };
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent='มอบรางวัลความปลอดภัย';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('recog-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('recog-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getRecognition(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไขรางวัล';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('recog-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const type=document.getElementById('f-type').value;
+  const recipient=document.getElementById('f-recipient').value.trim();
+  const date=document.getElementById('f-date').value;
+  if(!type||!recipient||!date){ msg.textContent='* กรุณาระบุข้อมูลที่จำเป็น'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data={
+    awardType:type, recipient,
+    department:document.getElementById('f-dept').value.trim(),
+    awardDate:date,
+    period:document.getElementById('f-period').value,
+    awardedBy:document.getElementById('f-by').value.trim(),
+    reason:document.getElementById('f-reason').value.trim(),
+    prize:document.getElementById('f-prize').value.trim(),
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id) await updateRecognition(id,data); else await createRecognition(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบรายการนี้?')) return;
+  await deleteRecognition(id); await loadAll();
+};
+
+async function loadAll() { records=await listRecognition(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>
