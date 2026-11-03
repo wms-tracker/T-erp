@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Safety Walk / ตรวจตรา — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  WALK_AREAS, WALK_FINDING_TYPES, WALK_FINDING_STATUS,
+  listSafetyWalks, getSafetyWalk, createSafetyWalk, updateSafetyWalk, deleteSafetyWalk,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-walk', 'Safety Walk / บันทึกการตรวจตรา');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records=[], filterMonth='';
+let findings=[]; // dynamic list while editing
+
+function kpiBar() {
+  const total  = records.length;
+  const thisM  = new Date().toISOString().slice(0,7);
+  const thisMonth = records.filter(r=>(r.walkDate||'').startsWith(thisM)).length;
+  const openFindings = records.reduce((n,r)=>{
+    return n + (r.findings||[]).filter(f=>f.status==='open'||f.status==='in_progress').length;
+  },0);
+  const goodPractice = records.reduce((n,r)=>{
+    return n + (r.findings||[]).filter(f=>f.type==='good_practice').length;
+  },0);
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div><div style="font-size:0.78rem;color:#6b7280;">ครั้งทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#0891b2;">${thisMonth}</div><div style="font-size:0.78rem;color:#6b7280;">เดือนนี้</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${openFindings}</div><div style="font-size:0.78rem;color:#6b7280;">ประเด็นรอแก้ไข</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${goodPractice}</div><div style="font-size:0.78rem;color:#6b7280;">Good Practice ✓</div></div>
+  </div>`;
+}
+
+function monthOptions() {
+  const months=[..new Set(records.map(r=>(r.walkDate||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  return months.map(m=>{
+    const label=new Date(m+'-01').toLocaleDateString('th-TH',{year:'numeric',month:'long'});
+    return `<option value="${m}" ${m===filterMonth?'selected':''}>${label}</option>`;
+  }).join('');
+}
+
+function renderPage() {
+  const rows = records.filter(r=>!filterMonth||(r.walkDate||'').startsWith(filterMonth));
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:520px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .finding-card{border:1.5px solid #e0e3f0;border-radius:10px;padding:10px;margin-bottom:8px;position:relative;}
+      .walk-card{background:#fff;border:1.5px solid #e0e3f0;border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s;}
+      .walk-card:hover{box-shadow:0 4px 14px rgba(20,30,80,0.1);}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการ Safety Walk</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึก Safety Walk</button>
+      </div>
+      <div style="margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:150px;" onchange="window.__setMonth(this.value)">
+          <option value="">ทุกเดือน</option>${monthOptions()}
+        </select>
+      </div>
+      <div id="walk-list">
+        ${rows.length===0?`<div style="text-align:center;color:#999;padding:32px;">ไม่พบข้อมูล</div>`:rows.map(r=>{
+          const open=(r.findings||[]).filter(f=>f.status==='open').length;
+          const good=(r.findings||[]).filter(f=>f.type==='good_practice').length;
+          const total=(r.findings||[]).length;
+          return `<div class="walk-card" onclick="window.__viewRecord('${r.id}')">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+              <div>
+                <div style="font-weight:700;">${fmt(r.walkDate)} — ${r.inspector||'—'}</div>
+                <div style="font-size:0.82rem;color:#666;margin-top:3px;">พื้นที่: ${(r.areas||[]).join(', ')||'—'}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:0.8rem;color:#555;">${total} ประเด็น</div>
+                ${open>0?badge(`${open} รอแก้ไข`,'#dc2626','#fee2e2'):''}
+                ${good>0?badge(`${good} ✓`,'#16a34a','#dcfce7'):''}
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="walk-panel">
+      <div class="panel-header"><b id="panel-title">บันทึก Safety Walk</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+function formHTML(r) {
+  findings = (r?.findings||[]).map(f=>({...f}));
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div class="section-title">ข้อมูลการตรวจ</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วันที่ตรวจ *</label><input id="f-date" class="form-control" type="date" value="${r?.walkDate||today()}"/></div>
+      <div class="form-group"><label class="form-label">ผู้ตรวจ *</label><input id="f-inspector" class="form-control" value="${r?.inspector||profile.name||''}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">พื้นที่ที่ตรวจ</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;" id="area-pills">
+        ${WALK_AREAS.map(a=>`<span style="padding:4px 12px;border-radius:20px;font-size:0.78rem;cursor:pointer;border:1.5px solid ${(r?.areas||[]).includes(a)?'#1a73e8':'#e0e3f0'};background:${(r?.areas||[]).includes(a)?'#eff6ff':'#f8faff'};color:${(r?.areas||[]).includes(a)?'#1a73e8':'#555'};" onclick="window.__toggleArea(this,'${a}')">${a}</span>`).join('')}
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">จำนวนผู้เข้าร่วม</label><input id="f-count" class="form-control" type="number" min="1" value="${r?.participantCount||1}"/></div>
+
+    <div class="section-title">ประเด็นที่พบ</div>
+    <div id="finding-list">
+      ${findings.map((f,i)=>findingCardHTML(f,i)).join('')}
+    </div>
+    <button class="btn btn-outline" style="width:100%;margin-top:4px;" onclick="window.__addFinding()">+ เพิ่มประเด็น</button>
+
+    <div class="form-group" style="margin-top:14px;"><label class="form-label">สรุป / ข้อสังเกตทั่วไป</label>
+      <textarea id="f-summary" class="form-control" rows="2">${r?.summary||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+function findingCardHTML(f,i) {
+  return `<div class="finding-card" id="fc-${i}">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;justify-content:space-between;">
+      <select class="form-control" style="width:auto;flex:1;" onchange="window.__updateFinding(${i},'type',this.value)">
+        ${Object.entries(WALK_FINDING_TYPES).map(([k,v])=>`<option value="${k}" ${f.type===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+      <select class="form-control" style="width:auto;" onchange="window.__updateFinding(${i},'status',this.value)">
+        ${Object.entries(WALK_FINDING_STATUS).map(([k,v])=>`<option value="${k}" ${(f.status||'open')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+      <button style="background:none;border:none;color:#c00;cursor:pointer;font-size:1rem;" onclick="window.__removeFinding(${i})">✕</button>
+    </div>
+    <textarea class="form-control" rows="2" placeholder="รายละเอียดประเด็น..." onchange="window.__updateFinding(${i},'detail',this.value)">${f.detail||''}</textarea>
+    <input class="form-control" style="margin-top:6px;" placeholder="ผู้รับผิดชอบแก้ไข" value="${f.assignedTo||''}" onchange="window.__updateFinding(${i},'assignedTo',this.value)"/>
+  </div>`;
+}
+
+let selectedAreas = [];
+window.__toggleArea = (el,area) => {
+  const idx = selectedAreas.indexOf(area);
+  if(idx>=0){ selectedAreas.splice(idx,1); el.style.borderColor='#e0e3f0'; el.style.background='#f8faff'; el.style.color='#555'; }
+  else { selectedAreas.push(area); el.style.borderColor='#1a73e8'; el.style.background='#eff6ff'; el.style.color='#1a73e8'; }
+};
+window.__addFinding = () => {
+  findings.push({type:'unsafe_condition',detail:'',status:'open',assignedTo:''});
+  const i=findings.length-1;
+  document.getElementById('finding-list').insertAdjacentHTML('beforeend',findingCardHTML(findings[i],i));
+};
+window.__removeFinding = i => { findings.splice(i,1); refreshFindingList(); };
+window.__updateFinding = (i,key,val) => { if(findings[i]) findings[i][key]=val; };
+function refreshFindingList() {
+  document.getElementById('finding-list').innerHTML=findings.map((f,i)=>findingCardHTML(f,i)).join('');
+}
+
+window.__setMonth = v => { filterMonth=v; renderPage(); };
+window.__openPanel = () => {
+  selectedAreas=[];
+  document.getElementById('panel-title').textContent='บันทึก Safety Walk';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('walk-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('walk-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__viewRecord = async id => {
+  const r=await getSafetyWalk(id); if(!r) return;
+  selectedAreas=[...(r.areas||[])];
+  document.getElementById('panel-title').textContent='รายละเอียด / แก้ไข';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('walk-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const date=document.getElementById('f-date').value;
+  const inspector=document.getElementById('f-inspector').value.trim();
+  if(!date||!inspector){ msg.textContent='* กรุณาระบุวันที่และผู้ตรวจ'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data={
+    walkDate:date, inspector,
+    areas:[...selectedAreas],
+    participantCount:parseInt(document.getElementById('f-count').value)||1,
+    findings:[...findings],
+    summary:document.getElementById('f-summary').value.trim(),
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id) await updateSafetyWalk(id,data); else await createSafetyWalk(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+
+async function loadAll() { records=await listSafetyWalks(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>
