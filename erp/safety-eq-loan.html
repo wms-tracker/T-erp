@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ยืม-คืนอุปกรณ์ความปลอดภัย — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell, renderNotifications } from './js/shell.js';
+import {
+  LOAN_EQ_TYPES, LOAN_STATUS,
+  listEqLoans, getEqLoan, createEqLoan, updateEqLoan, deleteEqLoan,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-eq-loan', 'ยืม-คืนอุปกรณ์ความปลอดภัย');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+function computeStatus(r) {
+  if (r.returnedDate) return r.condition === 'damaged' ? 'damaged' : 'returned';
+  if (r.dueDate && r.dueDate < today()) return 'overdue';
+  return 'borrowed';
+}
+function getEqType(k) { return LOAN_EQ_TYPES.find(t=>t.key===k)||{label:k,icon:'📦'}; }
+
+let records=[], filterStatus='', filterType='';
+
+function filtered() {
+  return records.filter(r=>{
+    const s = computeStatus(r);
+    if (filterStatus && s !== filterStatus) return false;
+    if (filterType   && r.eqType !== filterType) return false;
+    return true;
+  });
+}
+
+function kpiBar() {
+  const borrowed = records.filter(r=>computeStatus(r)==='borrowed').length;
+  const overdue  = records.filter(r=>computeStatus(r)==='overdue').length;
+  const returned = records.filter(r=>computeStatus(r)==='returned').length;
+  const damaged  = records.filter(r=>computeStatus(r)==='damaged').length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStat('borrowed')">
+      <div style="font-size:1.6rem;font-weight:800;color:#d97706;">${borrowed}</div>
+      <div style="font-size:0.78rem;color:#6b7280;">ยืมอยู่</div></div>
+    <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStat('overdue')">
+      <div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${overdue}</div>
+      <div style="font-size:0.78rem;color:#6b7280;">เกินกำหนด</div></div>
+    <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStat('returned')">
+      <div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${returned}</div>
+      <div style="font-size:0.78rem;color:#6b7280;">คืนแล้ว</div></div>
+    <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStat('damaged')">
+      <div style="font-size:1.6rem;font-weight:800;color:#7c3aed;">${damaged}</div>
+      <div style="font-size:0.78rem;color:#6b7280;">ชำรุด</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  const rows = filtered();
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:440px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .return-section{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:14px;margin-top:14px;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการยืม-คืนอุปกรณ์</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกการยืม</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:140px;" onchange="window.__setType(this.value)">
+          <option value="">ทุกประเภท</option>
+          ${LOAN_EQ_TYPES.map(t=>`<option value="${t.key}" ${t.key===filterType?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:130px;" onchange="window.__setStat(this.value)">
+          <option value="">ทุกสถานะ</option>
+          ${Object.entries(LOAN_STATUS).map(([k,v])=>`<option value="${k}" ${k===filterStatus?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>วันยืม</th><th>ผู้ยืม</th><th>แผนก</th><th>อุปกรณ์</th><th>จำนวน</th><th>กำหนดคืน</th><th>สถานะ</th><th>ดำเนินการ</th></tr></thead>
+          <tbody>
+            ${rows.length===0?`<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:rows.map(r=>{
+              const s=computeStatus(r); const sv=LOAN_STATUS[s]; const eq=getEqType(r.eqType);
+              return `<tr>
+                <td>${fmt(r.loanDate)}</td>
+                <td><b>${r.borrowerName||'—'}</b><br><small style="color:#999;">${r.borrowerId||''}</small></td>
+                <td>${r.department||'—'}</td>
+                <td>${eq.icon} ${eq.label}</td>
+                <td style="text-align:center;">${r.qty||1}</td>
+                <td>${fmt(r.dueDate)}</td>
+                <td>${badge(sv.label,sv.color,sv.bg)}</td>
+                <td>
+                  ${s==='borrowed'||s==='overdue'?`<button class="btn btn-success" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__returnRecord('${r.id}')">คืน</button>`:''}
+                  <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                  <button class="btn btn-danger" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:0.8rem;color:#888;margin-top:8px;">แสดง ${rows.length} รายการ</div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="loan-panel">
+      <div class="panel-header"><b id="panel-title">บันทึกการยืม</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+function formHTML(r, returnMode=false) {
+  if (returnMode) return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <div class="return-section">
+      <div style="font-weight:700;color:#15803d;margin-bottom:10px;">📦 บันทึกการคืน</div>
+      <div class="form-group"><label class="form-label">วันที่คืน</label><input id="f-returnDate" class="form-control" type="date" value="${today()}"/></div>
+      <div class="form-group"><label class="form-label">สภาพเมื่อคืน</label>
+        <select id="f-condition" class="form-control">
+          <option value="good">สภาพดี</option><option value="worn">สึกหรอ</option><option value="damaged">ชำรุด</option>
+        </select></div>
+      <div class="form-group"><label class="form-label">หมายเหตุ</label><textarea id="f-notes" class="form-control" rows="2" placeholder="หมายเหตุการคืน...">${r?.notes||''}</textarea></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-success" style="flex:1;" onclick="window.__saveReturn('${r.id}')">✅ ยืนยันการคืน</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div class="section-title">ผู้ยืม</div>
+    <div class="form-group"><label class="form-label">ชื่อผู้ยืม *</label><input id="f-name" class="form-control" value="${r?.borrowerName||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">รหัสพนักงาน</label><input id="f-empId" class="form-control" value="${r?.borrowerId||''}"/></div>
+      <div class="form-group"><label class="form-label">แผนก</label><input id="f-dept" class="form-control" value="${r?.department||''}"/></div>
+    </div>
+    <div class="section-title">อุปกรณ์</div>
+    <div class="form-group"><label class="form-label">ประเภทอุปกรณ์ *</label>
+      <select id="f-type" class="form-control">
+        <option value="">— เลือก —</option>
+        ${LOAN_EQ_TYPES.map(t=>`<option value="${t.key}" ${r?.eqType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">ชื่อ/รหัสอุปกรณ์</label><input id="f-eqName" class="form-control" placeholder="เช่น Harness #003" value="${r?.eqName||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">จำนวน</label><input id="f-qty" class="form-control" type="number" min="1" value="${r?.qty||1}"/></div>
+      <div class="form-group"><label class="form-label">จุดประสงค์</label><input id="f-purpose" class="form-control" placeholder="เช่น งาน PTW #023" value="${r?.purpose||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วันที่ยืม *</label><input id="f-loanDate" class="form-control" type="date" value="${r?.loanDate||today()}"/></div>
+      <div class="form-group"><label class="form-label">กำหนดคืน</label><input id="f-dueDate" class="form-control" type="date" value="${r?.dueDate||''}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">ผู้อนุมัติการยืม</label><input id="f-approvedBy" class="form-control" placeholder="ชื่อ จป./หัวหน้า" value="${r?.approvedBy||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">หมายเหตุ</label><textarea id="f-notes" class="form-control" rows="2">${r?.notes||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__setType = v => { filterType=v; renderPage(); };
+window.__setStat = v => { filterStatus=v; renderPage(); };
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent='บันทึกการยืม';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('loan-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('loan-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getEqLoan(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไขรายการ';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('loan-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__returnRecord = async id => {
+  const r=await getEqLoan(id); if(!r) return;
+  document.getElementById('panel-title').textContent='บันทึกการคืน';
+  document.getElementById('panel-body').innerHTML=formHTML(r,true);
+  document.getElementById('loan-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__saveReturn = async id => {
+  const msg=document.getElementById('panel-msg');
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  try {
+    await updateEqLoan(id,{
+      returnedDate: document.getElementById('f-returnDate').value,
+      condition:    document.getElementById('f-condition').value,
+      notes:        document.getElementById('f-notes').value.trim(),
+    });
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const name=document.getElementById('f-name').value.trim();
+  const eqType=document.getElementById('f-type').value;
+  const loanDate=document.getElementById('f-loanDate').value;
+  if(!name)    { msg.textContent='* กรุณาระบุชื่อผู้ยืม'; msg.className='msg error'; return; }
+  if(!eqType)  { msg.textContent='* กรุณาเลือกประเภทอุปกรณ์'; msg.className='msg error'; return; }
+  if(!loanDate){ msg.textContent='* กรุณาระบุวันที่ยืม'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data={
+    borrowerName: name,
+    borrowerId:   document.getElementById('f-empId').value.trim(),
+    department:   document.getElementById('f-dept').value.trim(),
+    eqType, eqName: document.getElementById('f-eqName').value.trim(),
+    qty:          parseInt(document.getElementById('f-qty').value)||1,
+    purpose:      document.getElementById('f-purpose').value.trim(),
+    loanDate,
+    dueDate:      document.getElementById('f-dueDate').value,
+    approvedBy:   document.getElementById('f-approvedBy').value.trim(),
+    notes:        document.getElementById('f-notes').value.trim(),
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id) await updateEqLoan(id,data); else await createEqLoan(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบรายการนี้?')) return;
+  await deleteEqLoan(id); await loadAll();
+};
+
+async function loadAll() {
+  records = await listEqLoans();
+  const notifs = records.filter(r=>computeStatus(r)==='overdue').map(r=>{
+    const eq=getEqType(r.eqType);
+    return { icon:'⚠️', title:`${r.borrowerName} — ${eq.label} เกินกำหนดคืน`, desc:r.department, href:'safety-eq-loan.html' };
+  });
+  renderPage();
+  renderNotifications(notifs);
+}
+loadAll();
+</script>
+</body>
+</html>

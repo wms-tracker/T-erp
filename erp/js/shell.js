@@ -144,6 +144,8 @@ const NAV = {
       { key: 'safety-violation',    label: 'บันทึกการฝ่าฝืนกฎ',           href: 'safety-violation.html' },
       { key: 'safety-handover',     label: 'บันทึกส่งกะความปลอดภัย',      href: 'safety-handover.html' },
       { key: 'safety-suggestion',   label: 'ข้อเสนอแนะความปลอดภัย',       href: 'safety-suggestion.html' },
+      { key: 'safety-eq-loan',      label: 'ยืม-คืนอุปกรณ์',               href: 'safety-eq-loan.html' },
+      { key: 'safety-walk',         label: 'Safety Walk / ตรวจตรา',         href: 'safety-walk.html' },
       { key: 'safety-observation',   label: 'Safety Observation (BBS)',     href: 'safety-observation.html' },
       { key: 'safety-contractor',    label: 'ผู้รับเหมา (Contractor)',       href: 'safety-contractor.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
@@ -180,6 +182,7 @@ const NAV = {
       { key: 'safety-reports',    label: 'รายงานความปลอดภัย',      href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',       href: 'safety-analytics.html' },
       { key: 'safety-kpi',        label: 'เป้าหมาย KPI',            href: 'safety-kpi.html' },
+      { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',    href: 'safety-budget.html' },
       { key: 'safety-action-plan',label: 'แผนปฏิบัติการประจำปี',    href: 'safety-action-plan.html' },
       { key: 'legal-compliance',  label: 'กฎหมายความปลอดภัย',      href: 'safety-legal.html' },
     ]},
@@ -332,6 +335,9 @@ const PAGE_DEPARTMENT = {
   "safety-violation.html":      "safety_officer",
   "safety-handover.html":       "safety_officer",
   "safety-suggestion.html":     "safety_officer",
+  "safety-eq-loan.html":        "safety_officer",
+  "safety-walk.html":           "safety_officer",
+  "safety-budget.html":         "safety_officer",
 };
 
 // ===================================================================

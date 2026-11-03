@@ -40,6 +40,9 @@ export const COL = {
   violations:    "safetyViolations",
   handover:      "safetyShiftHandover",
   suggestions:   "safetySuggestions",
+  eqLoan:        "safetyEquipmentLoan",
+  safetyWalk:    "safetySafetyWalk",
+  budget:        "safetyBudget",
 };
 
 // ────────────────────────────────────────────
@@ -2074,4 +2077,127 @@ export async function updateSuggestion(id, data) {
 
 export async function deleteSuggestion(id) {
   await deleteDoc(doc(db, COL.suggestions, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 34 — Safety Equipment Loan/Return (ยืม-คืนอุปกรณ์)
+// ────────────────────────────────────────────
+export const LOAN_EQ_TYPES = [
+  { key:'harness',    label:'Full Body Harness',    icon:'🪢' },
+  { key:'scba',       label:'SCBA / ชุดหายใจ',      icon:'😷' },
+  { key:'gas_detector',label:'Gas Detector',         icon:'🔍' },
+  { key:'safety_line',label:'Safety Line / Lifeline',icon:'🔗' },
+  { key:'tripod',     label:'Tripod / Rescue Kit',   icon:'📐' },
+  { key:'arc_flash',  label:'Arc Flash Suit',         icon:'⚡' },
+  { key:'chemical_suit',label:'Chemical Suit',        icon:'☣️' },
+  { key:'welding',    label:'อุปกรณ์เชื่อม',          icon:'🔧' },
+  { key:'scaffold',   label:'อุปกรณ์นั่งร้าน',        icon:'🏗️' },
+  { key:'other',      label:'อื่นๆ',                  icon:'📦' },
+];
+
+export const LOAN_STATUS = {
+  borrowed: { label:'ยืมอยู่',  color:'#d97706', bg:'#fef3c7' },
+  returned: { label:'คืนแล้ว', color:'#16a34a', bg:'#dcfce7' },
+  overdue:  { label:'เกินกำหนด',color:'#dc2626', bg:'#fee2e2' },
+  damaged:  { label:'ชำรุด',    color:'#7c3aed', bg:'#f5f3ff' },
+};
+
+export async function listEqLoans({ lim = 500 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.eqLoan), orderBy('loanDate','desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getEqLoan(id) {
+  const snap = await getDoc(doc(db, COL.eqLoan, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+export async function createEqLoan(data, createdBy) {
+  return addDoc(collection(db, COL.eqLoan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateEqLoan(id, data) {
+  await updateDoc(doc(db, COL.eqLoan, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteEqLoan(id) {
+  await deleteDoc(doc(db, COL.eqLoan, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 35 — Safety Walk / Patrol Record (บันทึกการตรวจตรา)
+// ────────────────────────────────────────────
+export const WALK_AREAS = [
+  'โซน A — คลังสินค้า','โซน B — ฝ่ายผลิต','โซน C — โรงอาหาร/สุขาภิบาล',
+  'อาคารสำนักงาน','บริเวณจอดรถ/ลานโล่ง','ห้องไฟฟ้า/ห้องเครื่อง',
+  'พื้นที่สารเคมี','บริเวณทางเดิน/บันได','ประตูเข้า-ออก','พื้นที่ก่อสร้าง','อื่นๆ',
+];
+
+export const WALK_FINDING_TYPES = {
+  unsafe_condition: { label:'Unsafe Condition', color:'#dc2626', bg:'#fee2e2' },
+  unsafe_act:       { label:'Unsafe Act',        color:'#d97706', bg:'#fef3c7' },
+  good_practice:    { label:'Good Practice ✓',   color:'#16a34a', bg:'#dcfce7' },
+  housekeeping:     { label:'Housekeeping',       color:'#0891b2', bg:'#ecfeff' },
+  near_miss:        { label:'Near Miss',          color:'#7c3aed', bg:'#f5f3ff' },
+};
+
+export const WALK_FINDING_STATUS = {
+  open:      { label:'รอแก้ไข',    color:'#dc2626', bg:'#fee2e2' },
+  in_progress:{ label:'กำลังแก้ไข', color:'#d97706', bg:'#fef3c7' },
+  closed:    { label:'แก้ไขแล้ว', color:'#16a34a', bg:'#dcfce7' },
+};
+
+export async function listSafetyWalks({ lim = 300 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.safetyWalk), orderBy('walkDate','desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getSafetyWalk(id) {
+  const snap = await getDoc(doc(db, COL.safetyWalk, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+export async function createSafetyWalk(data, createdBy) {
+  return addDoc(collection(db, COL.safetyWalk), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetyWalk(id, data) {
+  await updateDoc(doc(db, COL.safetyWalk, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetyWalk(id) {
+  await deleteDoc(doc(db, COL.safetyWalk, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 36 — Safety Budget Tracking (งบประมาณ)
+// ────────────────────────────────────────────
+export const BUDGET_CATEGORIES = [
+  { key:'ppe',         label:'PPE / อุปกรณ์ป้องกัน',       icon:'🦺' },
+  { key:'training',    label:'ฝึกอบรม',                    icon:'📚' },
+  { key:'equipment',   label:'อุปกรณ์ความปลอดภัย',         icon:'⚙️' },
+  { key:'inspection',  label:'ตรวจสอบ / ทดสอบ',            icon:'🔍' },
+  { key:'fire_safety', label:'ดับเพลิง / ป้องกันอัคคีภัย', icon:'🔥' },
+  { key:'health',      label:'ตรวจสุขภาพ',                  icon:'🏥' },
+  { key:'chemical',    label:'สารเคมี / SDS',               icon:'⚗️' },
+  { key:'signage',     label:'ป้ายความปลอดภัย',             icon:'🚧' },
+  { key:'consulting',  label:'ที่ปรึกษา / ตรวจสอบภายนอก',  icon:'👔' },
+  { key:'other',       label:'อื่นๆ',                        icon:'📋' },
+];
+
+export const BUDGET_TYPE = {
+  planned:  { label:'ตั้งงบประมาณ', color:'#0891b2', bg:'#ecfeff' },
+  actual:   { label:'ค่าใช้จ่ายจริง', color:'#16a34a', bg:'#dcfce7' },
+};
+
+export async function listBudget({ year } = {}) {
+  const snap = await getDocs(query(collection(db, COL.budget), orderBy('date','desc'), limit(1000)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (year) rows = rows.filter(r => (r.date||'').startsWith(year));
+  return rows;
+}
+export async function getBudgetItem(id) {
+  const snap = await getDoc(doc(db, COL.budget, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+export async function createBudgetItem(data, createdBy) {
+  return addDoc(collection(db, COL.budget), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateBudgetItem(id, data) {
+  await updateDoc(doc(db, COL.budget, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteBudgetItem(id) {
+  await deleteDoc(doc(db, COL.budget, id));
 }
