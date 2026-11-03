@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ข้อเสนอแนะความปลอดภัย — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  SUGGESTION_CATEGORIES, SUGGESTION_STATUS, SUGGESTION_IMPACT,
+  listSuggestions, getSuggestion,
+  createSuggestion, updateSuggestion, deleteSuggestion,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-suggestion', 'กล่องรับข้อเสนอแนะความปลอดภัย');
+
+// ── helpers ───────────────────────────────────────────────────────────
+const badge = (l, c, bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = (d) => d ? new Date(d).toLocaleDateString('th-TH', { year:'2-digit', month:'short', day:'numeric' }) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+function getCat(key) { return SUGGESTION_CATEGORIES.find(c => c.key === key) || { label:key, icon:'💡' }; }
+function getStat(key){ return SUGGESTION_STATUS[key] || { label:key||'—', color:'#555', bg:'#eee' }; }
+function getImp(key) { return SUGGESTION_IMPACT[key] || { label:key||'—', color:'#555', bg:'#eee' }; }
+
+const STATUS_STEPS = ['submitted','under_review','approved','implementing','implemented'];
+
+// ── state ─────────────────────────────────────────────────────────────
+let records = [];
+let filterCat = '', filterStatus = '', filterImpact = '';
+
+// ── render ────────────────────────────────────────────────────────────
+function filtered() {
+  return records.filter(r => {
+    if (filterCat    && r.category !== filterCat)     return false;
+    if (filterStatus && r.status   !== filterStatus)  return false;
+    if (filterImpact && r.impact   !== filterImpact)  return false;
+    return true;
+  });
+}
+
+function kpiBar() {
+  const total       = records.length;
+  const pending     = records.filter(r => r.status === 'submitted').length;
+  const implemented = records.filter(r => r.status === 'implemented').length;
+  const highImpact  = records.filter(r => r.impact === 'high' || r.impact === 'critical').length;
+  const implRate    = total ? Math.round(implemented / total * 100) : 0;
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รายการทั้งหมด</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStatus('submitted')">
+        <div style="font-size:1.6rem;font-weight:800;color:#6b7280;">${pending}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รอรีวิว</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStatus('implemented')">
+        <div style="font-size:1.6rem;font-weight:800;color:#15803d;">${implemented}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">นำไปใช้แล้ว (${implRate}%)</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#d97706;">${highImpact}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">ผลกระทบสูง/สำคัญมาก</div>
+      </div>
+    </div>`;
+}
+
+function progressBar(statusKey) {
+  if (statusKey === 'rejected') return `<div style="display:flex;gap:4px;align-items:center;margin-top:6px;"><span style="font-size:0.76rem;color:#dc2626;font-weight:700;">✗ ไม่อนุมัติ</span></div>`;
+  const cur = SUGGESTION_STATUS[statusKey]?.step || 1;
+  return `
+    <div style="display:flex;align-items:center;gap:3px;margin-top:6px;">
+      ${STATUS_STEPS.map((s,i) => {
+        const step = i + 1;
+        const done = step <= cur;
+        const stat = SUGGESTION_STATUS[s];
+        return `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;">
+          <div style="width:100%;height:4px;border-radius:2px;background:${done?stat.color:'#e0e3f0'};"></div>
+          <span style="font-size:0.6rem;color:${done?stat.color:'#aaa'};text-align:center;line-height:1.2;">${stat.label}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderPage() {
+  const rows = filtered();
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:500px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;transition:border-color .15s;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:4px;}
+      .cat-opt{padding:9px 6px;border-radius:10px;border:1.5px solid #e0e3f0;cursor:pointer;text-align:center;font-size:0.78rem;transition:all .12s;}
+      .cat-opt:hover,.cat-opt.sel{border-color:#1a73e8;background:#eff6ff;}
+      .cat-opt.sel{font-weight:700;}
+      .impact-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+      .impact-pill{padding:6px 14px;border-radius:20px;font-size:0.8rem;font-weight:600;border:2px solid transparent;cursor:pointer;transition:all .12s;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .sugg-card{background:#fff;border:1.5px solid #e0e3f0;border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s;}
+      .sugg-card:hover{box-shadow:0 4px 14px rgba(20,30,80,0.1);}
+      .review-section{background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:14px;margin-top:14px;}
+      .status-select-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:4px;}
+      .status-opt{padding:8px 6px;border-radius:8px;font-size:0.76rem;font-weight:600;cursor:pointer;text-align:center;border:2px solid transparent;transition:all .12s;}
+      .status-opt.sel{border-color:currentColor;}
+      @media(max-width:600px){.panel{width:100%;}.cat-grid{grid-template-columns:repeat(2,1fr);}.status-select-grid{grid-template-columns:repeat(2,1fr);}}
+    </style>
+
+    ${kpiBar()}
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการข้อเสนอแนะ</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ ส่งข้อเสนอแนะ</button>
+      </div>
+
+      <!-- Filters -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:150px;" onchange="window.__setCat(this.value)">
+          <option value="">ทุกหมวดหมู่</option>
+          ${SUGGESTION_CATEGORIES.map(c => `<option value="${c.key}" ${c.key===filterCat?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:140px;" onchange="window.__setStatus(this.value)">
+          <option value="">ทุกสถานะ</option>
+          ${Object.entries(SUGGESTION_STATUS).map(([k,v]) => `<option value="${k}" ${k===filterStatus?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:140px;" onchange="window.__setImpact(this.value)">
+          <option value="">ทุกระดับผลกระทบ</option>
+          ${Object.entries(SUGGESTION_IMPACT).map(([k,v]) => `<option value="${k}" ${k===filterImpact?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+
+      <!-- Cards -->
+      <div id="sugg-list">
+        ${rows.length === 0 ? `<div style="text-align:center;color:#999;padding:32px;">ไม่พบข้อมูล</div>` : rows.map(r => {
+          const cat  = getCat(r.category);
+          const stat = getStat(r.status);
+          const imp  = getImp(r.impact);
+          return `
+            <div class="sugg-card" onclick="window.__viewRecord('${r.id}')">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:6px;">
+                <div style="font-weight:700;font-size:0.92rem;flex:1;">${cat.icon} ${r.title || '(ไม่มีชื่อ)'}</div>
+                <div style="flex-shrink:0;">${badge(stat.label, stat.color, stat.bg)}</div>
+              </div>
+              <div style="font-size:0.8rem;color:#666;margin-bottom:4px;">
+                ${r.suggesterName||'ไม่ระบุชื่อ'} · ${r.department||'—'} · ${fmt(r.suggestionDate)}
+                <span style="margin-left:8px;">${badge(imp.label, imp.color, imp.bg)}</span>
+              </div>
+              ${r.description ? `<div style="font-size:0.82rem;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.description}</div>` : ''}
+              ${progressBar(r.status)}
+            </div>`;
+        }).join('')}
+      </div>
+      <div style="font-size:0.8rem;color:#888;margin-top:4px;">แสดง ${rows.length} รายการ</div>
+    </div>
+
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="sugg-panel">
+      <div class="panel-header">
+        <b id="panel-title">ส่งข้อเสนอแนะ</b>
+        <button class="panel-close" onclick="window.__closePanel()">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>
+  `;
+}
+
+// ── form HTML ─────────────────────────────────────────────────────────
+let selectedCat    = '';
+let selectedImpact = 'medium';
+let selectedStatusEdit = 'submitted';
+
+function formHTML(r) {
+  selectedCat        = r?.category || '';
+  selectedImpact     = r?.impact   || 'medium';
+  selectedStatusEdit = r?.status   || 'submitted';
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+
+    <div class="section-title">ผู้ส่งข้อเสนอแนะ</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">ชื่อผู้ส่ง</label>
+        <input id="f-name" class="form-control" placeholder="ชื่อ-นามสกุล (ไม่บังคับ)" value="${r?.suggesterName||''}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">แผนก</label>
+        <input id="f-dept" class="form-control" placeholder="แผนก" value="${r?.department||''}"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันที่ส่ง</label>
+      <input id="f-date" class="form-control" type="date" value="${r?.suggestionDate||today()}"/>
+    </div>
+
+    <div class="section-title">รายละเอียดข้อเสนอแนะ</div>
+    <div class="form-group">
+      <label class="form-label">หมวดหมู่ *</label>
+      <div class="cat-grid" id="cat-grid">
+        ${SUGGESTION_CATEGORIES.map(c => `
+          <div class="cat-opt ${c.key===selectedCat?'sel':''}" data-key="${c.key}" onclick="window.__selCat('${c.key}')">
+            <div style="font-size:1.2rem;">${c.icon}</div>
+            <div style="margin-top:3px;">${c.label}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ชื่อข้อเสนอแนะ *</label>
+      <input id="f-title" class="form-control" placeholder="หัวข้อสั้น ๆ" value="${r?.title||''}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สภาพปัญหาปัจจุบัน</label>
+      <textarea id="f-current" class="form-control" rows="2" placeholder="อธิบายสภาพปัญหาหรืออันตรายที่พบ...">${r?.currentSituation||''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ข้อเสนอแนะ / วิธีแก้ไข *</label>
+      <textarea id="f-desc" class="form-control" rows="3" placeholder="อธิบายวิธีการปรับปรุงที่ต้องการเสนอ...">${r?.description||''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ประโยชน์ที่คาดว่าจะได้รับ</label>
+      <textarea id="f-benefit" class="form-control" rows="2" placeholder="เช่น ลดความเสี่ยงอุบัติเหตุ ประหยัดเวลา...">${r?.expectedBenefit||''}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ระดับผลกระทบ</label>
+      <div class="impact-pills" id="impact-pills">
+        ${Object.entries(SUGGESTION_IMPACT).map(([k,v]) => `
+          <span class="impact-pill" data-key="${k}"
+            style="color:${v.color};background:${v.bg};border-color:${k===selectedImpact?v.color:'transparent'}"
+            onclick="window.__selImpact('${k}')">
+            ${v.label}
+          </span>`).join('')}
+      </div>
+    </div>
+
+    ${r ? `
+    <div class="review-section">
+      <div style="font-weight:700;color:#92400e;margin-bottom:10px;">⚡ การพิจารณา (จป.)</div>
+      <div class="form-group">
+        <label class="form-label">สถานะ</label>
+        <div class="status-select-grid" id="status-grid">
+          ${Object.entries(SUGGESTION_STATUS).map(([k,v]) => `
+            <div class="status-opt ${k===selectedStatusEdit?'sel':''}" data-key="${k}"
+              style="color:${v.color};background:${v.bg};"
+              onclick="window.__selStatusEdit('${k}')">
+              ${v.label}
+            </div>`).join('')}
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ผู้รีวิว</label>
+        <input id="f-reviewer" class="form-control" placeholder="ชื่อ จป." value="${r.reviewedBy||profile.name||''}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ความคิดเห็น / ผลการพิจารณา</label>
+        <textarea id="f-response" class="form-control" rows="2" placeholder="อธิบายผลการพิจารณา...">${r.response||''}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group">
+          <label class="form-label">วันที่พิจารณา</label>
+          <input id="f-reviewDate" class="form-control" type="date" value="${r.reviewDate||''}"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">วันที่นำไปใช้</label>
+          <input id="f-implDate" class="form-control" type="date" value="${r.implementedDate||''}"/>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  `;
+}
+
+function detailHTML(r) {
+  const cat  = getCat(r.category);
+  const stat = getStat(r.status);
+  const imp  = getImp(r.impact);
+  return `
+    <div style="background:#f4f6ff;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-size:1rem;font-weight:700;color:#1a237e;">${cat.icon} ${r.title||'(ไม่มีชื่อ)'}</div>
+      <div style="font-size:0.82rem;color:#555;margin-top:4px;">
+        ${r.suggesterName||'ไม่ระบุชื่อ'} · ${r.department||'—'} · ${fmt(r.suggestionDate)}
+      </div>
+      <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">
+        ${badge(stat.label, stat.color, stat.bg)}
+        ${badge(imp.label, imp.color, imp.bg)}
+        ${badge(cat.label, '#1a73e8', '#eff6ff')}
+      </div>
+      ${progressBar(r.status)}
+    </div>
+
+    ${r.currentSituation ? `<b style="font-size:0.82rem;color:#1a237e;">สภาพปัญหาปัจจุบัน</b><p style="font-size:0.84rem;margin:4px 0 12px;">${r.currentSituation}</p>` : ''}
+    <b style="font-size:0.82rem;color:#1a237e;">ข้อเสนอแนะ</b>
+    <p style="font-size:0.84rem;margin:4px 0 12px;">${r.description||'—'}</p>
+    ${r.expectedBenefit ? `<b style="font-size:0.82rem;color:#1a237e;">ประโยชน์ที่คาดว่าจะได้รับ</b><p style="font-size:0.84rem;margin:4px 0 12px;">${r.expectedBenefit}</p>` : ''}
+
+    ${r.response || r.reviewedBy ? `
+      <div style="background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:12px;margin-top:6px;">
+        <b style="font-size:0.82rem;color:#92400e;">ผลการพิจารณา</b>
+        ${r.reviewedBy ? `<div style="font-size:0.82rem;margin-top:4px;">รีวิวโดย: <b>${r.reviewedBy}</b> เมื่อ ${fmt(r.reviewDate)}</div>` : ''}
+        ${r.response ? `<div style="font-size:0.84rem;margin-top:4px;">${r.response}</div>` : ''}
+        ${r.implementedDate ? `<div style="font-size:0.82rem;margin-top:4px;color:#15803d;">✅ นำไปใช้เมื่อ ${fmt(r.implementedDate)}</div>` : ''}
+      </div>` : ''}
+
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-outline" onclick="window.__editRecord('${r.id}')">✏️ แก้ไข / พิจารณา</button>
+      <button class="btn btn-danger"  onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ปิด</button>
+    </div>
+  `;
+}
+
+// ── interactions ──────────────────────────────────────────────────────
+window.__selCat = (key) => {
+  selectedCat = key;
+  document.querySelectorAll('.cat-opt').forEach(o => o.classList.toggle('sel', o.dataset.key === key));
+};
+window.__selImpact = (key) => {
+  selectedImpact = key;
+  document.querySelectorAll('.impact-pill').forEach(p => {
+    const imp = SUGGESTION_IMPACT[p.dataset.key];
+    p.style.borderColor = p.dataset.key === key ? imp.color : 'transparent';
+    p.style.fontWeight  = p.dataset.key === key ? '700' : '600';
+  });
+};
+window.__selStatusEdit = (key) => {
+  selectedStatusEdit = key;
+  document.querySelectorAll('.status-opt').forEach(o => o.classList.toggle('sel', o.dataset.key === key));
+};
+
+window.__setCat    = (v) => { filterCat    = v; renderPage(); };
+window.__setStatus = (v) => { filterStatus = v; renderPage(); };
+window.__setImpact = (v) => { filterImpact = v; renderPage(); };
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'ส่งข้อเสนอแนะ';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  document.getElementById('sugg-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('sugg-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+
+window.__viewRecord = async (id) => {
+  const r = await getSuggestion(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'รายละเอียดข้อเสนอแนะ';
+  document.getElementById('panel-body').innerHTML = detailHTML(r);
+  document.getElementById('sugg-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__editRecord = async (id) => {
+  const r = await getSuggestion(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไข / พิจารณา';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  document.getElementById('sugg-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__saveRecord = async () => {
+  const msg   = document.getElementById('panel-msg');
+  const title = document.getElementById('f-title').value.trim();
+  const desc  = document.getElementById('f-desc').value.trim();
+  if (!selectedCat) { msg.textContent = '* กรุณาเลือกหมวดหมู่'; msg.className = 'msg error'; return; }
+  if (!title)       { msg.textContent = '* กรุณาระบุชื่อข้อเสนอแนะ'; msg.className = 'msg error'; return; }
+  if (!desc)        { msg.textContent = '* กรุณาระบุรายละเอียดข้อเสนอแนะ'; msg.className = 'msg error'; return; }
+  msg.textContent = 'กำลังบันทึก…'; msg.className = 'msg';
+
+  const id = document.getElementById('f-id').value;
+  const data = {
+    suggesterName:    document.getElementById('f-name').value.trim(),
+    department:       document.getElementById('f-dept').value.trim(),
+    suggestionDate:   document.getElementById('f-date').value,
+    category:         selectedCat,
+    title,
+    currentSituation: document.getElementById('f-current').value.trim(),
+    description:      desc,
+    expectedBenefit:  document.getElementById('f-benefit').value.trim(),
+    impact:           selectedImpact,
+    ...(id ? {
+      status:           selectedStatusEdit,
+      reviewedBy:       document.getElementById('f-reviewer')?.value.trim() || '',
+      response:         document.getElementById('f-response')?.value.trim() || '',
+      reviewDate:       document.getElementById('f-reviewDate')?.value || '',
+      implementedDate:  document.getElementById('f-implDate')?.value || '',
+    } : {}),
+  };
+
+  try {
+    if (id) await updateSuggestion(id, data);
+    else    await createSuggestion(data, profile.uid);
+    window.__closePanel();
+    await loadAll();
+  } catch (e) {
+    msg.textContent = 'เกิดข้อผิดพลาด: ' + e.message; msg.className = 'msg error';
+  }
+};
+
+window.__deleteRecord = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  await deleteSuggestion(id);
+  window.__closePanel();
+  await loadAll();
+};
+
+// ── load ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  records = await listSuggestions();
+  renderPage();
+}
+
+loadAll();
+</script>
+</body>
+</html>

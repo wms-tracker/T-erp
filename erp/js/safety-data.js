@@ -39,6 +39,7 @@ export const COL = {
   firstAid:      "safetyFirstAid",
   violations:    "safetyViolations",
   handover:      "safetyShiftHandover",
+  suggestions:   "safetySuggestions",
 };
 
 // ────────────────────────────────────────────
@@ -2018,4 +2019,59 @@ export async function updateHandover(id, data) {
 
 export async function deleteHandover(id) {
   await deleteDoc(doc(db, COL.handover, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 33 — Safety Suggestion System (กล่องข้อเสนอแนะ)
+// ────────────────────────────────────────────
+export const SUGGESTION_CATEGORIES = [
+  { key:'ppe',         label:'PPE / อุปกรณ์ป้องกัน',      icon:'🦺' },
+  { key:'procedure',   label:'ขั้นตอน / วิธีการทำงาน',    icon:'📋' },
+  { key:'equipment',   label:'เครื่องจักร / เครื่องมือ',   icon:'⚙️' },
+  { key:'environment', label:'สภาพแวดล้อมการทำงาน',        icon:'🏭' },
+  { key:'training',    label:'การฝึกอบรม',                 icon:'📚' },
+  { key:'housekeeping',label:'ความสะอาด / 5ส',             icon:'🧹' },
+  { key:'signage',     label:'ป้ายเตือน / สัญลักษณ์',      icon:'🚧' },
+  { key:'emergency',   label:'แผนฉุกเฉิน / อพยพ',          icon:'🚨' },
+  { key:'other',       label:'อื่นๆ',                       icon:'💡' },
+];
+
+export const SUGGESTION_STATUS = {
+  submitted:     { label:'รอรีวิว',          color:'#6b7280', bg:'#f3f4f6',  step:1 },
+  under_review:  { label:'กำลังพิจารณา',    color:'#0891b2', bg:'#ecfeff',  step:2 },
+  approved:      { label:'อนุมัติ',           color:'#16a34a', bg:'#dcfce7',  step:3 },
+  implementing:  { label:'กำลังดำเนินการ',   color:'#d97706', bg:'#fef3c7',  step:4 },
+  implemented:   { label:'นำไปใช้แล้ว ✅',   color:'#15803d', bg:'#bbf7d0',  step:5 },
+  rejected:      { label:'ไม่อนุมัติ',        color:'#dc2626', bg:'#fee2e2',  step:0 },
+};
+
+export const SUGGESTION_IMPACT = {
+  low:    { label:'ผลกระทบน้อย',    color:'#6b7280', bg:'#f3f4f6' },
+  medium: { label:'ผลกระทบปานกลาง', color:'#0891b2', bg:'#ecfeff' },
+  high:   { label:'ผลกระทบสูง',     color:'#d97706', bg:'#fef3c7' },
+  critical:{ label:'สำคัญมาก',      color:'#dc2626', bg:'#fee2e2' },
+};
+
+export async function listSuggestions({ lim = 500 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.suggestions), orderBy('suggestionDate','desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getSuggestion(id) {
+  const snap = await getDoc(doc(db, COL.suggestions, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createSuggestion(data, createdBy) {
+  return addDoc(collection(db, COL.suggestions), {
+    ...data, status:'submitted', createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateSuggestion(id, data) {
+  await updateDoc(doc(db, COL.suggestions, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteSuggestion(id) {
+  await deleteDoc(doc(db, COL.suggestions, id));
 }

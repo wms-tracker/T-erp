@@ -143,6 +143,7 @@ const NAV = {
       { key: 'safety-firstaid',     label: 'บันทึกปฐมพยาบาล',             href: 'safety-firstaid.html' },
       { key: 'safety-violation',    label: 'บันทึกการฝ่าฝืนกฎ',           href: 'safety-violation.html' },
       { key: 'safety-handover',     label: 'บันทึกส่งกะความปลอดภัย',      href: 'safety-handover.html' },
+      { key: 'safety-suggestion',   label: 'ข้อเสนอแนะความปลอดภัย',       href: 'safety-suggestion.html' },
       { key: 'safety-observation',   label: 'Safety Observation (BBS)',     href: 'safety-observation.html' },
       { key: 'safety-contractor',    label: 'ผู้รับเหมา (Contractor)',       href: 'safety-contractor.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
@@ -330,6 +331,7 @@ const PAGE_DEPARTMENT = {
   "safety-firstaid.html":       "safety_officer",
   "safety-violation.html":      "safety_officer",
   "safety-handover.html":       "safety_officer",
+  "safety-suggestion.html":     "safety_officer",
 };
 
 // ===================================================================
