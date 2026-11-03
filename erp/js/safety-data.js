@@ -43,6 +43,10 @@ export const COL = {
   eqLoan:        "safetyEquipmentLoan",
   safetyWalk:    "safetySafetyWalk",
   budget:        "safetyBudget",
+  loto:          "safetyLOTO",
+  recognition:   "safetyRecognition",
+  ergonomic:     "safetyErgonomic",
+  safetyAlert:   "safetySafetyAlert",
 };
 
 // ────────────────────────────────────────────
@@ -2200,4 +2204,146 @@ export async function updateBudgetItem(id, data) {
 }
 export async function deleteBudgetItem(id) {
   await deleteDoc(doc(db, COL.budget, id));
+}
+
+// ─── Phase 37: LOTO (Lockout/Tagout) ───────────────────────────────────────
+export const LOTO_ENERGY_TYPES = [
+  { key:'electrical', label:'ไฟฟ้า',          icon:'⚡', color:'#f59e0b', bg:'#fef3c7' },
+  { key:'hydraulic',  label:'ไฮดรอลิก',       icon:'💧', color:'#0891b2', bg:'#ecfeff' },
+  { key:'pneumatic',  label:'ลม / นิวแมติก', icon:'💨', color:'#6d28d9', bg:'#f5f3ff' },
+  { key:'thermal',    label:'ความร้อน / ไอน้ำ',icon:'🔥', color:'#dc2626', bg:'#fee2e2' },
+  { key:'gravity',    label:'แรงโน้มถ่วง',    icon:'⬇️', color:'#374151', bg:'#f9fafb' },
+  { key:'chemical',   label:'สารเคมี',         icon:'⚗️', color:'#7c3aed', bg:'#ede9fe' },
+  { key:'mechanical', label:'เครื่องจักร',    icon:'⚙️', color:'#1d4ed8', bg:'#dbeafe' },
+];
+export const LOTO_STATUS = {
+  active:   { label:'กำลัง Lock',    color:'#dc2626', bg:'#fee2e2', step:1 },
+  released: { label:'ปลดล็อกแล้ว',  color:'#16a34a', bg:'#dcfce7', step:2 },
+};
+export async function listLOTO() {
+  const s = await getDocs(query(collection(db, COL.loto), orderBy('createdAt','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getLOTO(id) {
+  const d = await getDoc(doc(db, COL.loto, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createLOTO(data, createdBy) {
+  return addDoc(collection(db, COL.loto), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateLOTO(id, data) {
+  await updateDoc(doc(db, COL.loto, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteLOTO(id) {
+  await deleteDoc(doc(db, COL.loto, id));
+}
+
+// ─── Phase 38: Safety Recognition ──────────────────────────────────────────
+export const RECOGNITION_TYPES = [
+  { key:'zero_incident',       label:'Zero Incident',          icon:'🏆', color:'#f59e0b', bg:'#fef3c7' },
+  { key:'best_safety',         label:'พนักงานความปลอดภัยดีเด่น',icon:'⭐', color:'#d97706', bg:'#fff7ed' },
+  { key:'suggestion_best',     label:'ข้อเสนอแนะดีเด่น',        icon:'💡', color:'#0891b2', bg:'#ecfeff' },
+  { key:'near_miss_reporter',  label:'รายงาน Near Miss ดีเด่น', icon:'🔍', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'safety_hero',         label:'Safety Hero',             icon:'🦸', color:'#16a34a', bg:'#dcfce7' },
+  { key:'team_award',          label:'ทีมความปลอดภัยยอดเยี่ยม',  icon:'👥', color:'#1d4ed8', bg:'#dbeafe' },
+  { key:'other',               label:'อื่นๆ',                   icon:'🎖️', color:'#6b7280', bg:'#f3f4f6' },
+];
+export const RECOGNITION_PERIOD = {
+  monthly:   { label:'รายเดือน',    icon:'📅' },
+  quarterly: { label:'รายไตรมาส',  icon:'📆' },
+  annual:    { label:'ประจำปี',    icon:'🗓️' },
+  special:   { label:'พิเศษ',      icon:'✨' },
+};
+export async function listRecognition() {
+  const s = await getDocs(query(collection(db, COL.recognition), orderBy('awardDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getRecognition(id) {
+  const d = await getDoc(doc(db, COL.recognition, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createRecognition(data, createdBy) {
+  return addDoc(collection(db, COL.recognition), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateRecognition(id, data) {
+  await updateDoc(doc(db, COL.recognition, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteRecognition(id) {
+  await deleteDoc(doc(db, COL.recognition, id));
+}
+
+// ─── Phase 39: Ergonomic Assessment ────────────────────────────────────────
+export const ERGO_TASK_TYPES = [
+  { key:'manual_handling',  label:'ยกยกและแบกหาม',         icon:'🏋️' },
+  { key:'repetitive',       label:'งานซ้ำซาก (Repetitive)', icon:'🔄' },
+  { key:'vdu',              label:'งานหน้าจอ (VDU)',         icon:'💻' },
+  { key:'awkward_posture',  label:'ท่าทางที่ไม่เหมาะสม',    icon:'🧍' },
+  { key:'vibration',        label:'การสั่นสะเทือน',          icon:'📳' },
+  { key:'prolonged_stand',  label:'ยืนนาน',                  icon:'🦵' },
+  { key:'hand_arm',         label:'งานมือ-แขน',              icon:'✋' },
+  { key:'other',            label:'อื่นๆ',                   icon:'📋' },
+];
+export const ERGO_RISK_LEVELS = {
+  low:      { label:'เสี่ยงต่ำ',    color:'#16a34a', bg:'#dcfce7', score:1 },
+  medium:   { label:'เสี่ยงปานกลาง',color:'#d97706', bg:'#fef3c7', score:2 },
+  high:     { label:'เสี่ยงสูง',    color:'#dc2626', bg:'#fee2e2', score:3 },
+  critical: { label:'เสี่ยงวิกฤต',  color:'#7f1d1d', bg:'#fef2f2', score:4 },
+};
+export const ERGO_BODY_PARTS = ['คอ','ไหล่ซ้าย','ไหล่ขวา','แขนซ้าย','แขนขวา','ข้อมือซ้าย','ข้อมือขวา','หลังส่วนบน','หลังส่วนล่าง','สะโพก','ขาซ้าย','ขาขวา','เข่าซ้าย','เข่าขวา'];
+export async function listErgonomics() {
+  const s = await getDocs(query(collection(db, COL.ergonomic), orderBy('createdAt','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getErgonomic(id) {
+  const d = await getDoc(doc(db, COL.ergonomic, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createErgonomic(data, createdBy) {
+  return addDoc(collection(db, COL.ergonomic), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateErgonomic(id, data) {
+  await updateDoc(doc(db, COL.ergonomic, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteErgonomic(id) {
+  await deleteDoc(doc(db, COL.ergonomic, id));
+}
+
+// ─── Phase 40: Safety Alert ─────────────────────────────────────────────────
+export const ALERT_TYPES = [
+  { key:'incident',         label:'อุบัติเหตุ/เหตุการณ์',   icon:'🚨', color:'#dc2626', bg:'#fee2e2' },
+  { key:'near_miss',        label:'Near Miss',               icon:'⚠️',  color:'#d97706', bg:'#fef3c7' },
+  { key:'equipment_failure',label:'เครื่องจักรขัดข้อง',     icon:'⚙️',  color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'chemical_spill',   label:'สารเคมีรั่วไหล',          icon:'☣️',  color:'#be185d', bg:'#fdf2f8' },
+  { key:'fire',             label:'เพลิงไหม้',               icon:'🔥',  color:'#ea580c', bg:'#fff7ed' },
+  { key:'weather',          label:'สภาพอากาศ/ภัยธรรมชาติ',  icon:'⛈️',  color:'#0891b2', bg:'#ecfeff' },
+  { key:'safety_notice',    label:'ประกาศ/คำเตือนทั่วไป',   icon:'📢',  color:'#374151', bg:'#f9fafb' },
+  { key:'regulatory',       label:'แจ้งกฎหมาย/ข้อบังคับ',   icon:'⚖️',  color:'#1d4ed8', bg:'#dbeafe' },
+];
+export const ALERT_URGENCY = {
+  critical: { label:'ด่วนมาก',   color:'#7f1d1d', bg:'#fef2f2', level:4 },
+  high:     { label:'ด่วน',      color:'#dc2626', bg:'#fee2e2', level:3 },
+  medium:   { label:'ปานกลาง',  color:'#d97706', bg:'#fef3c7', level:2 },
+  low:      { label:'ทั่วไป',    color:'#16a34a', bg:'#dcfce7', level:1 },
+};
+export const ALERT_STATUS = {
+  active:   { label:'มีผล',      color:'#dc2626', bg:'#fee2e2' },
+  resolved: { label:'แก้ไขแล้ว', color:'#16a34a', bg:'#dcfce7' },
+  archived: { label:'จัดเก็บ',   color:'#6b7280', bg:'#f3f4f6' },
+};
+export async function listAlerts() {
+  const s = await getDocs(query(collection(db, COL.safetyAlert), orderBy('createdAt','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getAlert(id) {
+  const d = await getDoc(doc(db, COL.safetyAlert, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createAlert(data, createdBy) {
+  return addDoc(collection(db, COL.safetyAlert), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateAlert(id, data) {
+  await updateDoc(doc(db, COL.safetyAlert, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteAlert(id) {
+  await deleteDoc(doc(db, COL.safetyAlert, id));
 }

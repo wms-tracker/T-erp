@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Lockout/Tagout (LOTO) — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  LOTO_ENERGY_TYPES, LOTO_STATUS,
+  listLOTO, getLOTO, createLOTO, updateLOTO, deleteLOTO,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-loto', 'Lockout / Tagout (LOTO)');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '—';
+const today = () => new Date().toISOString().slice(0,16);
+
+let records = [];
+
+function getEnergy(k) { return LOTO_ENERGY_TYPES.find(e=>e.key===k)||{label:k,icon:'⚡',color:'#555',bg:'#eee'}; }
+
+function kpiBar() {
+  const active   = records.filter(r=>r.status==='active').length;
+  const released = records.filter(r=>r.status==='released').length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${records.length}</div><div style="font-size:0.78rem;color:#6b7280;">ทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${active}</div><div style="font-size:0.78rem;color:#6b7280;">กำลัง Lock อยู่</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${released}</div><div style="font-size:0.78rem;color:#6b7280;">ปลดล็อกแล้ว</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:460px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .energy-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+      .energy-chip{padding:5px 12px;border-radius:20px;font-size:0.78rem;cursor:pointer;border:1.5px solid #e0e3f0;background:#f8faff;color:#555;transition:all .15s;}
+      .energy-chip.on{font-weight:700;}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>บันทึก LOTO ทั้งหมด</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึก LOTO ใหม่</button>
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>วันที่เริ่ม</th><th>เครื่องจักร/จุด</th><th>พลังงาน</th><th>ผู้ Lock</th><th>สถานะ</th><th>วันที่ปลด</th><th>ดำเนินการ</th></tr></thead>
+        <tbody>
+          ${records.length===0?`<tr><td colspan="7" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:records.map(r=>{
+            const st=LOTO_STATUS[r.status]||{label:r.status||'—',color:'#555',bg:'#eee'};
+            const energies=(r.energyTypes||[]).map(k=>{ const e=getEnergy(k); return `${e.icon}`; }).join(' ');
+            return `<tr>
+              <td>${fmt(r.lockDateTime)}</td>
+              <td><b>${r.equipment||'—'}</b><div style="font-size:0.76rem;color:#666;">${r.location||''}</div></td>
+              <td>${energies||'—'}</td>
+              <td>${r.lockedBy||'—'}</td>
+              <td>${badge(st.label,st.color,st.bg)}</td>
+              <td>${fmt(r.releaseDateTime)}</td>
+              <td>
+                ${r.status==='active'?`<button class="btn btn-success" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__releaseRecord('${r.id}')">ปลดล็อก</button>`:''}
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="loto-panel">
+      <div class="panel-header"><b id="panel-title">บันทึก LOTO ใหม่</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+let selectedEnergies = [];
+function formHTML(r) {
+  selectedEnergies = [...(r?.energyTypes||[])];
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div class="form-group"><label class="form-label">เครื่องจักร / จุดทำงาน *</label><input id="f-eq" class="form-control" value="${r?.equipment||''}"/></div>
+    <div class="form-group"><label class="form-label">สถานที่</label><input id="f-loc" class="form-control" value="${r?.location||''}"/></div>
+    <div class="form-group"><label class="form-label">ประเภทพลังงานที่ Lock</label>
+      <div class="energy-grid" id="energy-chips">
+        ${LOTO_ENERGY_TYPES.map(e=>{
+          const on=selectedEnergies.includes(e.key);
+          return `<span class="energy-chip${on?' on':''}" style="${on?`border-color:${e.color};background:${e.bg};color:${e.color}`:''}" onclick="window.__toggleEnergy(this,'${e.key}','${e.color}','${e.bg}')">${e.icon} ${e.label}</span>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วัน/เวลาที่ Lock *</label><input id="f-locktime" class="form-control" type="datetime-local" value="${r?.lockDateTime||today()}"/></div>
+      <div class="form-group"><label class="form-label">ผู้ Lock *</label><input id="f-by" class="form-control" value="${r?.lockedBy||profile.name||''}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">เหตุผล / งานที่ทำ</label><textarea id="f-reason" class="form-control" rows="2">${r?.reason||''}</textarea></div>
+    <div class="form-group"><label class="form-label">เบอร์ Lock / Tag</label><input id="f-tag" class="form-control" value="${r?.tagNumber||''}"/></div>
+    <div class="form-group"><label class="form-label">หมายเหตุ</label><textarea id="f-notes" class="form-control" rows="2">${r?.notes||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__toggleEnergy = (el,key,color,bg) => {
+  const idx=selectedEnergies.indexOf(key);
+  if(idx>=0){ selectedEnergies.splice(idx,1); el.classList.remove('on'); el.style.borderColor=''; el.style.background=''; el.style.color=''; }
+  else { selectedEnergies.push(key); el.classList.add('on'); el.style.borderColor=color; el.style.background=bg; el.style.color=color; }
+};
+window.__openPanel = () => {
+  selectedEnergies=[];
+  document.getElementById('panel-title').textContent='บันทึก LOTO ใหม่';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('loto-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('loto-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getLOTO(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไข LOTO';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('loto-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__releaseRecord = async id => {
+  if(!confirm('ยืนยันการปลดล็อก LOTO นี้?')) return;
+  await updateLOTO(id,{ status:'released', releaseDateTime:new Date().toISOString(), releasedBy:profile.name||profile.uid });
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const eq=document.getElementById('f-eq').value.trim();
+  const locktime=document.getElementById('f-locktime').value;
+  const by=document.getElementById('f-by').value.trim();
+  if(!eq||!by){ msg.textContent='* กรุณาระบุเครื่องจักรและผู้ Lock'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const id=document.getElementById('f-id').value;
+  const data={
+    equipment:eq, location:document.getElementById('f-loc').value.trim(),
+    energyTypes:[...selectedEnergies], lockDateTime:locktime,
+    lockedBy:by, reason:document.getElementById('f-reason').value.trim(),
+    tagNumber:document.getElementById('f-tag').value.trim(),
+    notes:document.getElementById('f-notes').value.trim(),
+    status:id?(await getLOTO(id))?.status||'active':'active',
+  };
+  try {
+    if(id) await updateLOTO(id,data); else await createLOTO(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบบันทึก LOTO นี้?')) return;
+  await deleteLOTO(id); await loadAll();
+};
+
+async function loadAll() { records=await listLOTO(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>

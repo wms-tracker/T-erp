@@ -146,6 +146,7 @@ const NAV = {
       { key: 'safety-suggestion',   label: 'ข้อเสนอแนะความปลอดภัย',       href: 'safety-suggestion.html' },
       { key: 'safety-eq-loan',      label: 'ยืม-คืนอุปกรณ์',               href: 'safety-eq-loan.html' },
       { key: 'safety-walk',         label: 'Safety Walk / ตรวจตรา',         href: 'safety-walk.html' },
+      { key: 'safety-alert',        label: 'แจ้งเตือนความปลอดภัยด่วน',      href: 'safety-alert.html' },
       { key: 'safety-observation',   label: 'Safety Observation (BBS)',     href: 'safety-observation.html' },
       { key: 'safety-contractor',    label: 'ผู้รับเหมา (Contractor)',       href: 'safety-contractor.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
@@ -156,6 +157,7 @@ const NAV = {
       { key: 'risk-assessment',   label: 'ประเมินความเสี่ยง (HIRA)', href: 'safety-risk.html' },
       { key: 'capa',              label: 'CAPA Management',         href: 'safety-capa.html' },
       { key: 'safety-ptw',    label: 'ใบอนุญาตทำงาน (PTW)',    href: 'safety-ptw.html' },
+      { key: 'safety-loto',   label: 'Lockout/Tagout (LOTO)', href: 'safety-loto.html' },
       { key: 'safety-audit',  label: 'ตรวจสอบภายใน (Audit)', href: 'safety-audit.html' },
       { key: 'safety-fire-eq',label: 'อุปกรณ์ดับเพลิง',       href: 'safety-fire-eq.html' },
     ]},
@@ -172,6 +174,7 @@ const NAV = {
       { key: 'safety-health',    label: 'ตรวจสุขภาพอาชีวอนามัย',   href: 'safety-health.html' },
       { key: 'safety-induction', label: 'ปฐมนิเทศความปลอดภัย',     href: 'safety-induction.html' },
       { key: 'safety-ppe',       label: 'จ่าย PPE',                 href: 'safety-ppe.html' },
+      { key: 'safety-ergo',      label: 'ประเมินการยศาสตร์',          href: 'safety-ergo.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',     href: 'safety-chemical.html' },
@@ -183,6 +186,7 @@ const NAV = {
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',       href: 'safety-analytics.html' },
       { key: 'safety-kpi',        label: 'เป้าหมาย KPI',            href: 'safety-kpi.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',    href: 'safety-budget.html' },
+      { key: 'safety-recognition',label: 'รางวัลความปลอดภัย',       href: 'safety-recognition.html' },
       { key: 'safety-action-plan',label: 'แผนปฏิบัติการประจำปี',    href: 'safety-action-plan.html' },
       { key: 'legal-compliance',  label: 'กฎหมายความปลอดภัย',      href: 'safety-legal.html' },
     ]},
@@ -338,6 +342,10 @@ const PAGE_DEPARTMENT = {
   "safety-eq-loan.html":        "safety_officer",
   "safety-walk.html":           "safety_officer",
   "safety-budget.html":         "safety_officer",
+  "safety-loto.html":           "safety_officer",
+  "safety-recognition.html":    "safety_officer",
+  "safety-ergo.html":           "safety_officer",
+  "safety-alert.html":          "safety_officer",
 };
 
 // ===================================================================
