@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>บันทึกส่งกะความปลอดภัย — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole }   from './js/auth.js';
+import { renderShell }   from './js/shell.js';
+import {
+  SHIFT_TYPES, HANDOVER_STATUS, OVERALL_SAFETY_STATUS,
+  listHandovers, getHandover,
+  createHandover, updateHandover, deleteHandover,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-handover', 'บันทึกส่งกะความปลอดภัย');
+
+// ── helpers ───────────────────────────────────────────────────────────
+const badge = (l, c, bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = (d) => d ? new Date(d).toLocaleDateString('th-TH', { year:'2-digit', month:'short', day:'numeric' }) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+function safetyStatusObj(key) {
+  return OVERALL_SAFETY_STATUS.find(s => s.key === key) || OVERALL_SAFETY_STATUS[0];
+}
+
+// ── state ─────────────────────────────────────────────────────────────
+let records = [];
+let filterShift = '', filterStatus = '', viewMode = 'list'; // list | detail
+
+// ── render ────────────────────────────────────────────────────────────
+function filtered() {
+  return records.filter(r => {
+    if (filterShift  && r.shiftType !== filterShift)  return false;
+    if (filterStatus && r.status    !== filterStatus) return false;
+    return true;
+  });
+}
+
+function kpiBar() {
+  const total   = records.length;
+  const pending = records.filter(r => r.status === 'pending').length;
+  const red     = records.filter(r => r.safetyStatus === 'red').length;
+  const today7  = records.filter(r => {
+    const d = new Date(r.shiftDate);
+    return (new Date() - d) < 7 * 86400000;
+  }).length;
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รายการทั้งหมด</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStatus('pending')">
+        <div style="font-size:1.6rem;font-weight:800;color:#d97706;">${pending}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รอรับทราบ</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#0891b2;">${today7}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">7 วันล่าสุด</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setSafetyRed()">
+        <div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${red}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">🔴 อันตราย/แจ้งด่วน</div>
+      </div>
+    </div>`;
+}
+
+function renderPage() {
+  const rows = filtered();
+  main.innerHTML = `
+    <style>
+      .ho-table-wrap{overflow-x:auto;}
+      .panel{position:fixed;right:0;top:0;bottom:0;width:520px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;transition:border-color .15s;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .shift-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+      .shift-pill{padding:8px 14px;border-radius:20px;font-size:0.82rem;font-weight:600;border:2px solid transparent;cursor:pointer;transition:all .12s;}
+      .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px;}
+      .status-opt{padding:12px 8px;border-radius:10px;border:2px solid transparent;cursor:pointer;text-align:center;transition:all .12s;}
+      .status-opt:hover{filter:brightness(0.95);}
+      .status-opt.sel{border-color:currentColor;box-shadow:0 0 0 1px currentColor;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .checklist-row{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #f0f2f8;}
+      .checklist-row:last-child{border-bottom:none;}
+      .checklist-row input[type=checkbox]{width:16px;height:16px;accent-color:#1a73e8;flex-shrink:0;margin-top:2px;}
+      .item-list{list-style:none;padding:0;margin:0;}
+      .item-list li{padding:6px 10px;background:#f8faff;border-radius:6px;margin-bottom:5px;font-size:0.84rem;display:flex;justify-content:space-between;align-items:center;}
+      .item-list li button{background:none;border:none;color:#c00;cursor:pointer;font-size:0.8rem;padding:2px 6px;}
+      .add-item-row{display:flex;gap:8px;margin-top:6px;}
+      .handover-card{background:#fff;border:1.5px solid #e0e3f0;border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s;}
+      .handover-card:hover{box-shadow:0 4px 14px rgba(20,30,80,0.1);}
+      .handover-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+      .ack-section{background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:14px;margin-top:14px;}
+      @media(max-width:600px){.panel{width:100%;}.status-grid{grid-template-columns:1fr 1fr;}}
+    </style>
+
+    ${kpiBar()}
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการส่งกะ</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกส่งกะ</button>
+      </div>
+
+      <!-- Filters -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:130px;" onchange="window.__setShift(this.value)">
+          <option value="">ทุกกะ</option>
+          ${Object.entries(SHIFT_TYPES).map(([k,v]) => `<option value="${k}" ${k===filterShift?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:140px;" onchange="window.__setStatus(this.value)">
+          <option value="">ทุกสถานะ</option>
+          ${Object.entries(HANDOVER_STATUS).map(([k,v]) => `<option value="${k}" ${k===filterStatus?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+
+      <!-- Card list -->
+      <div id="ho-list">
+        ${rows.length === 0 ? `<div style="text-align:center;color:#999;padding:32px;">ไม่พบข้อมูล</div>` : rows.map(r => {
+          const shift  = SHIFT_TYPES[r.shiftType] || { label:r.shiftType||'—', icon:'⏰', time:'', color:'#555', bg:'#eee' };
+          const stat   = HANDOVER_STATUS[r.status] || { label:'—', color:'#555', bg:'#eee' };
+          const safety = safetyStatusObj(r.safetyStatus);
+          const items  = (r.pendingActions || []).length;
+          return `
+            <div class="handover-card" onclick="window.__viewRecord('${r.id}')">
+              <div class="handover-card-header">
+                <div>
+                  <span style="font-weight:700;font-size:0.95rem;">${fmt(r.shiftDate)}</span>
+                  <span style="margin-left:8px;">${badge(shift.label, shift.color, shift.bg)}</span>
+                  <span style="margin-left:6px;">${safety.icon} ${badge(safety.label, safety.color, safety.bg)}</span>
+                </div>
+                <div>${badge(stat.label, stat.color, stat.bg)}</div>
+              </div>
+              <div style="font-size:0.84rem;color:#555;">
+                <span>จาก: <b>${r.handoverFrom||'—'}</b></span>
+                <span style="margin:0 8px;">→</span>
+                <span>ถึง: <b>${r.handoverTo||'—'}</b></span>
+              </div>
+              ${r.summary ? `<div style="font-size:0.82rem;color:#666;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.summary}</div>` : ''}
+              ${items > 0 ? `<div style="font-size:0.78rem;color:#d97706;margin-top:4px;">⚡ ${items} รายการที่ต้องต่อเนื่อง</div>` : ''}
+            </div>`;
+        }).join('')}
+      </div>
+      <div style="font-size:0.8rem;color:#888;margin-top:4px;">แสดง ${rows.length} รายการ</div>
+    </div>
+
+    <!-- Panel overlay -->
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="ho-panel">
+      <div class="panel-header">
+        <b id="panel-title">บันทึกส่งกะ</b>
+        <button class="panel-close" onclick="window.__closePanel()">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>
+  `;
+}
+
+// ── dynamic item lists ────────────────────────────────────────────────
+let pendingActions  = [];
+let hazards         = [];
+let activePTWs      = [];
+let checklist       = {};
+
+const CHECKLIST_ITEMS = [
+  { key:'fire_eq',    label:'ตรวจสอบอุปกรณ์ดับเพลิง' },
+  { key:'exit',       label:'ทางหนีไฟ/ทางออกฉุกเฉินปลอดภัย' },
+  { key:'first_aid',  label:'ชุดปฐมพยาบาลพร้อมใช้งาน' },
+  { key:'spill',      label:'ไม่มีการรั่วไหล/หก' },
+  { key:'housekeeping', label:'ความสะอาดและความเป็นระเบียบ OK' },
+  { key:'ptw_closed', label:'PTW ที่หมดอายุถูกปิดแล้ว' },
+  { key:'incident',   label:'ไม่มีอุบัติเหตุ/Near Miss ค้างรายงาน' },
+];
+
+let selectedShift    = '';
+let selectedSafety   = 'green';
+
+function formHTML(r) {
+  selectedShift  = r?.shiftType     || 'day';
+  selectedSafety = r?.safetyStatus  || 'green';
+  pendingActions = [...(r?.pendingActions  || [])];
+  hazards        = [...(r?.hazards         || [])];
+  activePTWs     = [...(r?.activePTWs      || [])];
+  checklist      = { ...(r?.checklist      || {}) };
+
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+
+    <div class="section-title">ข้อมูลกะ</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">วันที่ *</label>
+        <input id="f-date" class="form-control" type="date" value="${r?.shiftDate||today()}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ประเภทกะ *</label>
+        <select id="f-shift" class="form-control" onchange="window.__selShift(this.value)">
+          ${Object.entries(SHIFT_TYPES).map(([k,v]) => `<option value="${k}" ${(r?.shiftType||'day')===k?'selected':''}>${v.icon} ${v.label} (${v.time})</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">ผู้ส่งกะ *</label>
+        <input id="f-from" class="form-control" placeholder="ชื่อ จป. ที่ส่ง" value="${r?.handoverFrom||profile.name||''}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ผู้รับกะ *</label>
+        <input id="f-to" class="form-control" placeholder="ชื่อ จป. ที่รับ" value="${r?.handoverTo||''}"/>
+      </div>
+    </div>
+
+    <div class="section-title">สถานการณ์โดยรวม</div>
+    <div class="status-grid" id="safety-status-grid">
+      ${OVERALL_SAFETY_STATUS.map(s => `
+        <div class="status-opt ${s.key===selectedSafety?'sel':''}"
+          data-key="${s.key}"
+          style="background:${s.bg};color:${s.color};"
+          onclick="window.__selSafetyStatus('${s.key}')">
+          <div style="font-size:1.5rem;">${s.icon}</div>
+          <div style="font-size:0.78rem;font-weight:700;margin-top:4px;">${s.label}</div>
+        </div>`).join('')}
+    </div>
+    <div class="form-group" style="margin-top:10px;">
+      <label class="form-label">สรุปสถานการณ์ / ข้อมูลสำคัญ</label>
+      <textarea id="f-summary" class="form-control" rows="3" placeholder="สรุปเหตุการณ์สำคัญในกะนี้...">${r?.summary||''}</textarea>
+    </div>
+
+    <div class="section-title">Checklist ก่อนส่งกะ</div>
+    <div>
+      ${CHECKLIST_ITEMS.map(ci => `
+        <div class="checklist-row">
+          <input type="checkbox" id="chk-${ci.key}" ${checklist[ci.key]?'checked':''} onchange="window.__toggleCheck('${ci.key}',this.checked)"/>
+          <label for="chk-${ci.key}" style="font-size:0.85rem;cursor:pointer;">${ci.label}</label>
+        </div>`).join('')}
+    </div>
+
+    <div class="section-title">อันตราย / ความเสี่ยงที่ยังค้างอยู่</div>
+    <ul class="item-list" id="hazard-list">
+      ${hazards.map((h,i) => `<li>${h}<button onclick="window.__removeItem('hazard',${i})">✕</button></li>`).join('')}
+    </ul>
+    <div class="add-item-row">
+      <input id="add-hazard" class="form-control" placeholder="ระบุอันตราย/ความเสี่ยง" style="flex:1;"/>
+      <button class="btn btn-outline" onclick="window.__addItem('hazard')">+ เพิ่ม</button>
+    </div>
+
+    <div class="section-title">PTW ที่ยัง Active อยู่</div>
+    <ul class="item-list" id="ptw-list">
+      ${activePTWs.map((p,i) => `<li>${p}<button onclick="window.__removeItem('ptw',${i})">✕</button></li>`).join('')}
+    </ul>
+    <div class="add-item-row">
+      <input id="add-ptw" class="form-control" placeholder="เลขที่ PTW / รายละเอียด" style="flex:1;"/>
+      <button class="btn btn-outline" onclick="window.__addItem('ptw')">+ เพิ่ม</button>
+    </div>
+
+    <div class="section-title">งาน / Action ที่ต้องต่อเนื่อง</div>
+    <ul class="item-list" id="action-list">
+      ${pendingActions.map((a,i) => `<li>${a}<button onclick="window.__removeItem('action',${i})">✕</button></li>`).join('')}
+    </ul>
+    <div class="add-item-row">
+      <input id="add-action" class="form-control" placeholder="รายละเอียดงานที่ต้องต่อเนื่อง" style="flex:1;"/>
+      <button class="btn btn-outline" onclick="window.__addItem('action')">+ เพิ่ม</button>
+    </div>
+
+    <div class="form-group" style="margin-top:14px;">
+      <label class="form-label">หมายเหตุเพิ่มเติม</label>
+      <textarea id="f-notes" class="form-control" rows="2" placeholder="หมายเหตุ...">${r?.notes||''}</textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึกส่งกะ</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  `;
+}
+
+function detailHTML(r) {
+  const shift  = SHIFT_TYPES[r.shiftType] || { label:r.shiftType||'—', icon:'⏰', time:'', color:'#555', bg:'#eee' };
+  const stat   = HANDOVER_STATUS[r.status] || { label:'—', color:'#555', bg:'#eee' };
+  const safety = safetyStatusObj(r.safetyStatus);
+  const checkDone = CHECKLIST_ITEMS.filter(ci => r.checklist?.[ci.key]).length;
+  return `
+    <div style="background:${safety.bg};border-radius:10px;padding:14px 16px;margin-bottom:14px;border-left:4px solid ${safety.color};">
+      <div style="font-size:1.3rem;font-weight:800;color:${safety.color};">${safety.icon} ${safety.label}</div>
+      <div style="font-size:0.84rem;color:#555;margin-top:4px;">
+        ${fmt(r.shiftDate)} · ${shift.icon} ${shift.label} (${shift.time})
+      </div>
+    </div>
+
+    <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:0.86rem;margin-bottom:14px;">
+      <div><b>ผู้ส่งกะ:</b> ${r.handoverFrom||'—'}</div>
+      <div style="color:#999;">→</div>
+      <div><b>ผู้รับกะ:</b> ${r.handoverTo||'—'}</div>
+      <div>${badge(stat.label, stat.color, stat.bg)}</div>
+    </div>
+
+    ${r.summary ? `<div style="background:#f4f6ff;border-radius:8px;padding:10px 14px;font-size:0.86rem;margin-bottom:12px;">${r.summary}</div>` : ''}
+
+    <b style="font-size:0.82rem;color:#1a237e;">✅ Checklist (${checkDone}/${CHECKLIST_ITEMS.length})</b>
+    <div style="margin:6px 0 12px;display:flex;flex-wrap:wrap;gap:6px;">
+      ${CHECKLIST_ITEMS.map(ci => {
+        const done = r.checklist?.[ci.key];
+        return `<span style="font-size:0.78rem;padding:3px 10px;border-radius:20px;background:${done?'#dcfce7':'#fee2e2'};color:${done?'#16a34a':'#dc2626'};">${done?'✓':'✗'} ${ci.label}</span>`;
+      }).join('')}
+    </div>
+
+    ${(r.hazards||[]).length > 0 ? `<b style="font-size:0.82rem;color:#1a237e;">⚠️ อันตราย/ความเสี่ยงค้างอยู่</b><ul style="margin:6px 0 12px;padding-left:18px;">${(r.hazards).map(h=>`<li style="font-size:0.84rem;margin-bottom:4px;">${h}</li>`).join('')}</ul>` : ''}
+    ${(r.activePTWs||[]).length > 0 ? `<b style="font-size:0.82rem;color:#1a237e;">📝 PTW ที่ยัง Active</b><ul style="margin:6px 0 12px;padding-left:18px;">${(r.activePTWs).map(p=>`<li style="font-size:0.84rem;margin-bottom:4px;">${p}</li>`).join('')}</ul>` : ''}
+    ${(r.pendingActions||[]).length > 0 ? `<b style="font-size:0.82rem;color:#1a237e;">⚡ งานที่ต้องต่อเนื่อง</b><ul style="margin:6px 0 12px;padding-left:18px;">${(r.pendingActions).map(a=>`<li style="font-size:0.84rem;margin-bottom:4px;">${a}</li>`).join('')}</ul>` : ''}
+    ${r.notes ? `<b style="font-size:0.82rem;color:#1a237e;">หมายเหตุ</b><p style="font-size:0.84rem;margin:4px 0 12px;">${r.notes}</p>` : ''}
+
+    ${r.status === 'pending' ? `
+      <div class="ack-section">
+        <div style="font-weight:700;color:#15803d;margin-bottom:8px;">📋 รับทราบการส่งกะ</div>
+        <div class="form-group">
+          <label class="form-label">ชื่อผู้รับทราบ</label>
+          <input id="ack-name" class="form-control" placeholder="ชื่อ จป. ที่รับกะ" value="${r.handoverTo||''}"/>
+        </div>
+        <button class="btn btn-success" onclick="window.__acknowledge('${r.id}')">✅ ยืนยันรับทราบ</button>
+      </div>` : `
+      <div style="background:#dcfce7;border-radius:8px;padding:10px 14px;font-size:0.84rem;color:#15803d;">
+        ✅ รับทราบแล้วโดย <b>${r.acknowledgedBy||'—'}</b> เมื่อ ${fmt(r.acknowledgedAt?.seconds ? new Date(r.acknowledgedAt.seconds*1000).toISOString().slice(0,10) : r.acknowledgedAt)}
+      </div>`}
+
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-outline" onclick="window.__editFromDetail('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-danger"  onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ปิด</button>
+    </div>
+  `;
+}
+
+// ── interactions ──────────────────────────────────────────────────────
+window.__selShift = (k) => { selectedShift = k; };
+window.__selSafetyStatus = (key) => {
+  selectedSafety = key;
+  document.querySelectorAll('.status-opt').forEach(o => {
+    const sel = o.dataset.key === key;
+    o.classList.toggle('sel', sel);
+  });
+};
+window.__toggleCheck = (k, v) => { checklist[k] = v; };
+
+window.__addItem = (type) => {
+  const inputId = type === 'hazard' ? 'add-hazard' : type === 'ptw' ? 'add-ptw' : 'add-action';
+  const listId  = type === 'hazard' ? 'hazard-list' : type === 'ptw' ? 'ptw-list' : 'action-list';
+  const arr     = type === 'hazard' ? hazards : type === 'ptw' ? activePTWs : pendingActions;
+  const input   = document.getElementById(inputId);
+  const val     = input.value.trim();
+  if (!val) return;
+  arr.push(val);
+  input.value = '';
+  const i = arr.length - 1;
+  const li = document.createElement('li');
+  li.innerHTML = `${val}<button onclick="window.__removeItem('${type}',${i})">✕</button>`;
+  document.getElementById(listId).appendChild(li);
+};
+
+window.__removeItem = (type, idx) => {
+  const arr = type === 'hazard' ? hazards : type === 'ptw' ? activePTWs : pendingActions;
+  arr.splice(idx, 1);
+  const listId = type === 'hazard' ? 'hazard-list' : type === 'ptw' ? 'ptw-list' : 'action-list';
+  const ul = document.getElementById(listId);
+  ul.innerHTML = arr.map((v, i) => `<li>${v}<button onclick="window.__removeItem('${type}',${i})">✕</button></li>`).join('');
+};
+
+window.__setShift  = (v) => { filterShift  = v; renderPage(); };
+window.__setStatus = (v) => { filterStatus = v; renderPage(); };
+window.__setSafetyRed = () => { filterStatus = ''; renderPage(); };
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'บันทึกส่งกะ';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  document.getElementById('ho-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('ho-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+
+window.__viewRecord = async (id) => {
+  const r = await getHandover(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'รายละเอียดการส่งกะ';
+  document.getElementById('panel-body').innerHTML = detailHTML(r);
+  document.getElementById('ho-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__editRecord = async (id) => {
+  const r = await getHandover(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขการส่งกะ';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  document.getElementById('ho-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__editFromDetail = async (id) => {
+  const r = await getHandover(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขการส่งกะ';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+};
+
+window.__acknowledge = async (id) => {
+  const name = document.getElementById('ack-name')?.value.trim();
+  if (!name) { alert('กรุณาระบุชื่อผู้รับทราบ'); return; }
+  await updateHandover(id, {
+    status: 'acknowledged',
+    acknowledgedBy: name,
+    acknowledgedAt: new Date().toISOString().slice(0,10),
+  });
+  window.__closePanel();
+  await loadAll();
+};
+
+window.__saveRecord = async () => {
+  const msg  = document.getElementById('panel-msg');
+  const from = document.getElementById('f-from').value.trim();
+  const to   = document.getElementById('f-to').value.trim();
+  const date = document.getElementById('f-date').value;
+  if (!from) { msg.textContent = '* กรุณาระบุผู้ส่งกะ'; msg.className = 'msg error'; return; }
+  if (!to)   { msg.textContent = '* กรุณาระบุผู้รับกะ'; msg.className = 'msg error'; return; }
+  if (!date) { msg.textContent = '* กรุณาระบุวันที่';   msg.className = 'msg error'; return; }
+  msg.textContent = 'กำลังบันทึก…'; msg.className = 'msg';
+
+  const data = {
+    shiftDate:      date,
+    shiftType:      document.getElementById('f-shift').value,
+    handoverFrom:   from,
+    handoverTo:     to,
+    safetyStatus:   selectedSafety,
+    summary:        document.getElementById('f-summary').value.trim(),
+    checklist:      { ...checklist },
+    hazards:        [...hazards],
+    activePTWs:     [...activePTWs],
+    pendingActions: [...pendingActions],
+    notes:          document.getElementById('f-notes').value.trim(),
+  };
+
+  try {
+    const id = document.getElementById('f-id').value;
+    if (id) await updateHandover(id, data);
+    else    await createHandover(data, profile.uid);
+    window.__closePanel();
+    await loadAll();
+  } catch (e) {
+    msg.textContent = 'เกิดข้อผิดพลาด: ' + e.message; msg.className = 'msg error';
+  }
+};
+
+window.__deleteRecord = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  await deleteHandover(id);
+  window.__closePanel();
+  await loadAll();
+};
+
+// ── load ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  records = await listHandovers();
+  renderPage();
+}
+
+loadAll();
+</script>
+</body>
+</html>

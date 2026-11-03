@@ -38,6 +38,7 @@ export const COL = {
   ppeIssue:      "safetyPPEIssuance",
   firstAid:      "safetyFirstAid",
   violations:    "safetyViolations",
+  handover:      "safetyShiftHandover",
 };
 
 // ────────────────────────────────────────────
@@ -1972,4 +1973,49 @@ export async function updateViolation(id, data) {
 
 export async function deleteViolation(id) {
   await deleteDoc(doc(db, COL.violations, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 32 — Safety Shift Handover (บันทึกส่งกะ)
+// ────────────────────────────────────────────
+export const SHIFT_TYPES = {
+  morning:   { label:'กะเช้า',   icon:'🌅', time:'06:00–14:00', color:'#d97706', bg:'#fef3c7' },
+  afternoon: { label:'กะบ่าย',   icon:'🌤️', time:'14:00–22:00', color:'#0891b2', bg:'#ecfeff' },
+  night:     { label:'กะดึก',    icon:'🌙', time:'22:00–06:00', color:'#6d28d9', bg:'#f5f3ff' },
+  day:       { label:'กะกลางวัน',icon:'☀️', time:'08:00–17:00', color:'#16a34a', bg:'#dcfce7' },
+};
+
+export const HANDOVER_STATUS = {
+  pending:     { label:'รอรับทราบ', color:'#d97706', bg:'#fef3c7' },
+  acknowledged:{ label:'รับทราบแล้ว', color:'#16a34a', bg:'#dcfce7' },
+};
+
+export const OVERALL_SAFETY_STATUS = [
+  { key:'green',  label:'ปลอดภัย / ปกติ',         color:'#16a34a', bg:'#dcfce7', icon:'🟢' },
+  { key:'yellow', label:'ระวัง / มีประเด็นติดตาม', color:'#d97706', bg:'#fef3c7', icon:'🟡' },
+  { key:'red',    label:'อันตราย / ต้องแจ้งด่วน',  color:'#dc2626', bg:'#fee2e2', icon:'🔴' },
+];
+
+export async function listHandovers({ lim = 200 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.handover), orderBy('shiftDate','desc'), limit(lim)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+export async function getHandover(id) {
+  const snap = await getDoc(doc(db, COL.handover, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createHandover(data, createdBy) {
+  return addDoc(collection(db, COL.handover), {
+    ...data, status:'pending', createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateHandover(id, data) {
+  await updateDoc(doc(db, COL.handover, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteHandover(id) {
+  await deleteDoc(doc(db, COL.handover, id));
 }
