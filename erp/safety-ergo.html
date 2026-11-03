@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ประเมินการยศาสตร์ — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  ERGO_TASK_TYPES, ERGO_RISK_LEVELS, ERGO_BODY_PARTS,
+  listErgonomics, getErgonomic, createErgonomic, updateErgonomic, deleteErgonomic,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-ergo', 'ประเมินการยศาสตร์ (Ergonomics)');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records = [];
+
+function getTask(k) { return ERGO_TASK_TYPES.find(t=>t.key===k)||{label:k,icon:'📋'}; }
+
+function kpiBar() {
+  const high=records.filter(r=>r.riskLevel==='high'||r.riskLevel==='critical').length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${records.length}</div><div style="font-size:0.78rem;color:#6b7280;">ประเมินทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${high}</div><div style="font-size:0.78rem;color:#6b7280;">เสี่ยงสูง/วิกฤต</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${records.filter(r=>r.riskLevel==='medium').length}</div><div style="font-size:0.78rem;color:#6b7280;">เสี่ยงปานกลาง</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${records.filter(r=>r.riskLevel==='low').length}</div><div style="font-size:0.78rem;color:#6b7280;">เสี่ยงต่ำ</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .body-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+      .body-chip{padding:4px 10px;border-radius:16px;font-size:0.76rem;cursor:pointer;border:1.5px solid #e0e3f0;background:#f8faff;color:#555;}
+      .body-chip.on{border-color:#dc2626;background:#fee2e2;color:#dc2626;font-weight:700;}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>บันทึกการประเมินการยศาสตร์</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกการประเมิน</button>
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>วันที่</th><th>งาน/ตำแหน่ง</th><th>ประเภทงาน</th><th>ส่วนร่างกายที่เสี่ยง</th><th>ระดับเสี่ยง</th><th>ผู้ประเมิน</th><th>ดำเนินการ</th></tr></thead>
+        <tbody>
+          ${records.length===0?`<tr><td colspan="7" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:records.map(r=>{
+            const rl=ERGO_RISK_LEVELS[r.riskLevel]||{label:r.riskLevel||'—',color:'#555',bg:'#eee'};
+            const task=getTask(r.taskType);
+            return `<tr>
+              <td>${fmt(r.assessDate)}</td>
+              <td><b>${r.jobTitle||'—'}</b><div style="font-size:0.76rem;color:#666;">${r.workArea||''}</div></td>
+              <td>${task.icon} ${task.label}</td>
+              <td style="font-size:0.78rem;">${(r.bodyParts||[]).slice(0,3).join(', ')+(r.bodyParts?.length>3?` +${r.bodyParts.length-3}`:'')||'—'}</td>
+              <td>${badge(rl.label,rl.color,rl.bg)}</td>
+              <td>${r.assessedBy||'—'}</td>
+              <td>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="ergo-panel">
+      <div class="panel-header"><b id="panel-title">บันทึกการประเมินการยศาสตร์</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+let selectedBodyParts = [];
+function formHTML(r) {
+  selectedBodyParts = [...(r?.bodyParts||[])];
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div class="form-group"><label class="form-label">ตำแหน่งงาน / งานที่ประเมิน *</label><input id="f-job" class="form-control" value="${r?.jobTitle||''}"/></div>
+    <div class="form-group"><label class="form-label">พื้นที่ทำงาน</label><input id="f-area" class="form-control" value="${r?.workArea||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ประเภทงาน</label>
+        <select id="f-task" class="form-control">
+          <option value="">— เลือก —</option>
+          ${ERGO_TASK_TYPES.map(t=>`<option value="${t.key}" ${r?.taskType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+        </select></div>
+      <div class="form-group"><label class="form-label">ระดับความเสี่ยง *</label>
+        <select id="f-risk" class="form-control">
+          <option value="">— เลือก —</option>
+          ${Object.entries(ERGO_RISK_LEVELS).map(([k,v])=>`<option value="${k}" ${r?.riskLevel===k?'selected':''}>${v.label}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="form-group"><label class="form-label">ส่วนร่างกายที่มีความเสี่ยง</label>
+      <div class="body-chips" id="body-chips">
+        ${ERGO_BODY_PARTS.map(p=>{
+          const on=selectedBodyParts.includes(p);
+          return `<span class="body-chip${on?' on':''}" onclick="window.__toggleBody(this,'${p}')">${p}</span>`;
+        }).join('')}
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">ชั่วโมงทำงานต่อวัน</label><input id="f-hours" class="form-control" type="number" min="1" max="24" value="${r?.hoursPerDay||8}"/></div>
+    <div class="form-group"><label class="form-label">ผู้ประเมิน</label><input id="f-by" class="form-control" value="${r?.assessedBy||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">วันที่ประเมิน</label><input id="f-date" class="form-control" type="date" value="${r?.assessDate||today()}"/></div>
+    <div class="form-group"><label class="form-label">สาเหตุ / รายละเอียดความเสี่ยง</label><textarea id="f-desc" class="form-control" rows="2">${r?.description||''}</textarea></div>
+    <div class="form-group"><label class="form-label">มาตรการควบคุม / แนวทางแก้ไข</label><textarea id="f-control" class="form-control" rows="3">${r?.controlMeasures||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__toggleBody = (el,part) => {
+  const idx=selectedBodyParts.indexOf(part);
+  if(idx>=0){ selectedBodyParts.splice(idx,1); el.classList.remove('on'); }
+  else { selectedBodyParts.push(part); el.classList.add('on'); }
+};
+window.__openPanel = () => {
+  selectedBodyParts=[];
+  document.getElementById('panel-title').textContent='บันทึกการประเมิน';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('ergo-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('ergo-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getErgonomic(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไขการประเมิน';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('ergo-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const job=document.getElementById('f-job').value.trim();
+  const risk=document.getElementById('f-risk').value;
+  if(!job||!risk){ msg.textContent='* กรุณาระบุงานและระดับความเสี่ยง'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data={
+    jobTitle:job, workArea:document.getElementById('f-area').value.trim(),
+    taskType:document.getElementById('f-task').value,
+    riskLevel:risk, bodyParts:[...selectedBodyParts],
+    hoursPerDay:parseInt(document.getElementById('f-hours').value)||8,
+    assessedBy:document.getElementById('f-by').value.trim(),
+    assessDate:document.getElementById('f-date').value,
+    description:document.getElementById('f-desc').value.trim(),
+    controlMeasures:document.getElementById('f-control').value.trim(),
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id) await updateErgonomic(id,data); else await createErgonomic(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบการประเมินนี้?')) return;
+  await deleteErgonomic(id); await loadAll();
+};
+
+async function loadAll() { records=await listErgonomics(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>
