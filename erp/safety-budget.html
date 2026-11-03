@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>งบประมาณความปลอดภัย — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  BUDGET_CATEGORIES, BUDGET_TYPE,
+  listBudget, getBudgetItem, createBudgetItem, updateBudgetItem, deleteBudgetItem,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-budget', 'งบประมาณความปลอดภัย');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+const thb   = n => Number(n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const currentYear = () => new Date().getFullYear().toString();
+
+function getCat(k) { return BUDGET_CATEGORIES.find(c=>c.key===k)||{label:k,icon:'📋'}; }
+
+let records=[], filterYear=currentYear(), filterCat='', filterType='';
+
+function filtered() {
+  return records.filter(r=>{
+    if(filterYear && !(r.date||'').startsWith(filterYear)) return false;
+    if(filterCat  && r.category !== filterCat)  return false;
+    if(filterType && r.type !== filterType) return false;
+    return true;
+  });
+}
+
+function summaryByCategory(rows) {
+  const planned={}, actual={};
+  rows.filter(r=>r.type==='planned').forEach(r=>{ planned[r.category]=(planned[r.category]||0)+Number(r.amount||0); });
+  rows.filter(r=>r.type==='actual').forEach(r=>{  actual[r.category] =(actual[r.category]||0)+Number(r.amount||0); });
+  return { planned, actual };
+}
+
+function yearOptions() {
+  const years=[..new Set(records.map(r=>(r.date||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  if(!years.includes(currentYear())) years.unshift(currentYear());
+  return years.map(y=>`<option value="${y}" ${y===filterYear?'selected':''}>${y}</option>`).join('');
+}
+
+function kpiBar(rows) {
+  const totalPlanned = rows.filter(r=>r.type==='planned').reduce((s,r)=>s+Number(r.amount||0),0);
+  const totalActual  = rows.filter(r=>r.type==='actual').reduce((s,r)=>s+Number(r.amount||0),0);
+  const remaining    = totalPlanned - totalActual;
+  const pct          = totalPlanned>0 ? Math.round(totalActual/totalPlanned*100) : 0;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.3rem;font-weight:800;color:#0891b2;">฿${thb(totalPlanned)}</div><div style="font-size:0.78rem;color:#6b7280;">งบที่ตั้ง (แผน)</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.3rem;font-weight:800;color:#16a34a;">฿${thb(totalActual)}</div><div style="font-size:0.78rem;color:#6b7280;">ใช้จ่ายจริง (${pct}%)</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.3rem;font-weight:800;color:${remaining>=0?'#d97706':'#dc2626'};">฿${thb(Math.abs(remaining))}</div><div style="font-size:0.78rem;color:#6b7280;">${remaining>=0?'คงเหลือ':'เกินงบ'}</div></div>
+    <div class="card" style="padding:14px 16px;">
+      <div style="font-size:0.78rem;color:#6b7280;margin-bottom:6px;">% ใช้งบ</div>
+      <div style="background:#e0e3f0;border-radius:20px;height:8px;overflow:hidden;">
+        <div style="width:${Math.min(pct,100)}%;height:100%;border-radius:20px;background:${pct>100?'#dc2626':pct>80?'#d97706':'#16a34a'};"></div>
+      </div>
+      <div style="font-size:0.8rem;font-weight:700;color:${pct>100?'#dc2626':pct>80?'#d97706':'#16a34a'};margin-top:4px;">${pct}%</div>
+    </div>
+  </div>`;
+}
+
+function categoryTable(rows) {
+  const { planned, actual } = summaryByCategory(rows);
+  const cats = [...new Set([...Object.keys(planned),...Object.keys(actual)])];
+  if(!cats.length) return '';
+  return `
+    <div class="card" style="margin-bottom:16px;">
+      <b style="display:block;margin-bottom:12px;">สรุปตามหมวดหมู่</b>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>หมวดหมู่</th><th style="text-align:right;">งบแผน (฿)</th><th style="text-align:right;">ใช้จริง (฿)</th><th style="text-align:right;">คงเหลือ</th><th>%</th></tr></thead>
+        <tbody>
+          ${cats.map(k=>{
+            const cat=getCat(k);
+            const p=planned[k]||0, a=actual[k]||0, rem=p-a;
+            const pct=p>0?Math.round(a/p*100):0;
+            return `<tr>
+              <td>${cat.icon} ${cat.label}</td>
+              <td style="text-align:right;">${thb(p)}</td>
+              <td style="text-align:right;">${thb(a)}</td>
+              <td style="text-align:right;color:${rem>=0?'#16a34a':'#dc2626'};">${rem>=0?'':'-'}${thb(Math.abs(rem))}</td>
+              <td><div style="display:flex;align-items:center;gap:6px;"><div style="flex:1;background:#eef0f6;border-radius:10px;height:6px;overflow:hidden;"><div style="width:${Math.min(pct,100)}%;height:100%;border-radius:10px;background:${pct>100?'#dc2626':pct>80?'#d97706':'#1a73e8'};"></div></div><span style="font-size:0.76rem;font-weight:600;">${pct}%</span></div></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>`;
+}
+
+function renderPage() {
+  const rows = filtered();
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:440px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+    ${kpiBar(rows)}
+    ${categoryTable(rows)}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการงบประมาณ</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ เพิ่มรายการ</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:100px;" onchange="window.__setYear(this.value)">
+          ${yearOptions()}
+        </select>
+        <select class="form-control" style="width:auto;min-width:150px;" onchange="window.__setCat(this.value)">
+          <option value="">ทุกหมวด</option>
+          ${BUDGET_CATEGORIES.map(c=>`<option value="${c.key}" ${c.key===filterCat?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:140px;" onchange="window.__setType(this.value)">
+          <option value="">แผน+จริง</option>
+          ${Object.entries(BUDGET_TYPE).map(([k,v])=>`<option value="${k}" ${k===filterType?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>วันที่</th><th>ประเภท</th><th>หมวดหมู่</th><th>รายการ</th><th style="text-align:right;">จำนวนเงิน (฿)</th><th>ผู้บันทึก</th><th>ดำเนินการ</th></tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr><td colspan="7" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:rows.map(r=>{
+            const cat=getCat(r.category); const bt=BUDGET_TYPE[r.type]||{label:r.type||'—',color:'#555',bg:'#eee'};
+            return `<tr>
+              <td>${fmt(r.date)}</td>
+              <td>${badge(bt.label,bt.color,bt.bg)}</td>
+              <td>${cat.icon} ${cat.label}</td>
+              <td>${r.description||'—'}</td>
+              <td style="text-align:right;font-weight:600;">${thb(r.amount)}</td>
+              <td>${r.recordedBy||'—'}</td>
+              <td>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+      <div style="font-size:0.8rem;color:#888;margin-top:8px;">แสดง ${rows.length} รายการ</div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="budget-panel">
+      <div class="panel-header"><b id="panel-title">เพิ่มรายการงบประมาณ</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+function formHTML(r) {
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div class="form-group"><label class="form-label">ประเภท *</label>
+      <div style="display:flex;gap:10px;margin-top:4px;">
+        ${Object.entries(BUDGET_TYPE).map(([k,v])=>`
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600;padding:8px 16px;border-radius:8px;border:2px solid ${(r?.type||'planned')===k?v.color:'#e0e3f0'};background:${(r?.type||'planned')===k?v.bg:'#fff'};">
+            <input type="radio" name="f-type" value="${k}" ${(r?.type||'planned')===k?'checked':''} style="accent-color:${v.color};">${v.label}
+          </label>`).join('')}
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">หมวดหมู่ *</label>
+      <select id="f-cat" class="form-control">
+        <option value="">— เลือก —</option>
+        ${BUDGET_CATEGORIES.map(c=>`<option value="${c.key}" ${r?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
+      </select></div>
+    <div class="form-group"><label class="form-label">รายการ *</label><input id="f-desc" class="form-control" placeholder="อธิบายรายการ" value="${r?.description||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">จำนวนเงิน (บาท) *</label><input id="f-amount" class="form-control" type="number" min="0" step="0.01" value="${r?.amount||''}"/></div>
+      <div class="form-group"><label class="form-label">วันที่</label><input id="f-date" class="form-control" type="date" value="${r?.date||today()}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">ผู้ขายหรือแหล่งงบ</label><input id="f-vendor" class="form-control" placeholder="ชื่อบริษัท/แหล่งงบ" value="${r?.vendor||''}"/></div>
+    <div class="form-group"><label class="form-label">ผู้บันทึก</label><input id="f-by" class="form-control" value="${r?.recordedBy||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">หมายเหตุ</label><textarea id="f-notes" class="form-control" rows="2">${r?.notes||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__setYear = v => { filterYear=v; renderPage(); };
+window.__setCat  = v => { filterCat=v;  renderPage(); };
+window.__setType = v => { filterType=v; renderPage(); };
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent='เพิ่มรายการงบประมาณ';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('budget-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('budget-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getBudgetItem(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไขรายการ';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('budget-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const cat=document.getElementById('f-cat').value;
+  const desc=document.getElementById('f-desc').value.trim();
+  const amount=document.getElementById('f-amount').value;
+  const type=document.querySelector('input[name="f-type"]:checked')?.value||'planned';
+  if(!cat)   { msg.textContent='* กรุณาเลือกหมวดหมู่'; msg.className='msg error'; return; }
+  if(!desc)  { msg.textContent='* กรุณาระบุรายการ';    msg.className='msg error'; return; }
+  if(!amount){ msg.textContent='* กรุณาระบุจำนวนเงิน'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data={
+    type, category:cat, description:desc,
+    amount:parseFloat(amount)||0,
+    date:document.getElementById('f-date').value,
+    vendor:document.getElementById('f-vendor').value.trim(),
+    recordedBy:document.getElementById('f-by').value.trim(),
+    notes:document.getElementById('f-notes').value.trim(),
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id) await updateBudgetItem(id,data); else await createBudgetItem(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบรายการนี้?')) return;
+  await deleteBudgetItem(id); await loadAll();
+};
+
+async function loadAll() { records=await listBudget(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>
