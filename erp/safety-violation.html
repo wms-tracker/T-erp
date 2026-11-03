@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>บันทึกการฝ่าฝืนกฎความปลอดภัย — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole }        from './js/auth.js';
+import { renderShell }        from './js/shell.js';
+import {
+  VIOLATION_TYPES, VIOLATION_SEVERITY, DISCIPLINARY_ACTIONS, VIOLATION_STATUS,
+  listViolations, getViolation,
+  createViolation, updateViolation, deleteViolation,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-violation', 'บันทึกการฝ่าฝืนกฎความปลอดภัย');
+
+// ── helpers ──────────────────────────────────────────────────────────
+const badge  = (l, c, bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt    = (d) => d ? new Date(d).toLocaleDateString('th-TH', { year:'2-digit', month:'short', day:'numeric' }) : '—';
+const today  = () => new Date().toISOString().slice(0,10);
+
+function getVType(key) { return VIOLATION_TYPES.find(v => v.key === key) || { label: key, icon: '📋' }; }
+function getSeverity(key) { return VIOLATION_SEVERITY[key] || { label: key||'—', color:'#555', bg:'#eee' }; }
+function getStatus(key)   { return VIOLATION_STATUS[key]   || { label: key||'—', color:'#555', bg:'#eee' }; }
+
+// ── state ─────────────────────────────────────────────────────────────
+let records = [];
+let filterDept = '', filterSeverity = '', filterStatus = '', filterType = '';
+
+// ── render ────────────────────────────────────────────────────────────
+function filtered() {
+  return records.filter(r => {
+    if (filterDept     && r.department !== filterDept)        return false;
+    if (filterSeverity && r.severity   !== filterSeverity)    return false;
+    if (filterStatus   && r.status     !== filterStatus)      return false;
+    if (filterType     && r.violationType !== filterType)     return false;
+    return true;
+  });
+}
+
+function deptOptions() {
+  const depts = [...new Set(records.map(r => r.department).filter(Boolean))].sort();
+  return depts.map(d => `<option value="${d}" ${d===filterDept?'selected':''}>${d}</option>`).join('');
+}
+
+function kpiBar() {
+  const total    = records.length;
+  const open     = records.filter(r => r.status === 'open').length;
+  const critical = records.filter(r => r.severity === 'critical' || r.severity === 'major').length;
+  const repeat   = records.filter(r => r.isRepeat).length;
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รายการทั้งหมด</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStatus('open')">
+        <div style="font-size:1.6rem;font-weight:800;color:#d97706;">${open}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รอดำเนินการ</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setSeverity('major')">
+        <div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${critical}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รุนแรง/ร้ายแรงมาก</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#7c3aed;">${repeat}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">กระทำซ้ำ</div>
+      </div>
+    </div>`;
+}
+
+function renderPage() {
+  const rows = filtered();
+  main.innerHTML = `
+    <style>
+      .viol-table-wrap{overflow-x:auto;}
+      .panel{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;transition:border-color .15s;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:4px;}
+      .type-opt{padding:8px 10px;border-radius:10px;border:1.5px solid #e0e3f0;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:0.8rem;transition:all .12s;}
+      .type-opt:hover,.type-opt.sel{border-color:#1a73e8;background:#eff6ff;}
+      .type-opt.sel{font-weight:700;}
+      .sev-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+      .sev-pill{padding:6px 14px;border-radius:20px;font-size:0.8rem;font-weight:600;border:2px solid transparent;cursor:pointer;transition:all .12s;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .action-section{background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:14px;margin-top:14px;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+
+    ${kpiBar()}
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการการฝ่าฝืนกฎความปลอดภัย</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกการฝ่าฝืน</button>
+      </div>
+
+      <!-- Filters -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:120px;" onchange="window.__setDept(this.value)">
+          <option value="">ทุกแผนก</option>${deptOptions()}
+        </select>
+        <select class="form-control" style="width:auto;min-width:150px;" onchange="window.__setType(this.value)">
+          <option value="">ทุกประเภท</option>
+          ${VIOLATION_TYPES.map(v => `<option value="${v.key}" ${v.key===filterType?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:130px;" onchange="window.__setSeverity(this.value)">
+          <option value="">ทุกระดับ</option>
+          ${Object.entries(VIOLATION_SEVERITY).map(([k,v]) => `<option value="${k}" ${k===filterSeverity?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:130px;" onchange="window.__setStatus(this.value)">
+          <option value="">ทุกสถานะ</option>
+          ${Object.entries(VIOLATION_STATUS).map(([k,v]) => `<option value="${k}" ${k===filterStatus?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="viol-table-wrap">
+        <table>
+          <thead><tr>
+            <th>วันที่</th>
+            <th>ผู้ฝ่าฝืน</th>
+            <th>แผนก</th>
+            <th>ประเภทการฝ่าฝืน</th>
+            <th>ระดับ</th>
+            <th>กระทำซ้ำ</th>
+            <th>มาตรการ</th>
+            <th>สถานะ</th>
+            <th>ดำเนินการ</th>
+          </tr></thead>
+          <tbody>
+            ${rows.length === 0 ? `<tr><td colspan="9" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>` : rows.map(r => {
+              const vtype  = getVType(r.violationType);
+              const sev    = getSeverity(r.severity);
+              const stat   = getStatus(r.status);
+              const action = DISCIPLINARY_ACTIONS.find(a => a.key === r.disciplinaryAction)?.label || r.disciplinaryAction || '—';
+              return `<tr>
+                <td>${fmt(r.violationDate)}</td>
+                <td><b>${r.violatorName || '—'}</b><br><small style="color:#999;">${r.violatorId||''}</small></td>
+                <td>${r.department || '—'}</td>
+                <td>${vtype.icon} ${vtype.label}</td>
+                <td>${badge(sev.label, sev.color, sev.bg)}</td>
+                <td style="text-align:center;">${r.isRepeat ? badge('ซ้ำ','#7c3aed','#f3e8ff') : '—'}</td>
+                <td><small>${action}</small></td>
+                <td>${badge(stat.label, stat.color, stat.bg)}</td>
+                <td>
+                  <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                  <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:0.8rem;color:#888;margin-top:8px;">แสดง ${rows.length} รายการ</div>
+    </div>
+
+    <!-- Panel overlay -->
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+
+    <!-- Slide-in panel -->
+    <div class="panel" id="viol-panel">
+      <div class="panel-header">
+        <b id="panel-title">บันทึกการฝ่าฝืน</b>
+        <button class="panel-close" onclick="window.__closePanel()">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>
+  `;
+}
+
+// ── form renderer ─────────────────────────────────────────────────────
+let selectedType     = '';
+let selectedSeverity = 'minor';
+
+function formHTML(r) {
+  selectedType     = r?.violationType || '';
+  selectedSeverity = r?.severity      || 'minor';
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+
+    <div class="section-title">ข้อมูลผู้ฝ่าฝืน</div>
+    <div class="form-group">
+      <label class="form-label">ชื่อผู้ฝ่าฝืน *</label>
+      <input id="f-name" class="form-control" placeholder="ชื่อ-นามสกุล" value="${r?.violatorName||''}"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">รหัสพนักงาน</label>
+        <input id="f-empId" class="form-control" placeholder="EMP-001" value="${r?.violatorId||''}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">แผนก *</label>
+        <input id="f-dept" class="form-control" placeholder="เช่น คลังสินค้า" value="${r?.department||''}"/>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">วันที่พบ *</label>
+        <input id="f-date" class="form-control" type="date" value="${r?.violationDate||today()}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานที่</label>
+        <input id="f-location" class="form-control" placeholder="เช่น โซน A คลังสินค้า" value="${r?.location||''}"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">พยาน / ผู้พบเห็น</label>
+      <input id="f-witness" class="form-control" placeholder="ชื่อพยาน" value="${r?.witnesses||''}"/>
+    </div>
+
+    <div class="section-title">รายละเอียดการฝ่าฝืน</div>
+    <div class="form-group">
+      <label class="form-label">ประเภทการฝ่าฝืน *</label>
+      <div class="type-grid" id="type-grid">
+        ${VIOLATION_TYPES.map(v => `
+          <div class="type-opt ${v.key===selectedType?'sel':''}" data-key="${v.key}" onclick="window.__selType('${v.key}')">
+            ${v.icon} ${v.label}
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ระดับความรุนแรง *</label>
+      <div class="sev-pills" id="sev-pills">
+        ${Object.entries(VIOLATION_SEVERITY).map(([k,v]) => `
+          <span class="sev-pill ${k===selectedSeverity?'':'opacity-60'}"
+            data-key="${k}"
+            style="color:${v.color};background:${v.bg};border-color:${k===selectedSeverity?v.color:'transparent'}"
+            onclick="window.__selSeverity('${k}')">
+            ${v.label}
+          </span>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รายละเอียด</label>
+      <textarea id="f-desc" class="form-control" rows="3" placeholder="บรรยายการฝ่าฝืนที่พบ...">${r?.description||''}</textarea>
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.88rem;font-weight:600;">
+        <input type="checkbox" id="f-repeat" ${r?.isRepeat?'checked':''} style="width:16px;height:16px;accent-color:#7c3aed;"/>
+        กระทำซ้ำ (เคยได้รับการแจ้งเตือนแล้ว)
+      </label>
+    </div>
+
+    <div class="action-section">
+      <div style="font-weight:700;color:#92400e;margin-bottom:10px;">⚡ มาตรการทางวินัย</div>
+      <div class="form-group">
+        <label class="form-label">มาตรการที่ดำเนินการ</label>
+        <select id="f-action" class="form-control">
+          <option value="">— ยังไม่ดำเนินการ —</option>
+          ${DISCIPLINARY_ACTIONS.map(a => `<option value="${a.key}" ${r?.disciplinaryAction===a.key?'selected':''}>${a.label}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group">
+          <label class="form-label">วันที่ดำเนินการ</label>
+          <input id="f-actionDate" class="form-control" type="date" value="${r?.actionDate||''}"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ผู้ดำเนินการ</label>
+          <input id="f-actionBy" class="form-control" placeholder="ชื่อผู้ดำเนินการ" value="${r?.actionBy||profile.name||''}"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">สถานะ</label>
+        <select id="f-status" class="form-control">
+          ${Object.entries(VIOLATION_STATUS).map(([k,v]) => `<option value="${k}" ${(r?.status||'open')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:14px;">
+      <label class="form-label">หมายเหตุ</label>
+      <textarea id="f-notes" class="form-control" rows="2" placeholder="หมายเหตุเพิ่มเติม...">${r?.notes||''}</textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  `;
+}
+
+// ── interactions ──────────────────────────────────────────────────────
+window.__selType = (key) => {
+  selectedType = key;
+  document.querySelectorAll('.type-opt').forEach(o => o.classList.toggle('sel', o.dataset.key === key));
+};
+
+window.__selSeverity = (key) => {
+  selectedSeverity = key;
+  document.querySelectorAll('.sev-pill').forEach(p => {
+    const sev = VIOLATION_SEVERITY[p.dataset.key];
+    p.style.borderColor = p.dataset.key === key ? sev.color : 'transparent';
+    p.style.fontWeight  = p.dataset.key === key ? '700' : '600';
+  });
+};
+
+window.__setDept     = (v) => { filterDept     = v; renderPage(); };
+window.__setType     = (v) => { filterType     = v; renderPage(); };
+window.__setSeverity = (v) => { filterSeverity = v; renderPage(); };
+window.__setStatus   = (v) => { filterStatus   = v; renderPage(); };
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'บันทึกการฝ่าฝืน';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  document.getElementById('viol-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  document.getElementById('viol-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+
+window.__editRecord = async (id) => {
+  const r = await getViolation(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขรายการ';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  document.getElementById('viol-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__saveRecord = async () => {
+  const msg  = document.getElementById('panel-msg');
+  const name = document.getElementById('f-name').value.trim();
+  const dept = document.getElementById('f-dept').value.trim();
+  const date = document.getElementById('f-date').value;
+  if (!name) { msg.textContent = '* กรุณาระบุชื่อผู้ฝ่าฝืน'; msg.className = 'msg error'; return; }
+  if (!dept) { msg.textContent = '* กรุณาระบุแผนก';           msg.className = 'msg error'; return; }
+  if (!selectedType) { msg.textContent = '* กรุณาเลือกประเภทการฝ่าฝืน'; msg.className = 'msg error'; return; }
+  if (!date) { msg.textContent = '* กรุณาระบุวันที่';          msg.className = 'msg error'; return; }
+  msg.textContent = 'กำลังบันทึก…'; msg.className = 'msg';
+
+  const data = {
+    violatorName:        name,
+    violatorId:          document.getElementById('f-empId').value.trim(),
+    department:          dept,
+    violationDate:       date,
+    location:            document.getElementById('f-location').value.trim(),
+    witnesses:           document.getElementById('f-witness').value.trim(),
+    violationType:       selectedType,
+    severity:            selectedSeverity,
+    description:         document.getElementById('f-desc').value.trim(),
+    isRepeat:            document.getElementById('f-repeat').checked,
+    disciplinaryAction:  document.getElementById('f-action').value,
+    actionDate:          document.getElementById('f-actionDate').value,
+    actionBy:            document.getElementById('f-actionBy').value.trim(),
+    status:              document.getElementById('f-status').value,
+    notes:               document.getElementById('f-notes').value.trim(),
+  };
+
+  try {
+    const id = document.getElementById('f-id').value;
+    if (id) await updateViolation(id, data);
+    else    await createViolation(data, profile.uid);
+    window.__closePanel();
+    await loadAll();
+  } catch (e) {
+    msg.textContent = 'เกิดข้อผิดพลาด: ' + e.message; msg.className = 'msg error';
+  }
+};
+
+window.__deleteRecord = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  await deleteViolation(id);
+  await loadAll();
+};
+
+// ── load ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  records = await listViolations();
+  renderPage();
+}
+
+loadAll();
+</script>
+</body>
+</html>

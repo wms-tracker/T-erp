@@ -37,6 +37,7 @@ export const COL = {
   fireEq:        "safetyFireEquipment",
   ppeIssue:      "safetyPPEIssuance",
   firstAid:      "safetyFirstAid",
+  violations:    "safetyViolations",
 };
 
 // ────────────────────────────────────────────
@@ -1902,4 +1903,73 @@ export async function updateFirstAidRecord(id, data) {
 
 export async function deleteFirstAidRecord(id) {
   await deleteDoc(doc(db, COL.firstAid, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 31 — Safety Violation & Disciplinary Record
+// ────────────────────────────────────────────
+export const VIOLATION_TYPES = [
+  { key:'no_ppe',          label:'ไม่สวมใส่ PPE',                  icon:'🦺' },
+  { key:'unsafe_act',      label:'กระทำการไม่ปลอดภัย',             icon:'⚠️' },
+  { key:'no_ptw',          label:'ทำงานโดยไม่มี PTW',              icon:'📝' },
+  { key:'confined_space',  label:'เข้า Confined Space โดยไม่ได้รับอนุญาต', icon:'🚫' },
+  { key:'no_lockout',      label:'ไม่ทำ LOTO ก่อนซ่อมบำรุง',       icon:'🔒' },
+  { key:'fire_hazard',     label:'ก่อให้เกิดความเสี่ยงไฟไหม้',     icon:'🔥' },
+  { key:'housekeeping',    label:'ละเลยความสะอาดและความเป็นระเบียบ', icon:'🧹' },
+  { key:'horseplay',       label:'เล่นหยอกล้อในพื้นที่อันตราย',     icon:'🎭' },
+  { key:'speed',           label:'ขับรถเร็วเกินกำหนด',              icon:'🚗' },
+  { key:'no_report',       label:'ไม่รายงานอุบัติเหตุ/Near Miss',   icon:'🔇' },
+  { key:'alcohol_drug',    label:'ดื่มสุรา/ใช้สารเสพติดในพื้นที่',  icon:'🍺' },
+  { key:'mobile_phone',    label:'ใช้โทรศัพท์ขณะทำงานอันตราย',     icon:'📱' },
+  { key:'other',           label:'อื่นๆ',                            icon:'📋' },
+];
+
+export const VIOLATION_SEVERITY = {
+  minor:    { label:'เล็กน้อย',  color:'#ca8a04', bg:'#fefce8', level:1 },
+  moderate: { label:'ปานกลาง',  color:'#d97706', bg:'#fef3c7', level:2 },
+  major:    { label:'รุนแรง',   color:'#dc2626', bg:'#fee2e2', level:3 },
+  critical: { label:'ร้ายแรงมาก', color:'#7f1d1d', bg:'#fef2f2', level:4 },
+};
+
+export const DISCIPLINARY_ACTIONS = [
+  { key:'verbal_warning',   label:'ตักเตือนด้วยวาจา' },
+  { key:'written_warning1', label:'ทำทัณฑ์บนครั้งที่ 1 (หนังสือ)' },
+  { key:'written_warning2', label:'ทำทัณฑ์บนครั้งที่ 2 (หนังสือ)' },
+  { key:'retraining',       label:'อบรมซ้ำ / ทดสอบความรู้ใหม่' },
+  { key:'suspension',       label:'พักงานชั่วคราว' },
+  { key:'salary_deduction', label:'หักเงินเดือน' },
+  { key:'termination',      label:'เลิกจ้าง' },
+  { key:'other',            label:'อื่นๆ' },
+];
+
+export const VIOLATION_STATUS = {
+  open:     { label:'รอดำเนินการ', color:'#d97706', bg:'#fef3c7' },
+  actioned: { label:'ดำเนินการแล้ว', color:'#0891b2', bg:'#ecfeff' },
+  closed:   { label:'ปิดเรื่อง',    color:'#16a34a', bg:'#dcfce7' },
+};
+
+export async function listViolations({ dept, lim = 500 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.violations), orderBy('violationDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (dept) rows = rows.filter(r => r.department === dept);
+  return rows;
+}
+
+export async function getViolation(id) {
+  const snap = await getDoc(doc(db, COL.violations, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createViolation(data, createdBy) {
+  return addDoc(collection(db, COL.violations), {
+    ...data, status:'open', createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateViolation(id, data) {
+  await updateDoc(doc(db, COL.violations, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteViolation(id) {
+  await deleteDoc(doc(db, COL.violations, id));
 }
