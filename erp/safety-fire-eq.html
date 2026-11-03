@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>อุปกรณ์ดับเพลิง — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem;align-items:center}
+    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
+      font-size:.85rem;min-width:180px;flex:1}
+    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
+              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
+    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
+
+    /* Summary */
+    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(115px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
+    .sum-card .n{font-size:1.35rem;font-weight:700;line-height:1}
+    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
+
+    /* Type cards */
+    .type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;margin-bottom:1.2rem}
+    .type-card{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:.65rem .9rem;
+               cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:.6rem}
+    .type-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
+    .type-card.active-filter{border-color:#1e3a5f;background:#f0f4ff}
+    .type-icon{font-size:1.4rem;flex-shrink:0}
+    .type-info .n{font-size:1.05rem;font-weight:700;line-height:1}
+    .type-info .l{font-size:.68rem;color:#64748b;margin-top:.1rem}
+
+    /* Alert banner */
+    .alert-banner{border-radius:10px;padding:.65rem 1rem;margin-bottom:1rem;
+                   display:flex;align-items:center;gap:.6rem;font-size:.82rem}
+
+    /* Table */
+    .fire-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
+                overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:4rem}
+    .fire-table th{background:#f8fafc;padding:.5rem .7rem;text-align:left;color:#64748b;
+                   font-weight:600;font-size:.77rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+    .fire-table td{padding:.5rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
+    .fire-table tr:hover td{background:#fafbff;cursor:pointer}
+    .fire-table tr.row-overdue td{background:#fff8f8}
+    .fire-table tr.row-due td{background:#fffbf0}
+    .badge{display:inline-block;padding:.12rem .48rem;border-radius:999px;font-size:.7rem;font-weight:600}
+    .eq-no{font-family:monospace;font-weight:700;font-size:.8rem;color:#1e3a5f}
+
+    /* Slide panel */
+    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
+    .panel-overlay.open{display:block}
+    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(580px,100vw);
+                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
+                transform:translateX(100%);transition:transform .25s;
+                display:flex;flex-direction:column;z-index:101;overflow:hidden}
+    .side-panel.open{transform:none}
+    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
+                  align-items:center;justify-content:space-between;flex-shrink:0}
+    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
+    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
+    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
+                  gap:.5rem;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
+
+    /* Form */
+    .fg{margin-bottom:.88rem}
+    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
+    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
+      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
+    .fg textarea{min-height:55px;resize:vertical}
+    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
+    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
+
+    /* Inspection history */
+    .insp-timeline{display:flex;flex-direction:column;gap:.4rem;margin-top:.3rem}
+    .insp-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+               padding:.5rem .75rem;font-size:.8rem;display:flex;justify-content:space-between;align-items:center}
+
+    /* Detail */
+    .ds{margin-bottom:1rem}
+    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
+    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
+    .info-grid .k{color:#64748b;white-space:nowrap}
+    .info-grid .v{color:#1e293b}
+
+    /* Days pill */
+    .days-pill{display:inline-flex;align-items:center;font-size:.72rem;
+               font-weight:600;padding:.15rem .5rem;border-radius:999px}
+
+    /* FAB */
+    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
+         background:#dc2626;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
+         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;
+         justify-content:center;transition:transform .15s}
+    .fab:hover{transform:scale(1.08)}
+    .btn-danger{background:#dc2626;color:#fff;border:none}
+
+    @media(max-width:600px){.hide-sm{display:none}}
+    @media print{.fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}}
+  </style>
+</head>
+<body>
+<div class="panel-overlay" id="panelOverlay" onclick="window.__feq_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">อุปกรณ์ดับเพลิง</h3>
+    <button class="btn-icon" onclick="window.__feq_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="เพิ่มอุปกรณ์" onclick="window.__feq_openNew()">＋</button>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  FIRE_EQ_TYPES, FIRE_EQ_STATUS, FIRE_INSP_RESULT,
+  listFireEq, getFireEq, createFireEq, updateFireEq, deleteFireEq,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-fire-eq', 'อุปกรณ์ดับเพลิง');
+
+let _all    = [];
+let _fType  = 'all';
+let _fStat  = 'all';
+let _search = '';
+
+const typeMap = Object.fromEntries(FIRE_EQ_TYPES.map(t => [t.key, t]));
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const today   = () => new Date().toISOString().slice(0,10);
+const addDays = (d,n) => { const dt=new Date(d); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); };
+const diffDays= (a,b) => Math.round((new Date(a)-new Date(b))/86400000);
+
+function computeStatus(r) {
+  const td = today();
+  const exp = r.expiryDate;
+  const nxt = r.nextInspDate;
+  const soon = addDays(td, 30);
+  if (exp && exp < td)  return 'expired';
+  if (nxt && nxt < td)  return 'overdue';
+  if ((exp && exp <= soon) || (nxt && nxt <= soon)) return 'due_soon';
+  if (r.status === 'maintenance' || r.status === 'decommission') return r.status;
+  return 'active';
+}
+
+/* ── load ── */
+async function load() {
+  _all = await listFireEq({});
+  _all = _all.map(r => ({ ...r, _status: computeStatus(r) }));
+  applyFilter();
+}
+
+/* ── filter ── */
+function applyFilter() {
+  let rows = [..._all];
+  if (_fType !== 'all') rows = rows.filter(r => r.eqType === _fType);
+  if (_fStat !== 'all') rows = rows.filter(r => r._status === _fStat);
+  if (_search) {
+    const q = _search.toLowerCase();
+    rows = rows.filter(r =>
+      (r.eqNo||'').toLowerCase().includes(q) ||
+      (r.location||'').toLowerCase().includes(q) ||
+      (r.brand||'').toLowerCase().includes(q)
+    );
+  }
+  renderStats();
+  renderTypeCards();
+  renderAlerts();
+  renderTable(rows);
+}
+window.__feq_search = v => { _search = v; applyFilter(); };
+window.__feq_fType  = k => { _fType  = k; applyFilter(); };
+window.__feq_fStat  = k => {
+  _fStat = k;
+  document.querySelectorAll('.filt-btn[data-g=st]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
+  applyFilter();
+};
+
+/* ── stats ── */
+function renderStats() {
+  const active   = _all.filter(r => r._status === 'active').length;
+  const dueSoon  = _all.filter(r => r._status === 'due_soon').length;
+  const overdue  = _all.filter(r => r._status === 'overdue').length;
+  const expired  = _all.filter(r => r._status === 'expired').length;
+  document.getElementById('feqStats').innerHTML = `
+    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">ทั้งหมด</div></div>
+    <div class="sum-card"><div class="n" style="color:#16a34a">${active}</div><div class="l">✅ ใช้งานได้</div></div>
+    <div class="sum-card"><div class="n" style="color:#d97706">${dueSoon}</div><div class="l">⏰ ใกล้ถึงกำหนด</div></div>
+    <div class="sum-card"><div class="n" style="color:#dc2626">${overdue}</div><div class="l">🔴 เกินกำหนด</div></div>
+    <div class="sum-card"><div class="n" style="color:#9f1239">${expired}</div><div class="l">💀 หมดอายุ</div></div>`;
+}
+
+/* ── type cards ── */
+function renderTypeCards() {
+  document.getElementById('feqTypes').innerHTML = FIRE_EQ_TYPES.map(t => {
+    const recs = _all.filter(r => r.eqType === t.key);
+    const bad  = recs.filter(r => ['overdue','expired'].includes(r._status)).length;
+    return `
+    <div class="type-card ${_fType===t.key?'active-filter':''}"
+         onclick="window.__feq_fType('${_fType===t.key?'all':t.key}')">
+      <div class="type-icon">${t.icon}</div>
+      <div class="type-info">
+        <div class="n" style="color:${t.color}">${recs.length}</div>
+        <div class="l">${t.label}</div>
+        ${bad?`<div style="font-size:.64rem;color:#dc2626">⚠️ ${bad} ต้องดูแล</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── alerts ── */
+function renderAlerts() {
+  const td = today();
+  const overdue = _all.filter(r => r._status === 'overdue' || r._status === 'expired');
+  if (!overdue.length) {
+    document.getElementById('feqAlerts').innerHTML = '';
+    return;
+  }
+  document.getElementById('feqAlerts').innerHTML = `
+    <div class="alert-banner" style="background:#fff8f8;border:1px solid #fecdd3;color:#dc2626">
+      <span style="font-size:1.2rem">🚨</span>
+      <div><b>${overdue.length} รายการ</b> ต้องดำเนินการด่วน:
+        ${overdue.slice(0,3).map(r=>`<b>${r.eqNo||r.location||'—'}</b>`).join(', ')}
+        ${overdue.length>3?`และอีก ${overdue.length-3} รายการ`:''}</div>
+    </div>`;
+}
+
+/* ── table ── */
+function renderTable(rows) {
+  if (!rows.length) {
+    document.getElementById('feqTable').innerHTML =
+      `<tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+    return;
+  }
+  const td = today();
+  document.getElementById('feqTable').innerHTML = rows.map(r => {
+    const t  = typeMap[r.eqType] || { icon:'🧯', label: r.eqType||'—', color:'#64748b', bg:'#f8fafc' };
+    const st = FIRE_EQ_STATUS[r._status] || FIRE_EQ_STATUS.active;
+    const nxt = r.nextInspDate;
+    const exp = r.expiryDate;
+    const daysToInsp = nxt ? diffDays(nxt, td) : null;
+    const daysToExp  = exp ? diffDays(exp, td)  : null;
+    const rowCls = r._status==='overdue'||r._status==='expired' ? 'row-overdue' :
+                   r._status==='due_soon' ? 'row-due' : '';
+    const inspPill = daysToInsp!==null
+      ? `<span class="days-pill" style="color:${daysToInsp<0?'#dc2626':daysToInsp<=30?'#d97706':'#16a34a'};background:${daysToInsp<0?'#fee2e2':daysToInsp<=30?'#fef3c7':'#dcfce7'}">${daysToInsp<0?`เกิน ${Math.abs(daysToInsp)} วัน`:`${daysToInsp} วัน`}</span>` : '—';
+    return `
+    <tr class="${rowCls}" onclick="window.__feq_view('${r.id}')">
+      <td><span class="eq-no">${r.eqNo||'—'}</span></td>
+      <td><span style="font-size:.9rem">${t.icon}</span>
+          <span style="font-size:.75rem;color:${t.color};font-weight:600;margin-left:.25rem">${t.label}</span></td>
+      <td>
+        <div style="font-weight:600;color:#1e293b;font-size:.84rem">${r.location||'—'}</div>
+        <div style="font-size:.7rem;color:#94a3b8">${r.zone||''}</div>
+      </td>
+      <td class="hide-sm" style="font-size:.78rem">${r.capacity||'—'}</td>
+      <td class="hide-sm" style="font-size:.78rem">${r.lastInspDate||'—'}</td>
+      <td>${inspPill}</td>
+      <td class="hide-sm" style="font-size:.75rem;color:${daysToExp!==null&&daysToExp<30?'#dc2626':'#374151'}">${exp||'—'}</td>
+      <td>${badge(st.label,st.color,st.bg)}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── panel ── */
+function openPanel(title, body, footer='') {
+  document.getElementById('panelTitle').textContent = title;
+  document.getElementById('panelBody').innerHTML = body;
+  document.getElementById('panelFooter').innerHTML = footer;
+  document.getElementById('panelOverlay').classList.add('open');
+  document.getElementById('sidePanel').classList.add('open');
+}
+window.__feq_closePanel = () => {
+  document.getElementById('panelOverlay').classList.remove('open');
+  document.getElementById('sidePanel').classList.remove('open');
+};
+
+/* ── form ── */
+function formHTML(r = {}) {
+  const typeOpts = FIRE_EQ_TYPES.map(t =>
+    `<option value="${t.key}" ${(r.eqType||'co2')===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const stOpts = Object.entries(FIRE_EQ_STATUS).map(([k,v]) =>
+    `<option value="${k}" ${(r.status||'active')===k?'selected':''}>${v.label}</option>`).join('');
+  const inspOpts = Object.entries(FIRE_INSP_RESULT).map(([k,v]) =>
+    `<option value="${k}" ${(r.lastInspResult||'pass')===k?'selected':''}>${v.label}</option>`).join('');
+  return `
+    <div class="fg-row">
+      <div class="fg"><label>รหัสอุปกรณ์ *</label>
+        <input id="f_no" value="${r.eqNo||''}" placeholder="เช่น FE-A01-001"></div>
+      <div class="fg"><label>ประเภท *</label>
+        <select id="f_type">${typeOpts}</select></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>สถานที่ติดตั้ง *</label>
+        <input id="f_loc" value="${r.location||''}" placeholder="เช่น อาคาร A ชั้น 1"></div>
+      <div class="fg"><label>โซน / พื้นที่</label>
+        <input id="f_zone" value="${r.zone||''}" placeholder="เช่น คลังสินค้าโซน B"></div>
+    </div>
+    <div class="fg-row3">
+      <div class="fg"><label>ขนาด / ความจุ</label>
+        <input id="f_cap" value="${r.capacity||''}" placeholder="เช่น 4 กก."></div>
+      <div class="fg"><label>ยี่ห้อ</label>
+        <input id="f_brand" value="${r.brand||''}"></div>
+      <div class="fg"><label>สถานะ</label>
+        <select id="f_status">${stOpts}</select></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ตรวจสอบล่าสุด</label>
+        <input type="date" id="f_lastInsp" value="${r.lastInspDate||''}"></div>
+      <div class="fg"><label>ผลการตรวจสอบล่าสุด</label>
+        <select id="f_inspResult">${inspOpts}</select></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>กำหนดตรวจสอบครั้งถัดไป</label>
+        <input type="date" id="f_nextInsp" value="${r.nextInspDate||''}"></div>
+      <div class="fg"><label>วันหมดอายุ (ชาร์จ/ทดสอบ)</label>
+        <input type="date" id="f_exp" value="${r.expiryDate||''}"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>วันที่ติดตั้ง</label>
+        <input type="date" id="f_install" value="${r.installDate||''}"></div>
+      <div class="fg"><label>วันที่ชาร์จ/ทดสอบล่าสุด</label>
+        <input type="date" id="f_charge" value="${r.lastChargeDate||''}"></div>
+    </div>
+    <div class="fg"><label>หมายเหตุ / ข้อสังเกต</label>
+      <textarea id="f_notes">${r.notes||''}</textarea></div>`;
+}
+
+function collectForm() {
+  return {
+    eqNo:          document.getElementById('f_no')?.value.trim(),
+    eqType:        document.getElementById('f_type')?.value,
+    location:      document.getElementById('f_loc')?.value.trim(),
+    zone:          document.getElementById('f_zone')?.value.trim(),
+    capacity:      document.getElementById('f_cap')?.value.trim(),
+    brand:         document.getElementById('f_brand')?.value.trim(),
+    status:        document.getElementById('f_status')?.value || 'active',
+    lastInspDate:  document.getElementById('f_lastInsp')?.value,
+    lastInspResult:document.getElementById('f_inspResult')?.value,
+    nextInspDate:  document.getElementById('f_nextInsp')?.value,
+    expiryDate:    document.getElementById('f_exp')?.value,
+    installDate:   document.getElementById('f_install')?.value,
+    lastChargeDate:document.getElementById('f_charge')?.value,
+    notes:         document.getElementById('f_notes')?.value.trim(),
+  };
+}
+
+/* ── new ── */
+window.__feq_openNew = () => {
+  openPanel('เพิ่มอุปกรณ์ดับเพลิง', formHTML(),
+    `<button class="btn" onclick="window.__feq_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__feq_saveNew()">💾 บันทึก</button>`);
+};
+window.__feq_saveNew = async () => {
+  const data = collectForm();
+  if (!data.eqNo || !data.location) { alert('กรุณาระบุรหัสอุปกรณ์และสถานที่'); return; }
+  await createFireEq(data, _profile.uid);
+  window.__feq_closePanel();
+  await load();
+};
+
+/* ── view ── */
+window.__feq_view = async id => {
+  const r = await getFireEq(id);
+  if (!r) return;
+  const rc = { ...r, _status: computeStatus(r) };
+  const t  = typeMap[r.eqType] || { icon:'🧯', label: r.eqType||'—', color:'#64748b', bg:'#f8fafc' };
+  const st = FIRE_EQ_STATUS[rc._status] || FIRE_EQ_STATUS.active;
+  const ir = FIRE_INSP_RESULT[r.lastInspResult] || null;
+  const td = today();
+  const daysToInsp = r.nextInspDate ? diffDays(r.nextInspDate, td) : null;
+  const daysToExp  = r.expiryDate   ? diffDays(r.expiryDate, td)   : null;
+
+  openPanel(`${t.icon} ${r.eqNo||'—'} — ${r.location||''}`, `
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.9rem">
+      ${badge(t.label,t.color,t.bg)}
+      ${badge(st.label,st.color,st.bg)}
+      ${daysToInsp!==null ? `<span class="days-pill" style="color:${daysToInsp<0?'#dc2626':daysToInsp<=30?'#d97706':'#16a34a'};background:${daysToInsp<0?'#fee2e2':daysToInsp<=30?'#fef3c7':'#dcfce7'}">ตรวจครั้งถัดไป: ${daysToInsp<0?`เกิน ${Math.abs(daysToInsp)} วัน`:`${daysToInsp} วัน`}</span>` : ''}
+    </div>
+
+    <div class="ds"><h4>รายละเอียดอุปกรณ์</h4>
+      <div class="info-grid">
+        <span class="k">รหัส</span><span class="v" style="font-family:monospace;font-weight:700">${r.eqNo||'—'}</span>
+        <span class="k">สถานที่</span><span class="v">${r.location||'—'}</span>
+        <span class="k">โซน</span><span class="v">${r.zone||'—'}</span>
+        <span class="k">ขนาด/ความจุ</span><span class="v">${r.capacity||'—'}</span>
+        <span class="k">ยี่ห้อ</span><span class="v">${r.brand||'—'}</span>
+        <span class="k">วันที่ติดตั้ง</span><span class="v">${r.installDate||'—'}</span>
+      </div>
+    </div>
+
+    <div class="ds"><h4>การตรวจสอบและบำรุงรักษา</h4>
+      <div class="info-grid">
+        <span class="k">ตรวจสอบล่าสุด</span><span class="v">${r.lastInspDate||'—'}</span>
+        <span class="k">ผลการตรวจ</span><span class="v">${ir?badge(ir.label,ir.color,ir.bg):'—'}</span>
+        <span class="k">ครั้งถัดไป</span><span class="v" style="${daysToInsp!==null&&daysToInsp<0?'color:#dc2626;font-weight:700':''}">${r.nextInspDate||'—'}</span>
+        <span class="k">ชาร์จล่าสุด</span><span class="v">${r.lastChargeDate||'—'}</span>
+        <span class="k">วันหมดอายุ</span><span class="v" style="${daysToExp!==null&&daysToExp<0?'color:#dc2626;font-weight:700':daysToExp!==null&&daysToExp<=30?'color:#d97706;font-weight:700':''}">${r.expiryDate||'—'}${daysToExp!==null&&daysToExp<0?' ⚠️ หมดอายุแล้ว':daysToExp!==null&&daysToExp<=30?` (เหลือ ${daysToExp} วัน)`:''}</span>
+      </div>
+    </div>
+
+    ${r.notes ? `<div class="ds"><h4>หมายเหตุ</h4>
+      <p style="font-size:.82rem;color:#374151;margin:0">${r.notes}</p></div>` : ''}`,
+
+    `<button class="btn no-print" onclick="window.__feq_openEdit('${r.id}')">✏️ แก้ไข</button>
+     <button class="btn no-print" onclick="window.print()">🖨️</button>
+     <button class="btn btn-danger no-print" onclick="window.__feq_delete('${r.id}')">🗑️</button>`);
+};
+
+/* ── edit ── */
+window.__feq_openEdit = async id => {
+  const r = await getFireEq(id);
+  if (!r) return;
+  openPanel('แก้ไขอุปกรณ์', formHTML(r),
+    `<button class="btn" onclick="window.__feq_closePanel()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="window.__feq_saveEdit('${r.id}')">💾 บันทึก</button>`);
+};
+window.__feq_saveEdit = async id => {
+  const data = collectForm();
+  if (!data.eqNo) { alert('กรุณาระบุรหัสอุปกรณ์'); return; }
+  await updateFireEq(id, data);
+  window.__feq_closePanel();
+  await load();
+};
+
+/* ── delete ── */
+window.__feq_delete = async id => {
+  if (!confirm('ลบรายการอุปกรณ์นี้?')) return;
+  await deleteFireEq(id);
+  window.__feq_closePanel();
+  await load();
+};
+
+/* ── inject ── */
+const main = document.querySelector('main') || document.querySelector('.page-content')
+          || document.querySelector('#content') || document.body;
+main.insertAdjacentHTML('beforeend', `
+  <div style="padding:1rem 1.5rem">
+    <div class="top-bar">
+      <input type="search" placeholder="🔍 ค้นหารหัส, สถานที่, ยี่ห้อ..."
+             oninput="window.__feq_search(this.value)">
+      <button class="btn no-print" onclick="window.__feq_openNew()" style="white-space:nowrap">＋ เพิ่มอุปกรณ์</button>
+      <button class="btn no-print" onclick="window.print()">🖨️</button>
+    </div>
+    <!-- Status filter -->
+    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
+      <button class="filt-btn active" data-g="st" data-k="all"         onclick="window.__feq_fStat('all')">ทุกสถานะ</button>
+      <button class="filt-btn"        data-g="st" data-k="active"      onclick="window.__feq_fStat('active')">✅ ใช้งานได้</button>
+      <button class="filt-btn"        data-g="st" data-k="due_soon"    onclick="window.__feq_fStat('due_soon')">⏰ ใกล้กำหนด</button>
+      <button class="filt-btn"        data-g="st" data-k="overdue"     onclick="window.__feq_fStat('overdue')">🔴 เกินกำหนด</button>
+      <button class="filt-btn"        data-g="st" data-k="expired"     onclick="window.__feq_fStat('expired')">💀 หมดอายุ</button>
+      <button class="filt-btn"        data-g="st" data-k="maintenance" onclick="window.__feq_fStat('maintenance')">🔧 ซ่อมบำรุง</button>
+    </div>
+    <!-- Stats -->
+    <div class="sum-row" id="feqStats"></div>
+    <!-- Alert banner -->
+    <div id="feqAlerts"></div>
+    <!-- Type cards -->
+    <div class="type-grid" id="feqTypes"></div>
+    <!-- Table -->
+    <table class="fire-table">
+      <thead>
+        <tr>
+          <th>รหัส</th>
+          <th>ประเภท</th>
+          <th>สถานที่ / โซน</th>
+          <th class="hide-sm">ขนาด</th>
+          <th class="hide-sm">ตรวจล่าสุด</th>
+          <th>ตรวจครั้งถัดไป</th>
+          <th class="hide-sm">หมดอายุ</th>
+          <th>สถานะ</th>
+        </tr>
+      </thead>
+      <tbody id="feqTable">
+        <tr><td colspan="8" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
+      </tbody>
+    </table>
+  </div>`);
+
+await load();
+</script>
+</body>
+</html>

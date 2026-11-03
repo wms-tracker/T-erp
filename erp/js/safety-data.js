@@ -34,6 +34,7 @@ export const COL = {
   audits:        "safetyAudits",
   auditFindings: "safetyAuditFindings",
   induction:     "safetyInduction",
+  fireEq:        "safetyFireEquipment",
 };
 
 // ────────────────────────────────────────────
@@ -1701,4 +1702,61 @@ export async function updateInductionRecord(id, data) {
 
 export async function deleteInductionRecord(id) {
   await deleteDoc(doc(db, COL.induction, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 28 — Fire Safety Equipment
+// ────────────────────────────────────────────
+export const FIRE_EQ_TYPES = [
+  { key:'co2',         label:'CO₂',              icon:'🔵', color:'#2563eb', bg:'#eff6ff' },
+  { key:'dry_powder',  label:'ผงเคมีแห้ง (ABC)', icon:'🔴', color:'#dc2626', bg:'#fee2e2' },
+  { key:'foam',        label:'โฟม (Foam)',        icon:'🟡', color:'#d97706', bg:'#fef3c7' },
+  { key:'water',       label:'น้ำ (Water)',        icon:'💧', color:'#0891b2', bg:'#ecfeff' },
+  { key:'clean_agent', label:'Clean Agent',       icon:'⚪', color:'#64748b', bg:'#f1f5f9' },
+  { key:'fire_hose',   label:'สายดับเพลิง',       icon:'🌊', color:'#0369a1', bg:'#e0f2fe' },
+  { key:'sprinkler',   label:'Sprinkler',         icon:'💦', color:'#0891b2', bg:'#ecfeff' },
+  { key:'fire_alarm',  label:'สัญญาณเตือนไฟไหม้', icon:'🔔', color:'#ea580c', bg:'#fff7ed' },
+  { key:'other',       label:'อื่นๆ',             icon:'🧯', color:'#94a3b8', bg:'#f8fafc' },
+];
+
+export const FIRE_EQ_STATUS = {
+  active:      { label:'ใช้งานได้',     color:'#16a34a', bg:'#dcfce7' },
+  due_soon:    { label:'ใกล้ถึงกำหนด',  color:'#d97706', bg:'#fef3c7' },
+  overdue:     { label:'เกินกำหนด',     color:'#dc2626', bg:'#fee2e2' },
+  expired:     { label:'หมดอายุ',       color:'#9f1239', bg:'#fff1f2' },
+  maintenance: { label:'ซ่อมบำรุง',     color:'#7c3aed', bg:'#f5f3ff' },
+  decommission:{ label:'ปลดระวาง',      color:'#94a3b8', bg:'#f1f5f9' },
+};
+
+export const FIRE_INSP_RESULT = {
+  pass:   { label:'ผ่าน', color:'#16a34a', bg:'#dcfce7' },
+  fail:   { label:'ไม่ผ่าน', color:'#dc2626', bg:'#fee2e2' },
+  repair: { label:'ต้องซ่อม', color:'#d97706', bg:'#fef3c7' },
+};
+
+export async function listFireEq({ type, status, lim = 500 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.fireEq), orderBy('location','asc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (type)   rows = rows.filter(r => r.eqType === type);
+  if (status) rows = rows.filter(r => r.status === status);
+  return rows;
+}
+
+export async function getFireEq(id) {
+  const snap = await getDoc(doc(db, COL.fireEq, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createFireEq(data, createdBy) {
+  return addDoc(collection(db, COL.fireEq), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateFireEq(id, data) {
+  await updateDoc(doc(db, COL.fireEq, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteFireEq(id) {
+  await deleteDoc(doc(db, COL.fireEq, id));
 }
