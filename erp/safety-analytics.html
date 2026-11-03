@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>สถิติและวิเคราะห์ความปลอดภัย — KPO Safety</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <link rel="stylesheet" href="./css/safety.css">
+  <style>
+    /* Year selector */
+    .year-bar{display:flex;gap:.5rem;align-items:center;margin-bottom:1.2rem;flex-wrap:wrap}
+    .year-bar label{font-size:.82rem;font-weight:600;color:#374151}
+    .year-bar select{padding:.35rem .65rem;border-radius:8px;border:1px solid #cbd5e1;
+                     font-size:.84rem;background:#fff}
+    .year-bar .refresh-btn{padding:.35rem .8rem;border-radius:8px;border:1px solid #1e3a5f;
+                            background:#1e3a5f;color:#fff;font-size:.8rem;cursor:pointer}
+
+    /* KPI Scorecard row */
+    .kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.7rem;margin-bottom:1.4rem}
+    .kpi-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:.8rem .9rem;
+              position:relative;overflow:hidden}
+    .kpi-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
+    .kpi-card.good::before{background:#16a34a}
+    .kpi-card.warn::before{background:#d97706}
+    .kpi-card.bad::before{background:#dc2626}
+    .kpi-card.neutral::before{background:#94a3b8}
+    .kpi-label{font-size:.68rem;color:#64748b;font-weight:600;margin-bottom:.25rem;line-height:1.2}
+    .kpi-val{font-size:1.5rem;font-weight:800;line-height:1;color:#1e293b}
+    .kpi-unit{font-size:.7rem;color:#94a3b8;margin-left:.15rem}
+    .kpi-target{font-size:.68rem;color:#94a3b8;margin-top:.18rem}
+    .kpi-arrow{font-size:.75rem;margin-left:.2rem}
+
+    /* Section cards */
+    .section-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.2rem}
+    .section-row.single{grid-template-columns:1fr}
+    @media(max-width:680px){.section-row{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1rem 1.1rem}
+    .card-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+                letter-spacing:.06em;margin:0 0 .8rem;display:flex;align-items:center;gap:.4rem}
+
+    /* Bar chart (CSS) */
+    .bar-chart{display:flex;align-items:flex-end;gap:4px;height:80px}
+    .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+    .bar-col{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height .3s;position:relative}
+    .bar-col:hover .bar-tip{display:block}
+    .bar-tip{display:none;position:absolute;bottom:105%;left:50%;transform:translateX(-50%);
+             background:#1e293b;color:#fff;font-size:.62rem;padding:.12rem .3rem;
+             border-radius:4px;white-space:nowrap;pointer-events:none;z-index:5}
+    .bar-lbl{font-size:.6rem;color:#94a3b8;white-space:nowrap}
+
+    /* Donut chart (CSS) */
+    .donut-wrap{display:flex;align-items:center;gap:1rem}
+    .donut{width:80px;height:80px;border-radius:50%;flex-shrink:0}
+    .donut-legend{flex:1;font-size:.74rem}
+    .donut-legend li{list-style:none;display:flex;align-items:center;gap:.4rem;
+                      padding:.1rem 0;color:#374151}
+    .donut-legend .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+    /* Horizontal bar */
+    .hbar-row{display:flex;align-items:center;gap:.5rem;margin-bottom:.45rem}
+    .hbar-label{font-size:.75rem;color:#374151;width:110px;flex-shrink:0;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .hbar-track{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+    .hbar-fill{height:100%;border-radius:4px;transition:width .3s}
+    .hbar-val{font-size:.72rem;color:#64748b;width:36px;text-align:right;flex-shrink:0}
+
+    /* Rate cards */
+    .rate-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1.2rem}
+    .rate-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.75rem 1rem;text-align:center}
+    .rate-card .big{font-size:1.8rem;font-weight:800;line-height:1;color:#1e3a5f}
+    .rate-card .lbl{font-size:.7rem;color:#64748b;margin-top:.2rem;line-height:1.3}
+    .rate-card .formula{font-size:.62rem;color:#94a3b8;margin-top:.2rem}
+
+    /* Module activity table */
+    .mod-table{width:100%;border-collapse:collapse;font-size:.8rem}
+    .mod-table th{background:#f8fafc;padding:.4rem .6rem;text-align:left;color:#64748b;
+                   font-weight:600;font-size:.73rem;border-bottom:1px solid #e2e8f0}
+    .mod-table td{padding:.4rem .6rem;border-bottom:1px solid #f8fafc;color:#374151;vertical-align:middle}
+    .trend-badge{display:inline-block;font-size:.68rem;padding:.08rem .35rem;
+                 border-radius:4px;font-weight:700}
+
+    /* Month labels */
+    .month-labels{display:flex;gap:4px;margin-top:2px}
+    .month-labels span{flex:1;text-align:center;font-size:.6rem;color:#94a3b8}
+
+    @media print{.year-bar button{display:none}}
+  </style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  COL,
+  INCIDENT_TYPES,
+  KPI_DEFINITIONS, getKpiTargets,
+} from './js/safety-data.js';
+import { getDocs, query, collection, orderBy, limit, where } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { db } from './js/auth.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+renderShell(_profile, 'safety-analytics', 'สถิติและวิเคราะห์ความปลอดภัย');
+
+const MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const ASSUMED_WORKERS = 200; // hours_per_worker_per_year / working hours base for rate calc
+const WORK_HRS_BASE   = ASSUMED_WORKERS * 200000; // 200,000 hrs worked per year assumption
+
+let _year = new Date().getFullYear();
+
+/* ── fetch all data ── */
+async function fetchYear(yr) {
+  const y0 = `${yr}-01-01`, y1 = `${yr}-12-31`;
+
+  const [incSnap, traSnap, capaSnap, drillSnap, nearSnap, inspSnap, auditSnap] = await Promise.all([
+    getDocs(query(collection(db, COL.incidents),   orderBy('incidentDate','asc'),  limit(500))),
+    getDocs(query(collection(db, COL.training),    orderBy('trainingDate','asc'),  limit(500))),
+    getDocs(query(collection(db, COL.capa),        orderBy('createdAt','desc'),    limit(500))),
+    getDocs(query(collection(db, COL.drills),      orderBy('drillDate','asc'),     limit(200))),
+    getDocs(query(collection(db, COL.nearMiss),    orderBy('reportDate','asc'),    limit(500))),
+    getDocs(query(collection(db, COL.inspections), orderBy('inspDate','asc'),      limit(500))),
+    getDocs(query(collection(db, COL.audits),      orderBy('auditDate','desc'),    limit(200))),
+  ]);
+
+  const incidents   = incSnap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.incidentDate>=y0&&r.incidentDate<=y1);
+  const trainings   = traSnap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.trainingDate>=y0&&r.trainingDate<=y1);
+  const capas       = capaSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const drills      = drillSnap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.drillDate>=y0&&r.drillDate<=y1);
+  const nearMisses  = nearSnap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.reportDate>=y0&&r.reportDate<=y1);
+  const inspections = inspSnap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.inspDate>=y0&&r.inspDate<=y1);
+  const audits      = auditSnap.docs.map(d=>({id:d.id,...d.data()})).filter(r=>r.auditDate>=y0&&r.auditDate<=y1);
+
+  return { incidents, trainings, capas, drills, nearMisses, inspections, audits };
+}
+
+function monthBuckets(records, dateField) {
+  const buckets = Array(12).fill(0);
+  records.forEach(r => {
+    const d = r[dateField];
+    if (d) { const m = parseInt(d.slice(5,7))-1; if (m>=0&&m<12) buckets[m]++; }
+  });
+  return buckets;
+}
+
+/* ── render ── */
+async function render() {
+  const main = document.querySelector('main') || document.querySelector('.page-content')
+             || document.querySelector('#content') || document.body;
+
+  main.insertAdjacentHTML('beforeend', `
+    <div id="analyticsRoot" style="padding:1rem 1.5rem">
+      <div class="year-bar">
+        <label>ปี:</label>
+        <select id="yearSel">${[_year+1,_year,_year-1,_year-2].map(y=>`<option value="${y}" ${y===_year?'selected':''}>${y+543}</option>`).join('')}</select>
+        <button class="refresh-btn" onclick="window.__ana_reload()">🔄 โหลด</button>
+        <span id="anaLoading" style="font-size:.78rem;color:#94a3b8"></span>
+      </div>
+      <div id="anaContent"><div style="padding:3rem;text-align:center;color:#94a3b8">กำลังโหลดข้อมูล...</div></div>
+    </div>`);
+
+  window.__ana_reload = async () => {
+    _year = +document.getElementById('yearSel').value;
+    document.getElementById('anaLoading').textContent = 'กำลังโหลด...';
+    document.getElementById('anaContent').innerHTML = '<div style="padding:3rem;text-align:center;color:#94a3b8">กำลังโหลด...</div>';
+    await buildAnalytics(_year);
+    document.getElementById('anaLoading').textContent = '';
+  };
+
+  await buildAnalytics(_year);
+}
+
+async function buildAnalytics(yr) {
+  const { incidents, trainings, capas, drills, nearMisses, inspections, audits } = await fetchYear(yr);
+  const kpiTargets = await getKpiTargets(yr);
+
+  /* ── derived metrics ── */
+  const ltiList   = incidents.filter(r => ['fatality','lti'].includes(r.incidentType));
+  const lostDays  = incidents.reduce((a,b) => a+(+b.daysLost||0), 0);
+  const capaOpen  = capas.filter(r => r.status !== 'closed').length;
+  const capaTotal = capas.length;
+  const capaCloseRate = capaTotal ? Math.round((capaTotal-capaOpen)/capaTotal*100) : 0;
+  const inspPass  = inspections.filter(r => r.overallResult === 'pass').length;
+  const inspPassRate = inspections.length ? Math.round(inspPass/inspections.length*100) : 0;
+  const trir = incidents.length ? +(incidents.length * 200000 / WORK_HRS_BASE).toFixed(2) : 0;
+  const ltir = ltiList.length   ? +(ltiList.length * 200000 / WORK_HRS_BASE).toFixed(2) : 0;
+  const sr   = lostDays         ? +(lostDays * 200000 / WORK_HRS_BASE).toFixed(1) : 0;
+
+  /* KPI targets */
+  const tgt = kpiTargets || {};
+  function kpiCard(labelTh, val, unit, tgtKey, direction='lower', digits=0) {
+    const t = tgt[tgtKey]??null;
+    let cls = 'neutral';
+    if (t!==null) {
+      if (direction==='lower') cls = val<=t?'good':(val<=t*1.2?'warn':'bad');
+      else                     cls = val>=t?'good':(val>=t*.8?'warn':'bad');
+    }
+    const arrow = t===null?'' : (direction==='lower'?
+      (val<=t?'<span class="kpi-arrow" style="color:#16a34a">↓</span>':'<span class="kpi-arrow" style="color:#dc2626">↑</span>'):
+      (val>=t?'<span class="kpi-arrow" style="color:#16a34a">↑</span>':'<span class="kpi-arrow" style="color:#dc2626">↓</span>'));
+    return `
+    <div class="kpi-card ${cls}">
+      <div class="kpi-label">${labelTh}</div>
+      <div class="kpi-val">${typeof val==='number'?val.toFixed(digits):val}${arrow}<span class="kpi-unit">${unit}</span></div>
+      ${t!==null?`<div class="kpi-target">เป้า: ${t} ${unit}</div>`:''}
+    </div>`;
+  }
+
+  /* ── monthly buckets ── */
+  const incByMonth  = monthBuckets(incidents, 'incidentDate');
+  const nmByMonth   = monthBuckets(nearMisses, 'reportDate');
+  const traByMonth  = monthBuckets(trainings, 'trainingDate');
+  const maxInc = Math.max(...incByMonth, 1);
+  const maxNm  = Math.max(...nmByMonth, 1);
+  const maxTra = Math.max(...traByMonth, 1);
+
+  /* ── incident types breakdown ── */
+  const sevKeys = ['fatality','lti','rws','mtc','fac','near_miss'];
+  const sevCounts = sevKeys.map(k=>({ k, n:incidents.filter(r=>r.incidentType===k).length })).filter(x=>x.n>0);
+  const sevColors = { fatality:'#7f1d1d',lti:'#dc2626',rws:'#ea580c',mtc:'#d97706',fac:'#ca8a04',near_miss:'#2563eb' };
+  const totalInc = incidents.length || 1;
+  const donutSegments = sevCounts.map(x=>{
+    const pct = x.n/totalInc*100;
+    return { key:x.k, n:x.n, pct, color:sevColors[x.k]||'#64748b' };
+  });
+  // build conic-gradient
+  let cumul = 0;
+  const gradStops = donutSegments.map(s=>{
+    const start=cumul, end=cumul+s.pct;
+    cumul=end;
+    return `${s.color} ${start.toFixed(1)}% ${end.toFixed(1)}%`;
+  }).join(',');
+  const donutStyle = donutSegments.length
+    ? `background:conic-gradient(${gradStops})`
+    : 'background:#e2e8f0';
+
+  /* ── module activity ── */
+  const modules = [
+    { label:'อุบัติเหตุ',         n:incidents.length },
+    { label:'Near Miss',          n:nearMisses.length },
+    { label:'การตรวจสอบ',         n:inspections.length },
+    { label:'ฝึกอบรม',            n:trainings.length },
+    { label:'ซ้อมแผนฉุกเฉิน',     n:drills.length },
+    { label:'CAPA',               n:capas.length, open:capaOpen },
+    { label:'Audit',              n:audits.length },
+  ];
+  const maxMod = Math.max(...modules.map(m=>m.n), 1);
+
+  const barHTML = (buckets, maxVal, color) => `
+    <div class="bar-chart">
+      ${buckets.map((v,i)=>`
+        <div class="bar-wrap">
+          <div class="bar-col" style="height:${Math.round(v/maxVal*72)}px;background:${color}">
+            <span class="bar-tip">${MONTHS_TH[i]}: ${v}</span>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="month-labels">${MONTHS_TH.map(m=>`<span>${m}</span>`).join('')}</div>`;
+
+  document.getElementById('anaContent').innerHTML = `
+    <!-- Rate cards -->
+    <div class="rate-grid">
+      <div class="rate-card">
+        <div class="big">${trir}</div>
+        <div class="lbl">Total Recordable Incident Rate<br>(TRIR)</div>
+        <div class="formula">อุบัติเหตุ × 200,000 / ชม.ทำงาน</div>
+      </div>
+      <div class="rate-card">
+        <div class="big">${ltir}</div>
+        <div class="lbl">Lost Time Injury Rate<br>(LTIR)</div>
+        <div class="formula">LTI × 200,000 / ชม.ทำงาน</div>
+      </div>
+      <div class="rate-card">
+        <div class="big">${sr}</div>
+        <div class="lbl">Severity Rate<br>(วันสูญเสีย)</div>
+        <div class="formula">วันสูญเสีย × 200,000 / ชม.ทำงาน</div>
+      </div>
+      <div class="rate-card">
+        <div class="big">${incidents.length === 0 ? (new Date().getMonth()+1)*30 : '—'}</div>
+        <div class="lbl">วันสะสมไม่มีอุบัติเหตุ<br>(Safe Days)</div>
+        <div class="formula">นับจากต้นปี (ประมาณ)</div>
+      </div>
+    </div>
+
+    <!-- KPI Scorecard -->
+    <div style="font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
+         letter-spacing:.06em;margin-bottom:.6rem">📊 KPI Scorecard ${yr+543}</div>
+    <div class="kpi-grid">
+      ${kpiCard('อุบัติเหตุทั้งหมด',  incidents.length,  'ครั้ง', 'incidents', 'lower')}
+      ${kpiCard('LTI',               ltiList.length,    'ครั้ง', 'lti',       'lower')}
+      ${kpiCard('วันสูญเสีย',         lostDays,          'วัน',   'lostDays',  'lower')}
+      ${kpiCard('Near Miss',          nearMisses.length, 'ครั้ง', 'nearMiss',  'higher')}
+      ${kpiCard('CAPA Closure Rate',  capaCloseRate,     '%',     'capaCloseRate', 'higher')}
+      ${kpiCard('ผ่านการตรวจ (Avg)',  inspPassRate,      '%',     'inspPassRate',  'higher')}
+      ${kpiCard('ซ้อมแผนฉุกเฉิน',    drills.length,     'ครั้ง', 'drills',    'higher')}
+    </div>
+
+    <!-- Charts row -->
+    <div class="section-row">
+      <div class="card">
+        <div class="card-title">📈 อุบัติเหตุรายเดือน (${yr+543})</div>
+        ${barHTML(incByMonth, maxInc, '#dc2626')}
+        <div style="font-size:.72rem;color:#64748b;margin-top:.5rem;text-align:right">
+          รวม ${incidents.length} ครั้ง | LTI: ${ltiList.length} ครั้ง</div>
+      </div>
+      <div class="card">
+        <div class="card-title">🔍 Near Miss รายเดือน (${yr+543})</div>
+        ${barHTML(nmByMonth, maxNm, '#2563eb')}
+        <div style="font-size:.72rem;color:#64748b;margin-top:.5rem;text-align:right">
+          รวม ${nearMisses.length} รายงาน</div>
+      </div>
+    </div>
+
+    <div class="section-row">
+      <div class="card">
+        <div class="card-title">📚 การฝึกอบรมรายเดือน (${yr+543})</div>
+        ${barHTML(traByMonth, maxTra, '#1e3a5f')}
+        <div style="font-size:.72rem;color:#64748b;margin-top:.5rem;text-align:right">
+          รวม ${trainings.length} ครั้ง</div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ ประเภทอุบัติเหตุ</div>
+        ${donutSegments.length ? `
+        <div class="donut-wrap">
+          <div class="donut" style="${donutStyle}"></div>
+          <ul class="donut-legend">
+            ${donutSegments.map(s=>{
+              const inc = INCIDENT_TYPES[s.key];
+              return `<li><span class="dot" style="background:${s.color}"></span>
+                      ${inc?.labelTh||s.key}: <b>${s.n}</b> (${s.pct.toFixed(0)}%)</li>`;
+            }).join('')}
+          </ul>
+        </div>` : '<div style="color:#94a3b8;font-size:.82rem">ไม่มีข้อมูลอุบัติเหตุ</div>'}
+      </div>
+    </div>
+
+    <!-- Module activity -->
+    <div class="section-row single">
+      <div class="card">
+        <div class="card-title">📋 กิจกรรมแต่ละ Module (${yr+543})</div>
+        ${modules.map(m=>`
+        <div class="hbar-row">
+          <span class="hbar-label">${m.label}</span>
+          <div class="hbar-track">
+            <div class="hbar-fill" style="width:${Math.round(m.n/maxMod*100)}%;background:#1e3a5f"></div>
+          </div>
+          <span class="hbar-val">${m.n}${m.open!=null?` <span style="font-size:.65rem;color:#dc2626">(${m.open} เปิด)</span>`:''}</span>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <div style="font-size:.72rem;color:#94a3b8;text-align:center;padding:.5rem;margin-bottom:3rem">
+      * ข้อมูล ณ วันที่โหลด · ชั่วโมงทำงานอิงฐาน ${ASSUMED_WORKERS} คน × 1,000 ชม./ปี</div>`;
+}
+
+await render();
+</script>
+</body>
+</html>

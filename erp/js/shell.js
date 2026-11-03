@@ -171,10 +171,11 @@ const NAV = {
       { key: 'safety-waste',    label: 'การจัดการของเสีย',           href: 'safety-waste.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
-      { key: 'safety-reports',  label: 'รายงานความปลอดภัย',     href: 'safety-reports.html' },
-      { key: 'safety-kpi',      label: 'เป้าหมาย KPI',           href: 'safety-kpi.html' },
-      { key: 'safety-action-plan', label: 'แผนปฏิบัติการประจำปี', href: 'safety-action-plan.html' },
-      { key: 'legal-compliance',label: 'กฎหมายความปลอดภัย',     href: 'safety-legal.html' },
+      { key: 'safety-reports',    label: 'รายงานความปลอดภัย',      href: 'safety-reports.html' },
+      { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',       href: 'safety-analytics.html' },
+      { key: 'safety-kpi',        label: 'เป้าหมาย KPI',            href: 'safety-kpi.html' },
+      { key: 'safety-action-plan',label: 'แผนปฏิบัติการประจำปี',    href: 'safety-action-plan.html' },
+      { key: 'legal-compliance',  label: 'กฎหมายความปลอดภัย',      href: 'safety-legal.html' },
     ]},
   ],
   kpo: [
@@ -306,6 +307,7 @@ const PAGE_DEPARTMENT = {
   "safety-ptw.html":            "safety_officer",
   "safety-audit.html":          "safety_officer",
   "safety-induction.html":      "safety_officer",
+  "safety-analytics.html":      "safety_officer",
   "safety-talk.html":           "safety_officer",
   "safety-chemical.html":       "safety_officer",
   "safety-investigation.html":  "safety_officer",
