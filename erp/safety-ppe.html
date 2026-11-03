@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>จ่าย PPE — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole }        from './js/auth.js';
+import { renderShell, renderNotifications } from './js/shell.js';
+import {
+  PPE_ITEMS, PPE_CATEGORIES, PPE_CONDITION,
+  listPPEIssuance, getPPERecord,
+  createPPERecord, updatePPERecord, deletePPERecord,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-ppe', 'จ่าย PPE — การจัดการ PPE');
+
+// ── helpers ──────────────────────────────────────────────────────────
+const badge   = (l, c, bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt     = (d) => d ? new Date(d).toLocaleDateString('th-TH', { year:'2-digit', month:'short', day:'numeric' }) : '—';
+const fmtFull = (d) => d ? new Date(d).toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' }) : '—';
+
+function dueBadge(dueDateStr) {
+  if (!dueDateStr) return badge('ไม่ระบุ','#94a3b8','#f1f5f9');
+  const diff = Math.ceil((new Date(dueDateStr) - new Date()) / 86400000);
+  if (diff < 0)  return badge('เกินกำหนด','#dc2626','#fee2e2');
+  if (diff <= 30) return badge(`ใกล้ถึงกำหนด (${diff}ว)`, '#d97706', '#fef3c7');
+  return badge(`ถึง ${fmt(dueDateStr)}`, '#16a34a', '#dcfce7');
+}
+
+function getPPEItem(key) { return PPE_ITEMS.find(p => p.key === key) || { label: key, icon: '📦' }; }
+
+function calcReplaceDate(issueDateStr, ppeItemKey) {
+  if (!issueDateStr) return '';
+  const item = getPPEItem(ppeItemKey);
+  const d = new Date(issueDateStr);
+  d.setMonth(d.getMonth() + (item.replaceMonths || 12));
+  return d.toISOString().slice(0,10);
+}
+
+// ── state ─────────────────────────────────────────────────────────────
+let records = [];
+let filterDept = '', filterItem = '', filterStatus = 'all';
+
+// ── render ────────────────────────────────────────────────────────────
+function filtered() {
+  return records.filter(r => {
+    if (filterDept && r.department !== filterDept) return false;
+    if (filterItem && r.ppeItem !== filterItem) return false;
+    if (filterStatus === 'overdue') {
+      const diff = r.replaceDueDate ? Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000) : 999;
+      return diff < 0;
+    }
+    if (filterStatus === 'due_soon') {
+      const diff = r.replaceDueDate ? Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000) : 999;
+      return diff >= 0 && diff <= 30;
+    }
+    return true;
+  });
+}
+
+function kpiBar() {
+  const total     = records.length;
+  const overdue   = records.filter(r => { const d = r.replaceDueDate ? Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000) : 999; return d < 0; }).length;
+  const dueSoon   = records.filter(r => { const d = r.replaceDueDate ? Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000) : 999; return d >= 0 && d <= 30; }).length;
+  const deptSet   = new Set(records.map(r => r.department).filter(Boolean));
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รายการจ่ายทั้งหมด</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStatus('overdue')">
+        <div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${overdue}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">เกินกำหนดเปลี่ยน</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setStatus('due_soon')">
+        <div style="font-size:1.6rem;font-weight:800;color:#d97706;">${dueSoon}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">ใกล้ถึงกำหนด (30 ว.)</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${deptSet.size}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">แผนก</div>
+      </div>
+    </div>`;
+}
+
+// collect unique depts for filter
+function deptOptions() {
+  const depts = [...new Set(records.map(r => r.department).filter(Boolean))].sort();
+  return depts.map(d => `<option value="${d}" ${d===filterDept?'selected':''}>${d}</option>`).join('');
+}
+
+function renderPage() {
+  const rows = filtered();
+  const overdueCount = records.filter(r => { const d = r.replaceDueDate ? Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000) : 999; return d < 0; }).length;
+  const dueSoonCount = records.filter(r => { const d = r.replaceDueDate ? Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000) : 999; return d >= 0 && d <= 30; }).length;
+
+  main.innerHTML = `
+    <style>
+      .ppe-table-wrap{overflow-x:auto;}
+      .panel{position:fixed;right:0;top:0;bottom:0;width:420px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px;}
+      .form-group{margin-bottom:14px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;transition:border-color .15s;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .category-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+      .cat-pill{padding:5px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;border:1.5px solid transparent;cursor:pointer;transition:all .15s;}
+      .cat-pill.active{border-color:#1a73e8;background:#eff6ff;color:#1a73e8;}
+      .cat-pill:not(.active){background:#f4f6ff;color:#555;border-color:#e0e3f0;}
+      .ppe-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+      .ppe-option{padding:9px 10px;border-radius:10px;border:1.5px solid #e0e3f0;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:0.8rem;transition:all .12s;}
+      .ppe-option:hover,.ppe-option.selected{border-color:#1a73e8;background:#eff6ff;}
+      .ppe-option.selected{font-weight:700;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+
+    ${kpiBar()}
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>รายการจ่าย PPE</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกการจ่าย PPE</button>
+      </div>
+
+      <!-- Filters -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:120px;" onchange="window.__setDept(this.value)">
+          <option value="">ทุกแผนก</option>${deptOptions()}
+        </select>
+        <select class="form-control" style="width:auto;min-width:150px;" onchange="window.__setItem(this.value)">
+          <option value="">PPE ทุกประเภท</option>
+          ${PPE_ITEMS.map(p => `<option value="${p.key}" ${p.key===filterItem?'selected':''}>${p.icon} ${p.label}</option>`).join('')}
+        </select>
+        <select class="form-control" style="width:auto;min-width:130px;" onchange="window.__setStatus(this.value)">
+          <option value="all" ${filterStatus==='all'?'selected':''}>แสดงทั้งหมด</option>
+          <option value="overdue" ${filterStatus==='overdue'?'selected':''}>เกินกำหนด ${overdueCount>0?`(${overdueCount})`:''}</option>
+          <option value="due_soon" ${filterStatus==='due_soon'?'selected':''}>ใกล้ถึงกำหนด ${dueSoonCount>0?`(${dueSoonCount})`:''}</option>
+        </select>
+      </div>
+
+      <div class="ppe-table-wrap">
+        <table>
+          <thead><tr>
+            <th>พนักงาน</th>
+            <th>แผนก</th>
+            <th>PPE</th>
+            <th>ไซส์</th>
+            <th>วันจ่าย</th>
+            <th>กำหนดเปลี่ยน</th>
+            <th>สภาพ</th>
+            <th>ดำเนินการ</th>
+          </tr></thead>
+          <tbody>
+            ${rows.length === 0 ? `<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>` : rows.map(r => {
+              const item = getPPEItem(r.ppeItem);
+              const cond = PPE_CONDITION[r.condition] || { label: r.condition || '—', color:'#555', bg:'#eee' };
+              return `<tr>
+                <td><b>${r.employeeName || '—'}</b><br><small style="color:#999;">${r.employeeId || ''}</small></td>
+                <td>${r.department || '—'}</td>
+                <td>${item.icon} ${item.label}</td>
+                <td>${r.size || '—'}</td>
+                <td>${fmt(r.issueDate)}</td>
+                <td>${dueBadge(r.replaceDueDate)}</td>
+                <td>${badge(cond.label, cond.color, cond.bg)}</td>
+                <td>
+                  <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                  <button class="btn btn-danger" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:0.8rem;color:#888;margin-top:8px;">แสดง ${rows.length} รายการ</div>
+    </div>
+
+    <!-- Panel overlay -->
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+
+    <!-- Slide-in panel -->
+    <div class="panel" id="ppe-panel">
+      <div class="panel-header">
+        <b id="panel-title">บันทึกการจ่าย PPE</b>
+        <button class="panel-close" onclick="window.__closePanel()">✕</button>
+      </div>
+      <div class="panel-body">
+        <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+
+        <input type="hidden" id="f-id"/>
+
+        <div class="form-group">
+          <label class="form-label">ชื่อพนักงาน *</label>
+          <input id="f-empName" class="form-control" placeholder="ชื่อ-นามสกุล"/>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label class="form-label">รหัสพนักงาน</label>
+            <input id="f-empId" class="form-control" placeholder="EMP-001"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">แผนก *</label>
+            <input id="f-dept" class="form-control" placeholder="เช่น คลังสินค้า"/>
+          </div>
+        </div>
+
+        <!-- Category filter -->
+        <div class="form-group">
+          <label class="form-label">เลือก PPE (กรองตามหมวด)</label>
+          <div class="category-pills" id="cat-pills">
+            <span class="cat-pill active" data-cat="all" onclick="window.__setCat('all')">ทั้งหมด</span>
+            ${Object.entries(PPE_CATEGORIES).map(([k,v]) => `<span class="cat-pill" data-cat="${k}" onclick="window.__setCat('${k}')">${v.icon} ${v.label}</span>`).join('')}
+          </div>
+          <div class="ppe-grid" id="ppe-grid">
+            ${PPE_ITEMS.map(p => `<div class="ppe-option" data-key="${p.key}" data-cat="${p.category}" onclick="window.__selectPPE('${p.key}')">${p.icon} ${p.label}</div>`).join('')}
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label class="form-label">ไซส์ / ขนาด</label>
+            <input id="f-size" class="form-control" placeholder="S / M / L / XL / 40"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">วันที่จ่าย *</label>
+            <input id="f-issueDate" class="form-control" type="date"/>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">วันที่ต้องเปลี่ยน (คำนวณอัตโนมัติ)</label>
+          <input id="f-dueDate" class="form-control" type="date"/>
+          <small style="color:#888;font-size:0.75rem;">ระบบคำนวณจากอายุการใช้งานของ PPE ที่เลือก สามารถแก้ไขได้</small>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">สภาพ PPE</label>
+          <select id="f-condition" class="form-control">
+            ${Object.entries(PPE_CONDITION).map(([k,v]) => `<option value="${k}">${v.label}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">ผู้จ่าย / เจ้าหน้าที่</label>
+          <input id="f-issuedBy" class="form-control" placeholder="ชื่อผู้จ่าย PPE"/>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">หมายเหตุ</label>
+          <textarea id="f-notes" class="form-control" rows="2" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+          <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── interactions ──────────────────────────────────────────────────────
+let selectedPPEKey = '';
+let selectedCat    = 'all';
+
+window.__setCat = (cat) => {
+  selectedCat = cat;
+  document.querySelectorAll('.cat-pill').forEach(p => p.classList.toggle('active', p.dataset.cat === cat));
+  document.querySelectorAll('.ppe-option').forEach(o => {
+    o.style.display = (cat === 'all' || o.dataset.cat === cat) ? '' : 'none';
+  });
+};
+
+window.__selectPPE = (key) => {
+  selectedPPEKey = key;
+  document.querySelectorAll('.ppe-option').forEach(o => o.classList.toggle('selected', o.dataset.key === key));
+  // auto-calc due date
+  const issueDate = document.getElementById('f-issueDate').value;
+  if (issueDate) document.getElementById('f-dueDate').value = calcReplaceDate(issueDate, key);
+};
+
+// auto-recalc when issue date changes
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'f-issueDate' && selectedPPEKey) {
+    document.getElementById('f-dueDate').value = calcReplaceDate(e.target.value, selectedPPEKey);
+  }
+});
+
+window.__setDept   = (v) => { filterDept = v; renderPage(); };
+window.__setItem   = (v) => { filterItem = v; renderPage(); };
+window.__setStatus = (v) => { filterStatus = v; renderPage(); };
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'บันทึกการจ่าย PPE';
+  document.getElementById('f-id').value       = '';
+  document.getElementById('f-empName').value  = '';
+  document.getElementById('f-empId').value    = '';
+  document.getElementById('f-dept').value     = '';
+  document.getElementById('f-size').value     = '';
+  document.getElementById('f-issueDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('f-dueDate').value  = '';
+  document.getElementById('f-condition').value = 'good';
+  document.getElementById('f-issuedBy').value = profile.name || '';
+  document.getElementById('f-notes').value    = '';
+  document.getElementById('panel-msg').textContent = '';
+  selectedPPEKey = '';
+  document.querySelectorAll('.ppe-option').forEach(o => o.classList.remove('selected'));
+  window.__setCat('all');
+  document.getElementById('ppe-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  document.getElementById('ppe-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+
+window.__editRecord = async (id) => {
+  const r = await getPPERecord(id);
+  if (!r) return;
+  selectedPPEKey = r.ppeItem || '';
+  document.getElementById('panel-title').textContent = 'แก้ไขรายการจ่าย PPE';
+  document.getElementById('f-id').value        = r.id;
+  document.getElementById('f-empName').value   = r.employeeName  || '';
+  document.getElementById('f-empId').value     = r.employeeId    || '';
+  document.getElementById('f-dept').value      = r.department    || '';
+  document.getElementById('f-size').value      = r.size          || '';
+  document.getElementById('f-issueDate').value = r.issueDate     || '';
+  document.getElementById('f-dueDate').value   = r.replaceDueDate|| '';
+  document.getElementById('f-condition').value = r.condition     || 'good';
+  document.getElementById('f-issuedBy').value  = r.issuedBy      || '';
+  document.getElementById('f-notes').value     = r.notes         || '';
+  document.getElementById('panel-msg').textContent = '';
+  window.__setCat('all');
+  document.querySelectorAll('.ppe-option').forEach(o => o.classList.toggle('selected', o.dataset.key === selectedPPEKey));
+  document.getElementById('ppe-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__saveRecord = async () => {
+  const msg     = document.getElementById('panel-msg');
+  const empName = document.getElementById('f-empName').value.trim();
+  const dept    = document.getElementById('f-dept').value.trim();
+  const issDate = document.getElementById('f-issueDate').value;
+  if (!empName) { msg.textContent = '* กรุณาระบุชื่อพนักงาน'; msg.className = 'msg error'; return; }
+  if (!dept)    { msg.textContent = '* กรุณาระบุแผนก';        msg.className = 'msg error'; return; }
+  if (!selectedPPEKey) { msg.textContent = '* กรุณาเลือกประเภท PPE'; msg.className = 'msg error'; return; }
+  if (!issDate) { msg.textContent = '* กรุณาระบุวันที่จ่าย';  msg.className = 'msg error'; return; }
+
+  msg.textContent = 'กำลังบันทึก…'; msg.className = 'msg';
+
+  const data = {
+    employeeName:   empName,
+    employeeId:     document.getElementById('f-empId').value.trim(),
+    department:     dept,
+    ppeItem:        selectedPPEKey,
+    size:           document.getElementById('f-size').value.trim(),
+    issueDate:      issDate,
+    replaceDueDate: document.getElementById('f-dueDate').value || calcReplaceDate(issDate, selectedPPEKey),
+    condition:      document.getElementById('f-condition').value,
+    issuedBy:       document.getElementById('f-issuedBy').value.trim(),
+    notes:          document.getElementById('f-notes').value.trim(),
+  };
+
+  try {
+    const id = document.getElementById('f-id').value;
+    if (id) {
+      await updatePPERecord(id, data);
+    } else {
+      await createPPERecord(data, profile.uid);
+    }
+    window.__closePanel();
+    await loadAll();
+  } catch (e) {
+    msg.textContent = 'เกิดข้อผิดพลาด: ' + e.message; msg.className = 'msg error';
+  }
+};
+
+window.__deleteRecord = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  await deletePPERecord(id);
+  await loadAll();
+};
+
+// ── notifications ─────────────────────────────────────────────────────
+function buildNotifications() {
+  const notifs = [];
+  records.forEach(r => {
+    if (!r.replaceDueDate) return;
+    const diff = Math.ceil((new Date(r.replaceDueDate) - new Date()) / 86400000);
+    const item = getPPEItem(r.ppeItem);
+    if (diff < 0) notifs.push({
+      tone:'critical', icon:'🚨',
+      title:`${r.employeeName} — ${item.label} เกินกำหนด ${Math.abs(diff)} วัน`,
+      desc: r.department,
+      href: 'safety-ppe.html',
+    });
+    else if (diff <= 30) notifs.push({
+      tone:'warning', icon:'⚠️',
+      title:`${r.employeeName} — ${item.label} ใกล้ถึงกำหนด (${diff} ว.)`,
+      desc: r.department,
+      href: 'safety-ppe.html',
+    });
+  });
+  // sort critical first
+  notifs.sort((a,b) => (a.tone==='critical'?0:1) - (b.tone==='critical'?0:1));
+  return notifs.slice(0, 20);
+}
+
+// ── load ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  records = await listPPEIssuance();
+  renderPage();
+  renderNotifications(buildNotifications());
+}
+
+loadAll();
+</script>
+</body>
+</html>

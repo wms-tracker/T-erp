@@ -165,6 +165,7 @@ const NAV = {
       { key: 'safety-talk',      label: 'Safety Talk / Toolbox',   href: 'safety-talk.html' },
       { key: 'safety-health',    label: 'ตรวจสุขภาพอาชีวอนามัย',   href: 'safety-health.html' },
       { key: 'safety-induction', label: 'ปฐมนิเทศความปลอดภัย',     href: 'safety-induction.html' },
+      { key: 'safety-ppe',       label: 'จ่าย PPE',                 href: 'safety-ppe.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',     href: 'safety-chemical.html' },
@@ -322,6 +323,7 @@ const PAGE_DEPARTMENT = {
   "safety-action-plan.html":    "safety_officer",
   "safety-env.html":            "safety_officer",
   "safety-waste.html":          "safety_officer",
+  "safety-ppe.html":            "safety_officer",
 };
 
 // ===================================================================

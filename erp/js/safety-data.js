@@ -35,6 +35,7 @@ export const COL = {
   auditFindings: "safetyAuditFindings",
   induction:     "safetyInduction",
   fireEq:        "safetyFireEquipment",
+  ppeIssue:      "safetyPPEIssuance",
 };
 
 // ────────────────────────────────────────────
@@ -1759,4 +1760,71 @@ export async function updateFireEq(id, data) {
 
 export async function deleteFireEq(id) {
   await deleteDoc(doc(db, COL.fireEq, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 29 — PPE Issuance & Management
+// ────────────────────────────────────────────
+export const PPE_ITEMS = [
+  { key:'hard_hat',       label:'หมวกนิรภัย',          icon:'⛑️',  category:'head',        replaceMonths:12 },
+  { key:'safety_shoes',   label:'รองเท้านิรภัย',        icon:'👟',  category:'feet',        replaceMonths:12 },
+  { key:'safety_glasses', label:'แว่นตานิรภัย',         icon:'🥽',  category:'eyes',        replaceMonths:6  },
+  { key:'face_shield',    label:'Face Shield',          icon:'🛡️', category:'eyes',        replaceMonths:12 },
+  { key:'welding_mask',   label:'หน้ากากเชื่อม',        icon:'🔆',  category:'eyes',        replaceMonths:24 },
+  { key:'ear_plug',       label:'ที่อุดหู',              icon:'🔇',  category:'hearing',     replaceMonths:3  },
+  { key:'earmuff',        label:'ที่ครอบหู',             icon:'🎧',  category:'hearing',     replaceMonths:12 },
+  { key:'dust_mask',      label:'หน้ากากกันฝุ่น (N95)',  icon:'😷',  category:'respiratory', replaceMonths:1  },
+  { key:'half_mask',      label:'หน้ากากครึ่งหน้า',      icon:'😷',  category:'respiratory', replaceMonths:6  },
+  { key:'gloves_fabric',  label:'ถุงมือผ้า',             icon:'🧤',  category:'hands',       replaceMonths:1  },
+  { key:'gloves_rubber',  label:'ถุงมือยาง',             icon:'🧤',  category:'hands',       replaceMonths:3  },
+  { key:'gloves_leather', label:'ถุงมือหนัง',            icon:'🧤',  category:'hands',       replaceMonths:6  },
+  { key:'vest',           label:'เสื้อสะท้อนแสง',        icon:'🦺',  category:'body',        replaceMonths:12 },
+  { key:'harness',        label:'Full Body Harness',     icon:'🪢',  category:'fall',        replaceMonths:36 },
+  { key:'other',          label:'อื่นๆ',                 icon:'📦',  category:'other',       replaceMonths:12 },
+];
+
+export const PPE_CATEGORIES = {
+  head:        { label:'ศีรษะ',       icon:'⛑️'  },
+  eyes:        { label:'ตา/ใบหน้า',  icon:'🥽'  },
+  hearing:     { label:'การได้ยิน',   icon:'🎧'  },
+  respiratory: { label:'ระบบหายใจ',   icon:'😷'  },
+  hands:       { label:'มือ',         icon:'🧤'  },
+  feet:        { label:'เท้า',        icon:'👟'  },
+  body:        { label:'ลำตัว',       icon:'🦺'  },
+  fall:        { label:'ป้องกันตก',   icon:'🪢'  },
+  other:       { label:'อื่นๆ',       icon:'📦'  },
+};
+
+export const PPE_CONDITION = {
+  good:    { label:'สภาพดี',      color:'#16a34a', bg:'#dcfce7' },
+  worn:    { label:'เก่า/สึกหรอ', color:'#d97706', bg:'#fef3c7' },
+  damaged: { label:'ชำรุด',       color:'#dc2626', bg:'#fee2e2' },
+  lost:    { label:'สูญหาย',      color:'#94a3b8', bg:'#f1f5f9' },
+};
+
+export async function listPPEIssuance({ dept, ppeItem, lim = 500 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.ppeIssue), orderBy('issueDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (dept)    rows = rows.filter(r => r.department === dept);
+  if (ppeItem) rows = rows.filter(r => r.ppeItem    === ppeItem);
+  return rows;
+}
+
+export async function getPPERecord(id) {
+  const snap = await getDoc(doc(db, COL.ppeIssue, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createPPERecord(data, createdBy) {
+  return addDoc(collection(db, COL.ppeIssue), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updatePPERecord(id, data) {
+  await updateDoc(doc(db, COL.ppeIssue, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deletePPERecord(id) {
+  await deleteDoc(doc(db, COL.ppeIssue, id));
 }
