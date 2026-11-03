@@ -36,6 +36,7 @@ export const COL = {
   induction:     "safetyInduction",
   fireEq:        "safetyFireEquipment",
   ppeIssue:      "safetyPPEIssuance",
+  firstAid:      "safetyFirstAid",
 };
 
 // ────────────────────────────────────────────
@@ -1827,4 +1828,78 @@ export async function updatePPERecord(id, data) {
 
 export async function deletePPERecord(id) {
   await deleteDoc(doc(db, COL.ppeIssue, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 30 — First Aid & Medical Log (บันทึกปฐมพยาบาล)
+// ────────────────────────────────────────────
+export const FA_COMPLAINT_TYPES = [
+  { key:'wound',        label:'บาดแผล / ฉีกขาด',    icon:'🩹' },
+  { key:'burn',         label:'แผลไฟไหม้ / น้ำร้อน',  icon:'🔥' },
+  { key:'eye_injury',   label:'อาการทางตา',            icon:'👁️' },
+  { key:'headache',     label:'ปวดศีรษะ / วิงเวียน',  icon:'🤕' },
+  { key:'body_pain',    label:'ปวดเมื่อยร่างกาย',     icon:'💪' },
+  { key:'nausea',       label:'คลื่นไส้ / อาเจียน',   icon:'🤢' },
+  { key:'rash',         label:'ผื่น / แพ้ผิวหนัง',    icon:'🔴' },
+  { key:'respiratory',  label:'หายใจลำบาก / แน่นหน้าอก', icon:'😮‍💨' },
+  { key:'chemical',     label:'สัมผัสสารเคมี',         icon:'⚗️' },
+  { key:'fracture',     label:'กระดูกแตก / ข้อเคลื่อน', icon:'🦴' },
+  { key:'electric',     label:'ไฟฟ้าช็อต',             icon:'⚡' },
+  { key:'heat_stress',  label:'ลมแดด / เพลียแดด',      icon:'☀️' },
+  { key:'other',        label:'อื่นๆ',                  icon:'📋' },
+];
+
+export const FA_BODY_PARTS = [
+  'ศีรษะ/หน้า','ตา','หู','จมูก/ปาก','คอ',
+  'ไหล่','แขน (ขวา)','แขน (ซ้าย)','ข้อมือ/มือ (ขวา)','ข้อมือ/มือ (ซ้าย)','นิ้วมือ',
+  'หน้าอก/ซี่โครง','หลัง/เอว','ท้อง',
+  'ขา (ขวา)','ขา (ซ้าย)','เข่า','ข้อเท้า/เท้า (ขวา)','ข้อเท้า/เท้า (ซ้าย)','นิ้วเท้า',
+  'ทั่วร่างกาย','ไม่ระบุ',
+];
+
+export const FA_TREATMENTS = [
+  { key:'clean_wound',   label:'ทำความสะอาดบาดแผล' },
+  { key:'bandage',       label:'พันแผล / ปิดแผล' },
+  { key:'cold_compress', label:'ประคบเย็น' },
+  { key:'hot_compress',  label:'ประคบร้อน' },
+  { key:'eye_wash',      label:'ล้างตา' },
+  { key:'otc_medicine',  label:'จ่ายยาสามัญประจำบ้าน' },
+  { key:'rest',          label:'พักผ่อน' },
+  { key:'refer_occ',     label:'ส่งต่อแพทย์อาชีวอนามัย' },
+  { key:'refer_hospital',label:'ส่งโรงพยาบาล' },
+  { key:'call_ambulance',label:'เรียกรถพยาบาล' },
+  { key:'other',         label:'อื่นๆ' },
+];
+
+export const FA_OUTCOMES = {
+  returned:  { label:'กลับทำงาน',            color:'#16a34a', bg:'#dcfce7' },
+  rested:    { label:'พักในบริษัท',           color:'#0891b2', bg:'#ecfeff' },
+  referred:  { label:'ส่งแพทย์/โรงพยาบาล',   color:'#d97706', bg:'#fef3c7' },
+  leave:     { label:'ลาป่วย/หยุดงาน',        color:'#dc2626', bg:'#fee2e2' },
+};
+
+export async function listFirstAid({ dept, lim = 500 } = {}) {
+  const snap = await getDocs(query(collection(db, COL.firstAid), orderBy('visitDate','desc'), limit(lim)));
+  let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (dept) rows = rows.filter(r => r.department === dept);
+  return rows;
+}
+
+export async function getFirstAidRecord(id) {
+  const snap = await getDoc(doc(db, COL.firstAid, id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+export async function createFirstAidRecord(data, createdBy) {
+  return addDoc(collection(db, COL.firstAid), {
+    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateFirstAidRecord(id, data) {
+  await updateDoc(doc(db, COL.firstAid, id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteFirstAidRecord(id) {
+  await deleteDoc(doc(db, COL.firstAid, id));
 }

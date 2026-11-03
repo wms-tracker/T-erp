@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>บันทึกปฐมพยาบาล — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole }        from './js/auth.js';
+import { renderShell, renderNotifications } from './js/shell.js';
+import {
+  FA_COMPLAINT_TYPES, FA_BODY_PARTS, FA_TREATMENTS, FA_OUTCOMES,
+  listFirstAid, getFirstAidRecord,
+  createFirstAidRecord, updateFirstAidRecord, deleteFirstAidRecord,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-firstaid', 'บันทึกปฐมพยาบาล / ห้องพยาบาล');
+
+// ── helpers ──────────────────────────────────────────────────────────
+const badge  = (l, c, bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt    = (d) => d ? new Date(d).toLocaleDateString('th-TH', { year:'2-digit', month:'short', day:'numeric' }) : '—';
+const fmtDT  = (d) => d ? new Date(d).toLocaleString('th-TH', { year:'2-digit', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+const today  = () => new Date().toISOString().slice(0,10);
+const nowTime= () => new Date().toTimeString().slice(0,5);
+
+function getComplaint(key) { return FA_COMPLAINT_TYPES.find(c => c.key === key) || { label: key, icon: '📋' }; }
+
+// ── state ─────────────────────────────────────────────────────────────
+let records = [];
+let filterDept = '', filterMonth = '', filterOutcome = '';
+
+// ── render ────────────────────────────────────────────────────────────
+function filtered() {
+  return records.filter(r => {
+    if (filterDept    && r.department !== filterDept)                   return false;
+    if (filterOutcome && r.outcome    !== filterOutcome)                return false;
+    if (filterMonth   && !(r.visitDate || '').startsWith(filterMonth))  return false;
+    return true;
+  });
+}
+
+function monthOptions() {
+  const months = [...new Set(records.map(r => (r.visitDate || '').slice(0,7)).filter(Boolean))].sort().reverse();
+  return months.map(m => {
+    const [y, mo] = m.split('-');
+    const label = new Date(`${m}-01`).toLocaleDateString('th-TH', { year:'numeric', month:'long' });
+    return `<option value="${m}" ${m===filterMonth?'selected':''}>${label}</option>`;
+  }).join('');
+}
+
+function deptOptions() {
+  const depts = [...new Set(records.map(r => r.department).filter(Boolean))].sort();
+  return depts.map(d => `<option value="${d}" ${d===filterDept?'selected':''}>${d}</option>`).join('');
+}
+
+function kpiBar() {
+  const total    = records.length;
+  const referred = records.filter(r => r.outcome === 'referred').length;
+  const leave    = records.filter(r => r.outcome === 'leave').length;
+  // this month
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const thisMonthCount = records.filter(r => (r.visitDate||'').startsWith(thisMonth)).length;
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">รายการทั้งหมด</div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <div style="font-size:1.6rem;font-weight:800;color:#0891b2;">${thisMonthCount}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">เดือนนี้</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setOutcome('referred')">
+        <div style="font-size:1.6rem;font-weight:800;color:#d97706;">${referred}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">ส่งแพทย์/โรงพยาบาล</div>
+      </div>
+      <div class="card" style="padding:14px 16px;cursor:pointer;" onclick="window.__setOutcome('leave')">
+        <div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${leave}</div>
+        <div style="font-size:0.78rem;color:#6b7280;">ลาป่วย/หยุดงาน</div>
+      </div>
+    </div>`;
+}
+
+function renderPage() {
+  const rows = filtered();
+  main.innerHTML = `
+    <style>
+      .fa-table-wrap{overflow-x:auto;}
+      .panel{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;transition:border-color .15s;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .check-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px;}
+      .check-item{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1.5px solid #e0e3f0;border-radius:8px;cursor:pointer;font-size:0.82rem;transition:all .12s;}
+      .check-item:has(input:checked){border-color:#1a73e8;background:#eff6ff;}
+      .check-item input{accent-color:#1a73e8;width:14px;height:14px;flex-shrink:0;}
+      .complaint-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+      .complaint-pill{padding:5px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;border:1.5px solid #e0e3f0;cursor:pointer;transition:all .12s;}
+      .complaint-pill:hover{border-color:#1a73e8;}
+      .complaint-pill.sel{border-color:#1a73e8;background:#eff6ff;color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+
+    ${kpiBar()}
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>บันทึกการรักษา / ปฐมพยาบาล</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกผู้ใช้บริการ</button>
+      </div>
+
+      <!-- Filters -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <select class="form-control" style="width:auto;min-width:130px;" onchange="window.__setMonth(this.value)">
+          <option value="">ทุกเดือน</option>${monthOptions()}
+        </select>
+        <select class="form-control" style="width:auto;min-width:120px;" onchange="window.__setDept(this.value)">
+          <option value="">ทุกแผนก</option>${deptOptions()}
+        </select>
+        <select class="form-control" style="width:auto;min-width:150px;" onchange="window.__setOutcome(this.value)">
+          <option value="">ทุกผลการรักษา</option>
+          ${Object.entries(FA_OUTCOMES).map(([k,v]) => `<option value="${k}" ${k===filterOutcome?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="fa-table-wrap">
+        <table>
+          <thead><tr>
+            <th>วันที่/เวลา</th>
+            <th>พนักงาน</th>
+            <th>แผนก</th>
+            <th>อาการ</th>
+            <th>ส่วนของร่างกาย</th>
+            <th>ผลการรักษา</th>
+            <th>ผู้ให้การรักษา</th>
+            <th>ดำเนินการ</th>
+          </tr></thead>
+          <tbody>
+            ${rows.length === 0 ? `<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>` : rows.map(r => {
+              const complaint = getComplaint(r.complaintType);
+              const outcome   = FA_OUTCOMES[r.outcome] || { label: r.outcome || '—', color:'#555', bg:'#eee' };
+              return `<tr>
+                <td>${fmtDT(r.visitDate + (r.visitTime ? 'T'+r.visitTime : ''))}</td>
+                <td><b>${r.employeeName || '—'}</b><br><small style="color:#999;">${r.employeeId || ''}</small></td>
+                <td>${r.department || '—'}</td>
+                <td>${complaint.icon} ${complaint.label}</td>
+                <td><small>${(r.bodyParts || []).join(', ') || '—'}</small></td>
+                <td>${badge(outcome.label, outcome.color, outcome.bg)}</td>
+                <td>${r.treatedBy || '—'}</td>
+                <td>
+                  <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__viewRecord('${r.id}')">ดู</button>
+                  <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                  <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:0.8rem;color:#888;margin-top:8px;">แสดง ${rows.length} รายการ</div>
+    </div>
+
+    <!-- Panel overlay -->
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+
+    <!-- Slide-in panel -->
+    <div class="panel" id="fa-panel">
+      <div class="panel-header">
+        <b id="panel-title">บันทึกผู้ใช้บริการห้องพยาบาล</b>
+        <button class="panel-close" onclick="window.__closePanel()">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body">
+        <!-- filled by __renderForm or __renderDetail -->
+      </div>
+    </div>
+  `;
+}
+
+// ── form renderer ─────────────────────────────────────────────────────
+let selectedComplaint = '';
+let selectedBodyParts = new Set();
+let selectedTreatments = new Set();
+
+function formHTML(r) {
+  selectedComplaint  = r?.complaintType || '';
+  selectedBodyParts  = new Set(r?.bodyParts   || []);
+  selectedTreatments = new Set(r?.treatments  || []);
+
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id || ''}"/>
+
+    <div class="section-title">ข้อมูลผู้ใช้บริการ</div>
+    <div class="form-group">
+      <label class="form-label">ชื่อพนักงาน *</label>
+      <input id="f-empName" class="form-control" placeholder="ชื่อ-นามสกุล" value="${r?.employeeName||''}"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">รหัสพนักงาน</label>
+        <input id="f-empId" class="form-control" placeholder="EMP-001" value="${r?.employeeId||''}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">แผนก *</label>
+        <input id="f-dept" class="form-control" placeholder="เช่น คลังสินค้า" value="${r?.department||''}"/>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">วันที่ *</label>
+        <input id="f-date" class="form-control" type="date" value="${r?.visitDate||today()}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">เวลา</label>
+        <input id="f-time" class="form-control" type="time" value="${r?.visitTime||nowTime()}"/>
+      </div>
+    </div>
+
+    <div class="section-title">อาการ / ประเภทการบาดเจ็บ</div>
+    <div class="form-group">
+      <label class="form-label">ประเภทอาการ *</label>
+      <div class="complaint-pills">
+        ${FA_COMPLAINT_TYPES.map(c => `
+          <span class="complaint-pill ${c.key===selectedComplaint?'sel':''}" data-key="${c.key}" onclick="window.__selComplaint('${c.key}')">
+            ${c.icon} ${c.label}
+          </span>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ส่วนของร่างกายที่ได้รับบาดเจ็บ</label>
+      <div class="check-grid">
+        ${FA_BODY_PARTS.map(bp => `
+          <label class="check-item">
+            <input type="checkbox" value="${bp}" ${selectedBodyParts.has(bp)?'checked':''} onchange="window.__toggleBodyPart('${bp}',this.checked)"/>
+            ${bp}
+          </label>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">รายละเอียดอาการ</label>
+      <textarea id="f-details" class="form-control" rows="2" placeholder="บรรยายอาการเพิ่มเติม...">${r?.details||''}</textarea>
+    </div>
+
+    <div class="section-title">การรักษา</div>
+    <div class="form-group">
+      <label class="form-label">วิธีการรักษา / ให้การช่วยเหลือ</label>
+      <div class="check-grid">
+        ${FA_TREATMENTS.map(t => `
+          <label class="check-item">
+            <input type="checkbox" value="${t.key}" ${selectedTreatments.has(t.key)?'checked':''} onchange="window.__toggleTreatment('${t.key}',this.checked)"/>
+            ${t.label}
+          </label>`).join('')}
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ยา / อุปกรณ์ที่ใช้</label>
+      <input id="f-meds" class="form-control" placeholder="เช่น Paracetamol 500mg, พลาสเตอร์ปิดแผล" value="${r?.medicinesUsed||''}"/>
+    </div>
+
+    <div class="section-title">ผลการรักษา</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">ผลการรักษา *</label>
+        <select id="f-outcome" class="form-control">
+          ${Object.entries(FA_OUTCOMES).map(([k,v]) => `<option value="${k}" ${(r?.outcome||'returned')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">จำนวนวันลา (ถ้ามี)</label>
+        <input id="f-leaveDays" class="form-control" type="number" min="0" placeholder="0" value="${r?.leaveDays||''}"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้ให้การรักษา / เจ้าหน้าที่</label>
+      <input id="f-treatedBy" class="form-control" placeholder="ชื่อผู้ให้การรักษา" value="${r?.treatedBy||profile.name||''}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">โรงพยาบาล / คลินิกที่ส่งต่อ (ถ้าส่งต่อ)</label>
+      <input id="f-hospital" class="form-control" placeholder="ชื่อโรงพยาบาล/คลินิก" value="${r?.hospital||''}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">หมายเหตุ</label>
+      <textarea id="f-notes" class="form-control" rows="2" placeholder="หมายเหตุเพิ่มเติม...">${r?.notes||''}</textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  `;
+}
+
+function detailHTML(r) {
+  const complaint = getComplaint(r.complaintType);
+  const outcome   = FA_OUTCOMES[r.outcome] || { label: r.outcome||'—', color:'#555', bg:'#eee' };
+  const treatments = (r.treatments||[]).map(k => FA_TREATMENTS.find(t=>t.key===k)?.label||k).join(', ');
+  return `
+    <div style="background:#f4f6ff;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-size:1.1rem;font-weight:700;color:#1a237e;">${r.employeeName||'—'}</div>
+      <div style="font-size:0.82rem;color:#555;">${r.employeeId||''} ${r.department?'· '+r.department:''}</div>
+      <div style="margin-top:6px;">${badge(outcome.label, outcome.color, outcome.bg)}</div>
+    </div>
+    <table style="font-size:0.84rem;">
+      <tr><th style="width:140px;">วันที่/เวลา</th><td>${fmtDT(r.visitDate+(r.visitTime?'T'+r.visitTime:''))}</td></tr>
+      <tr><th>ประเภทอาการ</th><td>${complaint.icon} ${complaint.label}</td></tr>
+      <tr><th>ส่วนร่างกาย</th><td>${(r.bodyParts||[]).join(', ')||'—'}</td></tr>
+      <tr><th>รายละเอียด</th><td>${r.details||'—'}</td></tr>
+      <tr><th>การรักษา</th><td>${treatments||'—'}</td></tr>
+      <tr><th>ยา/อุปกรณ์</th><td>${r.medicinesUsed||'—'}</td></tr>
+      <tr><th>ผู้รักษา</th><td>${r.treatedBy||'—'}</td></tr>
+      <tr><th>วันลา</th><td>${r.leaveDays ? r.leaveDays+' วัน' : '—'}</td></tr>
+      <tr><th>โรงพยาบาล</th><td>${r.hospital||'—'}</td></tr>
+      <tr><th>หมายเหตุ</th><td>${r.notes||'—'}</td></tr>
+    </table>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-outline" onclick="window.__editFromDetail('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ปิด</button>
+    </div>
+  `;
+}
+
+// ── interactions ──────────────────────────────────────────────────────
+window.__selComplaint = (key) => {
+  selectedComplaint = key;
+  document.querySelectorAll('.complaint-pill').forEach(p => p.classList.toggle('sel', p.dataset.key === key));
+};
+window.__toggleBodyPart  = (v, checked) => checked ? selectedBodyParts.add(v)   : selectedBodyParts.delete(v);
+window.__toggleTreatment = (v, checked) => checked ? selectedTreatments.add(v)  : selectedTreatments.delete(v);
+
+window.__setMonth   = (v) => { filterMonth   = v; renderPage(); };
+window.__setDept    = (v) => { filterDept    = v; renderPage(); };
+window.__setOutcome = (v) => { filterOutcome = v; renderPage(); };
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'บันทึกผู้ใช้บริการ';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  document.getElementById('fa-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  document.getElementById('fa-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+
+window.__editRecord = async (id) => {
+  const r = await getFirstAidRecord(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขรายการ';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  document.getElementById('fa-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__viewRecord = async (id) => {
+  const r = await getFirstAidRecord(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'รายละเอียดการรักษา';
+  document.getElementById('panel-body').innerHTML = detailHTML(r);
+  document.getElementById('fa-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+
+window.__editFromDetail = async (id) => {
+  const r = await getFirstAidRecord(id);
+  if (!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขรายการ';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+};
+
+window.__saveRecord = async () => {
+  const msg     = document.getElementById('panel-msg');
+  const empName = document.getElementById('f-empName').value.trim();
+  const dept    = document.getElementById('f-dept').value.trim();
+  const visitDate = document.getElementById('f-date').value;
+  if (!empName)    { msg.textContent = '* กรุณาระบุชื่อพนักงาน'; msg.className = 'msg error'; return; }
+  if (!dept)       { msg.textContent = '* กรุณาระบุแผนก';        msg.className = 'msg error'; return; }
+  if (!selectedComplaint) { msg.textContent = '* กรุณาเลือกประเภทอาการ'; msg.className = 'msg error'; return; }
+  if (!visitDate)  { msg.textContent = '* กรุณาระบุวันที่';       msg.className = 'msg error'; return; }
+  msg.textContent = 'กำลังบันทึก…'; msg.className = 'msg';
+
+  const data = {
+    employeeName:   empName,
+    employeeId:     document.getElementById('f-empId').value.trim(),
+    department:     dept,
+    visitDate,
+    visitTime:      document.getElementById('f-time').value,
+    complaintType:  selectedComplaint,
+    bodyParts:      [...selectedBodyParts],
+    details:        document.getElementById('f-details').value.trim(),
+    treatments:     [...selectedTreatments],
+    medicinesUsed:  document.getElementById('f-meds').value.trim(),
+    outcome:        document.getElementById('f-outcome').value,
+    leaveDays:      parseInt(document.getElementById('f-leaveDays').value)||0,
+    treatedBy:      document.getElementById('f-treatedBy').value.trim(),
+    hospital:       document.getElementById('f-hospital').value.trim(),
+    notes:          document.getElementById('f-notes').value.trim(),
+  };
+
+  try {
+    const id = document.getElementById('f-id').value;
+    if (id) await updateFirstAidRecord(id, data);
+    else    await createFirstAidRecord(data, profile.uid);
+    window.__closePanel();
+    await loadAll();
+  } catch (e) {
+    msg.textContent = 'เกิดข้อผิดพลาด: ' + e.message; msg.className = 'msg error';
+  }
+};
+
+window.__deleteRecord = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  await deleteFirstAidRecord(id);
+  await loadAll();
+};
+
+// ── load ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  records = await listFirstAid();
+  renderPage();
+}
+
+loadAll();
+</script>
+</body>
+</html>
