@@ -58,6 +58,7 @@ export const COL = {
   spillRecord:   "safetySpillRecord",
   ppeStock:      "safetyPPEStock",
   safetySign:    "safetySafetySign",
+  cultureSurvey: "safetyCultureSurvey",
 };
 
 // ────────────────────────────────────────────
@@ -2900,4 +2901,90 @@ export async function updateSafetySign(id, data) {
 }
 export async function deleteSafetySign(id) {
   await deleteDoc(doc(db, COL.safetySign, id));
+}
+
+// ─── Phase 52: Safety Culture Survey ─────────────────────────────────────────
+export const SURVEY_CATEGORIES = [
+  {
+    key:'leadership', label:'ภาวะผู้นำด้านความปลอดภัย', icon:'👔', color:'#1a237e',
+    questions:[
+      'ผู้บริหารแสดงให้เห็นว่าความปลอดภัยเป็นสิ่งสำคัญอันดับหนึ่ง',
+      'ผู้จัดการ/หัวหน้างานสนับสนุนและส่งเสริมพฤติกรรมความปลอดภัย',
+      'ฝ่ายบริหารรับฟังข้อกังวลด้านความปลอดภัยของพนักงาน',
+    ]
+  },
+  {
+    key:'communication', label:'การสื่อสารด้านความปลอดภัย', icon:'📢', color:'#2563eb',
+    questions:[
+      'ฉันได้รับข้อมูลข่าวสารด้านความปลอดภัยที่เพียงพอและทันท่วงที',
+      'กฎระเบียบและขั้นตอนความปลอดภัยมีความชัดเจนและเข้าใจง่าย',
+      'มีการแจ้งผลการสอบสวนอุบัติเหตุให้พนักงานทราบอย่างสม่ำเสมอ',
+    ]
+  },
+  {
+    key:'reporting', label:'การรายงานและแจ้งเหตุ', icon:'📋', color:'#d97706',
+    questions:[
+      'ฉันรู้สึกสบายใจที่จะรายงานอุบัติเหตุหรือเหตุการณ์เกือบเกิดอุบัติเหตุ',
+      'เมื่อรายงานปัญหาความปลอดภัย ฉันได้รับการตอบรับที่เหมาะสม',
+      'พนักงานไม่ถูกตำหนิหรือลงโทษเมื่อรายงานอุบัติเหตุโดยสุจริตใจ',
+    ]
+  },
+  {
+    key:'ppe_compliance', label:'การปฏิบัติตามกฎความปลอดภัย', icon:'🦺', color:'#16a34a',
+    questions:[
+      'พนักงานในพื้นที่ของฉันสวม PPE ครบถ้วนตามที่กำหนดทุกครั้ง',
+      'กฎความปลอดภัยได้รับการปฏิบัติตามอย่างสม่ำเสมอ ไม่ใช่แค่เมื่อมีการตรวจสอบ',
+      'ฉันพร้อมที่จะหยุดงานและแจ้งหัวหน้าหากพบสภาพการทำงานที่ไม่ปลอดภัย',
+    ]
+  },
+  {
+    key:'training', label:'การฝึกอบรมและความรู้', icon:'🎓', color:'#7c3aed',
+    questions:[
+      'ฉันได้รับการฝึกอบรมด้านความปลอดภัยที่เพียงพอสำหรับงานที่ทำ',
+      'การฝึกอบรมความปลอดภัยที่ได้รับมีประโยชน์และนำไปใช้ได้จริง',
+      'ฉันทราบขั้นตอนฉุกเฉินและตำแหน่งอุปกรณ์ฉุกเฉินในพื้นที่ทำงาน',
+    ]
+  },
+  {
+    key:'environment', label:'สภาพแวดล้อมการทำงาน', icon:'🏭', color:'#0891b2',
+    questions:[
+      'สภาพแวดล้อมการทำงานของฉันปลอดภัยและเหมาะสม',
+      'อุปกรณ์และเครื่องจักรได้รับการบำรุงรักษาอย่างสม่ำเสมอ',
+      'มีทรัพยากร PPE และอุปกรณ์ความปลอดภัยเพียงพอสำหรับงานที่ทำ',
+    ]
+  },
+];
+export const SURVEY_SCALE = [
+  { v:1, label:'ไม่เห็นด้วยอย่างยิ่ง' },
+  { v:2, label:'ไม่เห็นด้วย' },
+  { v:3, label:'เป็นกลาง' },
+  { v:4, label:'เห็นด้วย' },
+  { v:5, label:'เห็นด้วยอย่างยิ่ง' },
+];
+export const SURVEY_DEPARTMENTS = [
+  'ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย','อื่นๆ'
+];
+export function calcSurveyCatAvg(responses, catKey) {
+  const cat = SURVEY_CATEGORIES.find(c=>c.key===catKey);
+  if (!cat) return 0;
+  const vals = cat.questions.map((_,qi) => responses?.[`${catKey}_${qi}`] || 0).filter(v=>v>0);
+  return vals.length ? +(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(2) : 0;
+}
+export function calcSurveyOverall(responses) {
+  const avgs = SURVEY_CATEGORIES.map(c=>calcSurveyCatAvg(responses, c.key)).filter(v=>v>0);
+  return avgs.length ? +(avgs.reduce((s,v)=>s+v,0)/avgs.length).toFixed(2) : 0;
+}
+export async function listCultureSurvey() {
+  const s = await getDocs(query(collection(db, COL.cultureSurvey), orderBy('submittedAt','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getCultureSurvey(id) {
+  const d = await getDoc(doc(db, COL.cultureSurvey, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createCultureSurvey(data, createdBy) {
+  return addDoc(collection(db, COL.cultureSurvey), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function deleteCultureSurvey(id) {
+  await deleteDoc(doc(db, COL.cultureSurvey, id));
 }
