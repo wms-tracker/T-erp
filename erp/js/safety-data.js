@@ -54,6 +54,7 @@ export const COL = {
   gasCylinder:   "safetyGasCylinder",
   liftingEq:     "safetyLiftingEquipment",
   fiveS:         "safetyFiveS",
+  electricalInsp:"safetyElectricalInspection",
 };
 
 // ────────────────────────────────────────────
@@ -2709,4 +2710,53 @@ export async function updateFiveS(id, data) {
 }
 export async function deleteFiveS(id) {
   await deleteDoc(doc(db, COL.fiveS, id));
+}
+
+// ─── Phase 48: Electrical Safety Inspection ──────────────────────────────────
+export const ELEC_AREA_TYPES = [
+  { key:'main_panel',    label:'ตู้ MDB / ตู้ไฟหลัก',          icon:'⚡' },
+  { key:'sub_panel',     label:'ตู้ DB / ตู้ไฟย่อย',            icon:'🔌' },
+  { key:'machine',       label:'เครื่องจักร / มอเตอร์',          icon:'⚙️' },
+  { key:'socket_ext',    label:'ปลั๊กพ่วง / รางปลั๊ก',           icon:'🔋' },
+  { key:'lighting',      label:'ระบบไฟฟ้าแสงสว่าง',              icon:'💡' },
+  { key:'emergency',     label:'ระบบไฟฉุกเฉิน / UPS',           icon:'🔦' },
+  { key:'grounding',     label:'ระบบสายดิน / Earthing',          icon:'🌍' },
+  { key:'outdoor',       label:'ระบบไฟฟ้าภายนอกอาคาร',           icon:'🏗️' },
+  { key:'other',         label:'อื่นๆ',                           icon:'🔧' },
+];
+export const ELEC_INSP_STATUS = {
+  pass:    { label:'ผ่าน — ปลอดภัย',    color:'#16a34a', bg:'#dcfce7' },
+  observe: { label:'ต้องติดตาม',         color:'#d97706', bg:'#fef3c7' },
+  fail:    { label:'ไม่ผ่าน — แก้ไขด่วน',color:'#dc2626', bg:'#fee2e2' },
+};
+export const ELEC_CHECKLIST = [
+  { key:'panel_clean',     label:'ตู้ไฟสะอาด ไม่มีฝุ่น ความชื้น หรือสิ่งกีดขวาง' },
+  { key:'breaker_ok',      label:'เบรกเกอร์/ฟิวส์ทุกตัวอยู่ในสภาพดี ไม่มีรอยไหม้' },
+  { key:'label_ok',        label:'วงจรทุกวงจรมีป้ายระบุชัดเจนและถูกต้อง' },
+  { key:'wiring_ok',       label:'สายไฟไม่มีรอยชำรุด สึกกร่อน หรือเปิดโล่ง' },
+  { key:'no_overload',     label:'ไม่มีการต่อสายไฟเกินขนาดหรือ overload วงจร' },
+  { key:'ground_ok',       label:'สายดินต่อครบและวัดค่าความต้านทานผ่านมาตรฐาน' },
+  { key:'no_ext_misuse',   label:'ไม่มีการใช้ปลั๊กพ่วงผิดประเภทหรือเกินกำลัง' },
+  { key:'emergency_light', label:'ไฟฉุกเฉินทำงานได้เมื่อทดสอบ ไฟสว่างเพียงพอ' },
+  { key:'lockout_ok',      label:'มีจุด LOTO สำหรับตัดไฟก่อนซ่อมและติดป้ายแจ้ง' },
+  { key:'panel_access',    label:'พื้นที่หน้าตู้ไฟว่างเพียงพอ ≥1 เมตร ไม่มีสิ่งกีดขวาง' },
+  { key:'arc_flash',       label:'มีป้าย Arc Flash Warning ติดบนตู้ไฟที่มีความเสี่ยง' },
+  { key:'test_record',     label:'มีบันทึกการทดสอบ/ตรวจสอบระบบไฟฟ้าล่าสุดอยู่ที่ตู้ไฟ' },
+];
+export async function listElectricalInsp() {
+  const s = await getDocs(query(collection(db, COL.electricalInsp), orderBy('inspDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getElectricalInsp(id) {
+  const d = await getDoc(doc(db, COL.electricalInsp, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createElectricalInsp(data, createdBy) {
+  return addDoc(collection(db, COL.electricalInsp), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateElectricalInsp(id, data) {
+  await updateDoc(doc(db, COL.electricalInsp, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteElectricalInsp(id) {
+  await deleteDoc(doc(db, COL.electricalInsp, id));
 }
