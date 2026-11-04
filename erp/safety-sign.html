@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ป้ายความปลอดภัย — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.card-replace{border-left:4px solid #dc2626;background:#fffafa}
+.card-missing{border-left:4px solid #7c3aed;background:#faf5ff}
+.type-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:2px solid #e5e7eb;cursor:pointer;font-size:0.82rem;transition:all .15s;user-select:none}
+.type-chip.active{border-color:#1a237e;background:#e8eaf6;color:#1a237e;font-weight:700}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.cond-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}
+.cond-opt{padding:8px 12px;border-radius:8px;border:2px solid #e5e7eb;cursor:pointer;text-align:center;font-size:0.82rem;transition:all .15s}
+.cond-opt.active{font-weight:700;border-width:2px}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(500px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px}
+.search-bar input{flex:1}
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filter-tab{padding:5px 14px;border-radius:16px;border:1px solid #e5e7eb;cursor:pointer;font-size:0.8rem;background:#f9fafb}
+.filter-tab.active{background:#1a237e;color:#fff;border-color:#1a237e;font-weight:600}
+.info-row{display:flex;gap:14px;flex-wrap:wrap;font-size:0.81rem;color:#6b7280;margin-top:3px}
+.sign-icon-big{font-size:2rem;line-height:1;margin-right:6px}
+.type-dot{width:12px;height:12px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:4px}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">บันทึกป้ายความปลอดภัย</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  SIGN_TYPES, SIGN_CONDITIONS, SIGN_LOCATIONS,
+  listSafetySign, getSafetySign, createSafetySign, updateSafetySign, deleteSafetySign
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-sign', 'ตรวจสอบป้ายความปลอดภัย (Safety Sign Audit)');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+
+let records     = [];
+let editId      = null;
+let selType     = '';
+let selCond     = '';
+let filterCond  = 'all';
+let searchKw    = '';
+
+// ── render ────────────────────────────────────────────────────────────────────
+async function render() {
+  records = await listSafetySign();
+  const total   = records.length;
+  const replace = records.filter(r=>r.condition==='replace').length;
+  const missing = records.filter(r=>r.condition==='missing').length;
+  const good    = records.filter(r=>r.condition==='good').length;
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">🪧 ตรวจสอบป้ายความปลอดภัย</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel(null)">+ บันทึกป้าย</button>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${total}</div><div class="kpi-label">ป้ายทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${good}</div><div class="kpi-label">สภาพดี</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${replace}</div><div class="kpi-label">ต้องเปลี่ยน</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#7c3aed">${missing}</div><div class="kpi-label">หาย / ไม่มี</div></div>
+  </div>
+
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหาสถานที่, รหัสป้าย, คำอธิบาย..." oninput="window.__search(this.value)"/>
+  </div>
+
+  <div class="filter-tabs">
+    ${['all','replace','missing','fair','good'].map(k=>`
+      <div class="filter-tab ${filterCond===k?'active':''}" onclick="window.__setFilter('${k}')">
+        ${k==='all' ? `ทั้งหมด (${total})` : (SIGN_CONDITIONS[k]?.label||k)+` (${records.filter(r=>r.condition===k).length})`}
+      </div>`).join('')}
+  </div>
+
+  <div id="list-wrap">${renderList(getFiltered())}</div>`;
+}
+
+function getFiltered() {
+  return records.filter(r => {
+    const matchC = filterCond==='all' || r.condition===filterCond;
+    const kw = searchKw.toLowerCase();
+    const matchS = !kw ||
+      (r.location||'').toLowerCase().includes(kw) ||
+      (r.signCode||'').toLowerCase().includes(kw) ||
+      (r.description||'').toLowerCase().includes(kw);
+    return matchC && matchS;
+  });
+}
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ไม่พบรายการป้ายความปลอดภัย</p>`;
+  return list.map(r => {
+    const st  = SIGN_CONDITIONS[r.condition] || SIGN_CONDITIONS.good;
+    const st2 = SIGN_TYPES.find(x=>x.key===r.signType) || {};
+    const cls = r.condition==='replace' ? 'card-replace' : r.condition==='missing' ? 'card-missing' : '';
+    return `
+    <div class="card ${cls}" onclick="window.__openPanel('${r.id}')">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="font-size:1.8rem;line-height:1;flex-shrink:0">${st2.icon||'🪧'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:0.95rem">
+            <span class="type-dot" style="background:${st2.color||'#6b7280'}"></span>
+            ${esc(r.description||r.signCode||'-')}
+          </div>
+          <div class="info-row">
+            <span>📍 ${esc(r.location||'-')}</span>
+            ${r.signCode ? `<span>🏷️ ${esc(r.signCode)}</span>` : ''}
+            <span>📅 ตรวจ: ${fmtDate(r.auditDate)}</span>
+            ${r.replaceDue ? `<span style="color:#dc2626">⏰ เปลี่ยนภายใน: ${fmtDate(r.replaceDue)}</span>` : ''}
+          </div>
+          ${r.remark ? `<div style="font-size:0.8rem;color:#6b7280;margin-top:3px">${esc(r.remark)}</div>` : ''}
+        </div>
+        <div style="flex-shrink:0">${badge(st.label, st.color, st.bg)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.__setFilter = (k) => {
+  filterCond = k;
+  document.querySelectorAll('.filter-tab').forEach((el,i)=>{
+    const keys = ['all','replace','missing','fair','good'];
+    el.classList.toggle('active', keys[i]===k);
+  });
+  document.getElementById('list-wrap').innerHTML = renderList(getFiltered());
+};
+
+window.__search = (q) => {
+  searchKw = q;
+  document.getElementById('list-wrap').innerHTML = renderList(getFiltered());
+};
+
+// ── panel ─────────────────────────────────────────────────────────────────────
+window.__openPanel = async (id) => {
+  editId  = id;
+  selType = '';
+  selCond = '';
+  const panel = document.getElementById('panel');
+  const body  = document.getElementById('panel-body');
+  const foot  = document.getElementById('panel-footer');
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขป้าย' : 'บันทึกป้ายความปลอดภัย';
+  document.getElementById('overlay').classList.add('open');
+  panel.classList.add('open');
+
+  let rec = null;
+  if (id) {
+    rec = await getSafetySign(id);
+    if (rec) { selType = rec.signType||''; selCond = rec.condition||''; }
+  }
+  body.innerHTML = renderForm(rec);
+  foot.innerHTML = id
+    ? `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`
+    : `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+function renderForm(rec) {
+  const today = new Date().toISOString().slice(0,10);
+  const typeChips = SIGN_TYPES.map(t=>`
+    <div class="type-chip ${selType===t.key?'active':''}" onclick="window.__selType('${t.key}')">
+      ${t.icon} ${esc(t.label)}
+    </div>`).join('');
+
+  const condOpts = Object.entries(SIGN_CONDITIONS).map(([k,v])=>`
+    <div class="cond-opt ${selCond===k?'active':''}"
+         style="${selCond===k ? `border-color:${v.color};color:${v.color};background:${v.bg}` : ''}"
+         onclick="window.__selCond('${k}')">
+      ${v.label}
+    </div>`).join('');
+
+  return `
+  <div class="section-title">ประเภทป้าย (Sign Type)</div>
+  <div class="chip-wrap">${typeChips}</div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">รหัสป้าย / ISO Code</label>
+      <input id="f-code" value="${esc(rec?.signCode||'')}" placeholder="เช่น ISO 7010 W004, E001"/>
+    </div>
+    <div>
+      <label class="lbl">คำอธิบายป้าย *</label>
+      <input id="f-desc" value="${esc(rec?.description||'')}" placeholder="เช่น ห้ามสูบบุหรี่, ทางออกฉุกเฉิน"/>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">สถานที่ติดตั้ง *</label>
+      <select id="f-loc">
+        <option value="">-- เลือกสถานที่ --</option>
+        ${SIGN_LOCATIONS.map(l=>`<option value="${esc(l)}" ${(rec?.location||'')=== l?'selected':''}>${esc(l)}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label class="lbl">ตำแหน่งเพิ่มเติม</label>
+      <input id="f-loc2" value="${esc(rec?.locationDetail||'')}" placeholder="เช่น ด้านซ้ายประตูหลัก"/>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">วันที่ตรวจสอบ *</label>
+      <input id="f-audit" type="date" value="${rec?.auditDate||today}"/>
+    </div>
+    <div>
+      <label class="lbl">ผู้ตรวจสอบ</label>
+      <input id="f-insp" value="${esc(rec?.inspector||profile.displayName||'')}" placeholder="ชื่อผู้ตรวจ"/>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:16px">สภาพป้าย *</div>
+  <div class="cond-grid">${condOpts}</div>
+
+  <div class="form-row" style="margin-top:12px">
+    <div>
+      <label class="lbl">วันที่ต้องเปลี่ยน (ถ้ามี)</label>
+      <input id="f-replace" type="date" value="${rec?.replaceDue||''}"/>
+    </div>
+    <div>
+      <label class="lbl">จำนวนป้ายในตำแหน่งนี้</label>
+      <input id="f-qty" type="number" min="1" value="${rec?.qty||1}"/>
+    </div>
+  </div>
+
+  <label class="lbl">หมายเหตุ / รายละเอียดปัญหา</label>
+  <textarea id="f-remark">${esc(rec?.remark||'')}</textarea>`;
+}
+
+window.__selType = (key) => {
+  selType = key;
+  document.querySelectorAll('.type-chip').forEach(el=>{
+    el.classList.toggle('active', el.getAttribute('onclick')===`window.__selType('${key}')`);
+  });
+};
+
+window.__selCond = (key) => {
+  selCond = key;
+  const cv = SIGN_CONDITIONS[key];
+  document.querySelectorAll('.cond-opt').forEach((el,i)=>{
+    const k = Object.keys(SIGN_CONDITIONS)[i];
+    const v = SIGN_CONDITIONS[k];
+    if (k===key) {
+      el.classList.add('active');
+      el.style.borderColor = v.color; el.style.color = v.color; el.style.background = v.bg;
+    } else {
+      el.classList.remove('active');
+      el.style.borderColor = ''; el.style.color = ''; el.style.background = '';
+    }
+  });
+};
+
+// ── save / delete ─────────────────────────────────────────────────────────────
+window.__save = async () => {
+  const desc  = document.getElementById('f-desc')?.value.trim();
+  const locEl = document.getElementById('f-loc')?.value;
+  const audit = document.getElementById('f-audit')?.value;
+  if (!desc || !locEl || !audit || !selType || !selCond) {
+    alert('กรุณากรอก: ประเภทป้าย, คำอธิบาย, สถานที่, วันที่ตรวจ และสภาพป้าย');
+    return;
+  }
+  const data = {
+    signType:       selType,
+    signCode:       document.getElementById('f-code')?.value.trim()||'',
+    description:    desc,
+    location:       locEl,
+    locationDetail: document.getElementById('f-loc2')?.value.trim()||'',
+    auditDate:      audit,
+    inspector:      document.getElementById('f-insp')?.value.trim()||'',
+    condition:      selCond,
+    replaceDue:     document.getElementById('f-replace')?.value||'',
+    qty:            parseInt(document.getElementById('f-qty')?.value)||1,
+    remark:         document.getElementById('f-remark')?.value.trim()||'',
+  };
+  try {
+    if (editId) await updateSafetySign(editId, data);
+    else        await createSafetySign(data, profile.uid);
+    window.__closePanel();
+    await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบรายการนี้?')) return;
+  await deleteSafetySign(id);
+  window.__closePanel();
+  await render();
+};
+
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

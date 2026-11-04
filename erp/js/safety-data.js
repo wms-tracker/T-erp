@@ -57,6 +57,7 @@ export const COL = {
   electricalInsp:"safetyElectricalInspection",
   spillRecord:   "safetySpillRecord",
   ppeStock:      "safetyPPEStock",
+  safetySign:    "safetySafetySign",
 };
 
 // ────────────────────────────────────────────
@@ -2860,4 +2861,43 @@ export async function adjustPPEStockQty(id, delta, note, updatedBy) {
     updatedAt: serverTimestamp(),
   });
   return newQty;
+}
+
+// ─── Phase 51: Safety Sign & Label Audit ──────────────────────────────────────
+export const SIGN_TYPES = [
+  { key:'prohibit',   label:'ห้าม (Prohibition)',          icon:'🚫', color:'#dc2626' },
+  { key:'warning',    label:'เตือน (Warning)',              icon:'⚠️', color:'#d97706' },
+  { key:'mandatory',  label:'บังคับ (Mandatory)',           icon:'🔵', color:'#2563eb' },
+  { key:'emergency',  label:'ฉุกเฉิน (Emergency/Safe)',     icon:'🟩', color:'#16a34a' },
+  { key:'fire',       label:'ดับเพลิง (Fire Equipment)',    icon:'🔴', color:'#b91c1c' },
+  { key:'hazmat',     label:'อันตราย (Hazmat/Chemical)',    icon:'☠️', color:'#7c3aed' },
+  { key:'info',       label:'ข้อมูล (Information)',         icon:'ℹ️', color:'#0891b2' },
+  { key:'other',      label:'อื่นๆ',                        icon:'🪧', color:'#6b7280' },
+];
+export const SIGN_CONDITIONS = {
+  good:    { label:'สภาพดี',         color:'#16a34a', bg:'#dcfce7' },
+  fair:    { label:'พอใช้ (เลือนราง)',color:'#d97706', bg:'#fef3c7' },
+  replace: { label:'ต้องเปลี่ยน',    color:'#dc2626', bg:'#fee2e2' },
+  missing: { label:'หาย / ไม่มี',    color:'#7c3aed', bg:'#f5f3ff' },
+};
+export const SIGN_LOCATIONS = [
+  'ทางเข้า-ออกอาคาร','ทางเดินหลัก','โซนเครื่องจักร','โซนสารเคมี',
+  'ห้องไฟฟ้า','ห้องเก็บของ','โซนโหลดสินค้า','ห้องน้ำ','บันได/ลิฟท์','ที่จอดรถ','อื่นๆ',
+];
+export async function listSafetySign() {
+  const s = await getDocs(query(collection(db, COL.safetySign), orderBy('location','asc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getSafetySign(id) {
+  const d = await getDoc(doc(db, COL.safetySign, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createSafetySign(data, createdBy) {
+  return addDoc(collection(db, COL.safetySign), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetySign(id, data) {
+  await updateDoc(doc(db, COL.safetySign, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetySign(id) {
+  await deleteDoc(doc(db, COL.safetySign, id));
 }
