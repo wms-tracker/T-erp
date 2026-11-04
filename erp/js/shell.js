@@ -201,6 +201,7 @@ const NAV = {
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
       { key: 'safety-stats',         label: 'Man-Hours & อัตราอุบัติเหตุ',  href: 'safety-stats.html' },
       { key: 'safety-scorecard',     label: 'บัตรคะแนนความปลอดภัย (Score Card)', href: 'safety-scorecard.html' },
+      { key: 'safety-project',       label: 'โครงการปรับปรุงความปลอดภัย', href: 'safety-project.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -273,6 +274,7 @@ const NAV = {
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
       { key: 'safety-stats',      label: 'Man-Hours & อัตราอุบัติเหตุ',    href: 'safety-stats.html' },
       { key: 'safety-scorecard',  label: 'บัตรคะแนนความปลอดภัย',          href: 'safety-scorecard.html' },
+      { key: 'safety-project',    label: 'โครงการปรับปรุงความปลอดภัย',   href: 'safety-project.html' },
       { key: 'safety-reports',    label: 'รายงานความปลอดภัย',             href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -434,6 +436,7 @@ const PAGE_DEPARTMENT = {
   "safety-training-matrix.html":"safety_officer",
   "safety-scorecard.html":      "safety_officer",
   "safety-bulletin.html":       "safety_officer",
+  "safety-project.html":        "safety_officer",
 };
 
 // ===================================================================

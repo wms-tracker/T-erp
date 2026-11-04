@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Safety Improvement Projects — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 5px rgba(0,0,0,.09);padding:16px 18px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s;border-left:4px solid transparent}
+.card:hover{box-shadow:0 3px 12px rgba(0,0,0,.13)}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-success{background:#16a34a;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.search-bar select,.search-bar input{flex:1;min-width:120px}
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.progress-wrap{background:#e5e7eb;border-radius:6px;height:8px;overflow:hidden}
+.progress-fill{height:100%;border-radius:6px;transition:width .4s}
+.ms-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f3f4f6}
+.ms-row:last-child{border-bottom:none}
+.ms-row input[type=checkbox]{width:17px;height:17px;flex-shrink:0;cursor:pointer}
+.ms-label{flex:1;font-size:0.85rem}
+.ms-done{text-decoration:line-through;color:#9ca3af}
+.ms-add{display:flex;gap:8px;margin-top:8px}
+.ms-add input{flex:1}
+.budget-row{display:flex;justify-content:space-between;padding:5px 0;font-size:0.85rem;border-bottom:1px solid #f3f4f6}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">โครงการใหม่</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  PROJECT_CATEGORIES, PROJECT_STATUS, PROJECT_PRIORITY,
+  calcProjectProgress,
+  listSafetyProject, getSafetyProject, createSafetyProject,
+  updateSafetyProject, deleteSafetyProject
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-project', 'โครงการปรับปรุงความปลอดภัย');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+const fmtBaht = n => n ? Number(n).toLocaleString()+'฿' : '-';
+
+let records = [];
+let editId  = null;
+let editMilestones = [];
+
+function catDef(k)  { return PROJECT_CATEGORIES.find(c=>c.key===k)||PROJECT_CATEGORIES[PROJECT_CATEGORIES.length-1]; }
+function stBadge(s) { const x=PROJECT_STATUS[s]||PROJECT_STATUS.planning;   return `<span class="badge" style="color:${x.color};background:${x.bg}">${x.label}</span>`; }
+function priiBadge(p){ const x=PROJECT_PRIORITY[p]||PROJECT_PRIORITY.medium; return `<span class="badge" style="color:${x.color};background:${x.bg}">${x.label}</span>`; }
+
+function pctColor(p) { return p>=80?'#16a34a':p>=40?'#2563eb':'#d97706'; }
+
+async function render() {
+  records = await listSafetyProject();
+  const q   = document.getElementById('search-input')?.value.toLowerCase()||'';
+  const flt = document.getElementById('filter-status')?.value||'';
+  const fcat = document.getElementById('filter-cat')?.value||'';
+
+  const inProgress = records.filter(r=>r.status==='in_progress').length;
+  const done       = records.filter(r=>r.status==='completed').length;
+  const overdue    = records.filter(r=>r.status==='in_progress'&&r.endDate&&new Date(r.endDate)<new Date()).length;
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">🚀 โครงการปรับปรุงความปลอดภัย</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel()">+ โครงการใหม่</button>
+  </div>
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${records.length}</div><div class="kpi-label">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#2563eb">${inProgress}</div><div class="kpi-label">กำลังดำเนินการ</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${done}</div><div class="kpi-label">เสร็จสิ้น</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${overdue}</div><div class="kpi-label">เกินกำหนด</div></div>
+    <div class="kpi-card"><div class="kpi-num">${records.filter(r=>r.status==='planning').length}</div><div class="kpi-label">วางแผน</div></div>
+  </div>
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหาชื่อโครงการ..." oninput="window.__applyFilter()"/>
+    <select id="filter-status" onchange="window.__applyFilter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(PROJECT_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+    </select>
+    <select id="filter-cat" onchange="window.__applyFilter()">
+      <option value="">ทุกประเภท</option>
+      ${PROJECT_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('')}
+    </select>
+  </div>
+  <div id="list-wrap">${renderList(applyFilter(records,q,flt,fcat))}</div>`;
+}
+
+function applyFilter(list, q, status, cat) {
+  return list.filter(r=>{
+    const mq = !q||(r.projectName||'').toLowerCase().includes(q)||(r.description||'').toLowerCase().includes(q);
+    return mq&&(!status||r.status===status)&&(!cat||r.category===cat);
+  });
+}
+window.__applyFilter = () => {
+  const q=document.getElementById('search-input')?.value.toLowerCase()||'';
+  const s=document.getElementById('filter-status')?.value||'';
+  const c=document.getElementById('filter-cat')?.value||'';
+  document.getElementById('list-wrap').innerHTML=renderList(applyFilter(records,q,s,c));
+};
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ยังไม่มีโครงการ</p>`;
+  return list.map(r=>{
+    const cat = catDef(r.category);
+    const pct = calcProjectProgress(r);
+    const isOverdue = r.status==='in_progress'&&r.endDate&&new Date(r.endDate)<new Date();
+    return `
+    <div class="card" style="border-left-color:${cat.color}" onclick="window.__openView('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span>${cat.icon}</span>
+            <span style="font-weight:800">${esc(r.projectName||'-')}</span>
+            ${isOverdue?'<span style="font-size:0.72rem;background:#fee2e2;color:#dc2626;padding:1px 7px;border-radius:10px;font-weight:700">เกินกำหนด</span>':''}
+          </div>
+          <div style="font-size:0.8rem;color:#6b7280;margin-bottom:6px">${esc(cat.label)} · 👤 ${esc(r.owner||'-')} · ${fmtDate(r.startDate)} – ${fmtDate(r.endDate)}</div>
+          <div style="margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap">${stBadge(r.status)} ${priiBadge(r.priority)}</div>
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#6b7280;margin-bottom:3px">
+            <span>ความคืบหน้า</span><span style="font-weight:700;color:${pctColor(pct)}">${pct}%</span>
+          </div>
+          <div class="progress-wrap"><div class="progress-fill" style="width:${pct}%;background:${pctColor(pct)}"></div></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── view ──────────────────────────────────────────────────────────────────────
+window.__openView = async (id) => {
+  editId = id;
+  const r = await getSafetyProject(id);
+  if (!r) return;
+  editMilestones = JSON.parse(JSON.stringify(r.milestones||[]));
+  const cat = catDef(r.category);
+  const pct = calcProjectProgress(r);
+  const isOverdue = r.status==='in_progress'&&r.endDate&&new Date(r.endDate)<new Date();
+  openPanel(r.projectName||'โครงการ');
+  document.getElementById('panel-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span style="font-size:1.8rem">${cat.icon}</span>
+      <div>
+        <div style="font-weight:800;font-size:1.05rem">${esc(r.projectName)}</div>
+        <div style="font-size:0.8rem;color:#6b7280">${esc(cat.label)} · ${esc(r.department||'-')}</div>
+        <div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap">${stBadge(r.status)} ${priiBadge(r.priority)} ${isOverdue?'<span class="badge" style="color:#dc2626;background:#fee2e2">เกินกำหนด</span>':''}</div>
+      </div>
+    </div>
+
+    <div class="form-row" style="font-size:0.83rem;margin-bottom:12px">
+      <div><div class="lbl" style="margin-top:0">เจ้าของโครงการ</div><div>${esc(r.owner||'-')}</div></div>
+      <div><div class="lbl" style="margin-top:0">แผนก</div><div>${esc(r.department||'-')}</div></div>
+      <div><div class="lbl">วันเริ่ม</div><div>${fmtDate(r.startDate)}</div></div>
+      <div><div class="lbl">วันสิ้นสุด</div><div style="color:${isOverdue?'#dc2626':'inherit'}">${fmtDate(r.endDate)}</div></div>
+    </div>
+
+    ${r.description?`<div style="font-size:0.85rem;line-height:1.6;margin-bottom:12px">${esc(r.description)}</div>`:''}
+    ${r.objective?`<div style="padding:10px;background:#eff6ff;border-radius:8px;font-size:0.85rem;margin-bottom:10px"><strong>🎯 วัตถุประสงค์:</strong> ${esc(r.objective)}</div>`:''}
+
+    <div style="display:flex;justify-content:space-between;font-size:0.82rem;color:#6b7280;margin-bottom:5px">
+      <span>ความคืบหน้า</span><span style="font-weight:800;color:${pctColor(pct)};font-size:1rem">${pct}%</span>
+    </div>
+    <div class="progress-wrap" style="height:12px;margin-bottom:14px"><div class="progress-fill" style="width:${pct}%;background:${pctColor(pct)}"></div></div>
+
+    ${r.milestones?.length?`
+    <div class="section-title">Milestones</div>
+    <div id="ms-list">
+      ${renderMilestonesView(r.milestones, id)}
+    </div>`:''}
+
+    ${(r.budget||r.spent)?`
+    <div class="section-title">งบประมาณ</div>
+    <div class="budget-row"><span>งบที่ตั้ง</span><span style="font-weight:700">${fmtBaht(r.budget)}</span></div>
+    <div class="budget-row"><span>ใช้ไปแล้ว</span><span style="font-weight:700;color:${r.spent>r.budget?'#dc2626':'#374151'}">${fmtBaht(r.spent)}</span></div>
+    <div class="budget-row" style="border:none"><span>คงเหลือ</span><span style="font-weight:700;color:#16a34a">${fmtBaht((r.budget||0)-(r.spent||0))}</span></div>
+    `:''}
+
+    ${r.attachmentUrl?`<div style="margin-top:10px"><a href="${esc(r.attachmentUrl)}" target="_blank" style="color:#2563eb;font-size:0.85rem">🔗 เอกสาร/ลิงก์อ้างอิง</a></div>`:''}
+    ${r.note?`<div style="margin-top:10px;padding:10px;background:#fafafa;border-radius:8px;font-size:0.85rem"><strong>หมายเหตุ:</strong> ${esc(r.note)}</div>`:''}`;
+
+  const nextStatus = { planning:'in_progress', in_progress:'completed', on_hold:'in_progress' };
+  const nextLabel  = { planning:'เริ่มโครงการ', in_progress:'บันทึกเสร็จสิ้น', on_hold:'กลับมาดำเนินการ' };
+  const footer = [];
+  if (nextStatus[r.status]) footer.push(`<button class="btn btn-success" onclick="window.__advance('${id}','${nextStatus[r.status]}')">${nextLabel[r.status]}</button>`);
+  if (r.status==='in_progress') footer.push(`<button class="btn btn-ghost" onclick="window.__advance('${id}','on_hold')">หยุดชั่วคราว</button>`);
+  footer.push(`<button class="btn btn-primary" onclick="window.__editRecord('${id}')">แก้ไข</button>`);
+  footer.push(`<button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>`);
+  footer.push(`<button class="btn btn-ghost" onclick="window.__closePanel()">ปิด</button>`);
+  document.getElementById('panel-footer').innerHTML = footer.join('');
+};
+
+function renderMilestonesView(ms, projId) {
+  return ms.map((m,i)=>`
+    <div class="ms-row">
+      <input type="checkbox" ${m.done?'checked':''} onchange="window.__toggleMs('${projId}',${i},this.checked)"/>
+      <span class="ms-label ${m.done?'ms-done':''}">${esc(m.label)}</span>
+      ${m.dueDate?`<span style="font-size:0.75rem;color:#9ca3af">${fmtDate(m.dueDate)}</span>`:''}
+    </div>`).join('');
+}
+
+window.__toggleMs = async (id, idx, done) => {
+  const r = await getSafetyProject(id);
+  if (!r) return;
+  const ms = [...(r.milestones||[])];
+  ms[idx] = { ...ms[idx], done };
+  await updateSafetyProject(id, { milestones: ms });
+  records = records.map(x=>x.id===id?{...x,milestones:ms}:x);
+  document.getElementById('ms-list').innerHTML = renderMilestonesView(ms, id);
+  const pct = calcProjectProgress({milestones:ms});
+  document.querySelector('.progress-fill').style.width = pct+'%';
+  document.querySelector('.progress-fill').style.background = pctColor(pct);
+};
+
+window.__advance = async (id, status) => {
+  if (!confirm(`เปลี่ยนสถานะเป็น "${PROJECT_STATUS[status]?.label}"?`)) return;
+  await updateSafetyProject(id, { status, completedDate: status==='completed'?new Date().toISOString().slice(0,10):'' });
+  window.__closePanel(); await render();
+};
+
+// ── form ──────────────────────────────────────────────────────────────────────
+window.__openPanel = (r=null) => {
+  editId = r?.id||null;
+  editMilestones = JSON.parse(JSON.stringify(r?.milestones||[]));
+  openPanel(r?'แก้ไขโครงการ':'โครงการใหม่');
+  document.getElementById('panel-body').innerHTML = renderForm(r);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+     <button class="btn btn-ghost"   onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+window.__editRecord = async (id) => { const r=await getSafetyProject(id); if(r) window.__openPanel(r); };
+
+function renderForm(r) {
+  return `
+  <div>
+    <label class="lbl" style="margin-top:0">ชื่อโครงการ *</label>
+    <input id="f-name" value="${esc(r?.projectName||'')}" placeholder="ชื่อโครงการปรับปรุง"/>
+  </div>
+  <div class="form-row">
+    <div>
+      <label class="lbl">ประเภท *</label>
+      <select id="f-cat">
+        ${PROJECT_CATEGORIES.map(c=>`<option value="${c.key}" ${(r?.category||'engineering')===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label class="lbl">ความสำคัญ</label>
+      <select id="f-pri">
+        ${Object.entries(PROJECT_PRIORITY).map(([k,v])=>`<option value="${k}" ${(r?.priority||'medium')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label class="lbl">เจ้าของโครงการ</label>
+      <input id="f-owner" value="${esc(r?.owner||profile.displayName||'')}"/>
+    </div>
+    <div>
+      <label class="lbl">แผนก</label>
+      <input id="f-dept" value="${esc(r?.department||'')}" placeholder="แผนก"/>
+    </div>
+    <div>
+      <label class="lbl">วันเริ่มต้น</label>
+      <input id="f-start" type="date" value="${r?.startDate||''}"/>
+    </div>
+    <div>
+      <label class="lbl">วันสิ้นสุด</label>
+      <input id="f-end" type="date" value="${r?.endDate||''}"/>
+    </div>
+  </div>
+  <div>
+    <label class="lbl">วัตถุประสงค์</label>
+    <input id="f-obj" value="${esc(r?.objective||'')}" placeholder="เป้าหมายที่ต้องการบรรลุ"/>
+  </div>
+  <div>
+    <label class="lbl">รายละเอียดโครงการ</label>
+    <textarea id="f-desc" rows="3">${esc(r?.description||'')}</textarea>
+  </div>
+  <div class="form-row">
+    <div>
+      <label class="lbl">งบประมาณที่ตั้ง (฿)</label>
+      <input id="f-budget" type="number" min="0" value="${r?.budget||''}" placeholder="0"/>
+    </div>
+    <div>
+      <label class="lbl">ใช้ไปแล้ว (฿)</label>
+      <input id="f-spent" type="number" min="0" value="${r?.spent||''}" placeholder="0"/>
+    </div>
+  </div>
+
+  <div class="section-title">Milestones</div>
+  <div id="ms-form-list">
+    ${editMilestones.map((m,i)=>`
+      <div class="ms-row" id="ms-row-${i}">
+        <input type="checkbox" id="ms-done-${i}" style="width:17px;height:17px;flex-shrink:0" ${m.done?'checked':''}/>
+        <input id="ms-lbl-${i}" value="${esc(m.label)}" placeholder="ชื่อ milestone" style="flex:1"/>
+        <input id="ms-due-${i}" type="date" value="${m.dueDate||''}" style="width:130px;flex-shrink:0"/>
+        <button onclick="window.__msRemove(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:0 4px">✕</button>
+      </div>`).join('')}
+  </div>
+  <div class="ms-add">
+    <input id="ms-new-lbl" placeholder="เพิ่ม milestone..."/>
+    <input id="ms-new-due" type="date" style="width:130px;flex-shrink:0"/>
+    <button class="btn btn-ghost" style="padding:6px 12px;white-space:nowrap" onclick="window.__msAdd()">+ เพิ่ม</button>
+  </div>
+
+  <div>
+    <label class="lbl">ลิงก์/เอกสารอ้างอิง</label>
+    <input id="f-url" value="${esc(r?.attachmentUrl||'')}" placeholder="https://..."/>
+  </div>
+  <div>
+    <label class="lbl">หมายเหตุ</label>
+    <input id="f-note" value="${esc(r?.note||'')}"/>
+  </div>`;
+}
+
+window.__msAdd = () => {
+  const lbl = document.getElementById('ms-new-lbl')?.value.trim();
+  if (!lbl) return;
+  const due = document.getElementById('ms-new-due')?.value||'';
+  editMilestones.push({ label:lbl, dueDate:due, done:false });
+  const i = editMilestones.length-1;
+  const row = document.createElement('div');
+  row.className='ms-row'; row.id=`ms-row-${i}`;
+  row.innerHTML=`<input type="checkbox" id="ms-done-${i}" style="width:17px;height:17px;flex-shrink:0"/>
+    <input id="ms-lbl-${i}" value="${esc(lbl)}" placeholder="ชื่อ milestone" style="flex:1"/>
+    <input id="ms-due-${i}" type="date" value="${due}" style="width:130px;flex-shrink:0"/>
+    <button onclick="window.__msRemove(${i})" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:0 4px">✕</button>`;
+  document.getElementById('ms-form-list').appendChild(row);
+  document.getElementById('ms-new-lbl').value='';
+  document.getElementById('ms-new-due').value='';
+};
+window.__msRemove = (i) => {
+  editMilestones.splice(i,1);
+  document.getElementById(`ms-row-${i}`)?.remove();
+};
+
+function collectMilestones() {
+  return editMilestones.map((_,i)=>({
+    label:   document.getElementById(`ms-lbl-${i}`)?.value.trim()||'',
+    dueDate: document.getElementById(`ms-due-${i}`)?.value||'',
+    done:    document.getElementById(`ms-done-${i}`)?.checked||false,
+  })).filter(m=>m.label);
+}
+
+window.__save = async () => {
+  const name = document.getElementById('f-name')?.value.trim();
+  if (!name) { alert('กรุณากรอกชื่อโครงการ'); return; }
+  const data = {
+    projectName:   name,
+    category:      document.getElementById('f-cat')?.value||'other',
+    priority:      document.getElementById('f-pri')?.value||'medium',
+    owner:         document.getElementById('f-owner')?.value.trim()||'',
+    department:    document.getElementById('f-dept')?.value.trim()||'',
+    startDate:     document.getElementById('f-start')?.value||'',
+    endDate:       document.getElementById('f-end')?.value||'',
+    objective:     document.getElementById('f-obj')?.value.trim()||'',
+    description:   document.getElementById('f-desc')?.value.trim()||'',
+    budget:        parseFloat(document.getElementById('f-budget')?.value)||0,
+    spent:         parseFloat(document.getElementById('f-spent')?.value)||0,
+    milestones:    collectMilestones(),
+    attachmentUrl: document.getElementById('f-url')?.value.trim()||'',
+    note:          document.getElementById('f-note')?.value.trim()||'',
+  };
+  try {
+    if (editId) await updateSafetyProject(editId, data);
+    else await createSafetyProject(data, profile.uid);
+    window.__closePanel(); await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบโครงการนี้?')) return;
+  await deleteSafetyProject(id); window.__closePanel(); await render();
+};
+
+function openPanel(title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

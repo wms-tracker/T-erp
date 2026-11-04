@@ -68,6 +68,7 @@ export const COL = {
   trainingMatrix:   "safetyTrainingMatrix",
   scoreCard:        "safetyScorecards",
   bulletin:         "safetySafetyBulletin",
+  safetyProject:    "safetySafetyProjects",
 };
 
 // ────────────────────────────────────────────
@@ -3434,4 +3435,53 @@ export async function updateBulletin(id, data) {
 }
 export async function deleteBulletin(id) {
   await deleteDoc(doc(db, COL.bulletin, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 63 — Safety Improvement Projects
+// ────────────────────────────────────────────
+export const PROJECT_CATEGORIES = [
+  { key:'engineering',  label:'Engineering Control', icon:'⚙️', color:'#2563eb' },
+  { key:'admin',        label:'Administrative Control',icon:'📋',color:'#7c3aed' },
+  { key:'ppe',          label:'PPE / อุปกรณ์ป้องกัน', icon:'🦺', color:'#d97706' },
+  { key:'training',     label:'ฝึกอบรม / พัฒนาคน',  icon:'📚', color:'#059669' },
+  { key:'process',      label:'ปรับปรุงกระบวนการ',    icon:'🔄', color:'#0891b2' },
+  { key:'facility',     label:'ปรับปรุงสถานที่',       icon:'🏭', color:'#92400e' },
+  { key:'digital',      label:'Digital / System',     icon:'💻', color:'#4f46e5' },
+  { key:'other',        label:'อื่นๆ',                 icon:'🔧', color:'#6b7280' },
+];
+export const PROJECT_STATUS = {
+  planning:    { label:'วางแผน',       color:'#6b7280', bg:'#f3f4f6' },
+  in_progress: { label:'กำลังดำเนินการ',color:'#2563eb', bg:'#dbeafe' },
+  on_hold:     { label:'หยุดชั่วคราว', color:'#d97706', bg:'#fef3c7' },
+  completed:   { label:'เสร็จสิ้น',    color:'#16a34a', bg:'#dcfce7' },
+  cancelled:   { label:'ยกเลิก',       color:'#dc2626', bg:'#fee2e2' },
+};
+export const PROJECT_PRIORITY = {
+  critical:{ label:'วิกฤติ', color:'#dc2626', bg:'#fee2e2' },
+  high:    { label:'สูง',    color:'#d97706', bg:'#fef3c7' },
+  medium:  { label:'กลาง',   color:'#2563eb', bg:'#dbeafe' },
+  low:     { label:'ต่ำ',    color:'#6b7280', bg:'#f3f4f6' },
+};
+export function calcProjectProgress(project) {
+  const ms = project.milestones||[];
+  if (!ms.length) return project.manualProgress||0;
+  return Math.round(ms.filter(m=>m.done).length / ms.length * 100);
+}
+export async function listSafetyProject() {
+  const s = await getDocs(query(collection(db, COL.safetyProject), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getSafetyProject(id) {
+  const d = await getDoc(doc(db, COL.safetyProject, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createSafetyProject(data, createdBy) {
+  return addDoc(collection(db, COL.safetyProject), { ...data, createdBy, status:'planning', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetyProject(id, data) {
+  await updateDoc(doc(db, COL.safetyProject, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetyProject(id) {
+  await deleteDoc(doc(db, COL.safetyProject, id));
 }
