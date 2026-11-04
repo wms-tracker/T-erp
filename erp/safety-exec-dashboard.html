@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Safety Executive Dashboard — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);text-align:center}
+.kpi-num{font-size:1.8rem;font-weight:800;line-height:1.1}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:3px}
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:20px 0 10px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:650px){.row2{grid-template-columns:1fr}}
+.box{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.bar-wrap{background:#e5e7eb;border-radius:6px;height:10px;overflow:hidden;margin:3px 0}
+.bar-fill{height:100%;border-radius:6px;transition:width .5s}
+.trend-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:0.84rem}
+.trend-row:last-child{border-bottom:none}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.score-arc{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px}
+.score-big{font-size:3.5rem;font-weight:900;line-height:1}
+.month-chart{display:flex;align-items:flex-end;gap:4px;height:60px;margin-top:8px}
+.mc-bar{flex:1;border-radius:3px 3px 0 0;min-width:12px;position:relative;transition:height .4s}
+.mc-label{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:0.6rem;color:#9ca3af;white-space:nowrap}
+.refresh-btn{font-size:0.78rem;color:#6b7280;cursor:pointer;padding:4px 10px;border:1px solid #e5e7eb;border-radius:6px;background:#fff}
+.refresh-btn:hover{background:#f3f4f6}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  COL,
+  INCIDENT_TYPES,
+  listCultureSurvey,
+} from "./js/safety-data.js";
+import { db } from "./js/auth.js";
+import {
+  collection, getDocs, query, orderBy, limit, where,
+  getCountFromServer
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-exec-dashboard', 'สรุปผู้บริหาร (Exec Dashboard)');
+
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+main.innerHTML = `<div style="text-align:center;padding:40px 0;color:#6b7280">⏳ กำลังโหลดข้อมูล...</div>`;
+
+async function countCol(colName) {
+  try {
+    const snap = await getCountFromServer(collection(db, colName));
+    return snap.data().count;
+  } catch { return 0; }
+}
+
+async function loadData() {
+  const [
+    incSnap, capaSnap, trainingSnap, inspSnap,
+    nearMissSnap, lotoSnap, ptwSnap,
+    surveysRaw
+  ] = await Promise.all([
+    getDocs(query(collection(db, COL.incidents),    orderBy('createdAt','desc'), limit(500))),
+    getDocs(query(collection(db, COL.capa),         orderBy('createdAt','desc'), limit(500))),
+    getDocs(query(collection(db, COL.training),     orderBy('createdAt','desc'), limit(200))),
+    getDocs(query(collection(db, COL.inspections),  orderBy('createdAt','desc'), limit(500))),
+    getDocs(query(collection(db, COL.nearMiss),     orderBy('createdAt','desc'), limit(200))),
+    getDocs(query(collection(db, COL.loto),         orderBy('createdAt','desc'), limit(200))),
+    getDocs(query(collection(db, COL.ptw),          orderBy('createdAt','desc'), limit(200))),
+    listCultureSurvey(),
+  ]);
+
+  const incidents = incSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const capas     = capaSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const trainings = trainingSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const insps     = inspSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const nearMisses= nearMissSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const lotos     = lotoSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const ptws      = ptwSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const surveys   = surveysRaw;
+
+  const now = new Date();
+  const thisYear  = now.getFullYear();
+  const thisMonth = now.getMonth();
+
+  const incYear  = incidents.filter(r => {
+    const d = r.incidentDate ? new Date(r.incidentDate) : (r.createdAt?.toDate ? r.createdAt.toDate() : null);
+    return d && d.getFullYear()===thisYear;
+  });
+  const ltiCount = incYear.filter(r=>r.incidentType==='lti'||r.incidentType==='fatality').length;
+  const fatality = incidents.filter(r=>r.incidentType==='fatality').length;
+
+  // severity by type
+  const incByType = {};
+  incidents.forEach(r=>{ incByType[r.incidentType] = (incByType[r.incidentType]||0)+1; });
+
+  // CAPA stats
+  const capaOpen   = capas.filter(r=>r.status==='open'||r.status==='in_progress').length;
+  const capaOverdue= capas.filter(r=>{
+    if (!r.targetDate || r.status==='closed') return false;
+    return new Date(r.targetDate) < now;
+  }).length;
+
+  // Training
+  const trainYear = trainings.filter(r => {
+    const d = r.trainingDate ? new Date(r.trainingDate) : null;
+    return d && d.getFullYear()===thisYear;
+  });
+  const trainTotal   = trainYear.reduce((s,r)=>s+(r.participantCount||0),0);
+
+  // Inspection pass rate
+  const inspDone  = insps.filter(r=>r.status==='completed'||r.result==='pass');
+  const inspRate  = insps.length ? Math.round(inspDone.length/insps.length*100) : 0;
+
+  // Culture survey avg
+  const surveyAvg = surveys.length ? +(surveys.reduce((s,r)=>s+(r.overallScore||0),0)/surveys.length).toFixed(1) : 0;
+
+  // Monthly incidents (last 6 months)
+  const months6 = [];
+  for (let i=5; i>=0; i--) {
+    const d = new Date(thisYear, thisMonth-i, 1);
+    const label = d.toLocaleDateString('th-TH',{month:'short'});
+    const count = incidents.filter(r=>{
+      const rd = r.incidentDate ? new Date(r.incidentDate) : (r.createdAt?.toDate ? r.createdAt.toDate() : null);
+      return rd && rd.getMonth()===d.getMonth() && rd.getFullYear()===d.getFullYear();
+    }).length;
+    months6.push({ label, count });
+  }
+  const maxInc = Math.max(...months6.map(m=>m.count), 1);
+
+  // PTW stats
+  const ptwActive   = ptws.filter(r=>r.status==='active').length;
+  const ptwPending  = ptws.filter(r=>r.status==='pending').length;
+
+  // Top incident locations
+  const locationMap = {};
+  incidents.forEach(r=>{ if(r.location){ locationMap[r.location]=(locationMap[r.location]||0)+1; }});
+  const topLocations = Object.entries(locationMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  renderDashboard({
+    incidents, incYear, ltiCount, fatality, incByType,
+    capaOpen, capaOverdue, capas,
+    trainTotal, trainYear,
+    insps, inspRate,
+    surveyAvg, surveys,
+    months6, maxInc,
+    nearMisses, lotos, ptws, ptwActive, ptwPending,
+    topLocations, now,
+  });
+}
+
+function renderDashboard(d) {
+  const ltiColor = d.ltiCount===0 ? '#16a34a' : d.ltiCount<=3 ? '#d97706' : '#dc2626';
+  const capaColor = d.capaOverdue===0 ? '#16a34a' : '#dc2626';
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">📊 Safety Executive Dashboard</h2>
+    <button class="refresh-btn" onclick="window.__reload()">↺ รีเฟรช</button>
+  </div>
+  <div style="font-size:0.78rem;color:#9ca3af;margin-bottom:12px">อัปเดตล่าสุด: ${d.now.toLocaleString('th-TH')}</div>
+
+  <!-- KPI Bar -->
+  <div class="kpi-bar">
+    <div class="kpi-card" style="border-top:4px solid ${d.fatality?'#7f1d1d':'#16a34a'}">
+      <div class="kpi-num" style="color:${d.ltiColor||ltiColor}">${d.ltiCount}</div>
+      <div class="kpi-label">LTI ปีนี้</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #dc2626">
+      <div class="kpi-num" style="color:#dc2626">${d.fatality}</div>
+      <div class="kpi-label">Fatality (ตลอดกาล)</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #d97706">
+      <div class="kpi-num" style="color:${capaColor}">${d.capaOpen}</div>
+      <div class="kpi-label">CAPA ค้างอยู่</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #dc2626">
+      <div class="kpi-num" style="color:${d.capaOverdue>0?'#dc2626':'#16a34a'}">${d.capaOverdue}</div>
+      <div class="kpi-label">CAPA เกินกำหนด</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #2563eb">
+      <div class="kpi-num" style="color:#2563eb">${d.inspRate}%</div>
+      <div class="kpi-label">Inspection Pass Rate</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #7c3aed">
+      <div class="kpi-num" style="color:#7c3aed">${d.surveyAvg>0?d.surveyAvg+'/5':'-'}</div>
+      <div class="kpi-label">Safety Culture Score</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #059669">
+      <div class="kpi-num" style="color:#059669">${d.trainTotal}</div>
+      <div class="kpi-label">คนได้รับการฝึก (ปีนี้)</div>
+    </div>
+    <div class="kpi-card" style="border-top:4px solid #0891b2">
+      <div class="kpi-num" style="color:#0891b2">${d.nearMisses.length}</div>
+      <div class="kpi-label">Near Miss ทั้งหมด</div>
+    </div>
+  </div>
+
+  <!-- Row 2 -->
+  <div class="row2">
+    <!-- Monthly trend -->
+    <div class="box">
+      <div style="font-weight:700;font-size:0.88rem;margin-bottom:8px">📈 แนวโน้มอุบัติเหตุ 6 เดือน</div>
+      <div class="month-chart">
+        ${d.months6.map(m=>`
+          <div style="flex:1;position:relative;display:flex;flex-direction:column;align-items:center">
+            <div class="mc-bar" style="height:${m.count?Math.max(m.count/d.maxInc*52,6):4}px;width:100%;background:${m.count?'#dc2626':'#e5e7eb'}">
+              ${m.count?`<div style="position:absolute;top:-16px;left:50%;transform:translateX(-50%);font-size:0.68rem;font-weight:700;color:#dc2626">${m.count}</div>`:''}
+            </div>
+            <div style="font-size:0.6rem;color:#9ca3af;margin-top:20px">${m.label}</div>
+          </div>`).join('')}
+      </div>
+      <div style="font-size:0.75rem;color:#6b7280;margin-top:24px">รวม 6 เดือน: ${d.months6.reduce((s,m)=>s+m.count,0)} ครั้ง</div>
+    </div>
+
+    <!-- Incident by type -->
+    <div class="box">
+      <div style="font-weight:700;font-size:0.88rem;margin-bottom:8px">⚠️ ประเภทอุบัติเหตุ</div>
+      ${Object.entries(d.incByType).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k,v])=>{
+        const t = INCIDENT_TYPES[k];
+        const pct = Math.round(v/d.incidents.length*100);
+        return `<div class="trend-row">
+          <span style="color:${t?.color||'#6b7280'}">${t?.labelTh||k}</span>
+          <div style="flex:1;margin:0 10px">
+            <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${t?.color||'#6b7280'}"></div></div>
+          </div>
+          <span style="font-weight:700;font-size:0.82rem;color:${t?.color||'#6b7280'};min-width:30px;text-align:right">${v}</span>
+        </div>`;
+      }).join('')||'<div style="color:#9ca3af;font-size:0.85rem">ยังไม่มีข้อมูล</div>'}
+    </div>
+  </div>
+
+  <div class="row2">
+    <!-- CAPA summary -->
+    <div class="box">
+      <div style="font-weight:700;font-size:0.88rem;margin-bottom:10px">🔧 CAPA Status</div>
+      ${['open','in_progress','pending_verification','closed'].map(st=>{
+        const labels = {open:'เปิดใหม่',in_progress:'กำลังดำเนินการ',pending_verification:'รอตรวจสอบ',closed:'ปิดแล้ว'};
+        const colors = {open:'#d97706',in_progress:'#2563eb',pending_verification:'#7c3aed',closed:'#16a34a'};
+        const cnt = d.capas.filter(r=>r.status===st).length;
+        const pct = d.capas.length ? Math.round(cnt/d.capas.length*100) : 0;
+        return `<div class="trend-row">
+          <span style="color:${colors[st]}">${labels[st]}</span>
+          <div style="flex:1;margin:0 10px">
+            <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:${colors[st]}"></div></div>
+          </div>
+          <span style="font-weight:700;color:${colors[st]};font-size:0.82rem">${cnt}</span>
+        </div>`;
+      }).join('')}
+      ${d.capaOverdue ? `<div style="margin-top:10px;padding:8px;background:#fef2f2;border-radius:7px;font-size:0.82rem;color:#dc2626">⚠️ CAPA เกินกำหนด ${d.capaOverdue} รายการ — ต้องดำเนินการด่วน</div>` : ''}
+    </div>
+
+    <!-- PTW & LOTO -->
+    <div class="box">
+      <div style="font-weight:700;font-size:0.88rem;margin-bottom:10px">📋 PTW / LOTO</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div style="text-align:center;padding:10px;background:#dbeafe;border-radius:8px">
+          <div style="font-size:1.5rem;font-weight:800;color:#2563eb">${d.ptwActive}</div>
+          <div style="font-size:0.72rem;color:#1e40af">PTW กำลังทำงาน</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:#fef3c7;border-radius:8px">
+          <div style="font-size:1.5rem;font-weight:800;color:#d97706">${d.ptwPending}</div>
+          <div style="font-size:0.72rem;color:#92400e">PTW รออนุมัติ</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:#dcfce7;border-radius:8px">
+          <div style="font-size:1.5rem;font-weight:800;color:#16a34a">${d.lotos.filter(r=>r.status==='active').length}</div>
+          <div style="font-size:0.72rem;color:#14532d">LOTO กำลังล็อก</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:#f3f4f6;border-radius:8px">
+          <div style="font-size:1.5rem;font-weight:800;color:#374151">${d.ptws.length}</div>
+          <div style="font-size:0.72rem;color:#6b7280">PTW ทั้งหมด</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <!-- Top locations -->
+    <div class="box">
+      <div style="font-weight:700;font-size:0.88rem;margin-bottom:8px">📍 สถานที่เกิดอุบัติเหตุบ่อยที่สุด</div>
+      ${d.topLocations.length ? d.topLocations.map(([loc,cnt])=>`
+        <div class="trend-row">
+          <span style="font-size:0.85rem">${esc(loc)}</span>
+          <div style="flex:1;margin:0 10px">
+            <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(cnt/d.topLocations[0][1]*100)}%;background:#dc2626"></div></div>
+          </div>
+          <span style="font-weight:700;color:#dc2626;font-size:0.82rem">${cnt}</span>
+        </div>`).join('') : '<div style="color:#9ca3af;font-size:0.85rem">ยังไม่มีข้อมูล</div>'}
+    </div>
+
+    <!-- Safety culture -->
+    <div class="box">
+      <div style="font-weight:700;font-size:0.88rem;margin-bottom:8px">🌟 Safety Culture Score</div>
+      <div class="score-arc">
+        <div class="score-big" style="color:${d.surveyAvg>=4?'#16a34a':d.surveyAvg>=3?'#d97706':'#dc2626'}">${d.surveyAvg>0?d.surveyAvg:'-'}</div>
+        <div style="font-size:0.85rem;color:#6b7280">/ 5.00 — ${d.surveys.length} แบบสำรวจ</div>
+        <div style="font-size:0.9rem;font-weight:700;margin-top:4px;color:${d.surveyAvg>=4.5?'#15803d':d.surveyAvg>=3.5?'#16a34a':d.surveyAvg>=2.5?'#d97706':'#dc2626'}">
+          ${d.surveyAvg>=4.5?'ดีเยี่ยม':d.surveyAvg>=3.5?'ดี':d.surveyAvg>=2.5?'พอใช้':d.surveyAvg>0?'ต้องปรับปรุง':'ยังไม่มีข้อมูล'}
+        </div>
+      </div>
+      <div style="font-size:0.78rem;color:#6b7280;text-align:center;margin-top:-8px">
+        Near Miss รายงาน: ${d.nearMisses.length} ครั้ง<br/>
+        ฝึกอบรม ${d.trainYear.length} รุ่น · ${d.trainTotal} คน (ปีนี้)
+      </div>
+    </div>
+  </div>`;
+}
+
+window.__reload = async () => {
+  main.innerHTML = `<div style="text-align:center;padding:40px 0;color:#6b7280">⏳ กำลังโหลดข้อมูล...</div>`;
+  await loadData();
+};
+
+await loadData();
+</script>
+</body>
+</html>

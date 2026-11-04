@@ -1,588 +1,410 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ใบอนุญาตทำงาน (PTW) — KPO Safety</title>
-  <link rel="stylesheet" href="./css/main.css">
-  <link rel="stylesheet" href="./css/safety.css">
-  <style>
-    /* Top bar */
-    .top-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem;align-items:center}
-    .top-bar input[type=search]{padding:.38rem .7rem;border-radius:8px;border:1px solid #cbd5e1;
-      font-size:.85rem;min-width:180px;flex:1}
-    .filt-btn{padding:.28rem .75rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;
-              font-size:.78rem;cursor:pointer;white-space:nowrap;transition:all .15s}
-    .filt-btn.active{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
-
-    /* Summary */
-    .sum-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:.6rem;margin-bottom:1.2rem}
-    .sum-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:.65rem .5rem;text-align:center}
-    .sum-card .n{font-size:1.35rem;font-weight:700;line-height:1}
-    .sum-card .l{font-size:.67rem;color:#64748b;margin-top:.18rem}
-
-    /* Type cards */
-    .type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:.65rem;margin-bottom:1.2rem}
-    .type-card{background:#fff;border:2px solid #e2e8f0;border-radius:10px;padding:.7rem 1rem;
-               cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:.7rem}
-    .type-card:hover{box-shadow:0 2px 10px rgba(0,0,0,.07)}
-    .type-card.active-filter{border-color:#1e3a5f;background:#f0f4ff}
-    .type-icon{font-size:1.5rem;flex-shrink:0}
-    .type-info .n{font-size:1.1rem;font-weight:700;line-height:1;color:#1e293b}
-    .type-info .l{font-size:.7rem;color:#64748b;margin-top:.1rem}
-
-    /* Table */
-    .ptw-table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;
-               overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);font-size:.83rem;margin-bottom:4rem}
-    .ptw-table th{background:#f8fafc;padding:.52rem .7rem;text-align:left;color:#64748b;
-                  font-weight:600;font-size:.77rem;border-bottom:1px solid #e2e8f0;white-space:nowrap}
-    .ptw-table td{padding:.52rem .7rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:#374151}
-    .ptw-table tr:hover td{background:#fafbff;cursor:pointer}
-    .badge{display:inline-block;padding:.12rem .48rem;border-radius:999px;font-size:.7rem;font-weight:600}
-    .permit-no{font-family:monospace;font-weight:700;font-size:.82rem;color:#1e3a5f}
-
-    /* Slide panel */
-    .panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100}
-    .panel-overlay.open{display:block}
-    .side-panel{position:fixed;right:0;top:0;bottom:0;width:min(620px,100vw);
-                background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);
-                transform:translateX(100%);transition:transform .25s;
-                display:flex;flex-direction:column;z-index:101;overflow:hidden}
-    .side-panel.open{transform:none}
-    .panel-header{padding:1rem 1.2rem;border-bottom:1px solid #e2e8f0;display:flex;
-                  align-items:center;justify-content:space-between;flex-shrink:0}
-    .panel-header h3{margin:0;font-size:1rem;color:#1e3a5f;padding-right:1rem}
-    .panel-body{flex:1;overflow-y:auto;padding:1.2rem}
-    .panel-footer{padding:.8rem 1.2rem;border-top:1px solid #e2e8f0;display:flex;
-                  gap:.5rem;justify-content:flex-end;flex-shrink:0;flex-wrap:wrap}
-
-    /* Steps (wizard) */
-    .steps{display:flex;gap:0;margin-bottom:1.4rem}
-    .step{flex:1;text-align:center;padding:.4rem .2rem;font-size:.73rem;cursor:pointer;
-          border-bottom:3px solid #e2e8f0;color:#94a3b8;transition:all .15s}
-    .step.active{border-bottom-color:#1e3a5f;color:#1e3a5f;font-weight:700}
-    .step.done{border-bottom-color:#16a34a;color:#16a34a}
-    .step-panel{display:none}.step-panel.active{display:block}
-
-    /* Form */
-    .fg{margin-bottom:.88rem}
-    .fg label{display:block;font-size:.79rem;font-weight:600;color:#374151;margin-bottom:.28rem}
-    .fg input,.fg select,.fg textarea{width:100%;padding:.42rem .62rem;border-radius:7px;
-      border:1px solid #cbd5e1;font-size:.84rem;box-sizing:border-box}
-    .fg textarea{min-height:60px;resize:vertical}
-    .fg-row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
-    .fg-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem}
-    .required-star{color:#dc2626}
-
-    /* Checklist */
-    .chk-list{list-style:none;padding:0;margin:0}
-    .chk-list li{display:flex;align-items:flex-start;gap:.5rem;padding:.35rem 0;
-                  border-bottom:1px solid #f1f5f9;font-size:.82rem;color:#374151}
-    .chk-list li:last-child{border:none}
-    .chk-list input[type=checkbox]{margin-top:.15rem;width:15px;height:15px;flex-shrink:0;
-                                    accent-color:#1e3a5f}
-    .chk-section{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.7rem .9rem;margin-bottom:.8rem}
-    .chk-section h5{margin:0 0 .5rem;font-size:.78rem;color:#64748b;font-weight:700;text-transform:uppercase}
-
-    /* PPE chips */
-    .ppe-grid{display:flex;flex-wrap:wrap;gap:.4rem}
-    .ppe-chip{padding:.22rem .55rem;border-radius:999px;border:1px solid #cbd5e1;
-              font-size:.75rem;cursor:pointer;background:#fff;transition:all .12s}
-    .ppe-chip.sel{background:#1e3a5f;color:#fff;border-color:#1e3a5f}
-
-    /* Detail */
-    .ds{margin-bottom:1.1rem}
-    .ds h4{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;
-           letter-spacing:.06em;margin:0 0 .5rem;padding-bottom:.28rem;border-bottom:1px solid #f1f5f9}
-    .info-grid{display:grid;grid-template-columns:auto 1fr;gap:.22rem .75rem;font-size:.82rem}
-    .info-grid .k{color:#64748b;white-space:nowrap}
-    .info-grid .v{color:#1e293b}
-    .chk-done{text-decoration:line-through;color:#94a3b8}
-    .status-banner{border-radius:10px;padding:.7rem 1rem;margin-bottom:1rem;
-                   display:flex;align-items:center;gap:.6rem;font-size:.83rem;font-weight:600}
-
-    /* FAB */
-    .fab{position:fixed;bottom:2rem;right:2rem;width:52px;height:52px;border-radius:50%;
-         background:#1e3a5f;color:#fff;font-size:1.4rem;border:none;cursor:pointer;
-         box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;align-items:center;
-         justify-content:center;transition:transform .15s}
-    .fab:hover{transform:scale(1.08)}
-
-    .btn-danger{background:#dc2626;color:#fff;border:none}
-    .btn-success{background:#16a34a;color:#fff;border:none}
-    .btn-warning{background:#d97706;color:#fff;border:none}
-
-    @media(max-width:600px){.hide-sm{display:none}}
-    @media print{
-      .fab,.top-bar .no-print,.panel-overlay,.side-panel{display:none!important}
-      .ptw-table{font-size:.75rem}
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ใบอนุญาตทำงาน (PTW) — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-success{background:#16a34a;color:#fff}
+.btn-warning{background:#d97706;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.search-bar select,.search-bar input{flex:1;min-width:120px}
+.info-row{display:flex;gap:12px;flex-wrap:wrap;font-size:0.81rem;color:#6b7280;margin-top:3px}
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:8px 0}
+.type-card{border:2px solid #e5e7eb;border-radius:8px;padding:8px 12px;cursor:pointer;transition:all .15s;text-align:center}
+.type-card.sel{border-width:2.5px}
+.checklist-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #f3f4f6;font-size:0.85rem}
+.checklist-row input[type=checkbox]{width:16px;height:16px;margin:2px 0 0;flex-shrink:0}
+</style>
 </head>
 <body>
-<div class="panel-overlay" id="panelOverlay" onclick="window.__ptw_closePanel()"></div>
-<div class="side-panel" id="sidePanel">
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
   <div class="panel-header">
-    <h3 id="panelTitle">ใบอนุญาตทำงาน</h3>
-    <button class="btn-icon" onclick="window.__ptw_closePanel()">✕</button>
+    <span id="panel-title">ใบอนุญาตทำงาน</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
   </div>
-  <div class="panel-body" id="panelBody"></div>
-  <div class="panel-footer" id="panelFooter"></div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
 </div>
 
-<button class="fab no-print" title="ขอใบอนุญาต" onclick="window.__ptw_openNew()">＋</button>
-
 <script type="module">
-import { requireRole } from './js/auth.js';
-import { renderShell }  from './js/shell.js';
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
 import {
-  PERMIT_TYPES, PERMIT_STATUS, PERMIT_CHECKLISTS, PPE_OPTIONS,
-  generatePermitId,
-  listPermits, getPermit, createPermit, updatePermit,
-  approvePermit, rejectPermit, activatePermit, closePermit,
-} from './js/safety-data.js';
+  PTW_TYPES, PTW_STATUS, PTW_RISK_LEVELS,
+  listPTW, getPTW, createPTW, updatePTW, deletePTW
+} from "./js/safety-data.js";
 
-const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-ptw', 'ใบอนุญาตทำงาน (PTW)');
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-ptw', 'ใบอนุญาตทำงาน (PTW)');
 
-const isSafetyOfficer = _profile.role === 'safety_officer';
-let _all    = [];
-let _shown  = [];
-let _fType  = 'all';
-let _fStat  = 'all';
-let _search = '';
-
-const typeArr  = Object.values(PERMIT_TYPES);
-const stColors = { draft:'#94a3b8', pending:'#d97706', approved:'#2563eb', active:'#16a34a', completed:'#475569', rejected:'#dc2626', cancelled:'#94a3b8' };
-const stBg     = { draft:'#f8fafc', pending:'#fef3c7', approved:'#eff6ff', active:'#dcfce7', completed:'#f1f5f9', rejected:'#fee2e2', cancelled:'#f8fafc' };
-const badge    = (l,c,bg) => `<span class="badge" style="color:${c||'#64748b'};background:${bg||'#f8fafc'}">${l}</span>`;
-
-/* ── load ── */
-async function load() {
-  _all = await listPermits({});
-  applyFilter();
-}
-
-/* ── filter ── */
-function applyFilter() {
-  let rows = [..._all];
-  if (_fType !== 'all') rows = rows.filter(r => r.permitType === _fType);
-  if (_fStat !== 'all') rows = rows.filter(r => r.status === _fStat);
-  if (_search) {
-    const q = _search.toLowerCase();
-    rows = rows.filter(r =>
-      (r.permitId||'').toLowerCase().includes(q) ||
-      (r.jobDescription||'').toLowerCase().includes(q) ||
-      (r.location||'').toLowerCase().includes(q) ||
-      (r.requester||'').toLowerCase().includes(q) ||
-      (r.contractor||'').toLowerCase().includes(q)
-    );
-  }
-  _shown = rows;
-  renderStats();
-  renderTypeCards();
-  renderTable();
-}
-window.__ptw_search = v => { _search = v; applyFilter(); };
-window.__ptw_fType  = k => { _fType = k; applyFilter(); };
-window.__ptw_fStat  = k => {
-  _fStat = k;
-  document.querySelectorAll('.filt-btn[data-g=st]').forEach(b => b.classList.toggle('active', b.dataset.k===k));
-  applyFilter();
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+const badge   = (st) => {
+  const s = PTW_STATUS[st] || PTW_STATUS.draft;
+  return `<span class="badge" style="color:${s.color};background:${s.bg}">${s.label}</span>`;
+};
+const riskBadge = (r) => {
+  const rl = PTW_RISK_LEVELS[r];
+  if (!rl) return '';
+  return `<span class="badge" style="color:${rl.color};background:${rl.bg}">${rl.label}</span>`;
 };
 
-/* ── stats ── */
-function renderStats() {
-  const cnt = s => _all.filter(r => r.status === s).length;
-  document.getElementById('ptwStats').innerHTML = `
-    <div class="sum-card"><div class="n">${_all.length}</div><div class="l">ทั้งหมด</div></div>
-    <div class="sum-card"><div class="n" style="color:#d97706">${cnt('pending')}</div><div class="l">⏳ รออนุมัติ</div></div>
-    <div class="sum-card"><div class="n" style="color:#2563eb">${cnt('approved')}</div><div class="l">✅ อนุมัติแล้ว</div></div>
-    <div class="sum-card"><div class="n" style="color:#16a34a">${cnt('active')}</div><div class="l">🔨 กำลังทำงาน</div></div>
-    <div class="sum-card"><div class="n" style="color:#475569">${cnt('completed')}</div><div class="l">🏁 เสร็จสิ้น</div></div>
-    <div class="sum-card"><div class="n" style="color:#dc2626">${cnt('rejected')}</div><div class="l">❌ ปฏิเสธ</div></div>`;
+const PTW_CHECKLIST = [
+  'ประเมินความเสี่ยงก่อนทำงานเรียบร้อยแล้ว',
+  'กำหนด exclusion zone และติดป้ายเตือนแล้ว',
+  'แจ้งทีมงานและผู้เกี่ยวข้องทราบแล้ว',
+  'เตรียมอุปกรณ์ PPE ครบตามที่กำหนด',
+  'เตรียมอุปกรณ์ดับเพลิงและ first aid พร้อมแล้ว',
+  'ตรวจสอบสภาพบรรยากาศ (อากาศ, แก๊ส) แล้ว',
+  'กำหนด emergency escape route แล้ว',
+  'สื่อสาร standby person / fire watch แล้ว',
+];
+
+let records = [];
+let editId  = null;
+let selType = '';
+
+async function render() {
+  records = await listPTW();
+  const statusFilter = document.getElementById('filter-status')?.value || '';
+  const typeFilter   = document.getElementById('filter-type')?.value || '';
+  const q            = document.getElementById('search-input')?.value.toLowerCase() || '';
+
+  const stats = {};
+  Object.keys(PTW_STATUS).forEach(k=>stats[k]=0);
+  records.forEach(r=>{ if(stats[r.status]!==undefined) stats[r.status]++; });
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">📋 ใบอนุญาตทำงาน (PTW)</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel(null)">+ ขอใบอนุญาต</button>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${records.length}</div><div class="kpi-label">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#d97706">${stats.pending||0}</div><div class="kpi-label">รออนุมัติ</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${stats.active||0}</div><div class="kpi-label">กำลังทำงาน</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#2563eb">${stats.approved||0}</div><div class="kpi-label">อนุมัติแล้ว</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${(stats.rejected||0)+(stats.expired||0)}</div><div class="kpi-label">ปฏิเสธ/หมดอายุ</div></div>
+  </div>
+
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหางาน, ผู้ขอ..." oninput="window.__applyFilter()"/>
+    <select id="filter-status" onchange="window.__applyFilter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(PTW_STATUS).map(([k,v])=>`<option value="${k}" ${statusFilter===k?'selected':''}>${v.label}</option>`).join('')}
+    </select>
+    <select id="filter-type" onchange="window.__applyFilter()">
+      <option value="">ทุกประเภท</option>
+      ${PTW_TYPES.map(t=>`<option value="${t.key}" ${typeFilter===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+    </select>
+  </div>
+
+  <div id="list-wrap">${renderList(applyFilter(records, q, statusFilter, typeFilter))}</div>`;
 }
 
-/* ── type cards ── */
-function renderTypeCards() {
-  document.getElementById('ptwTypes').innerHTML = typeArr.map(t => {
-    const n = _all.filter(r => r.permitType === t.key).length;
-    const act = _all.filter(r => r.permitType === t.key && r.status === 'active').length;
+function applyFilter(list, q, status, type) {
+  return list.filter(r => {
+    const matchQ = !q || (r.workDescription||'').toLowerCase().includes(q) || (r.requestedBy||'').toLowerCase().includes(q) || (r.location||'').toLowerCase().includes(q);
+    const matchS = !status || r.status===status;
+    const matchT = !type   || r.ptwType===type;
+    return matchQ && matchS && matchT;
+  });
+}
+
+window.__applyFilter = () => {
+  const q  = document.getElementById('search-input')?.value.toLowerCase()||'';
+  const s  = document.getElementById('filter-status')?.value||'';
+  const t  = document.getElementById('filter-type')?.value||'';
+  document.getElementById('list-wrap').innerHTML = renderList(applyFilter(records, q, s, t));
+};
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ไม่พบใบอนุญาต</p>`;
+  return list.map(r => {
+    const tp = PTW_TYPES.find(t=>t.key===r.ptwType);
     return `
-    <div class="type-card ${_fType===t.key?'active-filter':''}"
-         onclick="window.__ptw_fType('${_fType===t.key?'all':t.key}')">
-      <div class="type-icon">${t.icon}</div>
-      <div class="type-info">
-        <div class="n" style="color:${t.color}">${n}</div>
-        <div class="l">${t.labelTh}</div>
-        ${act?`<div style="font-size:.66rem;color:#16a34a">🔨 ${act} กำลังทำ</div>`:''}
+    <div class="card" onclick="window.__openView('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:0.95rem">${tp?tp.icon:''} ${esc(r.workDescription||'-')}</div>
+          <div class="info-row">
+            <span>📍 ${esc(r.location||'-')}</span>
+            <span>👤 ${esc(r.requestedBy||'-')}</span>
+            <span>📅 ${fmtDate(r.workDate)}</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          ${badge(r.status)}
+          ${riskBadge(r.riskLevel)}
+        </div>
       </div>
     </div>`;
   }).join('');
 }
 
-/* ── table ── */
-function renderTable() {
-  if (!_shown.length) {
-    document.getElementById('ptwTable').innerHTML =
-      `<tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">ไม่พบข้อมูล</td></tr>`;
+// ── view ──────────────────────────────────────────────────────────────────────
+window.__openView = async (id) => {
+  editId = id;
+  const r = await getPTW(id);
+  if (!r) return;
+  const tp = PTW_TYPES.find(t=>t.key===r.ptwType);
+  openPanel('รายละเอียดใบอนุญาต');
+  document.getElementById('panel-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <span style="font-size:2rem">${tp?.icon||'📋'}</span>
+      <div>
+        <div style="font-weight:800;font-size:1rem">${esc(r.workDescription||'-')}</div>
+        <div style="font-size:0.82rem;color:#6b7280">${esc(tp?.label||'-')} · ${fmtDate(r.workDate)}</div>
+      </div>
+      ${badge(r.status)}
+    </div>
+    <div class="form-row" style="margin-bottom:12px">
+      <div><div class="lbl" style="margin-top:0">สถานที่</div><div>${esc(r.location||'-')}</div></div>
+      <div><div class="lbl" style="margin-top:0">ระดับความเสี่ยง</div><div>${riskBadge(r.riskLevel)}</div></div>
+      <div><div class="lbl">ผู้ขออนุญาต</div><div>${esc(r.requestedBy||'-')}</div></div>
+      <div><div class="lbl">แผนก/บริษัท</div><div>${esc(r.department||'-')}</div></div>
+      <div><div class="lbl">วันที่ทำงาน</div><div>${fmtDate(r.workDate)}</div></div>
+      <div><div class="lbl">เวลา</div><div>${esc(r.startTime||'-')} – ${esc(r.endTime||'-')}</div></div>
+    </div>
+    ${r.equipmentTools ? `<div><div class="lbl" style="margin-top:0">เครื่องมือ/อุปกรณ์ที่ใช้</div><div style="font-size:0.85rem">${esc(r.equipmentTools)}</div></div>` : ''}
+    ${r.ppeRequired ? `<div style="margin-top:8px"><div class="lbl" style="margin-top:0">PPE ที่กำหนด</div><div style="font-size:0.85rem">${esc(r.ppeRequired)}</div></div>` : ''}
+    ${r.precautions ? `<div style="margin-top:8px"><div class="lbl" style="margin-top:0">มาตรการควบคุม</div><div style="font-size:0.85rem">${esc(r.precautions)}</div></div>` : ''}
+    ${r.checklistItems && r.checklistItems.length ? `
+    <div class="section-title">Checklist ก่อนเริ่มงาน</div>
+    ${PTW_CHECKLIST.map((item,i)=>`
+      <div class="checklist-row">
+        <span style="color:${r.checklistItems[i]?'#16a34a':'#9ca3af'};font-size:1.1rem">${r.checklistItems[i]?'✓':'○'}</span>
+        <span style="color:${r.checklistItems[i]?'#374151':'#9ca3af'}">${esc(item)}</span>
+      </div>`).join('')}` : ''}
+    ${r.approvedBy ? `<div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:0.85rem"><strong>✓ อนุมัติโดย:</strong> ${esc(r.approvedBy)}</div>` : ''}
+    ${r.rejectedReason ? `<div style="margin-top:12px;padding:10px;background:#fef2f2;border-radius:8px;font-size:0.85rem"><strong>✗ เหตุผลที่ไม่อนุมัติ:</strong> ${esc(r.rejectedReason)}</div>` : ''}`;
+
+  const footer = document.getElementById('panel-footer');
+  footer.innerHTML = '';
+  if (r.status==='pending') {
+    footer.innerHTML = `
+      <button class="btn btn-success" onclick="window.__approve('${id}')">อนุมัติ</button>
+      <button class="btn btn-danger" onclick="window.__reject('${id}')">ไม่อนุมัติ</button>`;
+  }
+  if (r.status==='approved') {
+    footer.innerHTML += `<button class="btn btn-primary" onclick="window.__activate('${id}')">เริ่มงาน (Activate)</button>`;
+  }
+  if (r.status==='active') {
+    footer.innerHTML += `<button class="btn btn-success" onclick="window.__complete('${id}')">ปิดงาน (Complete)</button>`;
+  }
+  if (['draft','pending'].includes(r.status)) {
+    footer.innerHTML += `<button class="btn btn-ghost" onclick="window.__editPTW('${id}')">แก้ไข</button>`;
+  }
+  footer.innerHTML += `
+    <button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>
+    <button class="btn btn-ghost" onclick="window.__closePanel()">ปิด</button>`;
+};
+
+// ── form ──────────────────────────────────────────────────────────────────────
+window.__openPanel = (id) => {
+  editId  = id;
+  selType = '';
+  openPanel(id ? 'แก้ไขใบอนุญาต' : 'ขอใบอนุญาตทำงาน');
+  document.getElementById('panel-body').innerHTML = renderForm(null);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+     <button class="btn btn-warning" onclick="window.__saveSubmit()">บันทึก + ส่งอนุมัติ</button>
+     <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+window.__editPTW = async (id) => {
+  editId = id;
+  const r = await getPTW(id);
+  if (!r) return;
+  selType = r.ptwType||'';
+  openPanel('แก้ไขใบอนุญาต');
+  document.getElementById('panel-body').innerHTML = renderForm(r);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+     <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+function renderForm(r) {
+  return `
+  <div class="section-title" style="margin-top:0">ประเภทงาน *</div>
+  <div class="type-grid">
+    ${PTW_TYPES.map(t=>`
+      <div class="type-card ${(selType||r?.ptwType)===t.key?'sel':''}"
+           id="tc-${t.key}"
+           style="${(selType||r?.ptwType)===t.key?`border-color:${t.color};background:${t.color}18`:''}"
+           onclick="window.__selType('${t.key}','${t.color}')">
+        <div style="font-size:1.5rem">${t.icon}</div>
+        <div style="font-size:0.78rem;font-weight:600;color:${t.color}">${t.label.split(' (')[0]}</div>
+      </div>`).join('')}
+  </div>
+  <div class="form-row">
+    <div style="grid-column:1/-1">
+      <label class="lbl">รายละเอียดงาน *</label>
+      <textarea id="f-desc" rows="2" placeholder="อธิบายงานที่จะทำ">${esc(r?.workDescription||'')}</textarea>
+    </div>
+    <div>
+      <label class="lbl">สถานที่/พื้นที่ทำงาน *</label>
+      <input id="f-loc" value="${esc(r?.location||'')}" placeholder="เช่น Line 3, คลังสินค้า A"/>
+    </div>
+    <div>
+      <label class="lbl">ระดับความเสี่ยง</label>
+      <select id="f-risk">
+        ${Object.entries(PTW_RISK_LEVELS).map(([k,v])=>`<option value="${k}" ${r?.riskLevel===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label class="lbl">ผู้ขออนุญาต *</label>
+      <input id="f-req" value="${esc(r?.requestedBy||profile.displayName||'')}" placeholder="ชื่อผู้ขอ"/>
+    </div>
+    <div>
+      <label class="lbl">แผนก/บริษัทผู้รับเหมา</label>
+      <input id="f-dept" value="${esc(r?.department||'')}" placeholder="แผนก"/>
+    </div>
+    <div>
+      <label class="lbl">วันที่ทำงาน *</label>
+      <input id="f-date" type="date" value="${r?.workDate||''}"/>
+    </div>
+    <div>
+      <label class="lbl">เวลาเริ่ม – สิ้นสุด</label>
+      <div style="display:flex;gap:6px">
+        <input id="f-start" type="time" value="${r?.startTime||''}" style="flex:1"/>
+        <input id="f-end"   type="time" value="${r?.endTime||''}"   style="flex:1"/>
+      </div>
+    </div>
+    <div style="grid-column:1/-1">
+      <label class="lbl">เครื่องมือ/อุปกรณ์ที่ใช้</label>
+      <input id="f-equip" value="${esc(r?.equipmentTools||'')}" placeholder="เช่น เครื่องเชื่อม, Angle grinder"/>
+    </div>
+    <div style="grid-column:1/-1">
+      <label class="lbl">PPE ที่กำหนด</label>
+      <input id="f-ppe" value="${esc(r?.ppeRequired||'')}" placeholder="เช่น หน้ากาก, ถุงมือกันความร้อน, Safety harness"/>
+    </div>
+    <div style="grid-column:1/-1">
+      <label class="lbl">มาตรการควบคุม/ข้อควรระวัง</label>
+      <textarea id="f-prec">${esc(r?.precautions||'')}</textarea>
+    </div>
+  </div>
+  <div class="section-title">Checklist ก่อนเริ่มงาน</div>
+  ${PTW_CHECKLIST.map((item,i)=>`
+    <div class="checklist-row">
+      <input type="checkbox" id="chk-${i}" ${r?.checklistItems?.[i]?'checked':''}/>
+      <label for="chk-${i}" style="cursor:pointer">${esc(item)}</label>
+    </div>`).join('')}`;
+}
+
+window.__selType = (key, color) => {
+  selType = key;
+  PTW_TYPES.forEach(t => {
+    const el = document.getElementById(`tc-${t.key}`);
+    if (!el) return;
+    if (t.key===key) { el.classList.add('sel'); el.style.borderColor=color; el.style.background=color+'18'; }
+    else { el.classList.remove('sel'); el.style.borderColor=''; el.style.background=''; }
+  });
+};
+
+async function saveRecord(submitForApproval) {
+  const ptwType = selType;
+  if (!ptwType) { alert('กรุณาเลือกประเภทงาน'); return; }
+  const workDescription = document.getElementById('f-desc')?.value.trim();
+  const location        = document.getElementById('f-loc')?.value.trim();
+  const requestedBy     = document.getElementById('f-req')?.value.trim();
+  const workDate        = document.getElementById('f-date')?.value;
+  if (!workDescription || !location || !requestedBy || !workDate) {
+    alert('กรุณากรอกข้อมูลที่จำเป็น: รายละเอียดงาน, สถานที่, ผู้ขออนุญาต, วันที่');
     return;
   }
-  document.getElementById('ptwTable').innerHTML = _shown.map(r => {
-    const t  = PERMIT_TYPES[r.permitType] || { icon:'📋', labelTh: r.permitType, color:'#0891b2' };
-    const st = PERMIT_STATUS[r.status]    || PERMIT_STATUS.draft;
-    const sc = stColors[r.status]||'#64748b', sb = stBg[r.status]||'#f8fafc';
-    return `
-    <tr onclick="window.__ptw_view('${r.id}')">
-      <td><span class="permit-no">${r.permitId||'—'}</span></td>
-      <td><span style="font-size:.95rem">${t.icon}</span>
-          <span style="font-size:.78rem;color:${t.color};font-weight:600;margin-left:.3rem">${t.labelTh}</span></td>
-      <td>
-        <div style="font-weight:600;color:#1e293b;font-size:.84rem">${r.jobDescription||'—'}</div>
-        <div style="font-size:.72rem;color:#94a3b8">${r.location||''}</div>
-      </td>
-      <td class="hide-sm" style="font-size:.78rem">${r.requester||'—'}</td>
-      <td class="hide-sm" style="font-size:.78rem">${r.workStartDate||'—'}<br><span style="color:#94a3b8">${r.workEndDate||''}</span></td>
-      <td>${badge(st.label,sc,sb)}</td>
-      <td class="hide-sm" style="font-size:.78rem;color:#64748b">${r.approvedByName||r.approvedBy||'—'}</td>
-    </tr>`;
-  }).join('');
-}
-
-/* ── panel helpers ── */
-function openPanel(title, body, footer='') {
-  document.getElementById('panelTitle').textContent = title;
-  document.getElementById('panelBody').innerHTML = body;
-  document.getElementById('panelFooter').innerHTML = footer;
-  document.getElementById('panelOverlay').classList.add('open');
-  document.getElementById('sidePanel').classList.add('open');
-}
-window.__ptw_closePanel = () => {
-  document.getElementById('panelOverlay').classList.remove('open');
-  document.getElementById('sidePanel').classList.remove('open');
-};
-
-/* ── wizard state ── */
-let _wizStep = 0;
-window.__ptw_goStep = i => {
-  _wizStep = i;
-  document.querySelectorAll('.step').forEach((s,idx) => {
-    s.classList.toggle('active', idx===i);
-    s.classList.toggle('done', idx<i);
-  });
-  document.querySelectorAll('.step-panel').forEach((p,idx) => p.classList.toggle('active', idx===i));
-};
-
-/* ── form (3-step wizard) ── */
-function formHTML(r = {}) {
-  const typeOpts = typeArr.map(t =>
-    `<option value="${t.key}" ${(r.permitType||'hot_work')===t.key?'selected':''}>${t.icon} ${t.labelTh}</option>`).join('');
-  const stOpts = Object.entries(PERMIT_STATUS).map(([k,v]) =>
-    `<option value="${k}" ${(r.status||'pending')===k?'selected':''}>${v.label}</option>`).join('');
-
-  const chkType = r.permitType || 'hot_work';
-  const chkItems = PERMIT_CHECKLISTS[chkType] || PERMIT_CHECKLISTS.general;
-  const savedChecks = r.checklist || [];
-  const chkHtml = chkItems.map((item,i) => {
-    const checked = savedChecks.includes(item);
-    return `<li><input type="checkbox" id="chk${i}" ${checked?'checked':''}
-                 onchange="window.__ptw_syncChk()"><label for="chk${i}">${item}</label></li>`;
-  }).join('');
-
-  const savedPPE = r.ppeRequired || [];
-  const ppeHtml = PPE_OPTIONS.map(p =>
-    `<span class="ppe-chip ${savedPPE.includes(p)?'sel':''}" onclick="this.classList.toggle('sel')">${p}</span>`
-  ).join('');
-
-  return `
-  <!-- Steps -->
-  <div class="steps">
-    <div class="step active" onclick="window.__ptw_goStep(0)">① ข้อมูลงาน</div>
-    <div class="step"        onclick="window.__ptw_goStep(1)">② เช็คลิสต์</div>
-    <div class="step"        onclick="window.__ptw_goStep(2)">③ PPE & ส่ง</div>
-  </div>
-
-  <!-- Step 0: Job Info -->
-  <div class="step-panel active" id="sp0">
-    <div class="fg-row">
-      <div class="fg"><label>ประเภทงาน <span class="required-star">*</span></label>
-        <select id="f_type" onchange="window.__ptw_onTypeChange(this.value)">${typeOpts}</select></div>
-      <div class="fg"><label>สถานะ</label>
-        <select id="f_status">${stOpts}</select></div>
-    </div>
-    <div class="fg"><label>รายละเอียดงาน <span class="required-star">*</span></label>
-      <textarea id="f_jobDesc">${r.jobDescription||''}</textarea></div>
-    <div class="fg-row">
-      <div class="fg"><label>สถานที่ปฏิบัติงาน <span class="required-star">*</span></label>
-        <input id="f_loc" value="${r.location||''}" placeholder="เช่น โซน A อาคาร 2"></div>
-      <div class="fg"><label>หน่วยงาน / ผู้รับเหมา</label>
-        <input id="f_contractor" value="${r.contractor||''}"></div>
-    </div>
-    <div class="fg-row">
-      <div class="fg"><label>ผู้ขอใบอนุญาต <span class="required-star">*</span></label>
-        <input id="f_req" value="${r.requester||_profile.displayName||''}"></div>
-      <div class="fg"><label>เบอร์ติดต่อฉุกเฉิน</label>
-        <input id="f_contact" value="${r.emergencyContact||''}"></div>
-    </div>
-    <div class="fg-row">
-      <div class="fg"><label>วันที่เริ่มงาน <span class="required-star">*</span></label>
-        <input type="date" id="f_startDate" value="${r.workStartDate||''}"></div>
-      <div class="fg"><label>วันที่สิ้นสุด</label>
-        <input type="date" id="f_endDate" value="${r.workEndDate||''}"></div>
-    </div>
-    <div class="fg-row">
-      <div class="fg"><label>เวลาเริ่ม</label>
-        <input type="time" id="f_startTime" value="${r.workStartTime||'08:00'}"></div>
-      <div class="fg"><label>เวลาสิ้นสุด</label>
-        <input type="time" id="f_endTime" value="${r.workEndTime||'17:00'}"></div>
-    </div>
-    <div class="fg"><label>จำนวนผู้ปฏิบัติงาน</label>
-      <input type="number" id="f_workers" value="${r.workerCount||1}" min="1"></div>
-    <div style="text-align:right;margin-top:.5rem">
-      <button class="btn btn-primary" onclick="window.__ptw_goStep(1)">ถัดไป →</button>
-    </div>
-  </div>
-
-  <!-- Step 1: Checklist -->
-  <div class="step-panel" id="sp1">
-    <div class="chk-section">
-      <h5 id="chkTitle">เช็คลิสต์ความปลอดภัย</h5>
-      <ul class="chk-list" id="chkList">${chkHtml}</ul>
-    </div>
-    <div class="fg"><label>ความเสี่ยงเพิ่มเติม / หมายเหตุ</label>
-      <textarea id="f_hazards">${r.additionalHazards||''}</textarea></div>
-    <div style="display:flex;justify-content:space-between;margin-top:.5rem">
-      <button class="btn" onclick="window.__ptw_goStep(0)">← ย้อนกลับ</button>
-      <button class="btn btn-primary" onclick="window.__ptw_goStep(2)">ถัดไป →</button>
-    </div>
-  </div>
-
-  <!-- Step 2: PPE & Submit -->
-  <div class="step-panel" id="sp2">
-    <div class="fg"><label>PPE ที่ต้องสวมใส่ (เลือกได้หลายรายการ)</label>
-      <div class="ppe-grid" id="ppeGrid">${ppeHtml}</div></div>
-    <div class="fg"><label>หมายเหตุเพิ่มเติม</label>
-      <textarea id="f_notes">${r.notes||''}</textarea></div>
-    <div style="display:flex;justify-content:space-between;margin-top:.5rem">
-      <button class="btn" onclick="window.__ptw_goStep(1)">← ย้อนกลับ</button>
-    </div>
-  </div>`;
-}
-
-window.__ptw_onTypeChange = type => {
-  const items = PERMIT_CHECKLISTS[type] || PERMIT_CHECKLISTS.general;
-  document.getElementById('chkList').innerHTML = items.map((item,i) =>
-    `<li><input type="checkbox" id="chk${i}" onchange="window.__ptw_syncChk()">
-         <label for="chk${i}">${item}</label></li>`).join('');
-};
-window.__ptw_syncChk = () => {}; // placeholder — checklist is read at save time
-
-function collectForm() {
-  const chkItems = [...document.querySelectorAll('#chkList input[type=checkbox]')]
-    .filter(c => c.checked).map(c => c.nextElementSibling.textContent.trim());
-  const ppe = [...document.querySelectorAll('.ppe-chip.sel')].map(c => c.textContent.trim());
-  return {
-    permitType:       document.getElementById('f_type')?.value,
-    status:           document.getElementById('f_status')?.value || 'pending',
-    jobDescription:   document.getElementById('f_jobDesc')?.value.trim(),
-    location:         document.getElementById('f_loc')?.value.trim(),
-    contractor:       document.getElementById('f_contractor')?.value.trim(),
-    requester:        document.getElementById('f_req')?.value.trim(),
-    emergencyContact: document.getElementById('f_contact')?.value.trim(),
-    workStartDate:    document.getElementById('f_startDate')?.value,
-    workEndDate:      document.getElementById('f_endDate')?.value,
-    workStartTime:    document.getElementById('f_startTime')?.value,
-    workEndTime:      document.getElementById('f_endTime')?.value,
-    workerCount:      +(document.getElementById('f_workers')?.value||1),
-    checklist:        chkItems,
-    additionalHazards:document.getElementById('f_hazards')?.value.trim(),
-    ppeRequired:      ppe,
-    notes:            document.getElementById('f_notes')?.value.trim(),
+  const checklistItems = PTW_CHECKLIST.map((_,i) => document.getElementById(`chk-${i}`)?.checked||false);
+  const data = {
+    ptwType, workDescription, location, requestedBy,
+    department:    document.getElementById('f-dept')?.value.trim()||'',
+    riskLevel:     document.getElementById('f-risk')?.value||'low',
+    workDate,
+    startTime:     document.getElementById('f-start')?.value||'',
+    endTime:       document.getElementById('f-end')?.value||'',
+    equipmentTools:document.getElementById('f-equip')?.value.trim()||'',
+    ppeRequired:   document.getElementById('f-ppe')?.value.trim()||'',
+    precautions:   document.getElementById('f-prec')?.value.trim()||'',
+    checklistItems,
+    status:        submitForApproval ? 'pending' : (editId ? undefined : 'draft'),
   };
+  if (!data.status) delete data.status;
+  try {
+    if (editId) await updatePTW(editId, data);
+    else await createPTW(data, profile.uid);
+    window.__closePanel();
+    await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
 }
 
-/* ── new ── */
-window.__ptw_openNew = async () => {
-  const permitId = await generatePermitId();
-  openPanel(`ขอใบอนุญาต ${permitId}`, formHTML({ permitType:'hot_work' }),
-    `<button class="btn" onclick="window.__ptw_closePanel()">ยกเลิก</button>
-     <button class="btn btn-primary" onclick="window.__ptw_saveNew('${permitId}')">📋 ยื่นขอใบอนุญาต</button>`);
-  _wizStep = 0;
+window.__save       = () => saveRecord(false);
+window.__saveSubmit = () => saveRecord(true);
+
+window.__approve = async (id) => {
+  const by = prompt('ชื่อผู้อนุมัติ:');
+  if (!by) return;
+  await updatePTW(id, { status:'approved', approvedBy:by });
+  window.__closePanel(); await render();
 };
-window.__ptw_saveNew = async permitId => {
-  const data = collectForm();
-  if (!data.jobDescription || !data.location || !data.workStartDate) {
-    alert('กรุณากรอก: รายละเอียดงาน, สถานที่, วันที่เริ่มงาน'); return;
-  }
-  await createPermit({ ...data, permitId }, _profile.uid);
-  window.__ptw_closePanel();
-  await load();
+window.__reject = async (id) => {
+  const reason = prompt('เหตุผลที่ไม่อนุมัติ:');
+  if (reason===null) return;
+  await updatePTW(id, { status:'rejected', rejectedReason:reason });
+  window.__closePanel(); await render();
 };
-
-/* ── view ── */
-window.__ptw_view = async id => {
-  const r = await getPermit(id);
-  if (!r) return;
-  const t  = PERMIT_TYPES[r.permitType] || { icon:'📋', labelTh: r.permitType||'—', color:'#0891b2' };
-  const st = PERMIT_STATUS[r.status]    || PERMIT_STATUS.draft;
-  const sc = stColors[r.status]||'#64748b', sb = stBg[r.status]||'#f8fafc';
-
-  const chkHtml = (r.checklist||[]).map(item =>
-    `<li style="padding:.3rem 0;font-size:.81rem;border-bottom:1px solid #f1f5f9;color:#374151">✅ ${item}</li>`).join('') || '<li style="color:#94a3b8;font-size:.8rem">—</li>';
-  const ppeHtml = (r.ppeRequired||[]).map(p =>
-    `<span class="badge" style="color:#1e3a5f;background:#eff6ff;margin:.1rem">${p}</span>`).join('') || '—';
-
-  const canApprove  = isSafetyOfficer && r.status === 'pending';
-  const canActivate = isSafetyOfficer && r.status === 'approved';
-  const canClose    = isSafetyOfficer && r.status === 'active';
-  const canEdit     = ['draft','pending'].includes(r.status);
-
-  openPanel(`${t.icon} ${r.permitId||'—'} — ${t.labelTh}`, `
-    <div class="status-banner" style="background:${sb};color:${sc}">
-      <span style="font-size:1.2rem">${t.icon}</span>
-      <div><div>${st.label}</div>
-        <div style="font-size:.72rem;font-weight:400;color:#64748b">${r.permitId||''} · ขอโดย ${r.requester||'—'}</div>
-      </div>
-    </div>
-
-    <div class="ds"><h4>รายละเอียดงาน</h4>
-      <div class="info-grid">
-        <span class="k">ประเภทงาน</span><span class="v">${t.icon} ${t.labelTh}</span>
-        <span class="k">รายละเอียด</span><span class="v">${r.jobDescription||'—'}</span>
-        <span class="k">สถานที่</span><span class="v">${r.location||'—'}</span>
-        <span class="k">หน่วยงาน/ผู้รับเหมา</span><span class="v">${r.contractor||'—'}</span>
-        <span class="k">จำนวนผู้ทำงาน</span><span class="v">${r.workerCount||1} คน</span>
-      </div>
-    </div>
-
-    <div class="ds"><h4>กำหนดการ</h4>
-      <div class="info-grid">
-        <span class="k">วันที่เริ่ม</span><span class="v">${r.workStartDate||'—'} ${r.workStartTime||''}</span>
-        <span class="k">วันที่สิ้นสุด</span><span class="v">${r.workEndDate||'—'} ${r.workEndTime||''}</span>
-        <span class="k">เบอร์ฉุกเฉิน</span><span class="v">${r.emergencyContact||'—'}</span>
-      </div>
-    </div>
-
-    <div class="ds"><h4>เช็คลิสต์ความปลอดภัย</h4>
-      <ul style="list-style:none;padding:0;margin:0">${chkHtml}</ul>
-    </div>
-
-    ${r.additionalHazards ? `<div class="ds"><h4>ความเสี่ยงเพิ่มเติม</h4>
-      <p style="font-size:.82rem;color:#374151;margin:0">${r.additionalHazards}</p></div>` : ''}
-
-    <div class="ds"><h4>PPE ที่กำหนด</h4><div>${ppeHtml}</div></div>
-
-    ${r.status === 'rejected' ? `<div style="background:#fff8f8;border:1px solid #fecdd3;border-radius:8px;padding:.6rem .8rem;margin-bottom:.8rem;font-size:.82rem;color:#dc2626">
-      <b>เหตุผลที่ปฏิเสธ:</b> ${r.rejectedReason||'—'}</div>` : ''}
-    ${r.approvedBy ? `<div class="ds"><h4>การอนุมัติ</h4>
-      <div class="info-grid">
-        <span class="k">อนุมัติโดย</span><span class="v">${r.approvedByName||r.approvedBy}</span>
-      </div></div>` : ''}
-    ${r.closedBy ? `<div class="ds"><h4>ปิดใบอนุญาต</h4>
-      <div class="info-grid">
-        <span class="k">ปิดโดย</span><span class="v">${r.closedBy}</span>
-        <span class="k">หมายเหตุ</span><span class="v">${r.closedNotes||'—'}</span>
-      </div></div>` : ''}
-    ${r.notes ? `<div class="ds"><h4>หมายเหตุ</h4>
-      <p style="font-size:.82rem;color:#374151;margin:0">${r.notes}</p></div>` : ''}`,
-
-    `${canEdit  ? `<button class="btn no-print" onclick="window.__ptw_openEdit('${r.id}')">✏️ แก้ไข</button>` : ''}
-     <button class="btn no-print" onclick="window.print()">🖨️</button>
-     ${canApprove  ? `<button class="btn btn-warning no-print" onclick="window.__ptw_doReject('${r.id}')">❌ ปฏิเสธ</button>
-                      <button class="btn btn-success no-print" onclick="window.__ptw_doApprove('${r.id}')">✅ อนุมัติ</button>` : ''}
-     ${canActivate ? `<button class="btn btn-success no-print" onclick="window.__ptw_doActivate('${r.id}')">🔨 เริ่มงาน</button>` : ''}
-     ${canClose    ? `<button class="btn btn-primary no-print" onclick="window.__ptw_doClose('${r.id}')">🏁 ปิดใบอนุญาต</button>` : ''}`);
+window.__activate = async (id) => {
+  await updatePTW(id, { status:'active', activatedAt: new Date().toISOString() });
+  window.__closePanel(); await render();
+};
+window.__complete = async (id) => {
+  await updatePTW(id, { status:'completed', completedAt: new Date().toISOString() });
+  window.__closePanel(); await render();
+};
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบใบอนุญาตนี้?')) return;
+  await deletePTW(id); window.__closePanel(); await render();
 };
 
-/* ── edit ── */
-window.__ptw_openEdit = async id => {
-  const r = await getPermit(id);
-  if (!r) return;
-  openPanel('แก้ไขใบอนุญาต', formHTML(r),
-    `<button class="btn" onclick="window.__ptw_closePanel()">ยกเลิก</button>
-     <button class="btn btn-primary" onclick="window.__ptw_saveEdit('${r.id}')">💾 บันทึก</button>`);
-  _wizStep = 0;
-};
-window.__ptw_saveEdit = async id => {
-  const data = collectForm();
-  if (!data.jobDescription) { alert('กรุณาระบุรายละเอียดงาน'); return; }
-  await updatePermit(id, data);
-  window.__ptw_closePanel();
-  await load();
+function openPanel(title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
 };
 
-/* ── workflow ── */
-window.__ptw_doApprove = async id => {
-  if (!confirm('อนุมัติใบอนุญาตนี้?')) return;
-  await approvePermit(id, _profile.uid);
-  window.__ptw_closePanel();
-  await load();
-};
-window.__ptw_doReject = async id => {
-  const reason = prompt('ระบุเหตุผลที่ปฏิเสธ:');
-  if (reason === null) return;
-  await rejectPermit(id, _profile.uid, reason);
-  window.__ptw_closePanel();
-  await load();
-};
-window.__ptw_doActivate = async id => {
-  if (!confirm('เริ่มงานตามใบอนุญาตนี้?')) return;
-  await activatePermit(id);
-  window.__ptw_closePanel();
-  await load();
-};
-window.__ptw_doClose = async id => {
-  const notes = prompt('หมายเหตุการปิดใบอนุญาต (ไม่บังคับ):');
-  if (notes === null) return;
-  await closePermit(id, _profile.uid, notes);
-  window.__ptw_closePanel();
-  await load();
-};
-
-/* ── inject ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
-main.insertAdjacentHTML('beforeend', `
-  <div style="padding:1rem 1.5rem">
-    <div class="top-bar">
-      <input type="search" placeholder="🔍 ค้นหาเลขใบอนุญาต, งาน, สถานที่, ผู้ขอ..."
-             oninput="window.__ptw_search(this.value)">
-      <button class="btn no-print" onclick="window.__ptw_openNew()" style="white-space:nowrap">＋ ขอใบอนุญาต</button>
-      <button class="btn no-print" onclick="window.print()">🖨️</button>
-    </div>
-    <!-- Status filter -->
-    <div class="top-bar" style="margin-top:-.3rem;margin-bottom:.8rem">
-      <button class="filt-btn active" data-g="st" data-k="all"       onclick="window.__ptw_fStat('all')">ทุกสถานะ</button>
-      <button class="filt-btn"        data-g="st" data-k="pending"   onclick="window.__ptw_fStat('pending')">⏳ รออนุมัติ</button>
-      <button class="filt-btn"        data-g="st" data-k="approved"  onclick="window.__ptw_fStat('approved')">✅ อนุมัติ</button>
-      <button class="filt-btn"        data-g="st" data-k="active"    onclick="window.__ptw_fStat('active')">🔨 กำลังทำ</button>
-      <button class="filt-btn"        data-g="st" data-k="completed" onclick="window.__ptw_fStat('completed')">🏁 เสร็จ</button>
-      <button class="filt-btn"        data-g="st" data-k="rejected"  onclick="window.__ptw_fStat('rejected')">❌ ปฏิเสธ</button>
-    </div>
-    <!-- Stats -->
-    <div class="sum-row" id="ptwStats"></div>
-    <!-- Type cards -->
-    <div class="type-grid" id="ptwTypes"></div>
-    <!-- Table -->
-    <table class="ptw-table">
-      <thead>
-        <tr>
-          <th>เลขใบอนุญาต</th>
-          <th>ประเภทงาน</th>
-          <th>รายละเอียด / สถานที่</th>
-          <th class="hide-sm">ผู้ขอ</th>
-          <th class="hide-sm">วันที่ทำงาน</th>
-          <th>สถานะ</th>
-          <th class="hide-sm">ผู้อนุมัติ</th>
-        </tr>
-      </thead>
-      <tbody id="ptwTable">
-        <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:#94a3b8">กำลังโหลด...</td></tr>
-      </tbody>
-    </table>
-  </div>`);
-
-await load();
+await render();
 </script>
 </body>
 </html>

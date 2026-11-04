@@ -189,18 +189,20 @@ const NAV = {
       { key: 'safety-ergo',      label: 'ประเมินการยศาสตร์',          href: 'safety-ergo.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
-      { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',     href: 'safety-chemical.html' },
-      { key: 'safety-env',      label: 'ตรวจวัดสภาพแวดล้อมการทำงาน', href: 'safety-env.html' },
-      { key: 'safety-waste',    label: 'การจัดการของเสีย',           href: 'safety-waste.html' },
+      { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',           href: 'safety-chemical.html' },
+      { key: 'safety-env',      label: 'ตรวจวัดสภาพแวดล้อมการทำงาน',   href: 'safety-env.html' },
+      { key: 'safety-waste',    label: 'การจัดการของเสีย',               href: 'safety-waste.html' },
+      { key: 'safety-noise',    label: 'ตรวจวัดเสียง/สั่นสะเทือน (Noise)',href: 'safety-noise.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
-      { key: 'safety-reports',    label: 'รายงานความปลอดภัย',      href: 'safety-reports.html' },
-      { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',       href: 'safety-analytics.html' },
-      { key: 'safety-kpi',        label: 'เป้าหมาย KPI',            href: 'safety-kpi.html' },
-      { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',    href: 'safety-budget.html' },
-      { key: 'safety-recognition',label: 'รางวัลความปลอดภัย',       href: 'safety-recognition.html' },
-      { key: 'safety-action-plan',label: 'แผนปฏิบัติการประจำปี',    href: 'safety-action-plan.html' },
-      { key: 'legal-compliance',  label: 'กฎหมายความปลอดภัย',      href: 'safety-legal.html' },
+      { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
+      { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
+      { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
+      { key: 'safety-budget',        label: 'งบประมาณความปลอดภัย',       href: 'safety-budget.html' },
+      { key: 'safety-recognition',   label: 'รางวัลความปลอดภัย',          href: 'safety-recognition.html' },
+      { key: 'safety-action-plan',   label: 'แผนปฏิบัติการประจำปี',       href: 'safety-action-plan.html' },
+      { key: 'legal-compliance',     label: 'กฎหมายความปลอดภัย',         href: 'safety-legal.html' },
+      { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)',href: 'safety-exec-dashboard.html' },
     ]},
   ],
   kpo: [
@@ -370,6 +372,8 @@ const PAGE_DEPARTMENT = {
   "safety-recognition.html":    "safety_officer",
   "safety-ergo.html":           "safety_officer",
   "safety-alert.html":          "safety_officer",
+  "safety-noise.html":          "safety_officer",
+  "safety-exec-dashboard.html": "safety_officer",
 };
 
 // ===================================================================

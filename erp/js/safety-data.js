@@ -58,7 +58,10 @@ export const COL = {
   spillRecord:   "safetySpillRecord",
   ppeStock:      "safetyPPEStock",
   safetySign:    "safetySafetySign",
-  cultureSurvey: "safetyCultureSurvey",
+  cultureSurvey:    "safetyCultureSurvey",
+  ptw:              "safetyPTW",
+  noiseMonitor:     "safetyNoiseMonitor",
+  incidentInvestig: "safetyIncidentInvestigation",
 };
 
 // ────────────────────────────────────────────
@@ -2987,4 +2990,134 @@ export async function createCultureSurvey(data, createdBy) {
 }
 export async function deleteCultureSurvey(id) {
   await deleteDoc(doc(db, COL.cultureSurvey, id));
+}
+
+// ─── Phase 53: Permit to Work (PTW) ──────────────────────────────────────────
+export const PTW_TYPES = [
+  { key:'hot_work',     label:'งานร้อน (Hot Work)',           icon:'🔥', color:'#dc2626' },
+  { key:'electrical',   label:'งานไฟฟ้า (Electrical)',        icon:'⚡', color:'#d97706' },
+  { key:'confined',     label:'พื้นที่อับอากาศ (CSE)',         icon:'🕳️', color:'#7c3aed' },
+  { key:'work_height',  label:'งานบนที่สูง (WAH)',            icon:'🏗️', color:'#2563eb' },
+  { key:'excavation',   label:'งานขุดเจาะ (Excavation)',      icon:'🚜', color:'#92400e' },
+  { key:'pressure',     label:'งานแรงดัน (Pressure)',         icon:'💨', color:'#0891b2' },
+  { key:'chem_handling',label:'จัดการสารเคมี (Chemical)',      icon:'⚗️', color:'#059669' },
+  { key:'general',      label:'งานทั่วไป (General)',          icon:'🔧', color:'#6b7280' },
+];
+export const PTW_STATUS = {
+  draft:    { label:'ร่าง',               color:'#6b7280', bg:'#f3f4f6' },
+  pending:  { label:'รออนุมัติ',          color:'#d97706', bg:'#fef3c7' },
+  approved: { label:'อนุมัติแล้ว',        color:'#2563eb', bg:'#dbeafe' },
+  active:   { label:'กำลังดำเนินงาน',    color:'#16a34a', bg:'#dcfce7' },
+  completed:{ label:'เสร็จสิ้น',          color:'#059669', bg:'#ecfdf5' },
+  rejected: { label:'ไม่อนุมัติ',         color:'#dc2626', bg:'#fee2e2' },
+  cancelled:{ label:'ยกเลิก',             color:'#9ca3af', bg:'#f9fafb' },
+  expired:  { label:'หมดอายุ',            color:'#7c3aed', bg:'#f5f3ff' },
+};
+export const PTW_RISK_LEVELS = {
+  low:      { label:'ต่ำ',    color:'#16a34a', bg:'#dcfce7' },
+  medium:   { label:'ปานกลาง',color:'#d97706', bg:'#fef3c7' },
+  high:     { label:'สูง',    color:'#dc2626', bg:'#fee2e2' },
+  critical: { label:'วิกฤติ', color:'#7c3aed', bg:'#f5f3ff' },
+};
+export async function listPTW() {
+  const s = await getDocs(query(collection(db, COL.ptw), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getPTW(id) {
+  const d = await getDoc(doc(db, COL.ptw, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createPTW(data, createdBy) {
+  return addDoc(collection(db, COL.ptw), { ...data, createdBy, status:'draft', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updatePTW(id, data) {
+  await updateDoc(doc(db, COL.ptw, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deletePTW(id) {
+  await deleteDoc(doc(db, COL.ptw, id));
+}
+
+// ─── Phase 54: Noise & Vibration Monitoring ──────────────────────────────────
+export const NOISE_AREA_TYPES = [
+  { key:'production',    label:'พื้นที่ผลิต',           icon:'🏭', color:'#dc2626' },
+  { key:'warehouse',     label:'คลังสินค้า',             icon:'📦', color:'#d97706' },
+  { key:'maintenance',   label:'ซ่อมบำรุง',              icon:'🔧', color:'#2563eb' },
+  { key:'compressor',    label:'ห้องคอมเพรสเซอร์',       icon:'💨', color:'#7c3aed' },
+  { key:'generator',     label:'ห้องเครื่องกำเนิดไฟฟ้า', icon:'⚡', color:'#d97706' },
+  { key:'loading',       label:'ท่าขนถ่าย',              icon:'🚛', color:'#059669' },
+  { key:'office',        label:'สำนักงาน',               icon:'🏢', color:'#16a34a' },
+  { key:'other',         label:'อื่นๆ',                   icon:'📍', color:'#6b7280' },
+];
+export const NOISE_STATUS = {
+  safe:     { label:'ปลอดภัย (< 80 dB)',    color:'#16a34a', bg:'#dcfce7', limit:80 },
+  warning:  { label:'เฝ้าระวัง (80–85 dB)', color:'#d97706', bg:'#fef3c7', limit:85 },
+  exceeded: { label:'เกินมาตรฐาน (> 85 dB)',color:'#dc2626', bg:'#fee2e2', limit:999 },
+};
+export function classifyNoise(dB) {
+  if (dB < 80) return 'safe';
+  if (dB <= 85) return 'warning';
+  return 'exceeded';
+}
+export const NOISE_MEASURE_TYPES = [
+  { key:'leq', label:'Leq (Equivalent Continuous)', unit:'dB(A)' },
+  { key:'twa', label:'TWA (Time-Weighted Average)',  unit:'dB(A)' },
+  { key:'lpeak',label:'Lpeak (Peak Level)',           unit:'dB(C)' },
+  { key:'dose', label:'Noise Dose (%)',               unit:'%' },
+];
+export async function listNoiseMonitor() {
+  const s = await getDocs(query(collection(db, COL.noiseMonitor), orderBy('measuredAt','desc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getNoiseMonitor(id) {
+  const d = await getDoc(doc(db, COL.noiseMonitor, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createNoiseMonitor(data, createdBy) {
+  return addDoc(collection(db, COL.noiseMonitor), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateNoiseMonitor(id, data) {
+  await updateDoc(doc(db, COL.noiseMonitor, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteNoiseMonitor(id) {
+  await deleteDoc(doc(db, COL.noiseMonitor, id));
+}
+
+// ─── Phase 55: Incident Investigation (RCA) ──────────────────────────────────
+export const INVESTIG_METHODS = [
+  { key:'five_why',  label:'5-Why Analysis',      icon:'🔍', color:'#2563eb' },
+  { key:'fishbone',  label:'Fishbone Diagram (Ishikawa)', icon:'🐟', color:'#7c3aed' },
+  { key:'fault_tree',label:'Fault Tree Analysis (FTA)',   icon:'🌳', color:'#059669' },
+  { key:'bow_tie',   label:'Bow-Tie Analysis',    icon:'🎀', color:'#d97706' },
+  { key:'taproot',   label:'TapRooT Analysis',    icon:'🌿', color:'#16a34a' },
+];
+export const ROOT_CAUSE_CATEGORIES = [
+  { key:'human',       label:'บุคลากร (Human Factor)',       icon:'👤', color:'#dc2626' },
+  { key:'equipment',   label:'เครื่องจักร/อุปกรณ์',         icon:'⚙️', color:'#d97706' },
+  { key:'environment', label:'สภาพแวดล้อมการทำงาน',          icon:'🌡️', color:'#2563eb' },
+  { key:'procedure',   label:'ขั้นตอน/วิธีการปฏิบัติงาน',   icon:'📋', color:'#7c3aed' },
+  { key:'management',  label:'การบริหารจัดการ',              icon:'👔', color:'#059669' },
+  { key:'material',    label:'วัสดุ/สารเคมี',                icon:'🧪', color:'#0891b2' },
+];
+export const INVESTIG_STATUS = {
+  open:        { label:'เปิดการสอบสวน',   color:'#d97706', bg:'#fef3c7' },
+  in_progress: { label:'กำลังสอบสวน',    color:'#2563eb', bg:'#dbeafe' },
+  completed:   { label:'สอบสวนเสร็จสิ้น',color:'#16a34a', bg:'#dcfce7' },
+  closed:      { label:'ปิดแล้ว',         color:'#6b7280', bg:'#f3f4f6' },
+};
+export async function listIncidentInvestig() {
+  const s = await getDocs(query(collection(db, COL.incidentInvestig), orderBy('createdAt','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getIncidentInvestig(id) {
+  const d = await getDoc(doc(db, COL.incidentInvestig, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createIncidentInvestig(data, createdBy) {
+  return addDoc(collection(db, COL.incidentInvestig), { ...data, createdBy, status:'open', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateIncidentInvestig(id, data) {
+  await updateDoc(doc(db, COL.incidentInvestig, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteIncidentInvestig(id) {
+  await deleteDoc(doc(db, COL.incidentInvestig, id));
 }
