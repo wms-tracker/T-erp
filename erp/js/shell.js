@@ -147,6 +147,7 @@ const NAV = {
       { key: 'safety-eq-loan',      label: 'ยืม-คืนอุปกรณ์',               href: 'safety-eq-loan.html' },
       { key: 'safety-walk',         label: 'Safety Walk / ตรวจตรา',         href: 'safety-walk.html' },
       { key: 'safety-alert',        label: 'แจ้งเตือนความปลอดภัยด่วน',      href: 'safety-alert.html' },
+      { key: 'safety-bulletin',      label: 'กระดานประกาศความปลอดภัย',      href: 'safety-bulletin.html' },
       { key: 'safety-observation',   label: 'Safety Observation (BBS)',     href: 'safety-observation.html' },
       { key: 'safety-contractor',    label: 'ผู้รับเหมา (Contractor)',       href: 'safety-contractor.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',       href: 'safety-investigation.html' },
@@ -228,6 +229,7 @@ const NAV = {
       { key: 'safety-violation',     label: 'บันทึกการฝ่าฝืนกฎ',          href: 'safety-violation.html' },
       { key: 'safety-investigation', label: 'สอบสวนอุบัติเหตุ (RCA)',      href: 'safety-investigation.html' },
       { key: 'safety-alert',         label: 'แจ้งเตือนความปลอดภัยด่วน',   href: 'safety-alert.html' },
+      { key: 'safety-bulletin',      label: 'กระดานประกาศความปลอดภัย',    href: 'safety-bulletin.html' },
     ]},
     { groupKey: 'safety-ops', icon: '🔍', label: 'ตรวจสอบ', items: [
       { key: 'safety-inspection',  label: 'ตรวจสอบความปลอดภัย',          href: 'safety-inspection.html' },
@@ -431,6 +433,7 @@ const PAGE_DEPARTMENT = {
   "safety-stats.html":          "safety_officer",
   "safety-training-matrix.html":"safety_officer",
   "safety-scorecard.html":      "safety_officer",
+  "safety-bulletin.html":       "safety_officer",
 };
 
 // ===================================================================

@@ -67,6 +67,7 @@ export const COL = {
   safetyStats:      "safetySafetyStats",
   trainingMatrix:   "safetyTrainingMatrix",
   scoreCard:        "safetyScorecards",
+  bulletin:         "safetySafetyBulletin",
 };
 
 // ────────────────────────────────────────────
@@ -3389,4 +3390,48 @@ export async function upsertScoreCard(year, month, department, data, createdBy) 
 }
 export async function deleteScoreCard(id) {
   await deleteDoc(doc(db, COL.scoreCard, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 62 — Safety Bulletin Board
+// ────────────────────────────────────────────
+export const BULLETIN_TYPES = [
+  { key:'lesson_learned', label:'Lesson Learned',          icon:'📖', color:'#2563eb', bg:'#dbeafe' },
+  { key:'safety_reminder',label:'Safety Reminder',         icon:'🔔', color:'#d97706', bg:'#fef3c7' },
+  { key:'regulatory',     label:'กฎหมาย/มาตรฐานใหม่',    icon:'⚖️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'achievement',    label:'Safety Achievement',      icon:'🏆', color:'#16a34a', bg:'#dcfce7' },
+  { key:'warning',        label:'คำเตือน/ข้อควรระวัง',    icon:'⚠️', color:'#dc2626', bg:'#fee2e2' },
+  { key:'procedure_update',label:'ปรับปรุงขั้นตอนงาน',   icon:'📋', color:'#059669', bg:'#ecfdf5' },
+  { key:'general',        label:'ประกาศทั่วไป',            icon:'📢', color:'#6b7280', bg:'#f3f4f6' },
+];
+export const BULLETIN_PRIORITY = {
+  critical: { label:'ด่วนมาก', color:'#dc2626', bg:'#fee2e2' },
+  high:     { label:'ด่วน',    color:'#d97706', bg:'#fef3c7' },
+  normal:   { label:'ปกติ',    color:'#2563eb', bg:'#dbeafe' },
+};
+export const BULLETIN_STATUS = {
+  published: { label:'เผยแพร่แล้ว', color:'#16a34a', bg:'#dcfce7' },
+  draft:     { label:'ร่าง',         color:'#6b7280', bg:'#f3f4f6' },
+  archived:  { label:'เก็บถาวร',    color:'#9ca3af', bg:'#f9fafb' },
+};
+export async function listBulletin(statusFilter) {
+  const q = statusFilter
+    ? query(collection(db, COL.bulletin), where('status','==',statusFilter), orderBy('publishedAt','desc'), limit(200))
+    : query(collection(db, COL.bulletin), orderBy('publishedAt','desc'), limit(200));
+  const s = await getDocs(q);
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getBulletin(id) {
+  const d = await getDoc(doc(db, COL.bulletin, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createBulletin(data, createdBy) {
+  const now = new Date().toISOString().slice(0,10);
+  return addDoc(collection(db, COL.bulletin), { ...data, createdBy, status: data.status||'draft', publishedAt: data.status==='published'?now:null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateBulletin(id, data) {
+  await updateDoc(doc(db, COL.bulletin, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteBulletin(id) {
+  await deleteDoc(doc(db, COL.bulletin, id));
 }

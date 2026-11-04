@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Safety Bulletin Board — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:80px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-success{background:#16a34a;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.search-bar select,.search-bar input{flex:1;min-width:120px}
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.bulletin-card{background:#fff;border-radius:12px;box-shadow:0 1px 5px rgba(0,0,0,.09);padding:16px 18px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s;border-left:4px solid transparent}
+.bulletin-card:hover{box-shadow:0 3px 12px rgba(0,0,0,.13)}
+.type-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab-btn{padding:5px 14px;border:1px solid #e5e7eb;border-radius:20px;background:#fff;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all .15s}
+.tab-btn.active{border-color:#1a237e;background:#1a237e;color:#fff}
+.dept-chip{display:inline-block;padding:2px 8px;background:#eff6ff;color:#1e40af;border-radius:8px;font-size:0.74rem;margin:2px}
+.body-text{font-size:0.88rem;line-height:1.65;color:#374151;white-space:pre-wrap;margin-top:10px}
+.pin-banner{background:linear-gradient(135deg,#1a237e,#283593);color:#fff;border-radius:10px;padding:14px 18px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">ประกาศใหม่</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  BULLETIN_TYPES, BULLETIN_PRIORITY, BULLETIN_STATUS,
+  listBulletin, getBulletin, createBulletin, updateBulletin, deleteBulletin
+} from "./js/safety-data.js";
+
+const DEPARTMENTS = ['ทุกแผนก','ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย','ผู้รับเหมา'];
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-bulletin', 'กระดานประกาศความปลอดภัย');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+
+let records  = [];
+let selType  = '';
+let editId   = null;
+
+function typeDef(k)   { return BULLETIN_TYPES.find(t=>t.key===k)||BULLETIN_TYPES[BULLETIN_TYPES.length-1]; }
+function priBadge(p)  { const x=BULLETIN_PRIORITY[p]||BULLETIN_PRIORITY.normal; return `<span class="badge" style="color:${x.color};background:${x.bg}">${x.label}</span>`; }
+function statusBadge(s){ const x=BULLETIN_STATUS[s]||BULLETIN_STATUS.draft;     return `<span class="badge" style="color:${x.color};background:${x.bg}">${x.label}</span>`; }
+
+async function render() {
+  records = await listBulletin();
+  const q   = document.getElementById('search-input')?.value.toLowerCase()||'';
+  const flt = document.getElementById('filter-status')?.value||'';
+
+  const published = records.filter(r=>r.status==='published').length;
+  const critical  = records.filter(r=>r.priority==='critical'&&r.status==='published').length;
+  const pinned    = records.filter(r=>r.pinned&&r.status==='published');
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">📢 กระดานประกาศความปลอดภัย</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel()">+ ประกาศใหม่</button>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${records.length}</div><div class="kpi-label">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${published}</div><div class="kpi-label">เผยแพร่แล้ว</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${critical}</div><div class="kpi-label">ด่วนมาก</div></div>
+    <div class="kpi-card"><div class="kpi-num">${records.filter(r=>r.status==='draft').length}</div><div class="kpi-label">ร่าง</div></div>
+  </div>
+
+  ${pinned.length?`
+  <div style="margin-bottom:14px">
+    <div style="font-size:0.8rem;font-weight:700;color:#1a237e;margin-bottom:6px">📌 ปักหมุด</div>
+    ${pinned.map(r=>{
+      const tp=typeDef(r.bulletinType);
+      return `<div class="pin-banner" onclick="window.__openView('${r.id}')" style="cursor:pointer">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:1.5rem">${tp.icon}</span>
+          <div><div style="font-weight:800">${esc(r.title)}</div><div style="font-size:0.8rem;opacity:.85">${fmtDate(r.publishedAt)} · ${esc(r.author||'-')}</div></div>
+        </div></div>`;
+    }).join('')}
+  </div>`:''}
+
+  <div class="type-tabs">
+    <button class="tab-btn ${selType===''?'active':''}" onclick="window.__selType('')">ทั้งหมด</button>
+    ${BULLETIN_TYPES.map(t=>`<button class="tab-btn ${selType===t.key?'active':''}" onclick="window.__selType('${t.key}')">${t.icon} ${t.label}</button>`).join('')}
+  </div>
+
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหาหัวข้อ, เนื้อหา..." oninput="window.__applyFilter()"/>
+    <select id="filter-status" onchange="window.__applyFilter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(BULLETIN_STATUS).map(([k,v])=>`<option value="${k}" ${flt===k?'selected':''}>${v.label}</option>`).join('')}
+    </select>
+  </div>
+  <div id="list-wrap">${renderList(applyFilter(records,q,flt,selType))}</div>`;
+}
+
+function applyFilter(list, q, status, type) {
+  return list.filter(r=>{
+    const mq = !q || (r.title||'').toLowerCase().includes(q) || (r.body||'').toLowerCase().includes(q);
+    return mq && (!status||r.status===status) && (!type||r.bulletinType===type);
+  });
+}
+window.__applyFilter = () => {
+  const q=document.getElementById('search-input')?.value.toLowerCase()||'';
+  const s=document.getElementById('filter-status')?.value||'';
+  document.getElementById('list-wrap').innerHTML=renderList(applyFilter(records,q,s,selType));
+};
+window.__selType = t => { selType=t; render(); };
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ไม่มีประกาศที่ตรงเงื่อนไข</p>`;
+  return list.map(r=>{
+    const tp = typeDef(r.bulletinType);
+    return `
+    <div class="bulletin-card" style="border-left-color:${tp.color}" onclick="window.__openView('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="font-size:1.1rem">${tp.icon}</span>
+            <span style="font-weight:800;font-size:0.95rem">${esc(r.title||'-')}</span>
+            ${r.pinned?'<span style="font-size:0.9rem">📌</span>':''}
+          </div>
+          <div style="font-size:0.82rem;color:#6b7280;margin-bottom:6px">${esc(tp.label)} · ${fmtDate(r.publishedAt||r.createdAt?.toDate?.())} · ${esc(r.author||'-')}</div>
+          <div style="font-size:0.83rem;color:#374151;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${esc((r.body||'').substring(0,120))}${(r.body||'').length>120?'…':''}</div>
+          <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap">
+            ${priBadge(r.priority)} ${statusBadge(r.status)}
+            ${(r.targetDepts||[]).map(d=>`<span class="dept-chip">${esc(d)}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── view ──────────────────────────────────────────────────────────────────────
+window.__openView = async (id) => {
+  editId = id;
+  const r = await getBulletin(id);
+  if (!r) return;
+  const tp = typeDef(r.bulletinType);
+  openPanel(r.title||'ประกาศ');
+  document.getElementById('panel-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <span style="font-size:2rem">${tp.icon}</span>
+      <div>
+        <span class="badge" style="color:${tp.color};background:${tp.bg}">${tp.label}</span>
+        ${priBadge(r.priority)} ${statusBadge(r.status)}
+        ${r.pinned?'<span class="badge" style="color:#1a237e;background:#dbeafe">📌 ปักหมุด</span>':''}
+      </div>
+    </div>
+    <div style="font-weight:900;font-size:1.1rem;margin-bottom:4px">${esc(r.title)}</div>
+    <div style="font-size:0.8rem;color:#6b7280;margin-bottom:12px">
+      โดย ${esc(r.author||'-')} · เผยแพร่ ${fmtDate(r.publishedAt)} ${r.expiryDate?`· หมดอายุ ${fmtDate(r.expiryDate)}`:''}
+    </div>
+    ${(r.targetDepts||[]).length?`<div style="margin-bottom:10px">${(r.targetDepts).map(d=>`<span class="dept-chip">${esc(d)}</span>`).join('')}</div>`:''}
+    <div class="body-text">${esc(r.body||'-')}</div>
+    ${r.attachmentUrl?`<div style="margin-top:12px"><a href="${esc(r.attachmentUrl)}" target="_blank" style="color:#2563eb;font-size:0.85rem">🔗 ดูเอกสารแนบ / ลิงก์เพิ่มเติม</a></div>`:''}
+    ${r.referenceNo?`<div style="margin-top:8px;font-size:0.78rem;color:#9ca3af">เลขที่อ้างอิง: ${esc(r.referenceNo)}</div>`:''}`;
+
+  const btns = [];
+  if (r.status==='draft')
+    btns.push(`<button class="btn btn-success" onclick="window.__publish('${id}')">เผยแพร่</button>`);
+  if (r.status==='published')
+    btns.push(`<button class="btn btn-ghost" onclick="window.__archive('${id}')">${r.status==='archived'?'ยกเลิกเก็บถาวร':'เก็บถาวร'}</button>`);
+  btns.push(`<button class="btn btn-primary" onclick="window.__editRecord('${id}')">แก้ไข</button>`);
+  btns.push(`<button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>`);
+  btns.push(`<button class="btn btn-ghost" onclick="window.__closePanel()">ปิด</button>`);
+  document.getElementById('panel-footer').innerHTML = btns.join('');
+};
+
+// ── form ──────────────────────────────────────────────────────────────────────
+window.__openPanel = (r=null) => {
+  editId = r?.id||null;
+  openPanel(r?'แก้ไขประกาศ':'ประกาศใหม่');
+  document.getElementById('panel-body').innerHTML = renderForm(r);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save(false)">บันทึกร่าง</button>
+     <button class="btn btn-success" onclick="window.__save(true)">เผยแพร่ทันที</button>
+     <button class="btn btn-ghost"   onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+window.__editRecord = async (id) => {
+  const r = await getBulletin(id); if(r) window.__openPanel(r);
+};
+
+function renderForm(r) {
+  return `
+  <div>
+    <label class="lbl" style="margin-top:0">ประเภทประกาศ *</label>
+    <select id="f-type">
+      ${BULLETIN_TYPES.map(t=>`<option value="${t.key}" ${(r?.bulletinType||'general')===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+    </select>
+  </div>
+  <div>
+    <label class="lbl">หัวข้อประกาศ *</label>
+    <input id="f-title" value="${esc(r?.title||'')}" placeholder="หัวข้อที่ชัดเจน"/>
+  </div>
+  <div class="form-row">
+    <div>
+      <label class="lbl">ระดับความสำคัญ</label>
+      <select id="f-pri">
+        ${Object.entries(BULLETIN_PRIORITY).map(([k,v])=>`<option value="${k}" ${(r?.priority||'normal')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label class="lbl">ผู้ประกาศ / ผู้จัดทำ</label>
+      <input id="f-author" value="${esc(r?.author||profile.displayName||'')}" placeholder="ชื่อ-นามสกุล"/>
+    </div>
+    <div>
+      <label class="lbl">วันที่เผยแพร่</label>
+      <input id="f-pub" type="date" value="${r?.publishedAt||new Date().toISOString().slice(0,10)}"/>
+    </div>
+    <div>
+      <label class="lbl">วันหมดอายุ (ถ้ามี)</label>
+      <input id="f-exp" type="date" value="${r?.expiryDate||''}"/>
+    </div>
+    <div>
+      <label class="lbl">เลขที่อ้างอิง</label>
+      <input id="f-ref" value="${esc(r?.referenceNo||'')}" placeholder="เช่น SAF-2024-001"/>
+    </div>
+  </div>
+  <div>
+    <label class="lbl">แผนกเป้าหมาย</label>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+      ${DEPARTMENTS.map(d=>`
+        <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.85rem">
+          <input type="checkbox" id="dept-${d}" style="width:auto;margin:0" ${(r?.targetDepts||['ทุกแผนก']).includes(d)?'checked':''}/>
+          ${esc(d)}
+        </label>`).join('')}
+    </div>
+  </div>
+  <div>
+    <label class="lbl">เนื้อหาประกาศ *</label>
+    <textarea id="f-body" rows="6" placeholder="รายละเอียดประกาศ...">${esc(r?.body||'')}</textarea>
+  </div>
+  <div>
+    <label class="lbl">ลิงก์/URL เอกสารแนบ</label>
+    <input id="f-url" value="${esc(r?.attachmentUrl||'')}" placeholder="https://..."/>
+  </div>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+    <input type="checkbox" id="f-pin" style="width:auto;margin:0" ${r?.pinned?'checked':''}/>
+    <label for="f-pin" style="cursor:pointer;font-size:0.88rem;font-weight:600">📌 ปักหมุดด้านบน</label>
+  </div>`;
+}
+
+window.__save = async (publish) => {
+  const title = document.getElementById('f-title')?.value.trim();
+  const body  = document.getElementById('f-body')?.value.trim();
+  if (!title||!body) { alert('กรุณากรอกหัวข้อและเนื้อหา'); return; }
+  const depts = DEPARTMENTS.filter(d=>document.getElementById(`dept-${d}`)?.checked);
+  const pubDate = document.getElementById('f-pub')?.value||new Date().toISOString().slice(0,10);
+  const data = {
+    bulletinType:  document.getElementById('f-type')?.value||'general',
+    title, body,
+    priority:     document.getElementById('f-pri')?.value||'normal',
+    author:       document.getElementById('f-author')?.value.trim()||'',
+    publishedAt:  pubDate,
+    expiryDate:   document.getElementById('f-exp')?.value||'',
+    referenceNo:  document.getElementById('f-ref')?.value.trim()||'',
+    targetDepts:  depts,
+    attachmentUrl:document.getElementById('f-url')?.value.trim()||'',
+    pinned:       document.getElementById('f-pin')?.checked||false,
+    status:       publish ? 'published' : 'draft',
+  };
+  try {
+    if (editId) await updateBulletin(editId, data);
+    else await createBulletin(data, profile.uid);
+    window.__closePanel(); await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__publish = async (id) => {
+  await updateBulletin(id, { status:'published', publishedAt: new Date().toISOString().slice(0,10) });
+  window.__closePanel(); await render();
+};
+window.__archive = async (id) => {
+  const r = await getBulletin(id);
+  if (!r) return;
+  await updateBulletin(id, { status: r.status==='archived'?'published':'archived' });
+  window.__closePanel(); await render();
+};
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบประกาศนี้?')) return;
+  await deleteBulletin(id); window.__closePanel(); await render();
+};
+
+function openPanel(title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>
