@@ -69,6 +69,7 @@ export const COL = {
   scoreCard:        "safetyScorecards",
   bulletin:         "safetySafetyBulletin",
   safetyProject:    "safetySafetyProjects",
+  dailyReport:      "safetySafetyDailyReport",
 };
 
 // ────────────────────────────────────────────
@@ -3484,4 +3485,47 @@ export async function updateSafetyProject(id, data) {
 }
 export async function deleteSafetyProject(id) {
   await deleteDoc(doc(db, COL.safetyProject, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 64 — Daily Safety Report
+// ────────────────────────────────────────────
+export const DAILY_SHIFTS = [
+  { key:'morning',   label:'กะเช้า (06:00–14:00)',   icon:'🌅' },
+  { key:'afternoon', label:'กะบ่าย (14:00–22:00)',  icon:'🌇' },
+  { key:'night',     label:'กะดึก (22:00–06:00)',   icon:'🌙' },
+  { key:'all',       label:'ทุกกะ / ตลอดวัน',        icon:'🕐' },
+];
+export const DAILY_STATUS = {
+  safe:    { label:'ปลอดภัย',      color:'#16a34a', bg:'#dcfce7', icon:'🟢' },
+  caution: { label:'ต้องระวัง',    color:'#d97706', bg:'#fef3c7', icon:'🟡' },
+  unsafe:  { label:'ไม่ปลอดภัย',  color:'#dc2626', bg:'#fee2e2', icon:'🔴' },
+};
+export const DAILY_ACTIVITIES = [
+  'Safety Talk ก่อนเริ่มงาน','ตรวจ PPE ก่อนเข้าพื้นที่','ตรวจความปลอดภัยพื้นที่ผลิต',
+  'ตรวจสอบอุปกรณ์ดับเพลิง','ตรวจสอบ LOTO','ตรวจสอบป้ายความปลอดภัย',
+  'ติดตาม CAPA คงค้าง','ประชุม/หารือทีม','ฝึกอบรมระหว่างกะ','ออกตรวจ Safety Walk',
+];
+export const DAILY_WEATHER = [
+  { key:'sunny',  label:'แดดจัด',    icon:'☀️' },
+  { key:'cloudy', label:'มีเมฆ',     icon:'⛅' },
+  { key:'rainy',  label:'ฝนตก',      icon:'🌧️' },
+  { key:'storm',  label:'พายุ/ลมแรง',icon:'⛈️' },
+];
+export async function listDailyReport(limit200) {
+  const s = await getDocs(query(collection(db, COL.dailyReport), orderBy('reportDate','desc'), limit(limit200||200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getDailyReport(id) {
+  const d = await getDoc(doc(db, COL.dailyReport, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createDailyReport(data, createdBy) {
+  return addDoc(collection(db, COL.dailyReport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateDailyReport(id, data) {
+  await updateDoc(doc(db, COL.dailyReport, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteDailyReport(id) {
+  await deleteDoc(doc(db, COL.dailyReport, id));
 }
