@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ทะเบียนถังแก๊ส — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.gas-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;border:2px solid #e5e7eb;cursor:pointer;font-size:0.82rem;transition:all .15s;user-select:none}
+.gas-chip.active{border-color:#1a237e;background:#e8eaf6;color:#1a237e;font-weight:700}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.gas-dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:middle}
+.overdue{background:#fee2e2!important;border-left:4px solid #dc2626}
+.due-soon{background:#fef9c3!important;border-left:4px solid #d97706}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(520px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px}
+.search-bar input{flex:1}
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filter-tab{padding:5px 14px;border-radius:16px;border:1px solid #e5e7eb;cursor:pointer;font-size:0.8rem;background:#f9fafb}
+.filter-tab.active{background:#1a237e;color:#fff;border-color:#1a237e;font-weight:600}
+.info-row{display:flex;gap:16px;flex-wrap:wrap;font-size:0.82rem;color:#6b7280;margin-top:4px}
+.info-row span{white-space:nowrap}
+.test-warn{font-size:0.78rem;padding:3px 8px;border-radius:6px;font-weight:600;display:inline-block;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">เพิ่มถังแก๊ส</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  COL, GAS_TYPES, CYLINDER_STATUS, CYLINDER_SIZES,
+  listGasCylinder, getGasCylinder, createGasCylinder, updateGasCylinder, deleteGasCylinder
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-gas', 'ทะเบียนถังแก๊สและแก๊สอัดแรงดัน');
+
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+
+let records     = [];
+let editId      = null;
+let selGasType  = '';
+let filterStatus= 'all';
+let searchKw    = '';
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  return Math.round((new Date(dateStr) - new Date()) / 86400000);
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
+async function render() {
+  records = await listGasCylinder();
+  const total     = records.length;
+  const inservice = records.filter(r=>r.status==='inservice').length;
+  const condemned = records.filter(r=>r.status==='condemned').length;
+  const overdue   = records.filter(r=> r.nextTestDate && daysUntil(r.nextTestDate) < 0).length;
+  const dueSoon   = records.filter(r=> r.nextTestDate && daysUntil(r.nextTestDate) >= 0 && daysUntil(r.nextTestDate) <= 30).length;
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">🧪 ทะเบียนถังแก๊สและแก๊สอัดแรงดัน</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel(null)">+ เพิ่มถังแก๊ส</button>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${total}</div><div class="kpi-label">ถังทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${inservice}</div><div class="kpi-label">ใช้งานอยู่</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${overdue}</div><div class="kpi-label">เกินวันทดสอบ</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#d97706">${dueSoon}</div><div class="kpi-label">ทดสอบใน 30 วัน</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#6b7280">${condemned}</div><div class="kpi-label">ตัดออกแล้ว</div></div>
+  </div>
+
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหา Serial No, สถานที่, ประเภทแก๊ส..." oninput="window.__search(this.value)"/>
+  </div>
+
+  <div class="filter-tabs">
+    ${['all','inservice','fullstock','empty','testing','condemned'].map(k=>`
+      <div class="filter-tab ${filterStatus===k?'active':''}" onclick="window.__setFilter('${k}')">
+        ${k==='all' ? 'ทั้งหมด' : (CYLINDER_STATUS[k]?.label||k)}
+        ${k==='all' ? ` (${total})` : ` (${records.filter(r=>r.status===k).length})`}
+      </div>`).join('')}
+  </div>
+
+  <div id="list-wrap">${renderList(getFiltered())}</div>`;
+}
+
+function getFiltered() {
+  return records.filter(r => {
+    const matchStatus = filterStatus === 'all' || r.status === filterStatus;
+    const kw = searchKw.toLowerCase();
+    const matchSearch = !kw ||
+      (r.serialNo||'').toLowerCase().includes(kw) ||
+      (r.location||'').toLowerCase().includes(kw) ||
+      (r.gasType||'').toLowerCase().includes(kw) ||
+      (r.supplier||'').toLowerCase().includes(kw);
+    return matchStatus && matchSearch;
+  });
+}
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ไม่พบรายการถังแก๊ส</p>`;
+  return list.map(r => {
+    const st  = CYLINDER_STATUS[r.status] || CYLINDER_STATUS.empty;
+    const gt  = GAS_TYPES.find(x=>x.key===r.gasType) || {};
+    const days = daysUntil(r.nextTestDate);
+    let testTag = '';
+    let cardCls = '';
+    if (days !== null) {
+      if (days < 0) {
+        testTag = `<span class="test-warn" style="color:#dc2626;background:#fee2e2">⚠️ เกินวันทดสอบ ${Math.abs(days)} วัน</span>`;
+        cardCls = 'overdue';
+      } else if (days <= 30) {
+        testTag = `<span class="test-warn" style="color:#d97706;background:#fef9c3">⏰ ทดสอบใน ${days} วัน</span>`;
+        cardCls = 'due-soon';
+      }
+    }
+    return `
+    <div class="card ${cardCls}" onclick="window.__openPanel('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:1rem">
+            <span class="gas-dot" style="background:${gt.color||'#6b7280'}"></span>
+            ${esc(gt.label||r.gasType||'-')}
+            <span style="font-weight:400;font-size:0.85rem;color:#374151"> · S/N: ${esc(r.serialNo||'-')}</span>
+          </div>
+          <div class="info-row">
+            <span>📍 ${esc(r.location||'-')}</span>
+            <span>📅 ทดสอบครั้งสุดท้าย: ${fmtDate(r.lastTestDate)}</span>
+            <span>📅 ทดสอบครั้งถัดไป: ${fmtDate(r.nextTestDate)}</span>
+          </div>
+          ${r.supplier ? `<div style="font-size:0.8rem;color:#6b7280;margin-top:2px">🏭 ผู้จัดหา: ${esc(r.supplier)}</div>` : ''}
+          ${testTag}
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          ${badge(st.label, st.color, st.bg)}
+          ${r.capacity ? `<div style="font-size:0.75rem;color:#6b7280;margin-top:4px">${esc(r.capacity)} L</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.__setFilter = (k) => {
+  filterStatus = k;
+  document.querySelectorAll('.filter-tab').forEach((el,i)=>{
+    const keys = ['all','inservice','fullstock','empty','testing','condemned'];
+    el.classList.toggle('active', keys[i]===k);
+  });
+  document.getElementById('list-wrap').innerHTML = renderList(getFiltered());
+};
+
+window.__search = (q) => {
+  searchKw = q;
+  document.getElementById('list-wrap').innerHTML = renderList(getFiltered());
+};
+
+// ── panel ─────────────────────────────────────────────────────────────────────
+window.__openPanel = async (id) => {
+  editId     = id;
+  selGasType = '';
+  const panel = document.getElementById('panel');
+  const body  = document.getElementById('panel-body');
+  const foot  = document.getElementById('panel-footer');
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขถังแก๊ส' : 'เพิ่มถังแก๊ส';
+  document.getElementById('overlay').classList.add('open');
+  panel.classList.add('open');
+
+  let rec = null;
+  if (id) {
+    rec = await getGasCylinder(id);
+    if (rec) selGasType = rec.gasType || '';
+  }
+  body.innerHTML = renderForm(rec);
+  foot.innerHTML = id
+    ? `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`
+    : `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+function renderForm(rec) {
+  const gasChips = GAS_TYPES.map(g=>`
+    <div class="gas-chip ${selGasType===g.key?'active':''}" onclick="window.__selGas('${g.key}')">
+      <span class="gas-dot" style="background:${g.color}"></span>${esc(g.label)}
+    </div>`).join('');
+
+  return `
+  <div class="section-title">ประเภทแก๊ส</div>
+  <div class="chip-wrap">${gasChips}</div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">หมายเลขซีเรียล (Serial No) *</label>
+      <input id="f-serial" value="${esc(rec?.serialNo||'')}" placeholder="เช่น OX-001"/>
+    </div>
+    <div>
+      <label class="lbl">ขนาดถัง</label>
+      <select id="f-size">
+        ${CYLINDER_SIZES.map(s=>`<option value="${s.key}" ${(rec?.size||'m')===s.key?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">ความจุ (ลิตร)</label>
+      <input id="f-cap" type="number" min="0" value="${rec?.capacity||''}" placeholder="เช่น 40"/>
+    </div>
+    <div>
+      <label class="lbl">ความดันเต็ม (bar)</label>
+      <input id="f-pressure" type="number" min="0" value="${rec?.maxPressure||''}" placeholder="เช่น 150"/>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">สถานที่จัดเก็บ *</label>
+      <input id="f-loc" value="${esc(rec?.location||'')}" placeholder="เช่น คลังแก๊ส อาคาร A"/>
+    </div>
+    <div>
+      <label class="lbl">ผู้จัดหา / บริษัทเติมแก๊ส</label>
+      <input id="f-supplier" value="${esc(rec?.supplier||'')}" placeholder="เช่น บ. ไทยออกซิเจน"/>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:16px">วันที่และสถานะ</div>
+  <div class="form-row">
+    <div>
+      <label class="lbl">วันที่ทดสอบครั้งสุดท้าย</label>
+      <input id="f-last-test" type="date" value="${rec?.lastTestDate||''}"/>
+    </div>
+    <div>
+      <label class="lbl">วันที่ทดสอบครั้งถัดไป</label>
+      <input id="f-next-test" type="date" value="${rec?.nextTestDate||''}"/>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">วันที่ผลิต / ผ่านการรับรอง</label>
+      <input id="f-mfg" type="date" value="${rec?.manufactureDate||''}"/>
+    </div>
+    <div>
+      <label class="lbl">สถานะ *</label>
+      <select id="f-status">
+        ${Object.entries(CYLINDER_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'fullstock')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <label class="lbl">หมายเหตุ</label>
+  <textarea id="f-note">${esc(rec?.note||'')}</textarea>`;
+}
+
+window.__selGas = (key) => {
+  selGasType = key;
+  document.querySelectorAll('.gas-chip').forEach(el=>{
+    el.classList.toggle('active', el.getAttribute('onclick')===`window.__selGas('${key}')`);
+  });
+};
+
+// ── save / delete ─────────────────────────────────────────────────────────────
+window.__save = async () => {
+  const serial = document.getElementById('f-serial')?.value.trim();
+  const loc    = document.getElementById('f-loc')?.value.trim();
+  const status = document.getElementById('f-status')?.value;
+  if (!serial || !loc || !selGasType) {
+    alert('กรุณากรอก: ประเภทแก๊ส, Serial No และสถานที่จัดเก็บ');
+    return;
+  }
+  const data = {
+    gasType:         selGasType,
+    serialNo:        serial,
+    size:            document.getElementById('f-size')?.value||'m',
+    capacity:        parseFloat(document.getElementById('f-cap')?.value)||null,
+    maxPressure:     parseFloat(document.getElementById('f-pressure')?.value)||null,
+    location:        loc,
+    supplier:        document.getElementById('f-supplier')?.value.trim()||'',
+    lastTestDate:    document.getElementById('f-last-test')?.value||'',
+    nextTestDate:    document.getElementById('f-next-test')?.value||'',
+    manufactureDate: document.getElementById('f-mfg')?.value||'',
+    status,
+    note:            document.getElementById('f-note')?.value.trim()||'',
+  };
+  try {
+    if (editId) await updateGasCylinder(editId, data);
+    else        await createGasCylinder(data, profile.uid);
+    window.__closePanel();
+    await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบถังแก๊สนี้?')) return;
+  await deleteGasCylinder(id);
+  window.__closePanel();
+  await render();
+};
+
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

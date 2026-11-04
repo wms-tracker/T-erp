@@ -51,6 +51,7 @@ export const COL = {
   cse:           "safetyCSE",
   hotWork:       "safetyHotWork",
   vehicleCheck:  "safetyVehicleCheck",
+  gasCylinder:   "safetyGasCylinder",
 };
 
 // ────────────────────────────────────────────
@@ -2540,4 +2541,47 @@ export async function updateVehicleCheck(id, data) {
 }
 export async function deleteVehicleCheck(id) {
   await deleteDoc(doc(db, COL.vehicleCheck, id));
+}
+
+// ─── Phase 45: Compressed Gas / Cylinder Registry ────────────────────────────
+export const GAS_TYPES = [
+  { key:'oxygen',     label:'ออกซิเจน (O₂)',           icon:'🔵', color:'#2563eb' },
+  { key:'acetylene',  label:'อะเซทิลีน (C₂H₂)',        icon:'🟡', color:'#d97706' },
+  { key:'lpg',        label:'ก๊าซหุงต้ม (LPG)',         icon:'🟠', color:'#ea580c' },
+  { key:'co2',        label:'คาร์บอนไดออกไซด์ (CO₂)',  icon:'⚪', color:'#6b7280' },
+  { key:'nitrogen',   label:'ไนโตรเจน (N₂)',            icon:'🟢', color:'#16a34a' },
+  { key:'argon',      label:'อาร์กอน (Ar)',              icon:'🟣', color:'#7c3aed' },
+  { key:'hydrogen',   label:'ไฮโดรเจน (H₂)',            icon:'🔴', color:'#dc2626' },
+  { key:'mixed',      label:'ก๊าซผสม (Mixed)',           icon:'⚗️', color:'#0891b2' },
+  { key:'other',      label:'อื่นๆ',                     icon:'🧪', color:'#374151' },
+];
+export const CYLINDER_STATUS = {
+  inservice:  { label:'ใช้งานอยู่',    color:'#16a34a', bg:'#dcfce7' },
+  empty:      { label:'ถังว่าง',       color:'#6b7280', bg:'#f3f4f6' },
+  condemned:  { label:'ตัดออก',        color:'#dc2626', bg:'#fee2e2' },
+  testing:    { label:'ส่งทดสอบ',      color:'#d97706', bg:'#fef3c7' },
+  fullstock:  { label:'คงคลัง (เต็ม)', color:'#2563eb', bg:'#dbeafe' },
+};
+export const CYLINDER_SIZES = [
+  { key:'s',  label:'ขนาดเล็ก (< 20 L)' },
+  { key:'m',  label:'ขนาดกลาง (20–50 L)' },
+  { key:'l',  label:'ขนาดใหญ่ (> 50 L)' },
+  { key:'bulk',label:'ถังใหญ่/บัลค์' },
+];
+export async function listGasCylinder() {
+  const s = await getDocs(query(collection(db, COL.gasCylinder), orderBy('serialNo','asc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getGasCylinder(id) {
+  const d = await getDoc(doc(db, COL.gasCylinder, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createGasCylinder(data, createdBy) {
+  return addDoc(collection(db, COL.gasCylinder), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateGasCylinder(id, data) {
+  await updateDoc(doc(db, COL.gasCylinder, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteGasCylinder(id) {
+  await deleteDoc(doc(db, COL.gasCylinder, id));
 }
