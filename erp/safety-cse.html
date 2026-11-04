@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>พื้นที่อับอากาศ (CSE) — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  CSE_SPACE_TYPES, CSE_PERMIT_STATUS, CSE_GAS_LIMITS, CSE_CHECKLIST,
+  listCSE, getCSE, createCSE, updateCSE, deleteCSE,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-cse', 'พื้นที่อับอากาศ (Confined Space Entry)');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records = [];
+
+function getSpaceType(k) { return CSE_SPACE_TYPES.find(t=>t.key===k)||{label:k,icon:'📋'}; }
+
+function gasStatus(r) {
+  const readings = r.gasReadings || {};
+  for (const g of CSE_GAS_LIMITS) {
+    const v = parseFloat(readings[g.key]);
+    if (isNaN(v)) continue;
+    if (v < g.safeMin || v > g.safeMax) return 'fail';
+  }
+  return Object.keys(readings).length ? 'pass' : 'none';
+}
+
+function checklistPct(r) {
+  const checked = CSE_CHECKLIST.filter(c=>(r.checklist||{})[c.key]).length;
+  return Math.round(checked/CSE_CHECKLIST.length*100);
+}
+
+function kpiBar() {
+  const open = records.filter(r=>r.status==='open').length;
+  const fail = records.filter(r=>gasStatus(r)==='fail').length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${records.length}</div><div style="font-size:0.78rem;color:#6b7280;">ทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${open}</div><div style="font-size:0.78rem;color:#6b7280;">เปิดอยู่</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${fail}</div><div style="font-size:0.78rem;color:#6b7280;">ก๊าซเกินเกณฑ์</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${records.filter(r=>r.status==='closed').length}</div><div style="font-size:0.78rem;color:#6b7280;">ปิดแล้ว</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:540px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .gas-row{display:grid;grid-template-columns:140px 1fr 90px;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:#f8faff;}
+      .gas-label{font-size:0.82rem;font-weight:600;}
+      .gas-limit{font-size:0.72rem;color:#6b7280;}
+      .checklist-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;margin-bottom:4px;background:#f8faff;cursor:pointer;}
+      .checklist-item.checked{background:#dcfce7;}
+      .checklist-item input[type=checkbox]{width:16px;height:16px;accent-color:#16a34a;flex-shrink:0;}
+      @media(max-width:600px){.panel{width:100%;}.gas-row{grid-template-columns:1fr 1fr;}}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>บันทึกการเข้าพื้นที่อับอากาศ</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ ออกใบอนุญาต CSE</button>
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>วันที่</th><th>พื้นที่/งาน</th><th>ประเภท</th><th>ก๊าซ</th><th>Checklist</th><th>ผู้ควบคุม</th><th>สถานะ</th><th>ดำเนินการ</th></tr></thead>
+        <tbody>
+          ${records.length===0?`<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:records.map(r=>{
+            const st = CSE_PERMIT_STATUS[r.status]||{label:r.status||'—',color:'#555',bg:'#eee'};
+            const sp = getSpaceType(r.spaceType);
+            const gs = gasStatus(r);
+            const pct= checklistPct(r);
+            return `<tr>
+              <td>${fmt(r.workDate)}</td>
+              <td><b>${r.spaceName||'—'}</b><div style="font-size:0.76rem;color:#666;">${r.location||''}</div></td>
+              <td>${sp.icon} ${sp.label}</td>
+              <td>${gs==='pass'?badge('ผ่าน','#16a34a','#dcfce7'):gs==='fail'?badge('เกินเกณฑ์','#dc2626','#fee2e2'):badge('ยังไม่วัด','#6b7280','#f3f4f6')}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <div style="flex:1;min-width:40px;background:#e0e3f0;border-radius:10px;height:6px;overflow:hidden;">
+                    <div style="width:${pct}%;height:100%;border-radius:10px;background:${pct===100?'#16a34a':pct>=70?'#d97706':'#dc2626'};"></div>
+                  </div>
+                  <span style="font-size:0.74rem;font-weight:700;">${pct}%</span>
+                </div>
+              </td>
+              <td>${r.entryAttendant||'—'}</td>
+              <td>${badge(st.label,st.color,st.bg)}</td>
+              <td>
+                ${r.status==='open'?`<button class="btn btn-success" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__closePermit('${r.id}')">ปิดอนุญาต</button>`:''}
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="cse-panel">
+      <div class="panel-header"><b id="panel-title">ออกใบอนุญาต CSE</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+let entryLogList = [];
+
+function formHTML(r) {
+  entryLogList = [...(r?.entryLog||[])];
+  const cl = r?.checklist||{};
+  const gas= r?.gasReadings||{};
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+
+    <div class="section-title">ข้อมูลพื้นที่</div>
+    <div class="form-group"><label class="form-label">ชื่อ/รหัสพื้นที่อับอากาศ *</label><input id="f-name" class="form-control" value="${r?.spaceName||''}"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ประเภทพื้นที่</label>
+        <select id="f-type" class="form-control">
+          <option value="">— เลือก —</option>
+          ${CSE_SPACE_TYPES.map(t=>`<option value="${t.key}" ${r?.spaceType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+        </select></div>
+      <div class="form-group"><label class="form-label">สถานที่ / อาคาร</label><input id="f-loc" class="form-control" value="${r?.location||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วันที่ทำงาน *</label><input id="f-date" class="form-control" type="date" value="${r?.workDate||today()}"/></div>
+      <div class="form-group"><label class="form-label">เวลาอนุญาต</label><input id="f-time" class="form-control" type="time" value="${r?.permitTime||'08:00'}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">ผู้ควบคุมปากทาง (Attendant) *</label><input id="f-attendant" class="form-control" value="${r?.entryAttendant||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">หัวหน้างาน/ผู้อนุมัติ</label><input id="f-supervisor" class="form-control" value="${r?.supervisor||''}"/></div>
+    <div class="form-group"><label class="form-label">งานที่จะทำในพื้นที่</label><textarea id="f-work" class="form-control" rows="2">${r?.workDescription||''}</textarea></div>
+
+    <div class="section-title">ผลการตรวจวัดก๊าซ</div>
+    <div style="font-size:0.78rem;color:#6b7280;margin-bottom:8px;">ตรวจวัดก่อนเข้า — ค่าต้องอยู่ในเกณฑ์ปลอดภัยทุกตัว</div>
+    ${CSE_GAS_LIMITS.map(g=>{
+      const val = gas[g.key]||'';
+      const isOver = val!=='' && (parseFloat(val)<g.safeMin||parseFloat(val)>g.safeMax);
+      return `<div class="gas-row" style="${isOver?'background:#fee2e2;':''}">
+        <div><div class="gas-label">${g.label}</div><div class="gas-limit">เกณฑ์: ${g.alarm}</div></div>
+        <input id="gas-${g.key}" class="form-control" type="number" step="0.01" placeholder="ค่าที่วัดได้" value="${val}" style="${isOver?'border-color:#dc2626;color:#dc2626;':''}" oninput="window.__checkGas('${g.key}',this)"/>
+        <div id="gas-st-${g.key}" style="font-size:0.76rem;font-weight:700;text-align:center;">${val===''?'—':isOver?'⚠️ เกิน':'✅ ผ่าน'}</div>
+      </div>`;
+    }).join('')}
+
+    <div class="section-title">Checklist ความปลอดภัย</div>
+    ${CSE_CHECKLIST.map(item=>{
+      const checked=!!cl[item.key];
+      return `<label class="checklist-item${checked?' checked':''}" id="cl-${item.key}" style="user-select:none;">
+        <input type="checkbox" id="chk-${item.key}" ${checked?'checked':''} onchange="window.__toggleCheck('${item.key}',this.checked)"/>
+        <span style="font-size:0.84rem;">${item.label}</span>
+      </label>`;
+    }).join('')}
+
+    <div class="section-title">Log เข้า-ออก</div>
+    <div id="entry-log-list">
+      ${entryLogList.map((e,i)=>entryLogRowHTML(e,i)).join('')}
+    </div>
+    <button class="btn btn-outline" style="width:100%;margin-bottom:4px;" onclick="window.__addEntryLog()">+ เพิ่ม Log เข้า/ออก</button>
+
+    <div class="form-group" style="margin-top:14px;"><label class="form-label">หมายเหตุ</label><textarea id="f-notes" class="form-control" rows="2">${r?.notes||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+function entryLogRowHTML(e,i) {
+  return `<div style="display:grid;grid-template-columns:1fr 60px 60px auto;gap:6px;margin-bottom:6px;align-items:center;" id="elr-${i}">
+    <input class="form-control" placeholder="ชื่อผู้เข้า" value="${e.name||''}" oninput="window.__updateLog(${i},'name',this.value)"/>
+    <input class="form-control" type="time" value="${e.timeIn||''}" oninput="window.__updateLog(${i},'timeIn',this.value)" title="เวลาเข้า"/>
+    <input class="form-control" type="time" value="${e.timeOut||''}" oninput="window.__updateLog(${i},'timeOut',this.value)" title="เวลาออก"/>
+    <button style="background:none;border:none;color:#c00;cursor:pointer;font-size:1rem;padding:0 4px;" onclick="window.__removeLog(${i})">✕</button>
+  </div>`;
+}
+
+window.__checkGas = (key, input) => {
+  const g = CSE_GAS_LIMITS.find(x=>x.key===key);
+  if(!g) return;
+  const v = parseFloat(input.value);
+  const st = document.getElementById(`gas-st-${key}`);
+  const row = input.closest('.gas-row');
+  if(isNaN(v)||input.value===''){
+    if(st) st.textContent='—';
+    if(row){ row.style.background=''; input.style.borderColor=''; input.style.color=''; }
+  } else if(v<g.safeMin||v>g.safeMax){
+    if(st){ st.textContent='⚠️ เกิน'; st.style.color='#dc2626'; }
+    if(row){ row.style.background='#fee2e2'; input.style.borderColor='#dc2626'; input.style.color='#dc2626'; }
+  } else {
+    if(st){ st.textContent='✅ ผ่าน'; st.style.color='#16a34a'; }
+    if(row){ row.style.background='#dcfce7'; input.style.borderColor='#16a34a'; input.style.color='#16a34a'; }
+  }
+};
+window.__toggleCheck = (key,val) => {
+  const el=document.getElementById(`cl-${key}`);
+  if(el) el.classList.toggle('checked',val);
+};
+window.__addEntryLog = () => {
+  entryLogList.push({name:'',timeIn:'',timeOut:''});
+  const i=entryLogList.length-1;
+  document.getElementById('entry-log-list').insertAdjacentHTML('beforeend',entryLogRowHTML(entryLogList[i],i));
+};
+window.__removeLog = i => { entryLogList.splice(i,1); document.getElementById('entry-log-list').innerHTML=entryLogList.map((e,j)=>entryLogRowHTML(e,j)).join(''); };
+window.__updateLog = (i,key,val) => { if(entryLogList[i]) entryLogList[i][key]=val; };
+
+window.__openPanel = () => {
+  entryLogList=[];
+  document.getElementById('panel-title').textContent='ออกใบอนุญาต CSE';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('cse-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('cse-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getCSE(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไข CSE';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('cse-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePermit = async id => {
+  if(!confirm('ยืนยันการปิดใบอนุญาต CSE นี้?')) return;
+  await updateCSE(id,{ status:'closed', closedAt:new Date().toISOString(), closedBy:profile.name||profile.uid });
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const name=document.getElementById('f-name').value.trim();
+  const date=document.getElementById('f-date').value;
+  const attendant=document.getElementById('f-attendant').value.trim();
+  if(!name||!date||!attendant){ msg.textContent='* กรุณาระบุชื่อพื้นที่, วันที่, และผู้ควบคุมปากทาง'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+
+  const cl={};
+  CSE_CHECKLIST.forEach(c=>{ cl[c.key]=!!(document.getElementById(`chk-${c.key}`)?.checked); });
+  const gasReadings={};
+  CSE_GAS_LIMITS.forEach(g=>{ const v=document.getElementById(`gas-${g.key}`)?.value; if(v!=='') gasReadings[g.key]=parseFloat(v)||0; });
+
+  const data={
+    spaceName:name, spaceType:document.getElementById('f-type').value,
+    location:document.getElementById('f-loc').value.trim(),
+    workDate:date, permitTime:document.getElementById('f-time').value,
+    entryAttendant:attendant,
+    supervisor:document.getElementById('f-supervisor').value.trim(),
+    workDescription:document.getElementById('f-work').value.trim(),
+    gasReadings, checklist:cl,
+    entryLog:entryLogList.filter(e=>e.name),
+    notes:document.getElementById('f-notes').value.trim(),
+    status:'open',
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id){ data.status=(await getCSE(id))?.status||'open'; await updateCSE(id,data); }
+    else await createCSE(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบบันทึกนี้?')) return;
+  await deleteCSE(id); await loadAll();
+};
+
+async function loadAll() { records=await listCSE(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>

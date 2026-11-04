@@ -48,6 +48,7 @@ export const COL = {
   ergonomic:     "safetyErgonomic",
   safetyAlert:   "safetySafetyAlert",
   workHeight:    "safetyWorkHeight",
+  cse:           "safetyCSE",
 };
 
 // ────────────────────────────────────────────
@@ -2392,4 +2393,56 @@ export async function updateWorkHeight(id, data) {
 }
 export async function deleteWorkHeight(id) {
   await deleteDoc(doc(db, COL.workHeight, id));
+}
+
+// ─── Phase 42: Confined Space Entry (CSE) ───────────────────────────────────
+export const CSE_SPACE_TYPES = [
+  { key:'tank',       label:'ถัง/ไซโล (Tank/Silo)',          icon:'🛢️' },
+  { key:'pit',        label:'หลุม/บ่อ (Pit/Sump)',            icon:'⬇️' },
+  { key:'vessel',     label:'ภาชนะรับแรงดัน (Vessel)',        icon:'🔵' },
+  { key:'pipe',       label:'ท่อ/ทางระบาย (Pipe/Culvert)',    icon:'🟤' },
+  { key:'tunnel',     label:'อุโมงค์ (Tunnel/Vault)',         icon:'🚇' },
+  { key:'manhole',    label:'ช่องแมนโฮล (Manhole)',           icon:'🕳️' },
+  { key:'chamber',    label:'ห้องปิด (Enclosed Chamber)',      icon:'🚪' },
+  { key:'other',      label:'อื่นๆ',                          icon:'📋' },
+];
+export const CSE_PERMIT_STATUS = {
+  open:     { label:'เปิดอนุญาต',   color:'#dc2626', bg:'#fee2e2' },
+  closed:   { label:'ปิดอนุญาต',   color:'#16a34a', bg:'#dcfce7' },
+  cancelled:{ label:'ยกเลิก',       color:'#6b7280', bg:'#f3f4f6' },
+};
+export const CSE_GAS_LIMITS = [
+  { key:'o2',  label:'O₂ (%)',       safeMin:19.5, safeMax:23.5, unit:'%',   alarm:'< 19.5% หรือ > 23.5%' },
+  { key:'lel', label:'LEL (%)',       safeMin:0,    safeMax:10,   unit:'%LEL',alarm:'> 10% LEL' },
+  { key:'co',  label:'CO (ppm)',      safeMin:0,    safeMax:35,   unit:'ppm', alarm:'> 35 ppm' },
+  { key:'h2s', label:'H₂S (ppm)',     safeMin:0,    safeMax:1,    unit:'ppm', alarm:'> 1 ppm' },
+];
+export const CSE_CHECKLIST = [
+  { key:'isolate_energy',  label:'ตัดพลังงาน/ล็อค-แท็ก (LOTO) ครบ' },
+  { key:'ventilation',     label:'ระบายอากาศก่อนเข้า ≥ 5 นาที' },
+  { key:'gas_test',        label:'ตรวจวัดก๊าซก่อนเข้า และผ่านเกณฑ์' },
+  { key:'rescue_standby',  label:'ทีม Rescue/Attendant ประจำที่ปากทาง' },
+  { key:'harness_rescue',  label:'สายช่วยชีวิต (Rescue Line) พร้อมใช้' },
+  { key:'scba_ready',      label:'SCBA/หน้ากากกรองก๊าซพร้อม' },
+  { key:'communication',   label:'ระบบสื่อสาร (วิทยุ/สัญญาณ) ใช้งานได้' },
+  { key:'lighting',        label:'ไฟฉาย/ไฟส่องสว่างเพียงพอ' },
+  { key:'first_aid',       label:'อุปกรณ์ปฐมพยาบาลอยู่ที่ปากทาง' },
+  { key:'permit_display',  label:'ติดใบอนุญาตที่ปากทางพื้นที่อับอากาศ' },
+];
+export async function listCSE() {
+  const s = await getDocs(query(collection(db, COL.cse), orderBy('workDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getCSE(id) {
+  const d = await getDoc(doc(db, COL.cse, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createCSE(data, createdBy) {
+  return addDoc(collection(db, COL.cse), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateCSE(id, data) {
+  await updateDoc(doc(db, COL.cse, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteCSE(id) {
+  await deleteDoc(doc(db, COL.cse, id));
 }
