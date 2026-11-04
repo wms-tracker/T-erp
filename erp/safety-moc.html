@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Management of Change (MoC) — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-success{background:#16a34a;color:#fff}
+.btn-warning{background:#d97706;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.search-bar select,.search-bar input{flex:1;min-width:120px}
+.info-row{display:flex;gap:12px;flex-wrap:wrap;font-size:0.81rem;color:#6b7280;margin-top:3px}
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin:6px 0 10px}
+.type-btn{border:2px solid #e5e7eb;border-radius:9px;padding:8px 12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:8px;font-size:0.82rem}
+.review-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:0.85rem}
+.review-row:last-child{border-bottom:none}
+.review-row input[type=checkbox]{width:16px;height:16px;flex-shrink:0}
+.timeline{position:relative;padding-left:28px;margin-top:8px}
+.timeline::before{content:'';position:absolute;left:8px;top:0;bottom:0;width:2px;background:#e5e7eb}
+.tl-item{position:relative;margin-bottom:12px}
+.tl-dot{position:absolute;left:-24px;top:3px;width:12px;height:12px;border-radius:50%;border:2px solid;background:#fff}
+.tl-text{font-size:0.82rem;color:#374151}
+.tl-sub{font-size:0.75rem;color:#9ca3af}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">Management of Change</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  MOC_TYPES, MOC_STATUS, MOC_RISK_LEVELS, MOC_REVIEW_AREAS,
+  listMoC, getMoC, createMoC, updateMoC, deleteMoC
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-moc', 'จัดการการเปลี่ยนแปลง (MoC)');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+
+let records = [];
+let editId  = null;
+let selType = '';
+
+function statusBadge(st) {
+  const s = MOC_STATUS[st] || MOC_STATUS.draft;
+  return `<span class="badge" style="color:${s.color};background:${s.bg}">${s.label}</span>`;
+}
+function riskBadge(r) {
+  const rl = MOC_RISK_LEVELS[r];
+  if (!rl) return '';
+  return `<span class="badge" style="color:${rl.color};background:${rl.bg}">${rl.label.split(' —')[0]}</span>`;
+}
+
+async function render() {
+  records = await listMoC();
+  const statusFilter = document.getElementById('filter-status')?.value || '';
+  const q            = document.getElementById('search-input')?.value.toLowerCase() || '';
+
+  const pending  = records.filter(r=>['submitted','under_review'].includes(r.status)).length;
+  const approved = records.filter(r=>r.status==='approved').length;
+  const impl     = records.filter(r=>r.status==='implemented').length;
+  const rejected = records.filter(r=>r.status==='rejected').length;
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">🔄 Management of Change (MoC)</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel(null)">+ ขอ MoC ใหม่</button>
+  </div>
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${records.length}</div><div class="kpi-label">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#d97706">${pending}</div><div class="kpi-label">รอพิจารณา</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${approved}</div><div class="kpi-label">อนุมัติแล้ว</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#059669">${impl}</div><div class="kpi-label">ดำเนินการแล้ว</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${rejected}</div><div class="kpi-label">ไม่อนุมัติ</div></div>
+  </div>
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหาชื่อ MoC, ผู้ขอ..." oninput="window.__applyFilter()"/>
+    <select id="filter-status" onchange="window.__applyFilter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(MOC_STATUS).map(([k,v])=>`<option value="${k}" ${statusFilter===k?'selected':''}>${v.label}</option>`).join('')}
+    </select>
+  </div>
+  <div id="list-wrap">${renderList(applyFilter(records, q, statusFilter))}</div>`;
+}
+
+function applyFilter(list, q, status) {
+  return list.filter(r => {
+    const mq = !q || (r.title||'').toLowerCase().includes(q) || (r.requestedBy||'').toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q);
+    return mq && (!status || r.status===status);
+  });
+}
+window.__applyFilter = () => {
+  const q = document.getElementById('search-input')?.value.toLowerCase()||'';
+  const s = document.getElementById('filter-status')?.value||'';
+  document.getElementById('list-wrap').innerHTML = renderList(applyFilter(records, q, s));
+};
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ยังไม่มีรายการ MoC</p>`;
+  return list.map(r => {
+    const tp = MOC_TYPES.find(t=>t.key===r.mocType);
+    return `
+    <div class="card" onclick="window.__openView('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:0.95rem">${tp?tp.icon:''} ${esc(r.title||'-')}</div>
+          <div class="info-row">
+            <span>${tp?.label||'-'}</span>
+            <span>👤 ${esc(r.requestedBy||'-')}</span>
+            <span>📅 ${fmtDate(r.plannedDate)}</span>
+          </div>
+          <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap">
+            ${statusBadge(r.status)}
+            ${riskBadge(r.riskLevel)}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── view ──────────────────────────────────────────────────────────────────────
+window.__openView = async (id) => {
+  editId = id;
+  const r = await getMoC(id);
+  if (!r) return;
+  const tp = MOC_TYPES.find(t=>t.key===r.mocType);
+  const rl = MOC_RISK_LEVELS[r.riskLevel];
+
+  openPanel('รายละเอียด MoC');
+  document.getElementById('panel-body').innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <span style="font-size:1.8rem">${tp?.icon||'🔄'}</span>
+      <div>
+        <div style="font-weight:800;font-size:1rem">${esc(r.title||'-')}</div>
+        <div style="font-size:0.82rem;color:#6b7280">${esc(tp?.label||'-')} · 📅 ${fmtDate(r.plannedDate)}</div>
+        <div style="margin-top:4px">${statusBadge(r.status)} ${riskBadge(r.riskLevel)}</div>
+      </div>
+    </div>
+
+    <div class="form-row" style="margin-bottom:12px">
+      <div><div class="lbl" style="margin-top:0">ผู้ขอ</div><div>${esc(r.requestedBy||'-')}</div></div>
+      <div><div class="lbl" style="margin-top:0">แผนก</div><div>${esc(r.department||'-')}</div></div>
+      <div><div class="lbl">วันที่วางแผนดำเนินการ</div><div>${fmtDate(r.plannedDate)}</div></div>
+      <div><div class="lbl">วันที่ดำเนินการจริง</div><div>${fmtDate(r.implementedDate)}</div></div>
+    </div>
+
+    <div class="section-title">รายละเอียดการเปลี่ยนแปลง</div>
+    <div style="font-size:0.85rem;line-height:1.6;white-space:pre-wrap">${esc(r.description||'-')}</div>
+
+    ${r.reason ? `<div class="section-title">เหตุผลในการเปลี่ยนแปลง</div><div style="font-size:0.85rem">${esc(r.reason)}</div>` : ''}
+
+    ${r.reviewAreas?.length ? `
+    <div class="section-title">ด้านที่ต้องพิจารณา</div>
+    ${MOC_REVIEW_AREAS.map((area,i)=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.85rem">
+        <span style="color:${r.reviewAreas[i]?'#16a34a':'#9ca3af'};font-size:1rem">${r.reviewAreas[i]?'✓':'○'}</span>
+        <span style="color:${r.reviewAreas[i]?'#374151':'#9ca3af'}">${esc(area)}</span>
+      </div>`).join('')}` : ''}
+
+    ${r.safetyAssessment ? `<div class="section-title">การประเมินความเสี่ยงด้านความปลอดภัย</div><div style="font-size:0.85rem">${esc(r.safetyAssessment)}</div>` : ''}
+    ${r.mitigations ? `<div class="section-title">มาตรการลดความเสี่ยง</div><div style="font-size:0.85rem">${esc(r.mitigations)}</div>` : ''}
+    ${r.trainingRequired ? `<div style="margin-top:10px;padding:10px;background:#fef9c3;border-radius:8px;font-size:0.85rem"><strong>📚 การฝึกอบรมที่จำเป็น:</strong> ${esc(r.trainingRequired)}</div>` : ''}
+    ${r.documentUpdates ? `<div style="margin-top:8px;padding:10px;background:#eff6ff;border-radius:8px;font-size:0.85rem"><strong>📄 เอกสารที่ต้องอัปเดต:</strong> ${esc(r.documentUpdates)}</div>` : ''}
+
+    ${r.approvalHistory?.length ? `
+    <div class="section-title">ประวัติการอนุมัติ</div>
+    <div class="timeline">
+      ${r.approvalHistory.map(h=>`
+        <div class="tl-item">
+          <div class="tl-dot" style="border-color:${h.action==='approved'?'#16a34a':h.action==='rejected'?'#dc2626':'#2563eb'}"></div>
+          <div class="tl-text"><strong>${h.action==='approved'?'✓ อนุมัติ':h.action==='rejected'?'✗ ไม่อนุมัติ':'→ '+h.action}</strong> โดย ${esc(h.by||'-')}</div>
+          <div class="tl-sub">${fmtDate(h.date)} ${h.comment?'· '+esc(h.comment):''}</div>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${r.rejectedReason ? `<div style="margin-top:10px;padding:10px;background:#fef2f2;border-radius:8px;font-size:0.85rem;color:#dc2626"><strong>✗ เหตุผลที่ไม่อนุมัติ:</strong> ${esc(r.rejectedReason)}</div>` : ''}`;
+
+  const footer = document.getElementById('panel-footer');
+  const btns = [];
+  if (['draft'].includes(r.status))
+    btns.push(`<button class="btn btn-warning" onclick="window.__submit('${id}')">ส่งพิจารณา</button>`);
+  if (r.status==='submitted')
+    btns.push(`<button class="btn btn-primary" onclick="window.__startReview('${id}')">เริ่มพิจารณา</button>`);
+  if (r.status==='under_review') {
+    btns.push(`<button class="btn btn-success" onclick="window.__approve('${id}')">อนุมัติ</button>`);
+    btns.push(`<button class="btn btn-danger" onclick="window.__reject('${id}')">ไม่อนุมัติ</button>`);
+  }
+  if (r.status==='approved')
+    btns.push(`<button class="btn btn-success" onclick="window.__implement('${id}')">บันทึกดำเนินการแล้ว</button>`);
+  if (['draft','submitted'].includes(r.status))
+    btns.push(`<button class="btn btn-ghost" onclick="window.__editRecord('${id}')">แก้ไข</button>`);
+  btns.push(`<button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>`);
+  btns.push(`<button class="btn btn-ghost" onclick="window.__closePanel()">ปิด</button>`);
+  footer.innerHTML = btns.join('');
+};
+
+// ── form ──────────────────────────────────────────────────────────────────────
+window.__openPanel = (id) => {
+  editId  = id;
+  selType = '';
+  openPanel('ขอ MoC ใหม่');
+  document.getElementById('panel-body').innerHTML = renderForm(null);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save(false)">บันทึกร่าง</button>
+     <button class="btn btn-warning" onclick="window.__save(true)">บันทึก + ส่งพิจารณา</button>
+     <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+window.__editRecord = async (id) => {
+  editId = id;
+  const r = await getMoC(id);
+  if (!r) return;
+  selType = r.mocType||'';
+  openPanel('แก้ไข MoC');
+  document.getElementById('panel-body').innerHTML = renderForm(r);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save(false)">บันทึก</button>
+     <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+function renderForm(r) {
+  return `
+  <div class="section-title" style="margin-top:0">ประเภทการเปลี่ยนแปลง *</div>
+  <div class="type-grid">
+    ${MOC_TYPES.map(t=>`
+      <div class="type-btn" id="tb-${t.key}"
+           style="${(selType||r?.mocType)===t.key?`border-color:${t.color};background:${t.color}18`:''}"
+           onclick="window.__selType('${t.key}','${t.color}')">
+        <span style="font-size:1.1rem">${t.icon}</span>
+        <span style="font-weight:600;color:${(selType||r?.mocType)===t.key?t.color:'#374151'};font-size:0.8rem">${t.label}</span>
+      </div>`).join('')}
+  </div>
+
+  <div>
+    <label class="lbl" style="margin-top:0">ชื่อ MoC / หัวข้อการเปลี่ยนแปลง *</label>
+    <input id="f-title" value="${esc(r?.title||'')}" placeholder="เช่น เปลี่ยนสารหล่อลื่นเครื่องจักร Line 2"/>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">ผู้ขอ MoC *</label>
+      <input id="f-req" value="${esc(r?.requestedBy||profile.displayName||'')}"/>
+    </div>
+    <div>
+      <label class="lbl">แผนก</label>
+      <input id="f-dept" value="${esc(r?.department||'')}" placeholder="แผนก"/>
+    </div>
+    <div>
+      <label class="lbl">วันที่วางแผนดำเนินการ</label>
+      <input id="f-planned" type="date" value="${r?.plannedDate||''}"/>
+    </div>
+    <div>
+      <label class="lbl">ระดับความเสี่ยง</label>
+      <select id="f-risk">
+        ${Object.entries(MOC_RISK_LEVELS).map(([k,v])=>`<option value="${k}" ${(r?.riskLevel||'medium')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div>
+    <label class="lbl">รายละเอียดการเปลี่ยนแปลง *</label>
+    <textarea id="f-desc" rows="3" placeholder="อธิบายว่าจะเปลี่ยนแปลงอะไร จากอะไรเป็นอะไร">${esc(r?.description||'')}</textarea>
+  </div>
+  <div>
+    <label class="lbl">เหตุผลในการเปลี่ยนแปลง</label>
+    <textarea id="f-reason" rows="2">${esc(r?.reason||'')}</textarea>
+  </div>
+
+  <div class="section-title">ด้านที่ต้องพิจารณา</div>
+  ${MOC_REVIEW_AREAS.map((area,i)=>`
+    <div class="review-row">
+      <input type="checkbox" id="rev-${i}" ${r?.reviewAreas?.[i]?'checked':''}/>
+      <label for="rev-${i}" style="cursor:pointer">${esc(area)}</label>
+    </div>`).join('')}
+
+  <div>
+    <label class="lbl">การประเมินความเสี่ยงด้านความปลอดภัย</label>
+    <textarea id="f-safety" rows="2">${esc(r?.safetyAssessment||'')}</textarea>
+  </div>
+  <div>
+    <label class="lbl">มาตรการลดความเสี่ยง</label>
+    <textarea id="f-mit" rows="2">${esc(r?.mitigations||'')}</textarea>
+  </div>
+  <div>
+    <label class="lbl">การฝึกอบรมที่จำเป็น</label>
+    <input id="f-train" value="${esc(r?.trainingRequired||'')}" placeholder="เช่น อบรมการใช้สารเคมีใหม่ก่อนเริ่มงาน"/>
+  </div>
+  <div>
+    <label class="lbl">เอกสารที่ต้องอัปเดต</label>
+    <input id="f-docs" value="${esc(r?.documentUpdates||'')}" placeholder="เช่น WI-001, SOP-005, MSDS"/>
+  </div>`;
+}
+
+window.__selType = (key, color) => {
+  selType = key;
+  MOC_TYPES.forEach(t => {
+    const el = document.getElementById(`tb-${t.key}`);
+    if (!el) return;
+    el.style.borderColor = t.key===key ? color : '#e5e7eb';
+    el.style.background  = t.key===key ? color+'18' : '';
+    el.querySelector('span:last-child').style.color = t.key===key ? color : '#374151';
+  });
+};
+
+window.__save = async (submit) => {
+  const mocType = selType;
+  const title   = document.getElementById('f-title')?.value.trim();
+  const req     = document.getElementById('f-req')?.value.trim();
+  if (!mocType) { alert('กรุณาเลือกประเภทการเปลี่ยนแปลง'); return; }
+  if (!title || !req) { alert('กรุณากรอกชื่อ MoC และผู้ขอ'); return; }
+  const data = {
+    mocType, title,
+    requestedBy:     req,
+    department:      document.getElementById('f-dept')?.value.trim()||'',
+    plannedDate:     document.getElementById('f-planned')?.value||'',
+    riskLevel:       document.getElementById('f-risk')?.value||'medium',
+    description:     document.getElementById('f-desc')?.value.trim()||'',
+    reason:          document.getElementById('f-reason')?.value.trim()||'',
+    reviewAreas:     MOC_REVIEW_AREAS.map((_,i)=>document.getElementById(`rev-${i}`)?.checked||false),
+    safetyAssessment:document.getElementById('f-safety')?.value.trim()||'',
+    mitigations:     document.getElementById('f-mit')?.value.trim()||'',
+    trainingRequired:document.getElementById('f-train')?.value.trim()||'',
+    documentUpdates: document.getElementById('f-docs')?.value.trim()||'',
+    status:          submit ? 'submitted' : (editId ? undefined : 'draft'),
+  };
+  if (!data.status) delete data.status;
+  try {
+    if (editId) await updateMoC(editId, data);
+    else await createMoC(data, profile.uid);
+    window.__closePanel(); await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+// ── workflow actions ──────────────────────────────────────────────────────────
+async function pushHistory(id, action, by, comment='') {
+  const r = await getMoC(id);
+  const history = [...(r.approvalHistory||[]), { action, by, comment, date: new Date().toISOString().slice(0,10) }];
+  return history;
+}
+
+window.__submit = async (id) => {
+  const h = await pushHistory(id, 'submitted', profile.displayName||'ผู้ใช้');
+  await updateMoC(id, { status:'submitted', approvalHistory: h });
+  window.__closePanel(); await render();
+};
+window.__startReview = async (id) => {
+  const h = await pushHistory(id, 'under_review', profile.displayName||'ผู้ใช้');
+  await updateMoC(id, { status:'under_review', approvalHistory: h });
+  window.__closePanel(); await render();
+};
+window.__approve = async (id) => {
+  const by = prompt('ชื่อผู้อนุมัติ:');
+  if (!by) return;
+  const comment = prompt('ความเห็น (ถ้ามี):')||'';
+  const h = await pushHistory(id, 'approved', by, comment);
+  await updateMoC(id, { status:'approved', approvedBy:by, approvedDate: new Date().toISOString().slice(0,10), approvalHistory: h });
+  window.__closePanel(); await render();
+};
+window.__reject = async (id) => {
+  const reason = prompt('เหตุผลที่ไม่อนุมัติ:');
+  if (reason===null) return;
+  const by = prompt('ชื่อผู้ตัดสิน:')||profile.displayName||'ผู้ใช้';
+  const h = await pushHistory(id, 'rejected', by, reason);
+  await updateMoC(id, { status:'rejected', rejectedReason:reason, approvalHistory: h });
+  window.__closePanel(); await render();
+};
+window.__implement = async (id) => {
+  const date = prompt('วันที่ดำเนินการแล้วเสร็จ (YYYY-MM-DD):') || new Date().toISOString().slice(0,10);
+  const h = await pushHistory(id, 'implemented', profile.displayName||'ผู้ใช้');
+  await updateMoC(id, { status:'implemented', implementedDate: date, approvalHistory: h });
+  window.__closePanel(); await render();
+};
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบ MoC นี้?')) return;
+  await deleteMoC(id); window.__closePanel(); await render();
+};
+
+function openPanel(title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

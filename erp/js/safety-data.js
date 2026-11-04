@@ -63,6 +63,7 @@ export const COL = {
   noiseMonitor:     "safetyNoiseMonitor",
   incidentInvestig: "safetyIncidentInvestigation",
   safetyPassport:   "safetySafetyPassport",
+  moc:              "safetyMoC",
 };
 
 // ────────────────────────────────────────────
@@ -3178,4 +3179,59 @@ export async function updateSafetyPassport(id, data) {
 }
 export async function deleteSafetyPassport(id) {
   await deleteDoc(doc(db, COL.safetyPassport, id));
+}
+
+// ─── Phase 58: Management of Change (MoC) ────────────────────────────────────
+export const MOC_TYPES = [
+  { key:'process',    label:'เปลี่ยนแปลงกระบวนการผลิต',    icon:'⚙️', color:'#2563eb' },
+  { key:'chemical',   label:'เปลี่ยน/เพิ่มสารเคมี',          icon:'⚗️', color:'#7c3aed' },
+  { key:'equipment',  label:'ติดตั้ง/เปลี่ยนเครื่องจักร',    icon:'🏗️', color:'#d97706' },
+  { key:'procedure',  label:'เปลี่ยนขั้นตอน/วิธีการทำงาน',   icon:'📋', color:'#059669' },
+  { key:'facility',   label:'ปรับปรุงสิ่งอำนวยความสะดวก',    icon:'🏭', color:'#0891b2' },
+  { key:'personnel',  label:'เปลี่ยนแปลงบุคลากร/หน้าที่',    icon:'👤', color:'#dc2626' },
+  { key:'material',   label:'เปลี่ยนวัตถุดิบ/วัสดุ',         icon:'📦', color:'#92400e' },
+  { key:'regulatory', label:'ปฏิบัติตามกฎหมายใหม่',          icon:'⚖️', color:'#1a237e' },
+  { key:'other',      label:'อื่นๆ',                          icon:'🔧', color:'#6b7280' },
+];
+export const MOC_STATUS = {
+  draft:       { label:'ร่าง',               color:'#6b7280', bg:'#f3f4f6' },
+  submitted:   { label:'ส่งพิจารณา',         color:'#2563eb', bg:'#dbeafe' },
+  under_review:{ label:'กำลังพิจารณา',       color:'#d97706', bg:'#fef3c7' },
+  approved:    { label:'อนุมัติ',            color:'#16a34a', bg:'#dcfce7' },
+  rejected:    { label:'ไม่อนุมัติ',         color:'#dc2626', bg:'#fee2e2' },
+  implemented: { label:'ดำเนินการแล้ว',      color:'#059669', bg:'#ecfdf5' },
+  closed:      { label:'ปิด MoC',            color:'#6b7280', bg:'#f3f4f6' },
+};
+export const MOC_RISK_LEVELS = {
+  low:      { label:'ต่ำ — ไม่กระทบความปลอดภัยมาก',  color:'#16a34a', bg:'#dcfce7' },
+  medium:   { label:'ปานกลาง — ต้องประเมินก่อน',       color:'#d97706', bg:'#fef3c7' },
+  high:     { label:'สูง — ต้องผ่านคณะกรรมการ',        color:'#dc2626', bg:'#fee2e2' },
+  critical: { label:'วิกฤติ — หยุดจนกว่าจะอนุมัติ',    color:'#7c3aed', bg:'#f5f3ff' },
+};
+export const MOC_REVIEW_AREAS = [
+  'ความปลอดภัยของพนักงาน',
+  'สิ่งแวดล้อมและมลพิษ',
+  'คุณภาพผลิตภัณฑ์',
+  'ความเสี่ยงจากอัคคีภัย/การระเบิด',
+  'สารเคมีอันตราย',
+  'ระบบไฟฟ้าและพลังงาน',
+  'ผลกระทบต่อกระบวนการอื่น',
+  'ข้อกำหนดทางกฎหมาย',
+];
+export async function listMoC() {
+  const s = await getDocs(query(collection(db, COL.moc), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getMoC(id) {
+  const d = await getDoc(doc(db, COL.moc, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createMoC(data, createdBy) {
+  return addDoc(collection(db, COL.moc), { ...data, createdBy, status:'draft', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateMoC(id, data) {
+  await updateDoc(doc(db, COL.moc, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteMoC(id) {
+  await deleteDoc(doc(db, COL.moc, id));
 }

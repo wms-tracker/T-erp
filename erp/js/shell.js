@@ -156,7 +156,8 @@ const NAV = {
       { key: 'safety-inspection', label: 'ตรวจสอบความปลอดภัย',   href: 'safety-inspection.html' },
       { key: 'risk-assessment',   label: 'ประเมินความเสี่ยง (HIRA)', href: 'safety-risk.html' },
       { key: 'capa',              label: 'CAPA Management',         href: 'safety-capa.html' },
-      { key: 'safety-ptw',    label: 'ใบอนุญาตทำงาน (PTW)',    href: 'safety-ptw.html' },
+      { key: 'safety-ptw',    label: 'ใบอนุญาตทำงาน (PTW)',         href: 'safety-ptw.html' },
+      { key: 'safety-moc',    label: 'จัดการการเปลี่ยนแปลง (MoC)',  href: 'safety-moc.html' },
       { key: 'safety-loto',        label: 'Lockout/Tagout (LOTO)',        href: 'safety-loto.html' },
       { key: 'safety-work-height', label: 'งานบนที่สูง (WAH)',           href: 'safety-work-height.html' },
       { key: 'safety-cse',          label: 'พื้นที่อับอากาศ (CSE)',          href: 'safety-cse.html' },
@@ -230,6 +231,7 @@ const NAV = {
       { key: 'risk-assessment',    label: 'ประเมินความเสี่ยง (HIRA)',      href: 'safety-risk.html' },
       { key: 'capa',               label: 'CAPA Management',              href: 'safety-capa.html' },
       { key: 'safety-ptw',         label: 'ใบอนุญาตทำงาน (PTW)',         href: 'safety-ptw.html' },
+      { key: 'safety-moc',         label: 'จัดการการเปลี่ยนแปลง (MoC)',  href: 'safety-moc.html' },
       { key: 'safety-audit',       label: 'ตรวจสอบภายใน (Audit)',        href: 'safety-audit.html' },
       { key: 'safety-5s',          label: 'ตรวจสอบ 5ส (5S)',             href: 'safety-5s.html' },
       { key: 'safety-walk',        label: 'Safety Walk / ตรวจตรา',        href: 'safety-walk.html' },
@@ -419,6 +421,7 @@ const PAGE_DEPARTMENT = {
   "safety-noise.html":          "safety_officer",
   "safety-exec-dashboard.html": "safety_officer",
   "safety-passport.html":       "safety_officer",
+  "safety-moc.html":            "safety_officer",
 };
 
 // ===================================================================
