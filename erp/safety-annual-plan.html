@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>แผนความปลอดภัยประจำปี</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#059669;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* View toggle */
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+/* Table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+/* Gantt */
+.gantt-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow-x:auto;margin-bottom:20px}
+.gantt-table{border-collapse:collapse;min-width:900px;width:100%}
+.gantt-table th{background:#f1f5f9;padding:8px 10px;font-size:.78rem;color:#475569;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.gantt-table td{padding:7px 10px;font-size:.82rem;border-bottom:1px solid #f8fafc;vertical-align:middle}
+.gantt-table tr:hover td{background:#f8fafc}
+.gantt-cell{text-align:center}
+.gantt-block{display:inline-block;width:28px;height:20px;border-radius:4px;cursor:default}
+.gantt-block.planned{background:#bfdbfe}
+.gantt-block.completed{background:#bbf7d0}
+.gantt-block.delayed{background:#fde68a}
+.gantt-block.in_progress{background:#a5b4fc}
+.gantt-block.cancelled{background:#fca5a5}
+.gantt-month-head{background:#e2e8f0!important}
+/* Progress bar */
+.prog-wrap{background:#e2e8f0;border-radius:4px;height:7px;overflow:hidden;margin-top:4px}
+.prog-bar{height:100%;border-radius:4px;background:var(--c-primary);transition:width .4s}
+/* Panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.month-checks{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:4px}
+.month-check{display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 4px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:.75rem;color:#475569;transition:all .15s}
+.month-check input{width:14px;height:14px;cursor:pointer}
+.month-check.checked{background:#ecfdf5;border-color:#059669;color:#059669;font-weight:600}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.cat-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  APLAN_CATEGORIES, APLAN_STATUS, APLAN_QUARTERS, APLAN_MONTHS_TH,
+  listAnnualPlan, getAnnualPlan, createAnnualPlan, updateAnnualPlan, deleteAnnualPlan,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-annual-plan', 'แผนความปลอดภัยประจำปี');
+
+const THIS_YEAR = new Date().getFullYear() + 543; // พ.ศ.
+const YEARS = [THIS_YEAR, THIS_YEAR-1, THIS_YEAR+1];
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'list'; // 'list' | 'gantt'
+let selYear  = THIS_YEAR;
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total = recs.length;
+  const done  = recs.filter(r=>r.status==='completed').length;
+  const prog  = recs.filter(r=>r.status==='in_progress').length;
+  const delay = recs.filter(r=>r.status==='delayed').length;
+  const cancel= recs.filter(r=>r.status==='cancelled').length;
+  const pct   = total ? Math.round(done/total*100) : 0;
+  const totalBudget = recs.reduce((s,r)=>s+(r.budget||0),0);
+  const usedBudget  = recs.filter(r=>r.status==='completed').reduce((s,r)=>s+(r.budget||0),0);
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">กิจกรรมทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${prog}</div><div class="lbl">🔄 กำลังดำเนินการ</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${delay}</div><div class="lbl">⚠️ ล่าช้า</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${cancel}</div><div class="lbl">❌ ยกเลิก</div></div>
+    <div class="kpi" style="border-color:#059669">
+      <div class="num" style="color:#059669">${pct}%</div>
+      <div class="lbl">ความสำเร็จ</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>
+    </div>
+    <div class="kpi" style="border-color:#7c3aed">
+      <div class="num" style="color:#7c3aed;font-size:1rem">${totalBudget.toLocaleString()}</div>
+      <div class="lbl">งบรวม (บาท)</div>
+    </div>
+  </div>`;
+}
+
+// ── List Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📅</div><p>ยังไม่มีแผนงาน</p></div>`;
+  const rows = recs.map(r => {
+    const cat = APLAN_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:r.category||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const st  = APLAN_STATUS[r.status]||APLAN_STATUS.planned;
+    const months = (r.planMonths||[]).map(m=>APLAN_MONTHS_TH[m-1]).join(', ');
+    return `<tr>
+      <td><strong>${r.activityName||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.responsible||'—'}</span></td>
+      <td><span class="cat-chip" style="color:${cat.color};background:${cat.bg}">${cat.icon} ${cat.label}</span></td>
+      <td style="font-size:.8rem">${months||'—'}</td>
+      <td style="text-align:right;font-size:.82rem">${(r.budget||0).toLocaleString()}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.label}</span></td>
+      <td style="font-size:.82rem;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.notes||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editPlan('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deletePlan('${r.id}','${(r.activityName||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>กิจกรรม / ผู้รับผิดชอบ</th><th>หมวดหมู่</th><th>เดือนที่วางแผน</th>
+      <th style="text-align:right">งบประมาณ (฿)</th><th>สถานะ</th><th>หมายเหตุ</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Gantt View ──
+function renderGantt(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📅</div><p>ยังไม่มีแผนงาน</p></div>`;
+  // group by quarter
+  const monthHeads = APLAN_MONTHS_TH.map((m,i)=>`<th class="gantt-cell gantt-month-head" style="min-width:38px">${m}</th>`).join('');
+  const rows = recs.map(r => {
+    const cat = APLAN_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:'',color:'#6b7280',bg:'#f3f4f6'};
+    const st  = r.status||'planned';
+    const cells = Array.from({length:12},(_,i)=>{
+      const mo = i+1;
+      const planned = (r.planMonths||[]).includes(mo);
+      if (!planned) return `<td class="gantt-cell"></td>`;
+      return `<td class="gantt-cell"><div class="gantt-block ${st}" title="${APLAN_STATUS[st]?.label||st}"></div></td>`;
+    }).join('');
+    return `<tr>
+      <td style="min-width:200px;white-space:nowrap"><span style="color:${cat.color}">${cat.icon}</span> ${r.activityName||'—'}</td>
+      <td style="white-space:nowrap;font-size:.78rem;color:#6b7280">${r.responsible||'—'}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+  // legend
+  const legend = Object.entries(APLAN_STATUS).map(([k,v])=>
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:.75rem;margin-right:10px">
+      <span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${k==='planned'?'#bfdbfe':k==='completed'?'#bbf7d0':k==='delayed'?'#fde68a':k==='in_progress'?'#a5b4fc':'#fca5a5'}"></span>
+      ${v.label}
+    </span>`
+  ).join('');
+  return `<div class="gantt-wrap">
+    <div style="padding:10px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <strong style="font-size:.85rem">Gantt Chart ปี ${selYear}</strong>
+      <span style="margin-left:auto">${legend}</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="gantt-table">
+      <thead><tr>
+        <th style="min-width:200px">กิจกรรม</th><th style="min-width:100px">ผู้รับผิดชอบ</th>
+        ${monthHeads}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>
+  </div>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const catOpts = APLAN_CATEGORIES.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
+  const stOpts  = Object.entries(APLAN_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'planned')===k?'selected':''}>${v.label}</option>`).join('');
+  const yrOpts  = YEARS.map(y=>`<option value="${y}" ${(rec?.planYear||THIS_YEAR)===y?'selected':''}>${y}</option>`).join('');
+  const selMonths = rec?.planMonths||[];
+  const monthChecks = APLAN_MONTHS_TH.map((m,i)=>{
+    const mo = i+1;
+    const chk = selMonths.includes(mo);
+    return `<label class="month-check${chk?' checked':''}" id="mc-${mo}">
+      <input type="checkbox" value="${mo}" ${chk?'checked':''} onchange="window.__toggleMonth(${mo},this.checked)"/>
+      ${m}
+    </label>`;
+  }).join('');
+  return `<form id="plan-form" onsubmit="return false">
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่อกิจกรรม / โครงการ *</label>
+        <input id="f-activityName" value="${rec?.activityName||''}" placeholder="เช่น ฝึกอบรมการดับเพลิงขั้นต้น" required/></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>หมวดหมู่ *</label>
+        <select id="f-category">${catOpts}</select></div>
+      <div class="form-group"><label>ปีแผน (พ.ศ.)</label>
+        <select id="f-planYear">${yrOpts}</select></div>
+      <div class="form-group"><label>สถานะ</label>
+        <select id="f-status">${stOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+      <div class="form-group"><label>งบประมาณ (บาท)</label>
+        <input id="f-budget" type="number" min="0" value="${rec?.budget||0}"/></div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>เดือนที่วางแผนดำเนินการ (เลือกได้หลายเดือน)</label>
+      <div class="month-checks" id="month-checks-wrap">${monthChecks}</div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>วัตถุประสงค์ / เหตุผล</label>
+        <textarea id="f-objective" rows="2" placeholder="วัตถุประสงค์ของกิจกรรมนี้">${rec?.objective||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>วิธีดำเนินการ / รายละเอียด</label>
+        <textarea id="f-detail" rows="2" placeholder="วิธีการดำเนินงาน">${rec?.detail||''}</textarea></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>วันที่เริ่มจริง</label>
+        <input id="f-actualStart" type="date" value="${rec?.actualStart||''}"/></div>
+      <div class="form-group"><label>วันที่เสร็จจริง</label>
+        <input id="f-actualEnd" type="date" value="${rec?.actualEnd||''}"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ / ผลที่ได้รับ"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__savePlan()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+// ── Month toggle ──
+let selectedMonths = [];
+window.__toggleMonth = (mo, checked) => {
+  if (checked) { if (!selectedMonths.includes(mo)) selectedMonths.push(mo); }
+  else { selectedMonths = selectedMonths.filter(m=>m!==mo); }
+  const lbl = document.getElementById('mc-'+mo);
+  if (lbl) lbl.classList.toggle('checked', checked);
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+window.__newPlan = () => {
+  editId = null;
+  selectedMonths = [];
+  openPanel(renderForm(null), '+ เพิ่มแผนงาน');
+};
+window.__editPlan = async id => {
+  editId = id;
+  const r = await getAnnualPlan(id);
+  selectedMonths = [...(r.planMonths||[])];
+  openPanel(renderForm(r), '✏️ แก้ไขแผนงาน');
+};
+
+// ── Save ──
+window.__savePlan = async () => {
+  const data = {
+    activityName: document.getElementById('f-activityName').value.trim(),
+    category:     document.getElementById('f-category').value,
+    planYear:     Number(document.getElementById('f-planYear').value),
+    status:       document.getElementById('f-status').value,
+    responsible:  document.getElementById('f-responsible').value.trim(),
+    budget:       Number(document.getElementById('f-budget').value||0),
+    planMonths:   [...selectedMonths].sort((a,b)=>a-b),
+    objective:    document.getElementById('f-objective').value.trim(),
+    detail:       document.getElementById('f-detail').value.trim(),
+    actualStart:  document.getElementById('f-actualStart').value,
+    actualEnd:    document.getElementById('f-actualEnd').value,
+    notes:        document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.activityName) { alert('กรุณากรอกชื่อกิจกรรม'); return; }
+  try {
+    if (editId) await updateAnnualPlan(editId, data);
+    else        await createAnnualPlan(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deletePlan = async (id, name) => {
+  if (!confirm(`ลบแผนงาน "${name}"?`)) return;
+  await deleteAnnualPlan(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter + render ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const cat = document.getElementById('filter-cat')?.value||'';
+  const st  = document.getElementById('filter-status')?.value||'';
+  const yr  = Number(document.getElementById('filter-year')?.value||0);
+  if (yr) selYear = yr;
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.activityName||'').toLowerCase().includes(q)) &&
+    (!cat|| r.category===cat) &&
+    (!st || r.status===st) &&
+    (!yr || r.planYear===yr)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  if (viewMode==='gantt') {
+    document.getElementById('content-wrap').innerHTML = renderGantt(filtered);
+  } else {
+    document.getElementById('content-wrap').innerHTML = renderTable(filtered);
+  }
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = (mode) => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listAnnualPlan();
+  applyFilter();
+}
+
+// ── Build UI ──
+const catOpts = `<option value="">-- ทุกหมวด --</option>` +
+  APLAN_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+  Object.entries(APLAN_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+const yrOpts = `<option value="">-- ทุกปี --</option>` +
+  YEARS.map(y=>`<option value="${y}" ${y===THIS_YEAR?'selected':''}>${y}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหากิจกรรม…" oninput="applyFilter()"/>
+      <select id="filter-year"   onchange="applyFilter()">${yrOpts}</select>
+      <select id="filter-cat"    onchange="applyFilter()">${catOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="list" onclick="window.__switchView('list')">📋 รายการ</button>
+        <button class="view-btn" data-view="gantt" onclick="window.__switchView('gantt')">📊 Gantt</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newPlan()">+ เพิ่มแผนงาน</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">แผนความปลอดภัยประจำปี</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

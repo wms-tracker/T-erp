@@ -72,6 +72,7 @@ export const COL = {
   dailyReport:      "safetySafetyDailyReport",
   contractorEval:   "safetyContractorEval",
   occHealth:        "safetyOccHealth",
+  annualPlan:       "safetyAnnualPlan",
 };
 
 // ────────────────────────────────────────────
@@ -3649,4 +3650,57 @@ export async function updateOccHealth(id, data) {
 }
 export async function deleteOccHealth(id) {
   await deleteDoc(doc(db, COL.occHealth, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 67 — Safety Annual Plan
+// ────────────────────────────────────────────
+export const APLAN_CATEGORIES = [
+  { key:'training',    label:'ฝึกอบรม',               icon:'📚', color:'#2563eb', bg:'#dbeafe' },
+  { key:'inspection',  label:'ตรวจความปลอดภัย',        icon:'🔍', color:'#059669', bg:'#dcfce7' },
+  { key:'drill',       label:'ซ้อมแผนฉุกเฉิน/ดับเพลิง',icon:'🚒', color:'#dc2626', bg:'#fee2e2' },
+  { key:'audit',       label:'ตรวจประเมิน (Audit)',    icon:'📋', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'health',      label:'ตรวจสุขภาพ',              icon:'🩺', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'meeting',     label:'ประชุมคณะกรรมการ',        icon:'👥', color:'#d97706', bg:'#fef3c7' },
+  { key:'campaign',    label:'รณรงค์ / กิจกรรม',       icon:'📢', color:'#ea580c', bg:'#fff7ed' },
+  { key:'maintenance', label:'ซ่อมบำรุง / ทดสอบอุปกรณ์',icon:'🔧', color:'#92400e', bg:'#fef9c3' },
+  { key:'legal',       label:'ต่ออายุใบอนุญาต / กฎหมาย',icon:'⚖️', color:'#4f46e5', bg:'#eef2ff' },
+  { key:'review',      label:'ทบทวนนโยบาย / เอกสาร',   icon:'📝', color:'#6b7280', bg:'#f3f4f6' },
+  { key:'other',       label:'อื่นๆ',                   icon:'🔖', color:'#9ca3af', bg:'#f9fafb' },
+];
+export const APLAN_STATUS = {
+  planned:     { label:'ยังไม่เริ่ม', color:'#6b7280', bg:'#f3f4f6' },
+  in_progress: { label:'กำลังดำเนินการ', color:'#2563eb', bg:'#dbeafe' },
+  completed:   { label:'เสร็จสิ้น',   color:'#16a34a', bg:'#dcfce7' },
+  delayed:     { label:'ล่าช้า',       color:'#d97706', bg:'#fef3c7' },
+  cancelled:   { label:'ยกเลิก',      color:'#dc2626', bg:'#fee2e2' },
+};
+export const APLAN_QUARTERS = [
+  { key:'Q1', label:'Q1 (ม.ค.–มี.ค.)', months:[1,2,3] },
+  { key:'Q2', label:'Q2 (เม.ย.–มิ.ย.)', months:[4,5,6] },
+  { key:'Q3', label:'Q3 (ก.ค.–ก.ย.)', months:[7,8,9] },
+  { key:'Q4', label:'Q4 (ต.ค.–ธ.ค.)', months:[10,11,12] },
+];
+export const APLAN_MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+export async function listAnnualPlan(year) {
+  const col = collection(db, COL.annualPlan);
+  const q   = year
+    ? query(col, orderBy('planYear','desc'), orderBy('planMonth','asc'), limit(500))
+    : query(col, orderBy('planYear','desc'), orderBy('planMonth','asc'), limit(500));
+  const s = await getDocs(q);
+  const all = s.docs.map(d => ({ id: d.id, ...d.data() }));
+  return year ? all.filter(r => r.planYear === year) : all;
+}
+export async function getAnnualPlan(id) {
+  const d = await getDoc(doc(db, COL.annualPlan, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createAnnualPlan(data, createdBy) {
+  return addDoc(collection(db, COL.annualPlan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateAnnualPlan(id, data) {
+  await updateDoc(doc(db, COL.annualPlan, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteAnnualPlan(id) {
+  await deleteDoc(doc(db, COL.annualPlan, id));
 }
