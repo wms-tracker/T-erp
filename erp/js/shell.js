@@ -206,7 +206,8 @@ const NAV = {
       { key: 'safety-contractor-eval', label: 'ประเมินผู้รับเหมา (Contractor Eval)', href: 'safety-contractor-eval.html' },
       { key: 'safety-occ-health',    label: 'เฝ้าระวังโรคอาชีวอนามัย',    href: 'safety-occ-health.html' },
       { key: 'safety-annual-plan',   label: 'แผนความปลอดภัยประจำปี',      href: 'safety-annual-plan.html' },
-      { key: 'safety-mgmt-review',   label: 'การทบทวนของฝ่ายบริหาร',      href: 'safety-mgmt-review.html' },
+      { key: 'safety-mgmt-review',    label: 'การทบทวนของฝ่ายบริหาร',      href: 'safety-mgmt-review.html' },
+      { key: 'safety-legal-comply',  label: 'ประเมินการปฏิบัติตามกฎหมาย', href: 'safety-legal-comply.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -284,8 +285,9 @@ const NAV = {
       { key: 'safety-contractor-eval', label: 'ประเมินผู้รับเหมา (Contractor Eval)', href: 'safety-contractor-eval.html' },
       { key: 'safety-occ-health', label: 'เฝ้าระวังโรคอาชีวอนามัย',       href: 'safety-occ-health.html' },
       { key: 'safety-annual-plan', label: 'แผนความปลอดภัยประจำปี',         href: 'safety-annual-plan.html' },
-      { key: 'safety-mgmt-review',label: 'การทบทวนของฝ่ายบริหาร',         href: 'safety-mgmt-review.html' },
-      { key: 'safety-reports',    label: 'รายงานความปลอดภัย',             href: 'safety-reports.html' },
+      { key: 'safety-mgmt-review',   label: 'การทบทวนของฝ่ายบริหาร',       href: 'safety-mgmt-review.html' },
+      { key: 'safety-legal-comply', label: 'ประเมินการปฏิบัติตามกฎหมาย',  href: 'safety-legal-comply.html' },
+      { key: 'safety-reports',      label: 'รายงานความปลอดภัย',           href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
       { key: 'legal-compliance',  label: 'กฎหมายความปลอดภัย',             href: 'safety-legal.html' },
@@ -452,6 +454,7 @@ const PAGE_DEPARTMENT = {
   "safety-occ-health.html":     "safety_officer",
   "safety-annual-plan.html":    "safety_officer",
   "safety-mgmt-review.html":    "safety_officer",
+  "safety-legal-comply.html":   "safety_officer",
 };
 
 // ===================================================================

@@ -74,6 +74,7 @@ export const COL = {
   occHealth:        "safetyOccHealth",
   annualPlan:       "safetyAnnualPlan",
   mgmtReview:       "safetyMgmtReview",
+  legalCompliance:  "safetyLegalCompliance",
 };
 
 // ────────────────────────────────────────────
@@ -3749,4 +3750,42 @@ export async function updateMgmtReview(id, data) {
 }
 export async function deleteMgmtReview(id) {
   await deleteDoc(doc(db, COL.mgmtReview, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 69 — Legal Compliance Evaluation (ISO 45001 §9.1.2)
+// ────────────────────────────────────────────
+export const LEGAL_COMP_STATUS = {
+  compliant:   { label:'ปฏิบัติครบถ้วน',      color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  partial:     { label:'ปฏิบัติบางส่วน',      color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+  non_comply:  { label:'ยังไม่ปฏิบัติตาม',    color:'#dc2626', bg:'#fee2e2', icon:'❌' },
+  not_apply:   { label:'ไม่เกี่ยวข้อง',       color:'#9ca3af', bg:'#f3f4f6', icon:'—'  },
+};
+export const LEGAL_COMP_CATEGORIES = [
+  { key:'ohs_act',      label:'พ.ร.บ.ความปลอดภัยอาชีวอนามัย', icon:'⚖️' },
+  { key:'factory_act',  label:'พ.ร.บ.โรงงาน',                  icon:'🏭' },
+  { key:'hazmat',       label:'วัตถุอันตราย',                   icon:'☣️' },
+  { key:'env',          label:'สิ่งแวดล้อม',                   icon:'🌿' },
+  { key:'fire',         label:'ป้องกันและระงับอัคคีภัย',       icon:'🔥' },
+  { key:'pressure',     label:'ภาชนะรับแรงดัน/หม้อไอน้ำ',    icon:'🫙' },
+  { key:'electricity',  label:'ไฟฟ้า',                         icon:'⚡' },
+  { key:'iso45001',     label:'ข้อกำหนด ISO 45001',             icon:'📋' },
+  { key:'other',        label:'อื่นๆ',                          icon:'🔖' },
+];
+export async function listLegalCompliance() {
+  const s = await getDocs(query(collection(db, COL.legalCompliance), orderBy('evalDate','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getLegalCompliance(id) {
+  const d = await getDoc(doc(db, COL.legalCompliance, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createLegalCompliance(data, createdBy) {
+  return addDoc(collection(db, COL.legalCompliance), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateLegalCompliance(id, data) {
+  await updateDoc(doc(db, COL.legalCompliance, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteLegalCompliance(id) {
+  await deleteDoc(doc(db, COL.legalCompliance, id));
 }

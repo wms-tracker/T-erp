@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ประเมินการปฏิบัติตามกฎหมาย</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#0d9488;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.prog-wrap{background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;margin-top:5px}
+.prog-bar{height:100%;border-radius:4px;background:var(--c-success);transition:width .4s}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:160px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* Compliance summary bar */
+.comply-bar{display:flex;border-radius:8px;overflow:hidden;height:28px;margin-bottom:16px;background:#e2e8f0}
+.comply-seg{display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;color:#fff;transition:width .4s;white-space:nowrap;overflow:hidden}
+/* Table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+/* Panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.status-selector{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.status-opt{padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:.84rem;text-align:center;transition:all .15s;font-family:inherit;background:#fff}
+.status-opt.selected{font-weight:700}
+.detail-section{background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.detail-section h3{font-size:.88rem;font-weight:700;color:#334155;margin-bottom:8px}
+.detail-row{display:flex;gap:8px;margin-bottom:5px;font-size:.83rem}
+.detail-row .dk{color:#6b7280;width:150px;flex-shrink:0}
+.detail-row .dv{color:#1e293b;font-weight:500;flex:1}
+.req-row{background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:10px 12px;margin-bottom:8px}
+.req-row .req-title{font-size:.85rem;font-weight:600;color:#1e293b;margin-bottom:4px}
+.req-row .req-meta{font-size:.75rem;color:#9ca3af}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+/* Requirements list in form */
+.req-item{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:.83rem}
+.req-item:last-child{border-bottom:none}
+.req-item .ri-num{color:#9ca3af;width:20px;flex-shrink:0;margin-top:1px}
+.req-item .ri-text{flex:1;color:#334155}
+.req-item .ri-st select{padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;font-size:.78rem;font-family:inherit}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  LEGAL_COMP_STATUS, LEGAL_COMP_CATEGORIES,
+  listLegalCompliance, getLegalCompliance,
+  createLegalCompliance, updateLegalCompliance, deleteLegalCompliance,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-legal-comply', 'ประเมินการปฏิบัติตามกฎหมาย (ISO 45001 §9.1.2)');
+
+let allRecs   = [];
+let editId    = null;
+let selStatus = '';
+
+// ── KPI ──
+function renderKPI(recs) {
+  const applicable = recs.filter(r=>r.complianceStatus!=='not_apply');
+  const compliant  = recs.filter(r=>r.complianceStatus==='compliant').length;
+  const partial    = recs.filter(r=>r.complianceStatus==='partial').length;
+  const nonComply  = recs.filter(r=>r.complianceStatus==='non_comply').length;
+  const notApply   = recs.filter(r=>r.complianceStatus==='not_apply').length;
+  const pct = applicable.length ? Math.round(compliant/applicable.length*100) : 0;
+  // compliance bar segments
+  const total = recs.length || 1;
+  const seg = (n, color, label) => n
+    ? `<div class="comply-seg" style="width:${(n/total*100).toFixed(1)}%;background:${color}">${n > total*0.07 ? label+' '+n : ''}</div>`
+    : '';
+  const bar = `<div class="comply-bar">
+    ${seg(compliant,'#16a34a','✅')}
+    ${seg(partial,'#d97706','⚠️')}
+    ${seg(nonComply,'#dc2626','❌')}
+    ${seg(notApply,'#d1d5db','—')}
+  </div>`;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">กฎหมาย/ข้อกำหนด</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${compliant}</div><div class="lbl">✅ ครบถ้วน</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${partial}</div><div class="lbl">⚠️ บางส่วน</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${nonComply}</div><div class="lbl">❌ ยังไม่ปฏิบัติ</div></div>
+    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${notApply}</div><div class="lbl">— ไม่เกี่ยวข้อง</div></div>
+    <div class="kpi" style="border-color:#0d9488">
+      <div class="num" style="color:#0d9488">${pct}%</div>
+      <div class="lbl">อัตราปฏิบัติตาม</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>
+    </div>
+  </div>${bar}`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">⚖️</div><p>ยังไม่มีข้อมูลการประเมิน</p></div>`;
+  const rows = recs.map(r => {
+    const st  = LEGAL_COMP_STATUS[r.complianceStatus]||LEGAL_COMP_STATUS.non_comply;
+    const cat = LEGAL_COMP_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:r.category||'—'};
+    const overdue = r.nextEvalDate && new Date(r.nextEvalDate) < new Date();
+    return `<tr>
+      <td>
+        <strong>${r.lawName||'—'}</strong>
+        <div style="font-size:.74rem;color:#6b7280">${r.lawNumber||''} ${r.lawYear?'ปี '+r.lawYear:''}</div>
+      </td>
+      <td style="font-size:.8rem">${cat.icon} ${cat.label}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td style="font-size:.8rem;max-width:160px">${r.requirementSummary||'—'}</td>
+      <td style="font-size:.8rem">${r.evalDate||'—'}</td>
+      <td style="font-size:.8rem${overdue?';color:#dc2626;font-weight:600':''}">${r.nextEvalDate||'—'}${overdue?' ⚠️':''}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__viewLC('${r.id}')">ดู</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editLC('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteLC('${r.id}','${(r.lawName||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>ชื่อกฎหมาย / ข้อกำหนด</th><th>หมวดหมู่</th><th>สถานะ</th>
+      <th>ข้อกำหนดสำคัญ</th><th>วันที่ประเมิน</th><th>ประเมินครั้งถัดไป</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const catOpts = LEGAL_COMP_CATEGORIES.map(c=>
+    `<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`
+  ).join('');
+  const curStatus = rec?.complianceStatus||'';
+  const statusBtns = Object.entries(LEGAL_COMP_STATUS).map(([k,v])=>
+    `<button type="button" class="status-opt${curStatus===k?' selected':''}"
+      style="${curStatus===k?`border-color:${v.color};color:${v.color};background:${v.bg}`:''}"
+      onclick="window.__selStatus('${k}')">${v.icon} ${v.label}</button>`
+  ).join('');
+  return `<form id="lc-form" onsubmit="return false">
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่อกฎหมาย / ข้อกำหนด *</label>
+        <input id="f-lawName" value="${rec?.lawName||''}" placeholder="เช่น พ.ร.บ.ความปลอดภัยอาชีวอนามัย พ.ศ. 2554" required/></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>หมายเลขกฎหมาย / มาตรา</label>
+        <input id="f-lawNumber" value="${rec?.lawNumber||''}" placeholder="มาตรา / ข้อที่"/></div>
+      <div class="form-group"><label>ปีที่ประกาศใช้</label>
+        <input id="f-lawYear" value="${rec?.lawYear||''}" placeholder="พ.ศ."/></div>
+      <div class="form-group"><label>หมวดหมู่</label>
+        <select id="f-category">${catOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>สรุปข้อกำหนดสำคัญ</label>
+        <textarea id="f-requirementSummary" rows="2" placeholder="ข้อกำหนดหลักที่ต้องปฏิบัติตาม">${rec?.requirementSummary||''}</textarea></div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>สถานะการปฏิบัติตาม *</label>
+      <div class="status-selector" id="status-selector">${statusBtns}</div>
+      <input type="hidden" id="f-complianceStatus" value="${curStatus}"/>
+    </div>
+
+    <div class="form-row one">
+      <div class="form-group"><label>หลักฐานการปฏิบัติตาม / วิธีการตรวจสอบ</label>
+        <textarea id="f-evidence" rows="3" placeholder="ระบุหลักฐาน เช่น ใบอนุญาต, บันทึกการตรวจ, ผลการทดสอบ...">${rec?.evidence||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ช่องว่าง / ข้อบกพร่องที่พบ</label>
+        <textarea id="f-gaps" rows="2" placeholder="ระบุช่องว่างหรือข้อบกพร่องที่ยังไม่ครบถ้วน">${rec?.gaps||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>มาตรการแก้ไข / แผนดำเนินการ</label>
+        <textarea id="f-corrective" rows="2" placeholder="มาตรการหรือแผนเพื่อปิดช่องว่าง">${rec?.corrective||''}</textarea></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>วันที่ประเมิน *</label>
+        <input id="f-evalDate" type="date" value="${rec?.evalDate||''}" required/></div>
+      <div class="form-group"><label>ประเมินครั้งถัดไป</label>
+        <input id="f-nextEvalDate" type="date" value="${rec?.nextEvalDate||''}"/></div>
+      <div class="form-group"><label>ผู้ประเมิน</label>
+        <input id="f-evaluator" value="${rec?.evaluator||profile.name||''}" placeholder="ชื่อ-ตำแหน่ง"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveLC()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+// ── Detail ──
+function renderDetail(r) {
+  const st  = LEGAL_COMP_STATUS[r.complianceStatus]||LEGAL_COMP_STATUS.non_comply;
+  const cat = LEGAL_COMP_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:r.category||'—'};
+  const overdue = r.nextEvalDate && new Date(r.nextEvalDate) < new Date();
+  return `<div style="padding:20px">
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:1.1rem;font-weight:800">${r.lawName||'—'}</div>
+        <div style="color:#6b7280;font-size:.82rem">${cat.icon} ${cat.label} ${r.lawNumber?'&nbsp;•&nbsp; '+r.lawNumber:''} ${r.lawYear?'ปี '+r.lawYear:''}</div>
+      </div>
+      <span class="badge" style="color:${st.color};background:${st.bg};font-size:.85rem;margin-left:auto">${st.icon} ${st.label}</span>
+    </div>
+
+    ${r.requirementSummary?`<div class="detail-section"><h3>ข้อกำหนดสำคัญ</h3><p style="font-size:.85rem;line-height:1.7">${r.requirementSummary}</p></div>`:''}
+
+    <div class="detail-section">
+      <h3>ผลการประเมิน</h3>
+      <div class="detail-row"><span class="dk">วันที่ประเมิน</span><span class="dv">${r.evalDate||'—'}</span></div>
+      <div class="detail-row"><span class="dk">ผู้ประเมิน</span><span class="dv">${r.evaluator||'—'}</span></div>
+      <div class="detail-row"><span class="dk">ประเมินครั้งถัดไป</span>
+        <span class="dv" style="${overdue?'color:#dc2626;font-weight:700':''}">${r.nextEvalDate||'—'}${overdue?' ⚠️ เกินกำหนด':''}</span></div>
+    </div>
+
+    ${r.evidence?`<div class="detail-section"><h3>✅ หลักฐาน / วิธีตรวจสอบ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.evidence}</p></div>`:''}
+    ${r.gaps?`<div class="detail-section" style="border-left:3px solid #d97706"><h3 style="color:#d97706">⚠️ ช่องว่าง / ข้อบกพร่อง</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.gaps}</p></div>`:''}
+    ${r.corrective?`<div class="detail-section" style="border-left:3px solid #2563eb"><h3 style="color:#2563eb">📌 มาตรการแก้ไข / แผนดำเนินการ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.corrective}</p></div>`:''}
+    ${r.notes?`<div class="detail-section"><h3>หมายเหตุ</h3><p style="font-size:.85rem">${r.notes}</p></div>`:''}
+
+    <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button class="btn btn-ghost btn-sm" onclick="window.__editLC('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteLC('${r.id}','${(r.lawName||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
+    </div>
+  </div>`;
+}
+
+// ── Status selector ──
+window.__selStatus = key => {
+  selStatus = key;
+  document.getElementById('f-complianceStatus').value = key;
+  document.querySelectorAll('.status-opt').forEach(b => {
+    const k = b.getAttribute('onclick').match(/'(\w+)'/)[1];
+    const st = LEGAL_COMP_STATUS[k];
+    b.classList.toggle('selected', k===key);
+    b.style.borderColor = k===key ? st.color : '';
+    b.style.color       = k===key ? st.color : '';
+    b.style.background  = k===key ? st.bg    : '';
+  });
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+window.__newLC = () => { editId = null; selStatus = ''; openPanel(renderForm(null), '+ เพิ่มการประเมินกฎหมาย'); };
+window.__editLC = async id => {
+  editId = id;
+  const r = await getLegalCompliance(id);
+  selStatus = r.complianceStatus||'';
+  openPanel(renderForm(r), '✏️ แก้ไขการประเมิน');
+};
+window.__viewLC = async id => {
+  const r = await getLegalCompliance(id);
+  document.getElementById('panel-title').textContent = '⚖️ รายละเอียดการประเมิน';
+  document.getElementById('panel-content').innerHTML = renderDetail(r);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+
+// ── Save ──
+window.__saveLC = async () => {
+  const st = document.getElementById('f-complianceStatus').value;
+  if (!st) { alert('กรุณาเลือกสถานะการปฏิบัติตาม'); return; }
+  const data = {
+    lawName:             document.getElementById('f-lawName').value.trim(),
+    lawNumber:           document.getElementById('f-lawNumber').value.trim(),
+    lawYear:             document.getElementById('f-lawYear').value.trim(),
+    category:            document.getElementById('f-category').value,
+    requirementSummary:  document.getElementById('f-requirementSummary').value.trim(),
+    complianceStatus:    st,
+    evidence:            document.getElementById('f-evidence').value.trim(),
+    gaps:                document.getElementById('f-gaps').value.trim(),
+    corrective:          document.getElementById('f-corrective').value.trim(),
+    evalDate:            document.getElementById('f-evalDate').value,
+    nextEvalDate:        document.getElementById('f-nextEvalDate').value,
+    evaluator:           document.getElementById('f-evaluator').value.trim(),
+    notes:               document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.lawName || !data.evalDate) { alert('กรุณากรอกชื่อกฎหมายและวันที่ประเมิน'); return; }
+  try {
+    if (editId) await updateLegalCompliance(editId, data);
+    else        await createLegalCompliance(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+window.__deleteLC = async (id, name) => {
+  if (!confirm(`ลบ "${name}" ออกจากระบบ?`)) return;
+  await deleteLegalCompliance(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const st  = document.getElementById('filter-status')?.value||'';
+  const cat = document.getElementById('filter-cat')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.lawName||'').toLowerCase().includes(q) || (r.lawNumber||'').toLowerCase().includes(q)) &&
+    (!st || r.complianceStatus===st) &&
+    (!cat|| r.category===cat)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('table-wrap').innerHTML = renderTable(filtered);
+}
+window.applyFilter = applyFilter;
+
+async function loadData() {
+  allRecs = await listLegalCompliance();
+  applyFilter();
+}
+
+// ── Build UI ──
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+  Object.entries(LEGAL_COMP_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+const catOpts = `<option value="">-- ทุกหมวด --</option>` +
+  LEGAL_COMP_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหากฎหมาย…" oninput="applyFilter()"/>
+      <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
+      <select id="filter-cat"    onchange="applyFilter()">${catOpts}</select>
+      <button class="btn btn-primary" onclick="window.__newLC()">+ เพิ่มการประเมิน</button>
+    </div>
+    <div id="table-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">ประเมินการปฏิบัติตามกฎหมาย</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>
