@@ -62,6 +62,7 @@ export const COL = {
   ptw:              "safetyPTW",
   noiseMonitor:     "safetyNoiseMonitor",
   incidentInvestig: "safetyIncidentInvestigation",
+  safetyPassport:   "safetySafetyPassport",
 };
 
 // ────────────────────────────────────────────
@@ -3120,4 +3121,61 @@ export async function updateIncidentInvestig(id, data) {
 }
 export async function deleteIncidentInvestig(id) {
   await deleteDoc(doc(db, COL.incidentInvestig, id));
+}
+
+// ─── Phase 57: Safety Passport (บัตรผ่านความปลอดภัยรายบุคคล) ─────────────────
+export const PASSPORT_DEPARTMENTS = [
+  'ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย','อื่นๆ',
+];
+export const PASSPORT_CERTS = [
+  { key:'loto',       label:'LOTO Authorized',          icon:'🔒', color:'#dc2626' },
+  { key:'wah',        label:'Work at Height',            icon:'🏗️', color:'#2563eb' },
+  { key:'cse',        label:'Confined Space Entry',      icon:'🕳️', color:'#7c3aed' },
+  { key:'hot_work',   label:'Hot Work / Welding',        icon:'🔥', color:'#d97706' },
+  { key:'first_aid',  label:'First Aid / CPR',           icon:'🩺', color:'#16a34a' },
+  { key:'fire_warden',label:'Fire Warden',               icon:'🚒', color:'#dc2626' },
+  { key:'forklift',   label:'Forklift Operator',         icon:'🏗️', color:'#059669' },
+  { key:'crane',      label:'Crane / Rigging',           icon:'🏗️', color:'#0891b2' },
+  { key:'chem_handling',label:'Chemical Handling',       icon:'⚗️', color:'#7c3aed' },
+  { key:'electrical', label:'Electrical Safety',         icon:'⚡', color:'#d97706' },
+  { key:'scba',       label:'SCBA / Breathing Apparatus',icon:'😷', color:'#2563eb' },
+  { key:'safety_officer_cert', label:'จป.วิชาชีพ / เทคนิค', icon:'🛡️', color:'#1a237e' },
+];
+export const PASSPORT_STATUS = {
+  active:    { label:'ทำงานอยู่',   color:'#16a34a', bg:'#dcfce7' },
+  inactive:  { label:'ลาออก/ย้าย', color:'#6b7280', bg:'#f3f4f6' },
+  suspended: { label:'พักงาน',      color:'#dc2626', bg:'#fee2e2' },
+};
+export function calcPassportScore(passport) {
+  let score = 100;
+  const now = new Date();
+  // deduct for expired certs
+  (passport.certs||[]).forEach(c => {
+    if (c.expiryDate && new Date(c.expiryDate) < now) score -= 10;
+  });
+  // deduct for violations
+  score -= Math.min((passport.violationCount||0) * 5, 30);
+  // deduct if health check expired
+  if (passport.lastHealthCheck) {
+    const months = (now - new Date(passport.lastHealthCheck)) / (1000*60*60*24*30);
+    if (months > 12) score -= 10;
+  }
+  return Math.max(score, 0);
+}
+export async function listSafetyPassport() {
+  const s = await getDocs(query(collection(db, COL.safetyPassport), orderBy('employeeName','asc'), limit(500)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getSafetyPassport(id) {
+  const d = await getDoc(doc(db, COL.safetyPassport, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createSafetyPassport(data, createdBy) {
+  return addDoc(collection(db, COL.safetyPassport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetyPassport(id, data) {
+  await updateDoc(doc(db, COL.safetyPassport, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetyPassport(id) {
+  await deleteDoc(doc(db, COL.safetyPassport, id));
 }

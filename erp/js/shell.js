@@ -184,9 +184,10 @@ const NAV = {
       { key: 'safety-emergency-plan', label: 'แผนรับมือฉุกเฉิน',       href: 'safety-emergency-plan.html' },
       { key: 'safety-talk',      label: 'Safety Talk / Toolbox',   href: 'safety-talk.html' },
       { key: 'safety-health',    label: 'ตรวจสุขภาพอาชีวอนามัย',   href: 'safety-health.html' },
-      { key: 'safety-induction', label: 'ปฐมนิเทศความปลอดภัย',     href: 'safety-induction.html' },
-      { key: 'safety-ppe',       label: 'จ่าย PPE',                 href: 'safety-ppe.html' },
-      { key: 'safety-ergo',      label: 'ประเมินการยศาสตร์',          href: 'safety-ergo.html' },
+      { key: 'safety-induction',  label: 'ปฐมนิเทศความปลอดภัย',     href: 'safety-induction.html' },
+      { key: 'safety-ppe',        label: 'จ่าย PPE',                 href: 'safety-ppe.html' },
+      { key: 'safety-ergo',       label: 'ประเมินการยศาสตร์',          href: 'safety-ergo.html' },
+      { key: 'safety-passport',   label: 'Safety Passport รายบุคคล', href: 'safety-passport.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',           href: 'safety-chemical.html' },
@@ -251,6 +252,7 @@ const NAV = {
       { key: 'safety-jsa',          label: 'Job Safety Analysis (JSA)',    href: 'safety-jsa.html' },
       { key: 'safety-ppe',          label: 'จ่าย PPE',                     href: 'safety-ppe.html' },
       { key: 'safety-ppe-stock',    label: 'คลัง PPE',                     href: 'safety-ppe-stock.html' },
+      { key: 'safety-passport',     label: 'Safety Passport รายบุคคล',    href: 'safety-passport.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี/สิ่งแวดล้อม', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',           href: 'safety-chemical.html' },
@@ -416,6 +418,7 @@ const PAGE_DEPARTMENT = {
   "safety-alert.html":          "safety_officer",
   "safety-noise.html":          "safety_officer",
   "safety-exec-dashboard.html": "safety_officer",
+  "safety-passport.html":       "safety_officer",
 };
 
 // ===================================================================
