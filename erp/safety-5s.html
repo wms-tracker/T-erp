@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ตรวจสอบ 5ส — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(560px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px}
+.search-bar input{flex:1}
+.s-block{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:12px}
+.s-block-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none}
+.s-block-header:hover{background:#f9fafb}
+.s-block-body{padding:4px 14px 10px}
+.checklist-item{display:flex;align-items:flex-start;gap:10px;padding:7px 4px;border-radius:7px;cursor:pointer;transition:background .12s}
+.checklist-item:hover{background:#f1f5f9}
+.checklist-item.checked{background:#dcfce7}
+.checklist-item input[type=checkbox]{width:16px;height:16px;accent-color:#16a34a;flex-shrink:0;margin-top:2px}
+.checklist-item label{font-size:0.84rem;cursor:pointer;line-height:1.4}
+.score-bar-wrap{background:#e5e7eb;border-radius:6px;height:7px;overflow:hidden;margin-top:6px}
+.score-bar{height:100%;border-radius:6px;transition:width .3s}
+.total-score-box{background:linear-gradient(135deg,#1a237e,#283593);color:#fff;border-radius:12px;padding:20px;text-align:center;margin-bottom:16px}
+.score-ring{font-size:2.5rem;font-weight:800;line-height:1}
+.grade-label{font-size:1rem;font-weight:600;margin-top:4px;opacity:.9}
+.card-score{display:inline-flex;align-items:center;gap:6px;font-size:0.85rem}
+.info-row{display:flex;gap:14px;flex-wrap:wrap;font-size:0.81rem;color:#6b7280;margin-top:3px}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">ตรวจสอบ 5ส</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  FIVES_CATEGORIES, FIVES_GRADES, calcFiveSGrade,
+  listFiveS, getFiveS, createFiveS, updateFiveS, deleteFiveS
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-5s', 'ตรวจสอบ 5ส (5S Inspection)');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+
+const TOTAL_ITEMS = FIVES_CATEGORIES.reduce((s,c)=>s+c.items.length, 0);
+
+let records  = [];
+let editId   = null;
+let chkState = {};
+
+function calcScore(state) {
+  const done = FIVES_CATEGORIES.flatMap(c=>c.items).filter(i=>state[i.key]).length;
+  return Math.round(done / TOTAL_ITEMS * 100);
+}
+
+function calcCatScore(cat, state) {
+  const done = cat.items.filter(i=>state[i.key]).length;
+  return { done, total: cat.items.length, pct: Math.round(done/cat.items.length*100) };
+}
+
+// ── render ────────────────────────────────────────────────────────────────────
+async function render() {
+  records = await listFiveS();
+  const total = records.length;
+  const avg   = total ? Math.round(records.reduce((s,r)=>s+(r.score||0),0)/total) : 0;
+  const aCount= records.filter(r=>(r.score||0)>=90).length;
+  const dCount= records.filter(r=>(r.score||0)<60).length;
+
+  const avgGrade = calcFiveSGrade(avg);
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">🏭 ตรวจสอบ 5ส (5S Inspection)</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel(null)">+ ตรวจสอบ 5ส</button>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${total}</div><div class="kpi-label">บันทึกทั้งหมด</div></div>
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:${avgGrade.color}">${avg}%</div>
+      <div class="kpi-label">คะแนนเฉลี่ย</div>
+    </div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#16a34a">${aCount}</div><div class="kpi-label">เกรด A (≥90%)</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${dCount}</div><div class="kpi-label">เกรด D (&lt;60%)</div></div>
+  </div>
+
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหาพื้นที่/แผนก, ผู้ตรวจ..." oninput="window.__search(this.value)"/>
+  </div>
+
+  <div id="list-wrap">${renderList(records)}</div>`;
+}
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ยังไม่มีบันทึกการตรวจสอบ 5ส</p>`;
+  return list.map(r => {
+    const pct   = r.score || 0;
+    const grade = calcFiveSGrade(pct);
+    const barColor = pct>=90?'#16a34a':pct>=75?'#2563eb':pct>=60?'#d97706':'#dc2626';
+    return `
+    <div class="card" onclick="window.__openPanel('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:1rem">${esc(r.zone||'-')}</div>
+          <div class="info-row">
+            <span>👤 ${esc(r.inspector||'-')}</span>
+            <span>📅 ${fmtDate(r.inspDate)}</span>
+            ${r.round ? `<span>รอบที่: ${esc(r.round)}</span>` : ''}
+          </div>
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          <div style="font-size:1.6rem;font-weight:800;color:${barColor}">${pct}%</div>
+          ${badge(grade.label, grade.color, grade.bg)}
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:4px">
+        ${FIVES_CATEGORIES.map(cat=>{
+          const catPct = r.catScores?.[cat.key] || 0;
+          return `<div style="flex:1;text-align:center">
+            <div style="font-size:0.7rem;color:${cat.color};font-weight:700">${cat.icon}</div>
+            <div class="score-bar-wrap"><div class="score-bar" style="width:${catPct}%;background:${cat.color}"></div></div>
+            <div style="font-size:0.68rem;color:#6b7280">${catPct}%</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.__search = (q) => {
+  const kw = q.toLowerCase();
+  const f  = records.filter(r =>
+    (r.zone||'').toLowerCase().includes(kw) ||
+    (r.inspector||'').toLowerCase().includes(kw)
+  );
+  document.getElementById('list-wrap').innerHTML = renderList(f);
+};
+
+// ── panel ─────────────────────────────────────────────────────────────────────
+window.__openPanel = async (id) => {
+  editId   = id;
+  chkState = {};
+  const panel = document.getElementById('panel');
+  const body  = document.getElementById('panel-body');
+  const foot  = document.getElementById('panel-footer');
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขผล 5ส' : 'บันทึกการตรวจสอบ 5ส';
+  document.getElementById('overlay').classList.add('open');
+  panel.classList.add('open');
+
+  let rec = null;
+  if (id) {
+    rec = await getFiveS(id);
+    if (rec?.checklist) {
+      FIVES_CATEGORIES.flatMap(c=>c.items).forEach((item,i)=>{ chkState[item.key] = rec.checklist[i] || false; });
+    }
+  }
+  body.innerHTML = renderForm(rec);
+  renderScoreBox();
+  foot.innerHTML = id
+    ? `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`
+    : `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+function renderForm(rec) {
+  const today = new Date().toISOString().slice(0,10);
+  return `
+  <div class="form-row">
+    <div>
+      <label class="lbl">พื้นที่ / แผนก *</label>
+      <input id="f-zone" value="${esc(rec?.zone||'')}" placeholder="เช่น แผนก Shipping, คลังสินค้า A"/>
+    </div>
+    <div>
+      <label class="lbl">ผู้ตรวจสอบ *</label>
+      <input id="f-insp" value="${esc(rec?.inspector||profile.displayName||'')}" placeholder="ชื่อผู้ตรวจ"/>
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label class="lbl">วันที่ตรวจ *</label>
+      <input id="f-date" type="date" value="${rec?.inspDate||today}"/>
+    </div>
+    <div>
+      <label class="lbl">รอบที่ / ครั้งที่</label>
+      <input id="f-round" value="${esc(rec?.round||'')}" placeholder="เช่น ครั้งที่ 1/2567"/>
+    </div>
+  </div>
+
+  <div id="score-box" style="margin-top:16px"></div>
+
+  <div class="section-title" style="margin-top:4px">รายการตรวจสอบ 5ส</div>
+  ${FIVES_CATEGORIES.map(cat=>`
+    <div class="s-block" id="block-${cat.key}">
+      <div class="s-block-header" onclick="window.__toggleBlock('${cat.key}')">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:1.1rem">${cat.icon}</span>
+          <span style="font-weight:700;color:${cat.color}">${esc(cat.label)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span id="cat-pct-${cat.key}" style="font-size:0.82rem;font-weight:700;color:${cat.color}">0%</span>
+          <span style="color:#9ca3af;font-size:0.85rem">▼</span>
+        </div>
+      </div>
+      <div class="s-block-body" id="body-${cat.key}">
+        ${cat.items.map(item=>`
+          <div class="checklist-item ${chkState[item.key]?'checked':''}" id="ci-${item.key}" onclick="window.__toggleCL('${item.key}','${cat.key}')">
+            <input type="checkbox" ${chkState[item.key]?'checked':''} onchange="window.__toggleCL('${item.key}','${cat.key}')"/>
+            <label>${esc(item.label)}</label>
+          </div>`).join('')}
+      </div>
+    </div>`).join('')}
+
+  <label class="lbl">ข้อสังเกต / จุดที่ต้องปรับปรุง</label>
+  <textarea id="f-note">${esc(rec?.note||'')}</textarea>`;
+}
+
+function renderScoreBox() {
+  const pct   = calcScore(chkState);
+  const grade = calcFiveSGrade(pct);
+  const box   = document.getElementById('score-box');
+  if (!box) return;
+  box.innerHTML = `
+    <div class="total-score-box">
+      <div class="score-ring">${pct}%</div>
+      <div class="grade-label">${grade.label}</div>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:12px;flex-wrap:wrap">
+        ${FIVES_CATEGORIES.map(cat=>{
+          const {done, total, pct: cp} = calcCatScore(cat, chkState);
+          return `<div style="text-align:center">
+            <div style="font-size:1rem">${cat.icon}</div>
+            <div style="font-size:0.9rem;font-weight:700;color:#fff">${cp}%</div>
+            <div style="font-size:0.7rem;opacity:.75">${done}/${total}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  FIVES_CATEGORIES.forEach(cat=>{
+    const {pct:cp} = calcCatScore(cat, chkState);
+    const el = document.getElementById(`cat-pct-${cat.key}`);
+    if (el) el.textContent = cp+'%';
+  });
+}
+
+window.__toggleCL = (key, catKey) => {
+  chkState[key] = !chkState[key];
+  const ci = document.getElementById(`ci-${key}`);
+  if (ci) {
+    ci.classList.toggle('checked', chkState[key]);
+    ci.querySelector('input').checked = chkState[key];
+  }
+  renderScoreBox();
+};
+
+window.__toggleBlock = (catKey) => {
+  const body = document.getElementById(`body-${catKey}`);
+  if (body) body.style.display = body.style.display==='none' ? '' : 'none';
+};
+
+// ── save / delete ─────────────────────────────────────────────────────────────
+window.__save = async () => {
+  const zone  = document.getElementById('f-zone')?.value.trim();
+  const insp  = document.getElementById('f-insp')?.value.trim();
+  const date  = document.getElementById('f-date')?.value;
+  if (!zone || !insp || !date) {
+    alert('กรุณากรอก: พื้นที่/แผนก, ผู้ตรวจ และวันที่ตรวจ');
+    return;
+  }
+  const allItems = FIVES_CATEGORIES.flatMap(c=>c.items);
+  const checklist = allItems.map(item=>!!chkState[item.key]);
+  const catScores = {};
+  FIVES_CATEGORIES.forEach(cat=>{
+    catScores[cat.key] = calcCatScore(cat, chkState).pct;
+  });
+  const score = calcScore(chkState);
+  const grade = calcFiveSGrade(score).label;
+  const data = {
+    zone, inspector: insp, inspDate: date,
+    round:    document.getElementById('f-round')?.value.trim()||'',
+    checklist, catScores, score, grade,
+    note:     document.getElementById('f-note')?.value.trim()||'',
+  };
+  try {
+    if (editId) await updateFiveS(editId, data);
+    else        await createFiveS(data, profile.uid);
+    window.__closePanel();
+    await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบบันทึกนี้?')) return;
+  await deleteFiveS(id);
+  window.__closePanel();
+  await render();
+};
+
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

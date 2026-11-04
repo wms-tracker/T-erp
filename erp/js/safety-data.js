@@ -53,6 +53,7 @@ export const COL = {
   vehicleCheck:  "safetyVehicleCheck",
   gasCylinder:   "safetyGasCylinder",
   liftingEq:     "safetyLiftingEquipment",
+  fiveS:         "safetyFiveS",
 };
 
 // ────────────────────────────────────────────
@@ -2633,4 +2634,79 @@ export async function updateLiftingEq(id, data) {
 }
 export async function deleteLiftingEq(id) {
   await deleteDoc(doc(db, COL.liftingEq, id));
+}
+
+// ─── Phase 47: 5S / Housekeeping Inspection ──────────────────────────────────
+export const FIVES_CATEGORIES = [
+  {
+    key:'seiri', label:'ส1 — สะสาง (Seiri)', icon:'🗂️', color:'#dc2626',
+    items:[
+      { key:'s1_1', label:'ไม่มีสิ่งของที่ไม่จำเป็นวางอยู่ในพื้นที่ทำงาน' },
+      { key:'s1_2', label:'วัสดุสิ้นเปลืองและอะไหล่เก็บแยกจากพื้นที่ผลิต' },
+      { key:'s1_3', label:'ของเสียและวัสดุรอทิ้งถูกระบุและนำออกทันที' },
+      { key:'s1_4', label:'อุปกรณ์ที่ชำรุดถูกแยกออกและติดป้ายรอซ่อม' },
+    ]
+  },
+  {
+    key:'seiton', label:'ส2 — สะดวก (Seiton)', icon:'📐', color:'#d97706',
+    items:[
+      { key:'s2_1', label:'ทุกสิ่งของมีที่จัดเก็บที่กำหนดไว้ชัดเจน' },
+      { key:'s2_2', label:'สิ่งของถูกวางในตำแหน่งที่กำหนดทุกครั้งหลังใช้' },
+      { key:'s2_3', label:'มีการติดป้ายระบุชื่อ/ตำแหน่งอย่างชัดเจน' },
+      { key:'s2_4', label:'เส้นทางเดินและพื้นที่ทำงานมีการทำเครื่องหมายพื้น' },
+    ]
+  },
+  {
+    key:'seiso', label:'ส3 — สะอาด (Seiso)', icon:'🧹', color:'#2563eb',
+    items:[
+      { key:'s3_1', label:'พื้น เครื่องจักร และอุปกรณ์สะอาด ไม่มีคราบสกปรก' },
+      { key:'s3_2', label:'มีการทำความสะอาดประจำวันและบันทึกผล' },
+      { key:'s3_3', label:'แหล่งกำเนิดสิ่งสกปรก (น้ำมันรั่ว ฝุ่น) ถูกระบุและแก้ไข' },
+      { key:'s3_4', label:'อุปกรณ์ทำความสะอาดมีพร้อมใช้และจัดเก็บถูกที่' },
+    ]
+  },
+  {
+    key:'seiketsu', label:'ส4 — สุขลักษณะ (Seiketsu)', icon:'📋', color:'#16a34a',
+    items:[
+      { key:'s4_1', label:'มีมาตรฐาน/วิธีปฏิบัติงาน (SOP) ติดแสดงไว้' },
+      { key:'s4_2', label:'พนักงานสวม PPE ครบถ้วนและถูกต้องตามงาน' },
+      { key:'s4_3', label:'ป้ายความปลอดภัยครบ อ่านได้ชัดเจน ไม่ชำรุด' },
+      { key:'s4_4', label:'มีตารางการตรวจสอบ 5ส และดำเนินการสม่ำเสมอ' },
+    ]
+  },
+  {
+    key:'shitsuke', label:'ส5 — สร้างนิสัย (Shitsuke)', icon:'⭐', color:'#7c3aed',
+    items:[
+      { key:'s5_1', label:'พนักงานปฏิบัติตามกฎ 5ส โดยไม่ต้องเตือน' },
+      { key:'s5_2', label:'มีการประชุมหรือสื่อสาร 5ส กับพนักงานสม่ำเสมอ' },
+      { key:'s5_3', label:'ผลการตรวจสอบ 5ส ถูกติดประกาศให้พนักงานทราบ' },
+      { key:'s5_4', label:'มีการยกย่องพื้นที่ที่ผ่านเกณฑ์และติดตามพื้นที่ที่ต้องปรับปรุง' },
+    ]
+  },
+];
+export const FIVES_GRADES = [
+  { min:90, label:'A — ดีเยี่ยม',  color:'#16a34a', bg:'#dcfce7' },
+  { min:75, label:'B — ดี',         color:'#2563eb', bg:'#dbeafe' },
+  { min:60, label:'C — พอใช้',      color:'#d97706', bg:'#fef3c7' },
+  { min:0,  label:'D — ต้องปรับปรุง',color:'#dc2626', bg:'#fee2e2' },
+];
+export function calcFiveSGrade(pct) {
+  return FIVES_GRADES.find(g => pct >= g.min) || FIVES_GRADES[FIVES_GRADES.length-1];
+}
+export async function listFiveS() {
+  const s = await getDocs(query(collection(db, COL.fiveS), orderBy('inspDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getFiveS(id) {
+  const d = await getDoc(doc(db, COL.fiveS, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createFiveS(data, createdBy) {
+  return addDoc(collection(db, COL.fiveS), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateFiveS(id, data) {
+  await updateDoc(doc(db, COL.fiveS, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteFiveS(id) {
+  await deleteDoc(doc(db, COL.fiveS, id));
 }
