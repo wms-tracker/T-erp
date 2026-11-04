@@ -204,6 +204,7 @@ const NAV = {
       { key: 'safety-project',       label: 'โครงการปรับปรุงความปลอดภัย', href: 'safety-project.html' },
       { key: 'safety-daily',         label: 'รายงานประจำวัน (Daily Report)', href: 'safety-daily.html' },
       { key: 'safety-contractor-eval', label: 'ประเมินผู้รับเหมา (Contractor Eval)', href: 'safety-contractor-eval.html' },
+      { key: 'safety-occ-health',    label: 'เฝ้าระวังโรคอาชีวอนามัย',    href: 'safety-occ-health.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -279,6 +280,7 @@ const NAV = {
       { key: 'safety-project',    label: 'โครงการปรับปรุงความปลอดภัย',   href: 'safety-project.html' },
       { key: 'safety-daily',      label: 'รายงานประจำวัน (Daily Report)', href: 'safety-daily.html' },
       { key: 'safety-contractor-eval', label: 'ประเมินผู้รับเหมา (Contractor Eval)', href: 'safety-contractor-eval.html' },
+      { key: 'safety-occ-health', label: 'เฝ้าระวังโรคอาชีวอนามัย',       href: 'safety-occ-health.html' },
       { key: 'safety-reports',    label: 'รายงานความปลอดภัย',             href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -443,6 +445,7 @@ const PAGE_DEPARTMENT = {
   "safety-project.html":        "safety_officer",
   "safety-daily.html":          "safety_officer",
   "safety-contractor-eval.html":"safety_officer",
+  "safety-occ-health.html":     "safety_officer",
 };
 
 // ===================================================================

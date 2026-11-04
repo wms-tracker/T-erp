@@ -71,6 +71,7 @@ export const COL = {
   safetyProject:    "safetySafetyProjects",
   dailyReport:      "safetySafetyDailyReport",
   contractorEval:   "safetyContractorEval",
+  occHealth:        "safetyOccHealth",
 };
 
 // ────────────────────────────────────────────
@@ -3602,4 +3603,50 @@ export async function updateContractorEval(id, data) {
 }
 export async function deleteContractorEval(id) {
   await deleteDoc(doc(db, COL.contractorEval, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 66 — Occupational Health Surveillance
+// ────────────────────────────────────────────
+export const OCCH_HAZARD_TYPES = [
+  { key:'noise',       label:'เสียงดัง (Noise)',           icon:'🔊', color:'#d97706', bg:'#fef3c7' },
+  { key:'chemical',    label:'สารเคมีอันตราย (Chemical)',  icon:'🧪', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'dust',        label:'ฝุ่นละออง (Dust)',           icon:'💨', color:'#92400e', bg:'#fef9c3' },
+  { key:'heat',        label:'ความร้อน (Heat Stress)',      icon:'🌡️', color:'#dc2626', bg:'#fee2e2' },
+  { key:'ergonomic',   label:'ท่าทางการทำงาน (Ergonomic)', icon:'🦴', color:'#2563eb', bg:'#dbeafe' },
+  { key:'biological',  label:'สารชีวภาพ (Biological)',     icon:'🦠', color:'#059669', bg:'#dcfce7' },
+  { key:'radiation',   label:'รังสี (Radiation)',           icon:'☢️', color:'#9ca3af', bg:'#f3f4f6' },
+  { key:'vibration',   label:'การสั่นสะเทือน (Vibration)', icon:'📳', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'msd',         label:'โรคกล้ามเนื้อ (MSD)',         icon:'💪', color:'#4f46e5', bg:'#eef2ff' },
+  { key:'eye',         label:'ดวงตา / แสงสว่าง',           icon:'👁️', color:'#0d9488', bg:'#f0fdfa' },
+];
+export const OCCH_EXAM_TYPE = [
+  { key:'annual',      label:'ตรวจประจำปี' },
+  { key:'pre_employ',  label:'ก่อนเข้างาน' },
+  { key:'periodic',    label:'ตรวจตามรอบ (Periodic)' },
+  { key:'return_work', label:'กลับจากลาป่วย (Return-to-Work)' },
+  { key:'special',     label:'ตรวจพิเศษ / กรณีฉุกเฉิน' },
+];
+export const OCCH_RESULT_STATUS = {
+  normal:      { label:'ปกติ',                color:'#16a34a', bg:'#dcfce7' },
+  watchlist:   { label:'เฝ้าระวัง',           color:'#d97706', bg:'#fef3c7' },
+  restricted:  { label:'จำกัดงาน',            color:'#ea580c', bg:'#fff7ed' },
+  referred:    { label:'ส่งต่อแพทย์เฉพาะทาง', color:'#dc2626', bg:'#fee2e2' },
+};
+export async function listOccHealth(lim) {
+  const s = await getDocs(query(collection(db, COL.occHealth), orderBy('examDate','desc'), limit(lim || 300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getOccHealth(id) {
+  const d = await getDoc(doc(db, COL.occHealth, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createOccHealth(data, createdBy) {
+  return addDoc(collection(db, COL.occHealth), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateOccHealth(id, data) {
+  await updateDoc(doc(db, COL.occHealth, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteOccHealth(id) {
+  await deleteDoc(doc(db, COL.occHealth, id));
 }
