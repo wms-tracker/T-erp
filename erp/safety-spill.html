@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>รั่วไหลสารเคมี — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.card-critical{border-left:4px solid #7c3aed;background:#faf5ff}
+.card-major{border-left:4px solid #dc2626;background:#fffafa}
+.chem-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:20px;border:2px solid #e5e7eb;cursor:pointer;font-size:0.82rem;transition:all .15s;user-select:none}
+.chem-chip.active{border-color:#1a237e;background:#e8eaf6;color:#1a237e;font-weight:700}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.checklist-item{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .12s}
+.checklist-item:hover{background:#f1f5f9}
+.checklist-item.checked{background:#dcfce7}
+.checklist-item input[type=checkbox]{width:17px;height:17px;accent-color:#16a34a;flex-shrink:0;margin-top:2px}
+.checklist-item label{font-size:0.85rem;cursor:pointer;line-height:1.4}
+.progress-wrap{background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden}
+.progress-bar{height:100%;border-radius:8px;transition:width .3s}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(530px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select,textarea{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+textarea{resize:vertical;min-height:60px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.5rem;font-weight:700;color:#1a237e}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:2px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px}
+.search-bar input{flex:1}
+.info-row{display:flex;gap:14px;flex-wrap:wrap;font-size:0.81rem;color:#6b7280;margin-top:3px}
+.severity-sel{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:4px}
+.sev-opt{padding:8px 12px;border-radius:8px;border:2px solid #e5e7eb;cursor:pointer;text-align:center;font-size:0.82rem;transition:all .15s}
+.sev-opt.active{border-width:2px;font-weight:700}
+.injury-row{display:flex;gap:8px;margin-bottom:7px}
+.injury-row input{flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:0.85rem}
+.injury-row button{padding:6px 10px;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;background:#f3f4f6;flex-shrink:0}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">บันทึกการรั่วไหล</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  SPILL_CHEM_CATEGORIES, SPILL_SEVERITY, SPILL_RESPONSE_STEPS,
+  listSpillRecord, getSpillRecord, createSpillRecord, updateSpillRecord, deleteSpillRecord
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-spill', 'บันทึกการรั่วไหลสารเคมี');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
+const fmtDT   = s => s ? new Date(s).toLocaleString('th-TH',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '-';
+
+let records  = [];
+let editId   = null;
+let selChem  = '';
+let selSev   = '';
+let chkState = {};
+let injured  = [];
+
+// ── render ────────────────────────────────────────────────────────────────────
+async function render() {
+  records = await listSpillRecord();
+  const total    = records.length;
+  const critical = records.filter(r=>r.severity==='critical').length;
+  const major    = records.filter(r=>r.severity==='major').length;
+  const thisMonth= records.filter(r=>{
+    if (!r.spillDate) return false;
+    const d = new Date(r.spillDate);
+    const n = new Date();
+    return d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear();
+  }).length;
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">☠️ บันทึกการรั่วไหลสารเคมี</h2>
+    <button class="btn btn-primary" onclick="window.__openPanel(null)">+ บันทึกการรั่วไหล</button>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card"><div class="kpi-num">${total}</div><div class="kpi-label">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#7c3aed">${critical}</div><div class="kpi-label">วิกฤติ — อพยพ</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#dc2626">${major}</div><div class="kpi-label">รุนแรง (&gt;50L)</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:#d97706">${thisMonth}</div><div class="kpi-label">เดือนนี้</div></div>
+  </div>
+
+  <div class="search-bar">
+    <input id="search-input" placeholder="ค้นหาสถานที่, ชื่อสาร, ผู้รายงาน..." oninput="window.__search(this.value)"/>
+  </div>
+
+  <div id="list-wrap">${renderList(records)}</div>`;
+}
+
+function renderList(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:32px 0">ไม่มีบันทึกการรั่วไหล</p>`;
+  return list.map(r => {
+    const sv  = SPILL_SEVERITY[r.severity] || SPILL_SEVERITY.minor;
+    const cat = SPILL_CHEM_CATEGORIES.find(x=>x.key===r.chemCategory)||{};
+    const done = (r.responseSteps||[]).filter(Boolean).length;
+    const pct  = Math.round(done/SPILL_RESPONSE_STEPS.length*100);
+    const cls  = r.severity==='critical' ? 'card-critical' : r.severity==='major' ? 'card-major' : '';
+    return `
+    <div class="card ${cls}" onclick="window.__openPanel('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:1rem">${cat.icon||'⚗️'} ${esc(r.chemName||cat.label||'-')}</div>
+          <div class="info-row">
+            <span>📍 ${esc(r.location||'-')}</span>
+            <span>📅 ${fmtDT(r.spillDate)}</span>
+            ${r.volume ? `<span>🧪 ${esc(r.volume)} ลิตร</span>` : ''}
+            <span>👤 ${esc(r.reportedBy||'-')}</span>
+          </div>
+          ${r.injuredPersons&&r.injuredPersons.length ? `<div style="font-size:0.8rem;color:#dc2626;margin-top:3px">🚑 ผู้ได้รับบาดเจ็บ: ${r.injuredPersons.length} คน</div>` : ''}
+        </div>
+        <div style="flex-shrink:0;text-align:right">
+          ${badge(sv.label, sv.color, sv.bg)}
+          <div style="font-size:0.75rem;color:#6b7280;margin-top:4px">ตอบสนอง ${done}/${SPILL_RESPONSE_STEPS.length}</div>
+        </div>
+      </div>
+      <div class="progress-wrap" style="margin-top:8px">
+        <div class="progress-bar" style="width:${pct}%;background:${pct===100?'linear-gradient(90deg,#16a34a,#4ade80)':'linear-gradient(90deg,#d97706,#fbbf24)'}"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.__search = (q) => {
+  const kw = q.toLowerCase();
+  const f  = records.filter(r =>
+    (r.location||'').toLowerCase().includes(kw) ||
+    (r.chemName||'').toLowerCase().includes(kw) ||
+    (r.reportedBy||'').toLowerCase().includes(kw)
+  );
+  document.getElementById('list-wrap').innerHTML = renderList(f);
+};
+
+// ── panel ─────────────────────────────────────────────────────────────────────
+window.__openPanel = async (id) => {
+  editId   = id;
+  selChem  = '';
+  selSev   = '';
+  chkState = {};
+  injured  = [];
+  const panel = document.getElementById('panel');
+  const body  = document.getElementById('panel-body');
+  const foot  = document.getElementById('panel-footer');
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขบันทึก' : 'บันทึกการรั่วไหล';
+  document.getElementById('overlay').classList.add('open');
+  panel.classList.add('open');
+
+  let rec = null;
+  if (id) {
+    rec = await getSpillRecord(id);
+    if (rec) {
+      selChem  = rec.chemCategory || '';
+      selSev   = rec.severity || '';
+      injured  = rec.injuredPersons ? [...rec.injuredPersons] : [];
+      (rec.responseSteps||[]).forEach((v,i)=>{ chkState[SPILL_RESPONSE_STEPS[i]?.key] = v; });
+    }
+  }
+  body.innerHTML = renderForm(rec);
+  renderChecklist();
+  foot.innerHTML = id
+    ? `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`
+    : `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+       <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+
+function renderForm(rec) {
+  const now = new Date().toISOString().slice(0,16);
+  const chemChips = SPILL_CHEM_CATEGORIES.map(c=>`
+    <div class="chem-chip ${selChem===c.key?'active':''}" onclick="window.__selChem('${c.key}')">
+      ${c.icon} ${esc(c.label)}
+    </div>`).join('');
+
+  const sevOpts = Object.entries(SPILL_SEVERITY).map(([k,v])=>`
+    <div class="sev-opt ${selSev===k?'active':''}"
+         style="${selSev===k ? `border-color:${v.color};color:${v.color};background:${v.bg}` : ''}"
+         onclick="window.__selSev('${k}')">
+      ${v.label}
+    </div>`).join('');
+
+  return `
+  <div class="section-title">ประเภทสารเคมี</div>
+  <div class="chip-wrap">${chemChips}</div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">ชื่อสารเคมี *</label>
+      <input id="f-chem" value="${esc(rec?.chemName||'')}" placeholder="เช่น H2SO4, NaOH, น้ำมันไฮดรอลิก"/>
+    </div>
+    <div>
+      <label class="lbl">ปริมาณโดยประมาณ (ลิตร)</label>
+      <input id="f-vol" type="number" min="0" step="0.1" value="${rec?.volume||''}" placeholder="เช่น 2.5"/>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">สถานที่เกิดเหตุ *</label>
+      <input id="f-loc" value="${esc(rec?.location||'')}" placeholder="เช่น แผนก Mixing อาคาร B"/>
+    </div>
+    <div>
+      <label class="lbl">วันเวลาที่เกิดเหตุ *</label>
+      <input id="f-dt" type="datetime-local" value="${rec?.spillDate||now}"/>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label class="lbl">ผู้พบเหตุ / ผู้รายงาน *</label>
+      <input id="f-rpt" value="${esc(rec?.reportedBy||profile.displayName||'')}" placeholder="ชื่อผู้รายงาน"/>
+    </div>
+    <div>
+      <label class="lbl">สาเหตุของการรั่วไหล</label>
+      <input id="f-cause" value="${esc(rec?.cause||'')}" placeholder="เช่น ถังแตก, ท่อรั่ว, ล้มหกพลิก"/>
+    </div>
+  </div>
+
+  <div class="section-title" style="margin-top:16px">ระดับความรุนแรง *</div>
+  <div class="severity-sel">${sevOpts}</div>
+
+  <div class="section-title" style="margin-top:16px">ผู้ได้รับผลกระทบ / บาดเจ็บ</div>
+  <div id="injured-wrap">${renderInjuredUI()}</div>
+  <button class="btn btn-ghost" style="margin-top:4px;font-size:0.82rem" onclick="window.__addInjured()">+ เพิ่มรายชื่อผู้ได้รับผลกระทบ</button>
+
+  <div class="section-title" style="margin-top:16px">ขั้นตอนการตอบสนอง (Spill Response)</div>
+  <div class="progress-wrap"><div class="progress-bar" id="cl-bar" style="width:0%"></div></div>
+  <div id="cl-pct" style="font-size:0.78rem;color:#6b7280;text-align:right;margin:3px 0 6px">0 / ${SPILL_RESPONSE_STEPS.length}</div>
+  <div id="checklist-wrap"></div>
+
+  <label class="lbl">รายละเอียดเพิ่มเติม / มาตรการป้องกันการเกิดซ้ำ</label>
+  <textarea id="f-note">${esc(rec?.note||'')}</textarea>`;
+}
+
+function renderChecklist() {
+  const wrap = document.getElementById('checklist-wrap');
+  if (!wrap) return;
+  wrap.innerHTML = SPILL_RESPONSE_STEPS.map(step=>`
+    <div class="checklist-item ${chkState[step.key]?'checked':''}" onclick="window.__toggleCL('${step.key}')">
+      <input type="checkbox" ${chkState[step.key]?'checked':''} onchange="window.__toggleCL('${step.key}')"/>
+      <label>${esc(step.label)}</label>
+    </div>`).join('');
+  updateBar();
+}
+
+function updateBar() {
+  const done  = Object.values(chkState).filter(Boolean).length;
+  const total = SPILL_RESPONSE_STEPS.length;
+  const pct   = Math.round(done/total*100);
+  const bar   = document.getElementById('cl-bar');
+  const lbl   = document.getElementById('cl-pct');
+  if (bar) { bar.style.width = pct+'%'; bar.style.background = pct===100 ? 'linear-gradient(90deg,#16a34a,#4ade80)' : 'linear-gradient(90deg,#d97706,#fbbf24)'; }
+  if (lbl) lbl.textContent = `${done} / ${total}`;
+}
+
+window.__toggleCL = (key) => {
+  chkState[key] = !chkState[key];
+  renderChecklist();
+};
+
+window.__selChem = (key) => {
+  selChem = key;
+  document.querySelectorAll('.chem-chip').forEach(el=>{
+    el.classList.toggle('active', el.getAttribute('onclick')===`window.__selChem('${key}')`);
+  });
+};
+
+window.__selSev = (key) => {
+  selSev = key;
+  const sv = SPILL_SEVERITY[key];
+  document.querySelectorAll('.sev-opt').forEach((el,i)=>{
+    const k = Object.keys(SPILL_SEVERITY)[i];
+    const v = SPILL_SEVERITY[k];
+    if (k===key) {
+      el.classList.add('active');
+      el.style.borderColor = v.color; el.style.color = v.color; el.style.background = v.bg;
+    } else {
+      el.classList.remove('active');
+      el.style.borderColor = ''; el.style.color = ''; el.style.background = '';
+    }
+  });
+};
+
+function renderInjuredUI() {
+  if (!injured.length) return '<p style="color:#9ca3af;font-size:0.82rem;margin:4px 0 0">ไม่มีผู้ได้รับบาดเจ็บ</p>';
+  return injured.map((p,i)=>`
+    <div class="injury-row">
+      <input value="${esc(p)}" oninput="window.__updateInjured(${i},this.value)" placeholder="ชื่อ-นามสกุล / รายละเอียด"/>
+      <button onclick="window.__removeInjured(${i})">✕</button>
+    </div>`).join('');
+}
+
+window.__addInjured     = () => { injured.push(''); document.getElementById('injured-wrap').innerHTML = renderInjuredUI(); };
+window.__removeInjured  = (i) => { injured.splice(i,1); document.getElementById('injured-wrap').innerHTML = renderInjuredUI(); };
+window.__updateInjured  = (i,v) => { injured[i] = v; };
+
+// ── save / delete ─────────────────────────────────────────────────────────────
+window.__save = async () => {
+  const chem = document.getElementById('f-chem')?.value.trim();
+  const loc  = document.getElementById('f-loc')?.value.trim();
+  const dt   = document.getElementById('f-dt')?.value;
+  const rpt  = document.getElementById('f-rpt')?.value.trim();
+  if (!chem || !loc || !dt || !rpt || !selChem || !selSev) {
+    alert('กรุณากรอก: ประเภทสาร, ชื่อสาร, สถานที่, เวลา, ผู้รายงาน และระดับความรุนแรง');
+    return;
+  }
+  const data = {
+    chemCategory:    selChem,
+    chemName:        chem,
+    volume:          parseFloat(document.getElementById('f-vol')?.value)||null,
+    location:        loc,
+    spillDate:       dt,
+    reportedBy:      rpt,
+    cause:           document.getElementById('f-cause')?.value.trim()||'',
+    severity:        selSev,
+    injuredPersons:  injured.filter(p=>p.trim()),
+    responseSteps:   SPILL_RESPONSE_STEPS.map(s=>!!chkState[s.key]),
+    note:            document.getElementById('f-note')?.value.trim()||'',
+  };
+  try {
+    if (editId) await updateSpillRecord(editId, data);
+    else        await createSpillRecord(data, profile.uid);
+    window.__closePanel();
+    await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบบันทึกนี้?')) return;
+  await deleteSpillRecord(id);
+  window.__closePanel();
+  await render();
+};
+
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

@@ -55,6 +55,7 @@ export const COL = {
   liftingEq:     "safetyLiftingEquipment",
   fiveS:         "safetyFiveS",
   electricalInsp:"safetyElectricalInspection",
+  spillRecord:   "safetySpillRecord",
 };
 
 // ────────────────────────────────────────────
@@ -2759,4 +2760,51 @@ export async function updateElectricalInsp(id, data) {
 }
 export async function deleteElectricalInsp(id) {
   await deleteDoc(doc(db, COL.electricalInsp, id));
+}
+
+// ─── Phase 49: Chemical Spill Response Record ─────────────────────────────────
+export const SPILL_CHEM_CATEGORIES = [
+  { key:'acid',      label:'กรด (Acid)',                   icon:'🧪', color:'#dc2626' },
+  { key:'alkali',    label:'ด่าง (Alkali/Base)',            icon:'🫧', color:'#2563eb' },
+  { key:'solvent',   label:'ตัวทำละลาย (Solvent/Flammable)',icon:'🔥', color:'#d97706' },
+  { key:'oil',       label:'น้ำมัน/จาระบี (Oil/Grease)',   icon:'🛢️', color:'#78350f' },
+  { key:'toxic',     label:'สารพิษ/สารอันตราย (Toxic)',     icon:'☠️', color:'#7c3aed' },
+  { key:'gas',       label:'แก๊ส/ไอระเหย (Gas/Vapor)',      icon:'💨', color:'#0891b2' },
+  { key:'bio',       label:'สารชีวภาพ (Biological)',        icon:'🦠', color:'#16a34a' },
+  { key:'other',     label:'อื่นๆ',                          icon:'⚗️', color:'#6b7280' },
+];
+export const SPILL_SEVERITY = {
+  minor:    { label:'เล็กน้อย (< 5L)',   color:'#16a34a', bg:'#dcfce7' },
+  moderate: { label:'ปานกลาง (5–50L)',   color:'#d97706', bg:'#fef3c7' },
+  major:    { label:'รุนแรง (> 50L)',     color:'#dc2626', bg:'#fee2e2' },
+  critical: { label:'วิกฤติ — อพยพ',     color:'#7c3aed', bg:'#f5f3ff' },
+};
+export const SPILL_RESPONSE_STEPS = [
+  { key:'alarm',       label:'แจ้งเตือนและประกาศเหตุฉุกเฉิน' },
+  { key:'evacuate',    label:'อพยพผู้ที่ไม่เกี่ยวข้องออกจากพื้นที่' },
+  { key:'ppe_on',      label:'ผู้ตอบสนองสวม PPE ครบถ้วน (ถุงมือ/หน้ากาก/ชุดคลุม)' },
+  { key:'isolate',     label:'ปิดกั้นพื้นที่และหยุดแหล่งรั่วไหล (ถ้าทำได้ปลอดภัย)' },
+  { key:'contain',     label:'ใช้วัสดุดูดซับ/กั้นแนวกันไม่ให้กระจาย' },
+  { key:'cleanup',     label:'เก็บกวาดและบรรจุของเสียลงภาชนะที่เหมาะสม' },
+  { key:'decon',       label:'ทำ decontamination พื้นที่และอุปกรณ์ที่ใช้' },
+  { key:'dispose',     label:'กำจัดของเสียตามกฎระเบียบ — บันทึกน้ำหนัก/ปริมาณ' },
+  { key:'report',      label:'รายงานต่อผู้บังคับบัญชาและหน่วยงานที่เกี่ยวข้อง' },
+  { key:'review',      label:'ทบทวนสาเหตุและปรับปรุงเพื่อป้องกันการเกิดซ้ำ' },
+];
+export async function listSpillRecord() {
+  const s = await getDocs(query(collection(db, COL.spillRecord), orderBy('spillDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getSpillRecord(id) {
+  const d = await getDoc(doc(db, COL.spillRecord, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createSpillRecord(data, createdBy) {
+  return addDoc(collection(db, COL.spillRecord), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSpillRecord(id, data) {
+  await updateDoc(doc(db, COL.spillRecord, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSpillRecord(id) {
+  await deleteDoc(doc(db, COL.spillRecord, id));
 }
