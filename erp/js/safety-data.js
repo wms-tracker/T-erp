@@ -64,6 +64,7 @@ export const COL = {
   incidentInvestig: "safetyIncidentInvestigation",
   safetyPassport:   "safetySafetyPassport",
   moc:              "safetyMoC",
+  safetyStats:      "safetySafetyStats",
 };
 
 // ────────────────────────────────────────────
@@ -3234,4 +3235,52 @@ export async function updateMoC(id, data) {
 }
 export async function deleteMoC(id) {
   await deleteDoc(doc(db, COL.moc, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 59 — Safety Statistics & Man-Hours
+// ────────────────────────────────────────────
+export const STAT_DEPARTMENTS = [
+  'รวมทั้งโรงงาน','ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย','ผู้รับเหมา',
+];
+export const STAT_MONTHS = [
+  'ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+  'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.',
+];
+// คำนวณอัตราต่อ 200,000 ชั่วโมง (= 100 คน × 50 สัปดาห์ × 40 ชั่วโมง)
+export function calcSafetyRates(s) {
+  const mh = s.manHours || 0;
+  if (!mh) return { trir:0, ltifr:0, severityRate:0, nearMissRate:0 };
+  const recordable = (s.ltiCount||0) + (s.rwsCount||0) + (s.mtcCount||0);
+  return {
+    trir:         +(recordable                  * 200000 / mh).toFixed(2),
+    ltifr:        +((s.ltiCount||0)             * 200000 / mh).toFixed(2),
+    severityRate: +((s.lostDays||0)             * 200000 / mh).toFixed(2),
+    nearMissRate: +((s.nearMissCount||0)        * 200000 / mh).toFixed(2),
+  };
+}
+export async function listSafetyStats(year) {
+  const q = year
+    ? query(collection(db, COL.safetyStats), where('year','==',year), orderBy('month','asc'))
+    : query(collection(db, COL.safetyStats), orderBy('year','desc'), orderBy('month','desc'), limit(300));
+  const s = await getDocs(q);
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getSafetyStats(id) {
+  const d = await getDoc(doc(db, COL.safetyStats, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function upsertSafetyStats(year, month, department, data, createdBy) {
+  const docId = `${year}-${String(month).padStart(2,'0')}-${department.replace(/\//g,'_')}`;
+  const ref   = doc(db, COL.safetyStats, docId);
+  const snap  = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { ...data, year, month, department, updatedAt: serverTimestamp() });
+  } else {
+    await setDoc(ref, { ...data, year, month, department, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  }
+  return docId;
+}
+export async function deleteSafetyStats(id) {
+  await deleteDoc(doc(db, COL.safetyStats, id));
 }

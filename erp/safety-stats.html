@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Man-Hours & Safety Statistics — KPO Safety</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13)}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 20px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .25s;z-index:1000;display:flex;flex-direction:column;overflow:hidden}
+.panel.open{transform:none}
+.panel-header{padding:16px 20px;background:#1a237e;color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.panel-body{flex:1;overflow-y:auto;padding:20px}
+.panel-footer{padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999;display:none}
+.overlay.open{display:block}
+input,select{width:100%;padding:8px 12px;border:1px solid #d1d5db;border-radius:7px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;margin-top:4px}
+label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-top:10px}
+.btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1a237e;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-ghost{background:#f3f4f6;color:#374151}
+.kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-num{font-size:1.6rem;font-weight:800}
+.kpi-label{font-size:0.72rem;color:#6b7280;margin-top:3px}
+.kpi-sub{font-size:0.7rem;color:#9ca3af;margin-top:1px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:600px){.form-row{grid-template-columns:1fr}}
+.search-bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:flex-end}
+.search-bar select{flex:1;min-width:100px}
+.rate-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:700}
+.section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+table{width:100%;border-collapse:collapse;font-size:0.82rem}
+th{background:#f8fafc;padding:7px 10px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e5e7eb;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #f3f4f6;color:#374151;white-space:nowrap}
+tr:hover td{background:#f9fafb}
+.bar-wrap{background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;min-width:60px}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s}
+.safe-days{background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;border-radius:16px;padding:16px 24px;text-align:center;margin-bottom:16px}
+.safe-days-num{font-size:3rem;font-weight:900;line-height:1}
+.safe-days-label{font-size:0.85rem;opacity:.9;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="app-shell"></div>
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">บันทึกสถิติประจำเดือน</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+
+<script type="module">
+import { requireRole, getProfile } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  STAT_DEPARTMENTS, STAT_MONTHS,
+  calcSafetyRates,
+  listSafetyStats, getSafetyStats, upsertSafetyStats, deleteSafetyStats
+} from "./js/safety-data.js";
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-stats', 'Man-Hours & อัตราอุบัติเหตุ');
+
+const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmt     = n => n == null ? '-' : Number(n).toLocaleString();
+const fmtRate = n => (n==null||isNaN(n)) ? '-' : Number(n).toFixed(2);
+
+const THIS_YEAR = new Date().getFullYear();
+let records = [];
+let selYear  = THIS_YEAR;
+
+// ── rate color ────────────────────────────────────────────────────────────────
+function rateColor(val, type) {
+  if (!val) return '#6b7280';
+  if (type==='trir')     return val<=1?'#16a34a':val<=3?'#d97706':'#dc2626';
+  if (type==='ltifr')    return val<=0.5?'#16a34a':val<=2?'#d97706':'#dc2626';
+  if (type==='severity') return val<=50?'#16a34a':val<=200?'#d97706':'#dc2626';
+  return '#2563eb';
+}
+
+async function render() {
+  records = await listSafetyStats(selYear);
+
+  // aggregate for the selected year (รวมทั้งโรงงาน rows only)
+  const totals = records.filter(r=>r.department==='รวมทั้งโรงงาน');
+  const agg = totals.reduce((a,r)=>({
+    manHours:     a.manHours     + (r.manHours||0),
+    fatalities:   a.fatalities   + (r.fatalities||0),
+    ltiCount:     a.ltiCount     + (r.ltiCount||0),
+    rwsCount:     a.rwsCount     + (r.rwsCount||0),
+    mtcCount:     a.mtcCount     + (r.mtcCount||0),
+    facCount:     a.facCount     + (r.facCount||0),
+    nearMissCount:a.nearMissCount+ (r.nearMissCount||0),
+    lostDays:     a.lostDays     + (r.lostDays||0),
+  }), {manHours:0,fatalities:0,ltiCount:0,rwsCount:0,mtcCount:0,facCount:0,nearMissCount:0,lostDays:0});
+  const rates = calcSafetyRates(agg);
+
+  // Safe days: วันตั้งแต่ LTI ล่าสุด
+  const ltiMonths = totals.filter(r=>r.ltiCount>0).sort((a,b)=>b.year-a.year||b.month-a.month);
+  let safeDays = '-';
+  if (ltiMonths.length) {
+    const lastLti = ltiMonths[0];
+    const lastDate = new Date(lastLti.year, lastLti.month-1, 28);
+    safeDays = Math.floor((Date.now()-lastDate)/(86400000));
+  } else if (totals.length) {
+    safeDays = '365+';
+  }
+
+  // year selector
+  const years = [];
+  for (let y=THIS_YEAR+1;y>=THIS_YEAR-3;y--) years.push(y);
+
+  main.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0;font-size:1.1rem;color:#1a237e">📊 Man-Hours & อัตราอุบัติเหตุ</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="year-sel" style="width:auto;margin-top:0" onchange="window.__changeYear(this.value)">
+        ${years.map(y=>`<option value="${y}" ${y===selYear?'selected':''}>${y}</option>`).join('')}
+      </select>
+      <button class="btn btn-primary" onclick="window.__openPanel()">+ บันทึกสถิติ</button>
+    </div>
+  </div>
+
+  <div class="safe-days" style="${safeDays==='-'?'background:linear-gradient(135deg,#9ca3af,#6b7280)':''}">
+    <div class="safe-days-num">${safeDays}</div>
+    <div class="safe-days-label">วันไม่มีอุบัติเหตุถึงขั้นหยุดงาน (Safe Days from LTI)</div>
+  </div>
+
+  <div class="kpi-bar">
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:#1a237e">${fmt(agg.manHours)}</div>
+      <div class="kpi-label">Man-Hours สะสม</div>
+      <div class="kpi-sub">ปี ${selYear}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:${rateColor(rates.trir,'trir')}">${fmtRate(rates.trir)}</div>
+      <div class="kpi-label">TRIR</div>
+      <div class="kpi-sub">อัตราอุบัติเหตุบันทึก</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:${rateColor(rates.ltifr,'ltifr')}">${fmtRate(rates.ltifr)}</div>
+      <div class="kpi-label">LTIFR</div>
+      <div class="kpi-sub">อัตราอุบัติเหตุหยุดงาน</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:${rateColor(rates.severityRate,'severity')}">${fmtRate(rates.severityRate)}</div>
+      <div class="kpi-label">Severity Rate</div>
+      <div class="kpi-sub">วันหยุดต่อ 200K ชม.</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:#2563eb">${agg.nearMissCount}</div>
+      <div class="kpi-label">Near Miss</div>
+      <div class="kpi-sub">รายงานทั้งปี</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-num" style="color:#dc2626">${agg.ltiCount}</div>
+      <div class="kpi-label">LTI</div>
+      <div class="kpi-sub">อุบัติเหตุหยุดงาน</div>
+    </div>
+  </div>
+
+  <div class="section-title">สถิติรายเดือน ปี ${selYear}</div>
+  ${renderTable(totals)}
+
+  <div style="margin-top:8px;padding:10px 14px;background:#eff6ff;border-radius:8px;font-size:0.78rem;color:#1e40af">
+    <strong>สูตรคำนวณ:</strong>
+    TRIR = (LTI+RWS+MTC)×200,000÷Man-Hours &nbsp;|&nbsp;
+    LTIFR = LTI×200,000÷Man-Hours &nbsp;|&nbsp;
+    Severity Rate = วันหยุดงาน×200,000÷Man-Hours
+  </div>`;
+}
+
+function renderTable(list) {
+  if (!list.length) return `<p style="color:#9ca3af;text-align:center;padding:24px 0">ยังไม่มีข้อมูลสถิติปีนี้</p>`;
+  const rows = STAT_MONTHS.map((mLabel, i) => {
+    const r = list.find(x=>x.month===(i+1));
+    if (!r) return `<tr><td><strong>${mLabel}</strong></td><td colspan="8" style="color:#9ca3af">-</td></tr>`;
+    const rt = calcSafetyRates(r);
+    const recordable = (r.ltiCount||0)+(r.rwsCount||0)+(r.mtcCount||0);
+    const maxMh = Math.max(...list.map(x=>x.manHours||0), 1);
+    const pct = Math.round(((r.manHours||0)/maxMh)*100);
+    return `<tr onclick="window.__viewRow('${r.id}')" style="cursor:pointer">
+      <td><strong>${mLabel}</strong></td>
+      <td>
+        <div>${fmt(r.manHours)}</div>
+        <div class="bar-wrap" style="margin-top:3px"><div class="bar-fill" style="width:${pct}%;background:#1a237e"></div></div>
+      </td>
+      <td style="color:#dc2626;font-weight:700">${r.ltiCount||0}</td>
+      <td>${r.rwsCount||0}</td>
+      <td>${r.mtcCount||0}</td>
+      <td>${r.facCount||0}</td>
+      <td>${r.nearMissCount||0}</td>
+      <td><span style="color:${rateColor(rt.trir,'trir')};font-weight:700">${fmtRate(rt.trir)}</span></td>
+      <td><span style="color:${rateColor(rt.ltifr,'ltifr')};font-weight:700">${fmtRate(rt.ltifr)}</span></td>
+    </tr>`;
+  });
+  return `<div style="overflow-x:auto">
+  <table>
+    <thead><tr>
+      <th>เดือน</th><th>Man-Hours</th>
+      <th>LTI</th><th>RWS</th><th>MTC</th><th>FAC</th><th>Near Miss</th>
+      <th>TRIR</th><th>LTIFR</th>
+    </tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table></div>`;
+}
+
+window.__changeYear = (y) => { selYear = Number(y); render(); };
+
+// ── view ──────────────────────────────────────────────────────────────────────
+window.__viewRow = async (id) => {
+  const r = await getSafetyStats(id);
+  if (!r) return;
+  const rt = calcSafetyRates(r);
+  openPanel('รายละเอียดสถิติ');
+  document.getElementById('panel-body').innerHTML = `
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:1.1rem;font-weight:800;color:#1a237e">${STAT_MONTHS[(r.month||1)-1]} ${r.year} — ${esc(r.department)}</div>
+    </div>
+    <div class="form-row">
+      <div class="kpi-card"><div class="kpi-num" style="font-size:1.3rem;color:#1a237e">${fmt(r.manHours)}</div><div class="kpi-label">Man-Hours</div></div>
+      <div class="kpi-card"><div class="kpi-num" style="font-size:1.3rem;color:${rateColor(rt.trir,'trir')}">${fmtRate(rt.trir)}</div><div class="kpi-label">TRIR</div></div>
+      <div class="kpi-card"><div class="kpi-num" style="font-size:1.3rem;color:${rateColor(rt.ltifr,'ltifr')}">${fmtRate(rt.ltifr)}</div><div class="kpi-label">LTIFR</div></div>
+      <div class="kpi-card"><div class="kpi-num" style="font-size:1.3rem;color:${rateColor(rt.severityRate,'severity')}">${fmtRate(rt.severityRate)}</div><div class="kpi-label">Severity Rate</div></div>
+    </div>
+    <div class="section-title">ประเภทอุบัติเหตุ</div>
+    ${[
+      {l:'Fatality (เสียชีวิต)',k:'fatalities',c:'#7f1d1d'},
+      {l:'LTI (หยุดงาน)',k:'ltiCount',c:'#dc2626'},
+      {l:'RWS (ลดงาน)',k:'rwsCount',c:'#ea580c'},
+      {l:'MTC (รักษาพยาบาล)',k:'mtcCount',c:'#d97706'},
+      {l:'FAC (ปฐมพยาบาล)',k:'facCount',c:'#ca8a04'},
+      {l:'Near Miss',k:'nearMissCount',c:'#2563eb'},
+      {l:'วันหยุดงาน (Lost Days)',k:'lostDays',c:'#7c3aed'},
+    ].map(({l,k,c})=>`
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f3f4f6;font-size:0.85rem">
+        <span>${l}</span><span style="font-weight:700;color:${r[k]?c:'#9ca3af'}">${r[k]||0}</span>
+      </div>`).join('')}
+    ${r.note?`<div style="margin-top:12px;padding:10px;background:#fafafa;border-radius:8px;font-size:0.85rem"><strong>หมายเหตุ:</strong> ${esc(r.note)}</div>`:''}`;
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__editRow('${id}')">แก้ไข</button>
+     <button class="btn btn-danger" onclick="window.__del('${id}')">ลบ</button>
+     <button class="btn btn-ghost" onclick="window.__closePanel()">ปิด</button>`;
+};
+
+// ── form ──────────────────────────────────────────────────────────────────────
+window.__openPanel = (r=null) => {
+  openPanel(r ? 'แก้ไขสถิติ' : 'บันทึกสถิติประจำเดือน');
+  document.getElementById('panel-body').innerHTML = renderForm(r);
+  document.getElementById('panel-footer').innerHTML =
+    `<button class="btn btn-primary" onclick="window.__save()">บันทึก</button>
+     <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>`;
+};
+window.__editRow = async (id) => {
+  const r = await getSafetyStats(id);
+  if (r) window.__openPanel(r);
+};
+
+function renderForm(r) {
+  return `
+  <div class="form-row">
+    <div>
+      <label class="lbl" style="margin-top:0">ปี *</label>
+      <input id="f-year" type="number" value="${r?.year||THIS_YEAR}" min="2020" max="${THIS_YEAR+2}"/>
+    </div>
+    <div>
+      <label class="lbl" style="margin-top:0">เดือน *</label>
+      <select id="f-month">
+        ${STAT_MONTHS.map((m,i)=>`<option value="${i+1}" ${(r?.month||new Date().getMonth()+1)===(i+1)?'selected':''}>${m}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div>
+    <label class="lbl">แผนก *</label>
+    <select id="f-dept">
+      ${STAT_DEPARTMENTS.map(d=>`<option value="${d}" ${(r?.department||'รวมทั้งโรงงาน')===d?'selected':''}>${d}</option>`).join('')}
+    </select>
+  </div>
+  <div>
+    <label class="lbl">Man-Hours ทำงานจริง *</label>
+    <input id="f-mh" type="number" min="0" value="${r?.manHours||''}" placeholder="เช่น 48000"/>
+  </div>
+  <div class="section-title">ประเภทอุบัติเหตุ</div>
+  <div class="form-row">
+    ${[
+      {id:'f-fat',k:'fatalities',l:'Fatality (เสียชีวิต)',pl:'0'},
+      {id:'f-lti',k:'ltiCount',l:'LTI (หยุดงาน ≥1 วัน)',pl:'0'},
+      {id:'f-rws',k:'rwsCount',l:'RWS (ลดงาน)',pl:'0'},
+      {id:'f-mtc',k:'mtcCount',l:'MTC (รักษาพยาบาล)',pl:'0'},
+      {id:'f-fac',k:'facCount',l:'FAC (ปฐมพยาบาล)',pl:'0'},
+      {id:'f-nm', k:'nearMissCount',l:'Near Miss',pl:'0'},
+      {id:'f-ld', k:'lostDays',l:'วันหยุดงาน (Lost Days)',pl:'0'},
+    ].map(({id,k,l,pl})=>`
+      <div>
+        <label class="lbl">${l}</label>
+        <input id="${id}" type="number" min="0" value="${r?.[k]||0}" placeholder="${pl}"/>
+      </div>`).join('')}
+  </div>
+  <div>
+    <label class="lbl">หมายเหตุ</label>
+    <input id="f-note" value="${r?.note||''}" placeholder="รายละเอียดเพิ่มเติม (ถ้ามี)"/>
+  </div>`;
+}
+
+window.__save = async () => {
+  const year  = parseInt(document.getElementById('f-year')?.value)||THIS_YEAR;
+  const month = parseInt(document.getElementById('f-month')?.value)||1;
+  const dept  = document.getElementById('f-dept')?.value||'รวมทั้งโรงงาน';
+  const mh    = parseFloat(document.getElementById('f-mh')?.value)||0;
+  if (!mh) { alert('กรุณากรอก Man-Hours'); return; }
+  const data = {
+    manHours:     mh,
+    fatalities:   parseInt(document.getElementById('f-fat')?.value)||0,
+    ltiCount:     parseInt(document.getElementById('f-lti')?.value)||0,
+    rwsCount:     parseInt(document.getElementById('f-rws')?.value)||0,
+    mtcCount:     parseInt(document.getElementById('f-mtc')?.value)||0,
+    facCount:     parseInt(document.getElementById('f-fac')?.value)||0,
+    nearMissCount:parseInt(document.getElementById('f-nm')?.value)||0,
+    lostDays:     parseInt(document.getElementById('f-ld')?.value)||0,
+    note:         document.getElementById('f-note')?.value.trim()||'',
+  };
+  try {
+    await upsertSafetyStats(year, month, dept, data, profile.uid);
+    selYear = year;
+    window.__closePanel(); await render();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: '+e.message); }
+};
+
+window.__del = async (id) => {
+  if (!confirm('ยืนยันลบข้อมูลสถิติเดือนนี้?')) return;
+  await deleteSafetyStats(id); window.__closePanel(); await render();
+};
+
+function openPanel(title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__closePanel = () => {
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+await render();
+</script>
+</body>
+</html>

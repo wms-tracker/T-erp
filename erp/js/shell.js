@@ -197,6 +197,7 @@ const NAV = {
       { key: 'safety-noise',    label: 'ตรวจวัดเสียง/สั่นสะเทือน (Noise)',href: 'safety-noise.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
+      { key: 'safety-stats',         label: 'Man-Hours & อัตราอุบัติเหตุ',  href: 'safety-stats.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -265,6 +266,7 @@ const NAV = {
       { key: 'safety-gas',      label: 'ทะเบียนถังแก๊ส',                  href: 'safety-gas.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
+      { key: 'safety-stats',      label: 'Man-Hours & อัตราอุบัติเหตุ',    href: 'safety-stats.html' },
       { key: 'safety-reports',    label: 'รายงานความปลอดภัย',             href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -422,6 +424,7 @@ const PAGE_DEPARTMENT = {
   "safety-exec-dashboard.html": "safety_officer",
   "safety-passport.html":       "safety_officer",
   "safety-moc.html":            "safety_officer",
+  "safety-stats.html":          "safety_officer",
 };
 
 // ===================================================================
