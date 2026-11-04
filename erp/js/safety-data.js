@@ -73,6 +73,7 @@ export const COL = {
   contractorEval:   "safetyContractorEval",
   occHealth:        "safetyOccHealth",
   annualPlan:       "safetyAnnualPlan",
+  mgmtReview:       "safetyMgmtReview",
 };
 
 // ────────────────────────────────────────────
@@ -3703,4 +3704,49 @@ export async function updateAnnualPlan(id, data) {
 }
 export async function deleteAnnualPlan(id) {
   await deleteDoc(doc(db, COL.annualPlan, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 68 — Management Review (ISO 45001 §9.3)
+// ────────────────────────────────────────────
+export const MGMT_REVIEW_INPUTS = [
+  { key:'prev_actions',   label:'ผลติดตามจากการทบทวนครั้งก่อน',                        clause:'9.3 a)' },
+  { key:'ext_int_issues', label:'การเปลี่ยนแปลงปัจจัยภายใน/ภายนอก',                   clause:'9.3 b)' },
+  { key:'ohs_perf',       label:'ผลการดำเนินงาน OH&S (อุบัติเหตุ, KPI, audit)',        clause:'9.3 c)' },
+  { key:'legal_comply',   label:'การปฏิบัติตามกฎหมายและข้อกำหนด',                      clause:'9.3 d)' },
+  { key:'risk_opport',    label:'ผลการประเมินความเสี่ยงและโอกาส',                       clause:'9.3 e)' },
+  { key:'objectives',     label:'ความก้าวหน้าต่อวัตถุประสงค์ OH&S',                    clause:'9.3 f)' },
+  { key:'interested_party',label:'ความต้องการและความคาดหวังของผู้มีส่วนได้ส่วนเสีย',   clause:'9.3 g)' },
+  { key:'resources',      label:'ความเพียงพอของทรัพยากร',                               clause:'9.3 h)' },
+  { key:'communication',  label:'การสื่อสารที่เกี่ยวข้องจากผู้มีส่วนได้ส่วนเสีย',     clause:'9.3 i)' },
+  { key:'cont_improve',   label:'โอกาสในการปรับปรุงอย่างต่อเนื่อง',                    clause:'9.3 j)' },
+];
+export const MGMT_REVIEW_OUTPUTS = [
+  { key:'suitability',  label:'ความเหมาะสมของระบบ OH&SMS' },
+  { key:'objectives',   label:'เป้าหมาย OH&S ที่ปรับปรุง' },
+  { key:'resources',    label:'ทรัพยากรที่จัดสรร' },
+  { key:'action_items', label:'มาตรการปรับปรุงที่มอบหมาย' },
+  { key:'policy',       label:'การเปลี่ยนแปลงนโยบาย (ถ้ามี)' },
+];
+export const MGMT_REVIEW_STATUS = {
+  draft:     { label:'ร่าง',         color:'#6b7280', bg:'#f3f4f6' },
+  approved:  { label:'อนุมัติแล้ว',  color:'#16a34a', bg:'#dcfce7' },
+  closed:    { label:'ปิดการทบทวน',  color:'#2563eb', bg:'#dbeafe' },
+};
+export async function listMgmtReview() {
+  const s = await getDocs(query(collection(db, COL.mgmtReview), orderBy('reviewDate','desc'), limit(200)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getMgmtReview(id) {
+  const d = await getDoc(doc(db, COL.mgmtReview, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createMgmtReview(data, createdBy) {
+  return addDoc(collection(db, COL.mgmtReview), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateMgmtReview(id, data) {
+  await updateDoc(doc(db, COL.mgmtReview, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteMgmtReview(id) {
+  await deleteDoc(doc(db, COL.mgmtReview, id));
 }
