@@ -50,6 +50,7 @@ export const COL = {
   workHeight:    "safetyWorkHeight",
   cse:           "safetyCSE",
   hotWork:       "safetyHotWork",
+  vehicleCheck:  "safetyVehicleCheck",
 };
 
 // ────────────────────────────────────────────
@@ -2491,4 +2492,52 @@ export async function updateHotWork(id, data) {
 }
 export async function deleteHotWork(id) {
   await deleteDoc(doc(db, COL.hotWork, id));
+}
+
+// ─── Phase 44: Vehicle / Forklift Safety Check ───────────────────────────────
+export const VEHICLE_TYPES = [
+  { key:'forklift',   label:'รถยก (Forklift)',           icon:'🏗️' },
+  { key:'pallet',     label:'รถพาเลท (Pallet Truck)',    icon:'📦' },
+  { key:'truck',      label:'รถบรรทุก (Truck)',           icon:'🚛' },
+  { key:'crane',      label:'เครนเคลื่อนที่ (Mobile Crane)', icon:'🏗️' },
+  { key:'tractor',    label:'รถแทรกเตอร์ (Tractor)',     icon:'🚜' },
+  { key:'van',        label:'รถตู้/รถบัส (Van/Bus)',      icon:'🚐' },
+  { key:'scissor',    label:'แท่นยกกรรไกร (Scissor Lift)',icon:'⬆️' },
+  { key:'other',      label:'อื่นๆ',                      icon:'🚗' },
+];
+export const VEHICLE_CHECK_STATUS = {
+  pass:    { label:'ผ่าน',      color:'#16a34a', bg:'#dcfce7' },
+  fail:    { label:'ไม่ผ่าน',   color:'#dc2626', bg:'#fee2e2' },
+  pending: { label:'รอตรวจ',    color:'#d97706', bg:'#fef3c7' },
+};
+export const VEHICLE_CHECKLIST = [
+  { key:'brakes',         label:'ระบบเบรก — ทดสอบเบรกสม่ำเสมอ ไม่ลื่นหรือหน่วง' },
+  { key:'steering',       label:'พวงมาลัย — หมุนคล่อง ไม่สั่นหรือหนักผิดปกติ' },
+  { key:'lights',         label:'ไฟสัญญาณ/ไฟหน้า-ท้าย — ทำงานครบถ้วน' },
+  { key:'horn',           label:'แตรสัญญาณ — ดังชัดเจน ใช้งานได้' },
+  { key:'tires',          label:'ยาง — ไม่แบน ไม่มีรอยแตก ดอกยางเพียงพอ' },
+  { key:'forks_mast',     label:'งาหรือแขนยก — ไม่โค้งงอ ไม่แตกร้าว ใช้งานได้' },
+  { key:'hydraulic',      label:'ระบบไฮดรอลิก — ไม่มีน้ำมันรั่ว ยกขึ้น-ลงได้ปกติ' },
+  { key:'seatbelt',       label:'เข็มขัดนิรภัย — ใช้งานได้ ล็อคแน่น' },
+  { key:'fire_ext',       label:'ถังดับเพลิง — มีครบ ติดตั้งถูกตำแหน่ง' },
+  { key:'battery_fuel',   label:'แบตเตอรี่/เชื้อเพลิง — ระดับพอเพียง ไม่รั่วซึม' },
+  { key:'warning_device', label:'อุปกรณ์เตือน (ไฟกระพริบ/เสียงถอยหลัง) — ทำงาน' },
+  { key:'operator_cert',  label:'ใบขับขี่/ใบรับรองผู้ขับ — มีและยังไม่หมดอายุ' },
+];
+export async function listVehicleCheck() {
+  const s = await getDocs(query(collection(db, COL.vehicleCheck), orderBy('checkDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getVehicleCheck(id) {
+  const d = await getDoc(doc(db, COL.vehicleCheck, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createVehicleCheck(data, createdBy) {
+  return addDoc(collection(db, COL.vehicleCheck), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateVehicleCheck(id, data) {
+  await updateDoc(doc(db, COL.vehicleCheck, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteVehicleCheck(id) {
+  await deleteDoc(doc(db, COL.vehicleCheck, id));
 }
