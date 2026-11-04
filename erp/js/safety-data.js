@@ -66,6 +66,7 @@ export const COL = {
   moc:              "safetyMoC",
   safetyStats:      "safetySafetyStats",
   trainingMatrix:   "safetyTrainingMatrix",
+  scoreCard:        "safetyScorecards",
 };
 
 // ────────────────────────────────────────────
@@ -3334,4 +3335,58 @@ export async function updateTrainingMatrixDoc(id, data) {
 }
 export async function deleteTrainingMatrix(id) {
   await deleteDoc(doc(db, COL.trainingMatrix, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 61 — Safety Score Card
+// ────────────────────────────────────────────
+export const SCORECARD_CRITERIA = [
+  { key:'incidents',  label:'ไม่มีอุบัติเหตุ',          weight:20, hint:'LTI=0:20, MTC=0:15, มีFAC:10, มีLTI:0' },
+  { key:'inspection', label:'ตรวจความปลอดภัย',           weight:20, hint:'ทำ≥100%:20, ≥80%:15, ≥60%:10, <60%:5' },
+  { key:'training',   label:'ฝึกอบรมตามแผน',             weight:15, hint:'ผ่าน≥100%:15, ≥80%:10, ≥60%:7, <60%:3' },
+  { key:'nearMiss',   label:'รายงาน Near Miss',           weight:15, hint:'รายงาน≥3:15, 2:10, 1:7, 0:3' },
+  { key:'capa',       label:'ปิด CAPA ตามกำหนด',         weight:15, hint:'ปิดทั้งหมด:15, ≥80%:10, ≥60%:7, <60%:3' },
+  { key:'fiveS',      label:'5ส (คะแนนตรวจ)',            weight:10, hint:'≥90%:10, ≥80%:8, ≥70%:6, <70%:3' },
+  { key:'ppe',        label:'การใส่ PPE ถูกต้อง',         weight:5,  hint:'ไม่มีการฝ่าฝืน:5, 1ครั้ง:3, >1:1' },
+];
+export const SCORECARD_GRADE = [
+  { min:90, label:'A — ยอดเยี่ยม',   color:'#16a34a', bg:'#dcfce7' },
+  { min:80, label:'B — ดี',           color:'#2563eb', bg:'#dbeafe' },
+  { min:70, label:'C — พอใช้',        color:'#d97706', bg:'#fef3c7' },
+  { min:50, label:'D — ต้องปรับปรุง', color:'#ea580c', bg:'#fff7ed' },
+  { min:0,  label:'F — วิกฤติ',       color:'#dc2626', bg:'#fee2e2' },
+];
+export const SCORECARD_DEPARTMENTS = [
+  'ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย',
+];
+export function calcScoreGrade(total) {
+  return SCORECARD_GRADE.find(g=>total>=g.min) || SCORECARD_GRADE[SCORECARD_GRADE.length-1];
+}
+export function calcTotalScore(scores) {
+  return SCORECARD_CRITERIA.reduce((sum,c)=>sum+(scores[c.key]||0), 0);
+}
+export async function listScoreCard(year) {
+  const q = year
+    ? query(collection(db, COL.scoreCard), where('year','==',year), orderBy('month','desc'))
+    : query(collection(db, COL.scoreCard), orderBy('year','desc'), orderBy('month','desc'), limit(300));
+  const s = await getDocs(q);
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getScoreCard(id) {
+  const d = await getDoc(doc(db, COL.scoreCard, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function upsertScoreCard(year, month, department, data, createdBy) {
+  const docId = `${year}-${String(month).padStart(2,'0')}-${department.replace(/[\s/]/g,'_')}`;
+  const ref   = doc(db, COL.scoreCard, docId);
+  const snap  = await getDoc(ref);
+  if (snap.exists()) {
+    await updateDoc(ref, { ...data, year, month, department, updatedAt: serverTimestamp() });
+  } else {
+    await setDoc(ref, { ...data, year, month, department, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  }
+  return docId;
+}
+export async function deleteScoreCard(id) {
+  await deleteDoc(doc(db, COL.scoreCard, id));
 }
