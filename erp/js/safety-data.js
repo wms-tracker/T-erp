@@ -52,6 +52,7 @@ export const COL = {
   hotWork:       "safetyHotWork",
   vehicleCheck:  "safetyVehicleCheck",
   gasCylinder:   "safetyGasCylinder",
+  liftingEq:     "safetyLiftingEquipment",
 };
 
 // ────────────────────────────────────────────
@@ -2584,4 +2585,52 @@ export async function updateGasCylinder(id, data) {
 }
 export async function deleteGasCylinder(id) {
   await deleteDoc(doc(db, COL.gasCylinder, id));
+}
+
+// ─── Phase 46: Lifting Equipment Inspection ──────────────────────────────────
+export const LIFTING_TYPES = [
+  { key:'sling_web',   label:'สลิงผ้า (Web Sling)',          icon:'🟨' },
+  { key:'sling_chain', label:'สลิงโซ่ (Chain Sling)',         icon:'⛓️' },
+  { key:'wire_rope',   label:'เชือกลวด (Wire Rope Sling)',   icon:'🪢' },
+  { key:'hook',        label:'ตะขอยก (Lifting Hook)',         icon:'🪝' },
+  { key:'shackle',     label:'แหวนยู (Shackle)',              icon:'🔗' },
+  { key:'spreader',    label:'คานกระจาย (Spreader Bar)',      icon:'📏' },
+  { key:'eye_bolt',    label:'น็อตห่วง (Eye Bolt/Ring)',      icon:'⭕' },
+  { key:'pulley',      label:'รอก (Pulley/Block)',            icon:'⚙️' },
+  { key:'other',       label:'อื่นๆ',                         icon:'🔩' },
+];
+export const LIFTING_INSPECT_STATUS = {
+  pass:       { label:'ผ่าน — ใช้งานได้',      color:'#16a34a', bg:'#dcfce7' },
+  conditional:{ label:'ใช้ได้มีข้อแม้',         color:'#d97706', bg:'#fef3c7' },
+  fail:       { label:'ไม่ผ่าน — ห้ามใช้',      color:'#dc2626', bg:'#fee2e2' },
+  retired:    { label:'ตัดออกแล้ว',             color:'#6b7280', bg:'#f3f4f6' },
+};
+export const LIFTING_CHECKLIST = [
+  { key:'tag_swl',       label:'ป้ายแสดง SWL (Safe Working Load) ติดชัดเจนและอ่านได้' },
+  { key:'no_cut',        label:'ไม่มีรอยตัด รอยบาก หรือรอยขาดที่เส้นใย/ลวด/โซ่' },
+  { key:'no_kink',       label:'ไม่มีการบิด พับงอถาวร หรือ kink ที่เชือก/ลวด' },
+  { key:'no_corrosion',  label:'ไม่มีสนิมกัดกร่อนเกินมาตรฐาน' },
+  { key:'no_deform',     label:'ตะขอ/แหวน/ข้อโซ่ ไม่มีการบิดงอหรือเสียรูป' },
+  { key:'latch_ok',      label:'Safety latch ของตะขอทำงานได้สมบูรณ์' },
+  { key:'weld_ok',       label:'รอยเชื่อมไม่มีรอยแตกร้าวหรือหลุดล่อน' },
+  { key:'proof_load',    label:'มีหลักฐาน Proof Load Test ตามอายุที่กำหนด' },
+  { key:'color_code',    label:'รหัสสีตรงกับรอบการตรวจสอบปัจจุบัน' },
+  { key:'storage_ok',    label:'เก็บรักษาอย่างถูกต้อง ไม่สัมผัสสารเคมีหรือความร้อน' },
+];
+export async function listLiftingEq() {
+  const s = await getDocs(query(collection(db, COL.liftingEq), orderBy('tagId','asc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getLiftingEq(id) {
+  const d = await getDoc(doc(db, COL.liftingEq, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createLiftingEq(data, createdBy) {
+  return addDoc(collection(db, COL.liftingEq), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateLiftingEq(id, data) {
+  await updateDoc(doc(db, COL.liftingEq, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteLiftingEq(id) {
+  await deleteDoc(doc(db, COL.liftingEq, id));
 }
