@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>งานร้อน (Hot Work) — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  HOT_WORK_TYPES, HOT_WORK_STATUS, HOT_WORK_CHECKLIST,
+  listHotWork, getHotWork, createHotWork, updateHotWork, deleteHotWork,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main    = renderShell(profile, 'safety-hot-work', 'ใบอนุญาตงานร้อน (Hot Work Permit)');
+
+const badge = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'2-digit',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records = [];
+
+function getWorkType(k) { return HOT_WORK_TYPES.find(t=>t.key===k)||{label:k,icon:'🔥'}; }
+function checklistPct(r) {
+  const checked = HOT_WORK_CHECKLIST.filter(c=>(r.checklist||{})[c.key]).length;
+  return Math.round(checked/HOT_WORK_CHECKLIST.length*100);
+}
+
+function kpiBar() {
+  const open      = records.filter(r=>r.status==='open').length;
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const monthly   = records.filter(r=>(r.workDate||'').startsWith(thisMonth)).length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${records.length}</div><div style="font-size:0.78rem;color:#6b7280;">ทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${open}</div><div style="font-size:0.78rem;color:#6b7280;">เปิดงานอยู่</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${monthly}</div><div style="font-size:0.78rem;color:#6b7280;">เดือนนี้</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${records.filter(r=>r.status==='completed').length}</div><div style="font-size:0.78rem;color:#6b7280;">เสร็จสิ้น</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  main.innerHTML = `
+    <style>
+      .panel{position:fixed;right:0;top:0;bottom:0;width:520px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+      .panel.open{transform:none;}
+      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
+      .panel-overlay.open{display:block;}
+      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
+      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
+      .panel-close:hover{background:#f0f2f8;}
+      .panel-body{padding:16px 20px 32px;}
+      .form-group{margin-bottom:13px;}
+      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
+      .form-control:focus{outline:none;border-color:#1a73e8;}
+      .section-title{font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;letter-spacing:0.4px;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #eef0f7;}
+      .checklist-item{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:8px;margin-bottom:4px;background:#f8faff;cursor:pointer;}
+      .checklist-item.checked{background:#dcfce7;}
+      .checklist-item input[type=checkbox]{width:16px;height:16px;accent-color:#16a34a;flex-shrink:0;margin-top:2px;}
+      .type-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;}
+      .type-chip{padding:6px 14px;border-radius:20px;font-size:0.82rem;cursor:pointer;border:1.5px solid #e0e3f0;background:#f8faff;color:#555;transition:all .15s;}
+      .type-chip.on{font-weight:700;}
+      @media(max-width:600px){.panel{width:100%;}}
+    </style>
+    ${kpiBar()}
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <b>บันทึกงานร้อน</b>
+        <button class="btn btn-primary" onclick="window.__openPanel()">+ ออกใบอนุญาตงานร้อน</button>
+      </div>
+      <div style="overflow-x:auto;"><table>
+        <thead><tr><th>วันที่</th><th>งาน/สถานที่</th><th>ประเภท</th><th>ผู้ทำงาน</th><th>Fire Watch</th><th>Checklist</th><th>สถานะ</th><th>ดำเนินการ</th></tr></thead>
+        <tbody>
+          ${records.length===0?`<tr><td colspan="8" style="text-align:center;color:#999;padding:24px;">ไม่พบข้อมูล</td></tr>`:records.map(r=>{
+            const st = HOT_WORK_STATUS[r.status]||{label:r.status||'—',color:'#555',bg:'#eee'};
+            const wt = getWorkType(r.workType);
+            const pct= checklistPct(r);
+            return `<tr>
+              <td>${fmt(r.workDate)}</td>
+              <td><b>${r.jobDescription||'—'}</b><div style="font-size:0.76rem;color:#666;">${r.location||''}</div></td>
+              <td>${wt.icon} ${wt.label}</td>
+              <td>${r.worker||'—'}</td>
+              <td>${r.fireWatch||'—'}</td>
+              <td>
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <div style="flex:1;min-width:40px;background:#e0e3f0;border-radius:10px;height:6px;overflow:hidden;">
+                    <div style="width:${pct}%;height:100%;border-radius:10px;background:${pct===100?'#16a34a':pct>=70?'#d97706':'#dc2626'};"></div>
+                  </div>
+                  <span style="font-size:0.74rem;font-weight:700;">${pct}%</span>
+                </div>
+              </td>
+              <td>${badge(st.label,st.color,st.bg)}</td>
+              <td>
+                ${r.status==='open'?`<button class="btn btn-success" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__completeRecord('${r.id}')">ปิดงาน</button>`:''}
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table></div>
+    </div>
+    <div class="panel-overlay" id="panel-overlay" onclick="window.__closePanel()"></div>
+    <div class="panel" id="hw-panel">
+      <div class="panel-header"><b id="panel-title">ออกใบอนุญาตงานร้อน</b><button class="panel-close" onclick="window.__closePanel()">✕</button></div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>`;
+}
+
+function formHTML(r) {
+  const cl = r?.checklist||{};
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+
+    <div class="section-title">ข้อมูลงาน</div>
+    <div class="form-group"><label class="form-label">รายละเอียดงาน *</label><input id="f-job" class="form-control" value="${r?.jobDescription||''}"/></div>
+    <div class="form-group"><label class="form-label">ประเภทงานร้อน</label>
+      <div class="type-grid" id="type-chips">
+        ${HOT_WORK_TYPES.map(t=>{
+          const on=(r?.workType===t.key);
+          return `<span class="type-chip${on?' on':''}" style="${on?'border-color:#ea580c;background:#fff7ed;color:#ea580c;':''}" onclick="window.__selectType(this,'${t.key}')">${t.icon} ${t.label}</span>`;
+        }).join('')}
+      </div>
+      <input type="hidden" id="f-type" value="${r?.workType||''}"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">วันที่ทำงาน *</label><input id="f-date" class="form-control" type="date" value="${r?.workDate||today()}"/></div>
+      <div class="form-group"><label class="form-label">สถานที่ / อาคาร</label><input id="f-loc" class="form-control" value="${r?.location||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">เวลาเริ่ม</label><input id="f-start" class="form-control" type="time" value="${r?.startTime||'08:00'}"/></div>
+      <div class="form-group"><label class="form-label">เวลาสิ้นสุด</label><input id="f-end" class="form-control" type="time" value="${r?.endTime||'17:00'}"/></div>
+    </div>
+
+    <div class="section-title">ผู้ที่เกี่ยวข้อง</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ผู้ทำงาน/ช่างเชื่อม *</label><input id="f-worker" class="form-control" value="${r?.worker||''}"/></div>
+      <div class="form-group"><label class="form-label">ผู้เฝ้าระวังไฟ (Fire Watch) *</label><input id="f-firewatch" class="form-control" value="${r?.fireWatch||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">หัวหน้างาน/ผู้อนุมัติ</label><input id="f-supervisor" class="form-control" value="${r?.supervisor||profile.name||''}"/></div>
+      <div class="form-group"><label class="form-label">ค่า LEL ที่วัดได้ (%)</label><input id="f-lel" class="form-control" type="number" step="0.1" min="0" max="100" placeholder="< 10% = ผ่าน" value="${r?.lelReading||''}"/></div>
+    </div>
+
+    <div class="section-title">Checklist ป้องกันอัคคีภัย</div>
+    ${HOT_WORK_CHECKLIST.map(item=>{
+      const checked=!!cl[item.key];
+      return `<label class="checklist-item${checked?' checked':''}" id="cl-${item.key}" style="user-select:none;">
+        <input type="checkbox" id="chk-${item.key}" ${checked?'checked':''} onchange="window.__toggleCheck('${item.key}',this.checked)"/>
+        <span style="font-size:0.84rem;">${item.label}</span>
+      </label>`;
+    }).join('')}
+
+    <div class="form-group" style="margin-top:14px;"><label class="form-label">หมายเหตุ / เงื่อนไขพิเศษ</label><textarea id="f-notes" class="form-control" rows="2">${r?.notes||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:18px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__selectType = (el,key) => {
+  document.querySelectorAll('.type-chip').forEach(c=>{ c.classList.remove('on'); c.style.borderColor=''; c.style.background=''; c.style.color=''; });
+  el.classList.add('on'); el.style.borderColor='#ea580c'; el.style.background='#fff7ed'; el.style.color='#ea580c';
+  document.getElementById('f-type').value=key;
+};
+window.__toggleCheck = (key,val) => {
+  const el=document.getElementById(`cl-${key}`);
+  if(el) el.classList.toggle('checked',val);
+};
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent='ออกใบอนุญาตงานร้อน';
+  document.getElementById('panel-body').innerHTML=formHTML(null);
+  document.getElementById('hw-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('hw-panel').classList.remove('open');
+  document.getElementById('panel-overlay').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r=await getHotWork(id); if(!r) return;
+  document.getElementById('panel-title').textContent='แก้ไขใบอนุญาตงานร้อน';
+  document.getElementById('panel-body').innerHTML=formHTML(r);
+  document.getElementById('hw-panel').classList.add('open');
+  document.getElementById('panel-overlay').classList.add('open');
+};
+window.__completeRecord = async id => {
+  if(!confirm('ยืนยันการปิดงานร้อน?')) return;
+  await updateHotWork(id,{ status:'completed', completedAt:new Date().toISOString(), completedBy:profile.name||profile.uid });
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg=document.getElementById('panel-msg');
+  const job=document.getElementById('f-job').value.trim();
+  const date=document.getElementById('f-date').value;
+  const worker=document.getElementById('f-worker').value.trim();
+  const fw=document.getElementById('f-firewatch').value.trim();
+  if(!job||!date||!worker||!fw){ msg.textContent='* กรุณาระบุงาน, วันที่, ผู้ทำงาน และผู้เฝ้าระวังไฟ'; msg.className='msg error'; return; }
+
+  const lel=document.getElementById('f-lel').value;
+  if(lel!==''&&parseFloat(lel)>=10){ msg.textContent='⚠️ ค่า LEL ≥ 10% — ไม่ควรเริ่มงานร้อน กรุณาระบายอากาศก่อน'; msg.className='msg error'; return; }
+
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const cl={};
+  HOT_WORK_CHECKLIST.forEach(c=>{ cl[c.key]=!!(document.getElementById(`chk-${c.key}`)?.checked); });
+  const data={
+    jobDescription:job, workType:document.getElementById('f-type').value,
+    workDate:date, location:document.getElementById('f-loc').value.trim(),
+    startTime:document.getElementById('f-start').value,
+    endTime:document.getElementById('f-end').value,
+    worker, fireWatch:fw,
+    supervisor:document.getElementById('f-supervisor').value.trim(),
+    lelReading:lel!==''?parseFloat(lel):null,
+    checklist:cl,
+    notes:document.getElementById('f-notes').value.trim(),
+    status:'open',
+  };
+  try {
+    const id=document.getElementById('f-id').value;
+    if(id){ data.status=(await getHotWork(id))?.status||'open'; await updateHotWork(id,data); }
+    else await createHotWork(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบบันทึกนี้?')) return;
+  await deleteHotWork(id); await loadAll();
+};
+
+async function loadAll() { records=await listHotWork(); renderPage(); }
+loadAll();
+</script>
+</body>
+</html>

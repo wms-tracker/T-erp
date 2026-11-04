@@ -49,6 +49,7 @@ export const COL = {
   safetyAlert:   "safetySafetyAlert",
   workHeight:    "safetyWorkHeight",
   cse:           "safetyCSE",
+  hotWork:       "safetyHotWork",
 };
 
 // ────────────────────────────────────────────
@@ -2445,4 +2446,49 @@ export async function updateCSE(id, data) {
 }
 export async function deleteCSE(id) {
   await deleteDoc(doc(db, COL.cse, id));
+}
+
+// ─── Phase 43: Hot Work Permit ───────────────────────────────────────────────
+export const HOT_WORK_TYPES = [
+  { key:'welding',   label:'เชื่อมโลหะ (Welding)',         icon:'🔧' },
+  { key:'cutting',   label:'ตัดด้วยแก๊ส/พลาสม่า (Cutting)',icon:'✂️' },
+  { key:'grinding',  label:'เจียรโลหะ (Grinding)',          icon:'⚙️' },
+  { key:'brazing',   label:'บัดกรี/ประสาน (Brazing)',       icon:'🔥' },
+  { key:'soldering', label:'บัดกรีอ่อน (Soldering)',        icon:'🪛' },
+  { key:'burning',   label:'เผาด้วยเปลวไฟ (Burning)',       icon:'🕯️' },
+  { key:'other',     label:'อื่นๆ (งานก่อประกายไฟ)',         icon:'💥' },
+];
+export const HOT_WORK_STATUS = {
+  open:      { label:'เปิดงาน',     color:'#dc2626', bg:'#fee2e2' },
+  completed: { label:'เสร็จสิ้น',   color:'#16a34a', bg:'#dcfce7' },
+  cancelled: { label:'ยกเลิก',      color:'#6b7280', bg:'#f3f4f6' },
+};
+export const HOT_WORK_CHECKLIST = [
+  { key:'flammable_removed',  label:'นำวัสดุติดไฟออกจากรัศมี 10 เมตร หรือกั้นป้องกัน' },
+  { key:'fire_extinguisher',  label:'เตรียมถังดับเพลิงที่ใช้งานได้ ≥ 1 ถัง ไว้ที่จุดงาน' },
+  { key:'fire_blanket',       label:'วางผ้ากันไฟ/แผ่นกันประกายไฟ (Welding Blanket)' },
+  { key:'gas_test',           label:'ตรวจวัด LEL ในบริเวณงาน < 10%' },
+  { key:'ventilation',        label:'มีระบายอากาศเพียงพอ ป้องกันไอระเหยสะสม' },
+  { key:'drain_cover',        label:'ปิดท่อระบายน้ำ/ช่องเปิดพื้น บริเวณใกล้งาน' },
+  { key:'fire_watch_assigned',label:'กำหนดผู้เฝ้าระวังไฟ (Fire Watch) ตลอดงาน' },
+  { key:'fire_watch_after',   label:'ผู้เฝ้าระวังไฟอยู่ต่ออีก 30 นาทีหลังงานเสร็จ' },
+  { key:'ppe_ok',             label:'PPE ครบ: หน้ากากเชื่อม, แว่นตา, ถุงมือกันความร้อน' },
+  { key:'permit_display',     label:'ติดใบอนุญาตงานร้อนที่มองเห็นชัดเจน' },
+];
+export async function listHotWork() {
+  const s = await getDocs(query(collection(db, COL.hotWork), orderBy('workDate','desc'), limit(200)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getHotWork(id) {
+  const d = await getDoc(doc(db, COL.hotWork, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createHotWork(data, createdBy) {
+  return addDoc(collection(db, COL.hotWork), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateHotWork(id, data) {
+  await updateDoc(doc(db, COL.hotWork, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteHotWork(id) {
+  await deleteDoc(doc(db, COL.hotWork, id));
 }
