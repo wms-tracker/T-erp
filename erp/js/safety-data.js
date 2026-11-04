@@ -56,6 +56,7 @@ export const COL = {
   fiveS:         "safetyFiveS",
   electricalInsp:"safetyElectricalInspection",
   spillRecord:   "safetySpillRecord",
+  ppeStock:      "safetyPPEStock",
 };
 
 // ────────────────────────────────────────────
@@ -2807,4 +2808,56 @@ export async function updateSpillRecord(id, data) {
 }
 export async function deleteSpillRecord(id) {
   await deleteDoc(doc(db, COL.spillRecord, id));
+}
+
+// ─── Phase 50: PPE Stock Management ──────────────────────────────────────────
+export const PPE_STOCK_CATEGORIES = [
+  { key:'head',       label:'ป้องกันหัว',          icon:'⛑️',  items:['หมวกนิรภัย (Safety Helmet)','หมวกบัมป์ (Bump Cap)'] },
+  { key:'eye_face',   label:'ป้องกันตา/หน้า',       icon:'🥽',  items:['แว่นตานิรภัย (Safety Glasses)','Face Shield','แว่นครอบ (Goggles)'] },
+  { key:'hearing',    label:'ป้องกันการได้ยิน',      icon:'👂',  items:['ที่อุดหู (Ear Plug)','ที่ครอบหู (Ear Muff)'] },
+  { key:'respiratory',label:'ป้องกันระบบหายใจ',     icon:'😷',  items:['หน้ากากผ้า N95','ครึ่งหน้า (Half Mask)','เต็มหน้า (Full Face)','SCBA','PAPR'] },
+  { key:'hand',       label:'ป้องกันมือ',            icon:'🧤',  items:['ถุงมือหนัง','ถุงมือยาง Nitrile','ถุงมือกันสารเคมี','ถุงมือกันตัด'] },
+  { key:'foot',       label:'ป้องกันเท้า',           icon:'👟',  items:['รองเท้านิรภัย (Safety Shoes)','รองเท้าบูทยาง','ที่ครอบรองเท้า (Overshoe)'] },
+  { key:'body',       label:'ป้องกันร่างกาย',        icon:'🦺',  items:['เสื้อกั๊ก Hi-Vis','ชุดทำงาน (Coverall)','ชุดกันสารเคมี','เสื้อกันฝน'] },
+  { key:'fall',       label:'ป้องกันการตกจากที่สูง', icon:'🪢',  items:['สายรัดเต็มตัว (Full Body Harness)','เชือกนิรภัย (Lanyard)','Self-Retracting Lifeline'] },
+  { key:'other',      label:'อื่นๆ',                  icon:'🧰',  items:['อื่นๆ'] },
+];
+export const PPE_STOCK_STATUS = {
+  ok:       { label:'สต็อกพอ',      color:'#16a34a', bg:'#dcfce7' },
+  low:      { label:'ใกล้หมด',      color:'#d97706', bg:'#fef3c7' },
+  critical: { label:'หมดแล้ว/วิกฤติ',color:'#dc2626', bg:'#fee2e2' },
+  expired:  { label:'หมดอายุ',      color:'#7c3aed', bg:'#f5f3ff' },
+};
+export const PPE_UNITS = ['ชิ้น','คู่','กล่อง','ถุง','โหล','ชุด'];
+export async function listPPEStock() {
+  const s = await getDocs(query(collection(db, COL.ppeStock), orderBy('itemName','asc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getPPEStock(id) {
+  const d = await getDoc(doc(db, COL.ppeStock, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createPPEStock(data, createdBy) {
+  return addDoc(collection(db, COL.ppeStock), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updatePPEStock(id, data) {
+  await updateDoc(doc(db, COL.ppeStock, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deletePPEStock(id) {
+  await deleteDoc(doc(db, COL.ppeStock, id));
+}
+export async function adjustPPEStockQty(id, delta, note, updatedBy) {
+  const ref = doc(db, COL.ppeStock, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('ไม่พบรายการ');
+  const cur = snap.data().currentQty || 0;
+  const newQty = Math.max(0, cur + delta);
+  await updateDoc(ref, {
+    currentQty: newQty,
+    lastAdjNote: note || '',
+    lastAdjBy: updatedBy,
+    lastAdjDelta: delta,
+    updatedAt: serverTimestamp(),
+  });
+  return newQty;
 }
