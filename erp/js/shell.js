@@ -188,7 +188,8 @@ const NAV = {
       { key: 'safety-induction',  label: 'ปฐมนิเทศความปลอดภัย',     href: 'safety-induction.html' },
       { key: 'safety-ppe',        label: 'จ่าย PPE',                 href: 'safety-ppe.html' },
       { key: 'safety-ergo',       label: 'ประเมินการยศาสตร์',          href: 'safety-ergo.html' },
-      { key: 'safety-passport',   label: 'Safety Passport รายบุคคล', href: 'safety-passport.html' },
+      { key: 'safety-passport',    label: 'Safety Passport รายบุคคล', href: 'safety-passport.html' },
+      { key: 'training-matrix',   label: 'Training Matrix / Compliance', href: 'safety-training-matrix.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',           href: 'safety-chemical.html' },
@@ -256,6 +257,7 @@ const NAV = {
       { key: 'safety-ppe',          label: 'จ่าย PPE',                     href: 'safety-ppe.html' },
       { key: 'safety-ppe-stock',    label: 'คลัง PPE',                     href: 'safety-ppe-stock.html' },
       { key: 'safety-passport',     label: 'Safety Passport รายบุคคล',    href: 'safety-passport.html' },
+      { key: 'training-matrix',    label: 'Training Matrix / Compliance', href: 'safety-training-matrix.html' },
     ]},
     { groupKey: 'safety-chemical', icon: '⚗️', label: 'สารเคมี/สิ่งแวดล้อม', items: [
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',           href: 'safety-chemical.html' },
@@ -425,6 +427,7 @@ const PAGE_DEPARTMENT = {
   "safety-passport.html":       "safety_officer",
   "safety-moc.html":            "safety_officer",
   "safety-stats.html":          "safety_officer",
+  "safety-training-matrix.html":"safety_officer",
 };
 
 // ===================================================================

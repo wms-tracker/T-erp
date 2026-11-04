@@ -65,6 +65,7 @@ export const COL = {
   safetyPassport:   "safetySafetyPassport",
   moc:              "safetyMoC",
   safetyStats:      "safetySafetyStats",
+  trainingMatrix:   "safetyTrainingMatrix",
 };
 
 // ────────────────────────────────────────────
@@ -3283,4 +3284,54 @@ export async function upsertSafetyStats(year, month, department, data, createdBy
 }
 export async function deleteSafetyStats(id) {
   await deleteDoc(doc(db, COL.safetyStats, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 60 — Safety Training Matrix
+// ────────────────────────────────────────────
+export const MATRIX_TRAINING_TYPES = [
+  { key:'mandatory',   label:'บังคับตามกฎหมาย',       icon:'⚖️', color:'#dc2626', bg:'#fee2e2' },
+  { key:'iso45001',    label:'ข้อกำหนด ISO 45001',     icon:'📋', color:'#2563eb', bg:'#dbeafe' },
+  { key:'internal',    label:'กำหนดภายใน',              icon:'🏭', color:'#059669', bg:'#dcfce7' },
+  { key:'recommended', label:'แนะนำ',                   icon:'💡', color:'#d97706', bg:'#fef3c7' },
+];
+export const MATRIX_STATUS = {
+  compliant: { label:'Compliant',  color:'#16a34a', bg:'#dcfce7' },
+  expiring:  { label:'ใกล้หมดอายุ',color:'#d97706', bg:'#fef3c7' },
+  overdue:   { label:'เกินกำหนด', color:'#dc2626', bg:'#fee2e2' },
+  pending:   { label:'ยังไม่ดำเนินการ',color:'#6b7280',bg:'#f3f4f6'},
+};
+export const MATRIX_DEPARTMENTS = [
+  'ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย','ผู้รับเหมา',
+];
+export function calcMatrixStatus(r) {
+  if (!r.completionDate) return 'pending';
+  if (!r.validityMonths) return 'compliant';
+  const expiry = new Date(r.expiryDate || r.completionDate);
+  expiry.setMonth(expiry.getMonth() + (r.validityMonths||12));
+  const now = new Date();
+  const daysLeft = Math.floor((expiry - now) / 86400000);
+  if (daysLeft < 0)  return 'overdue';
+  if (daysLeft < 60) return 'expiring';
+  return 'compliant';
+}
+export async function listTrainingMatrix() {
+  const s = await getDocs(query(collection(db, COL.trainingMatrix), orderBy('courseName','asc')));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getTrainingMatrix(id) {
+  const d = await getDoc(doc(db, COL.trainingMatrix, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createTrainingMatrix(data, createdBy) {
+  return addDoc(collection(db, COL.trainingMatrix), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateTrainingMatrix(id, data) {
+  await updateDoc(doc(db, COL.trainingMatrix), { ...data, updatedAt: serverTimestamp() });
+}
+export async function updateTrainingMatrixDoc(id, data) {
+  await updateDoc(doc(db, COL.trainingMatrix, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteTrainingMatrix(id) {
+  await deleteDoc(doc(db, COL.trainingMatrix, id));
 }
