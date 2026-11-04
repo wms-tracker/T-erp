@@ -70,6 +70,7 @@ export const COL = {
   bulletin:         "safetySafetyBulletin",
   safetyProject:    "safetySafetyProjects",
   dailyReport:      "safetySafetyDailyReport",
+  contractorEval:   "safetyContractorEval",
 };
 
 // ────────────────────────────────────────────
@@ -3528,4 +3529,77 @@ export async function updateDailyReport(id, data) {
 }
 export async function deleteDailyReport(id) {
   await deleteDoc(doc(db, COL.dailyReport, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 65 — Contractor Safety Evaluation
+// ────────────────────────────────────────────
+export const CEVAL_CRITERIA_PREQUALIFY = [
+  { key:'license',      label:'ใบอนุญาตประกอบธุรกิจ / ทะเบียนการค้า', weight:10 },
+  { key:'insurance',    label:'ประกันภัยอุบัติเหตุ / ประกันความรับผิด', weight:15 },
+  { key:'safety_plan',  label:'แผนความปลอดภัยการทำงาน',                weight:15 },
+  { key:'ppe_policy',   label:'นโยบาย PPE และบันทึกการจัดหา',          weight:10 },
+  { key:'training_rec', label:'บันทึกการฝึกอบรมความปลอดภัยของพนักงาน', weight:15 },
+  { key:'incident_hist',label:'ประวัติอุบัติเหตุย้อนหลัง 3 ปี',        weight:15 },
+  { key:'equipment',    label:'รายการเครื่องมือ/เครื่องจักรและใบรับรอง',weight:10 },
+  { key:'emergency',    label:'แผนฉุกเฉินและการซ้อม',                   weight:10 },
+];
+export const CEVAL_CRITERIA_ONSITE = [
+  { key:'ppe_compliance',  label:'การสวมใส่ PPE ถูกต้องครบถ้วน',       weight:20 },
+  { key:'housekeeping',    label:'ความเป็นระเบียบเรียบร้อยในพื้นที่งาน', weight:15 },
+  { key:'procedure_follow',label:'ปฏิบัติตามขั้นตอนงานที่กำหนด',       weight:20 },
+  { key:'toolbox_talk',    label:'เข้าร่วม Safety Talk / Tool Box Talk',weight:10 },
+  { key:'near_miss_report',label:'รายงาน Near Miss / เหตุการณ์ต้องสอบ', weight:10 },
+  { key:'communication',   label:'การสื่อสารและตอบสนองต่อ Safety Officer',weight:10 },
+  { key:'equipment_check', label:'ตรวจสอบเครื่องมือก่อนใช้งาน',         weight:15 },
+];
+export const CEVAL_GRADE = [
+  { min:90, label:'A — ผ่านดีเยี่ยม',  color:'#16a34a', bg:'#dcfce7', approved:'approved' },
+  { min:75, label:'B — ผ่าน',           color:'#2563eb', bg:'#dbeafe', approved:'approved' },
+  { min:60, label:'C — ผ่านมีเงื่อนไข', color:'#d97706', bg:'#fef3c7', approved:'conditional' },
+  { min:0,  label:'F — ไม่ผ่าน',        color:'#dc2626', bg:'#fee2e2', approved:'rejected' },
+];
+export const CEVAL_APPROVAL = {
+  approved:    { label:'อนุมัติเข้าทำงาน',     color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  conditional: { label:'อนุมัติมีเงื่อนไข',    color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+  rejected:    { label:'ไม่อนุมัติ',            color:'#dc2626', bg:'#fee2e2', icon:'❌' },
+  pending:     { label:'รอตรวจสอบ',             color:'#6b7280', bg:'#f3f4f6', icon:'⏳' },
+};
+export const CEVAL_WORK_TYPE = [
+  { key:'construction',  label:'งานก่อสร้าง / ติดตั้ง',    icon:'🏗️' },
+  { key:'maintenance',   label:'ซ่อมบำรุง / ดัดแปลง',      icon:'🔧' },
+  { key:'electrical',    label:'งานไฟฟ้า / ระบบ',           icon:'⚡' },
+  { key:'cleaning',      label:'ทำความสะอาด / กำจัดขยะ',    icon:'🧹' },
+  { key:'delivery',      label:'ขนส่ง / จัดส่ง',            icon:'🚚' },
+  { key:'inspection',    label:'ตรวจสอบ / ทดสอบ',           icon:'🔍' },
+  { key:'it_service',    label:'IT / ระบบสารสนเทศ',         icon:'💻' },
+  { key:'other',         label:'อื่นๆ',                      icon:'🔖' },
+];
+export function calcCEvalScore(scores, criteria) {
+  let total = 0, maxTotal = 0;
+  criteria.forEach(c => {
+    total    += (scores[c.key] || 0) * c.weight;
+    maxTotal += 100 * c.weight;
+  });
+  return maxTotal ? +(total / maxTotal * 100).toFixed(1) : 0;
+}
+export function getCEvalGrade(score) {
+  return CEVAL_GRADE.find(g => score >= g.min) || CEVAL_GRADE[CEVAL_GRADE.length - 1];
+}
+export async function listContractorEval(lim) {
+  const s = await getDocs(query(collection(db, COL.contractorEval), orderBy('evalDate','desc'), limit(lim || 300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getContractorEval(id) {
+  const d = await getDoc(doc(db, COL.contractorEval, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createContractorEval(data, createdBy) {
+  return addDoc(collection(db, COL.contractorEval), { ...data, createdBy, approvalStatus:'pending', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateContractorEval(id, data) {
+  await updateDoc(doc(db, COL.contractorEval, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteContractorEval(id) {
+  await deleteDoc(doc(db, COL.contractorEval, id));
 }

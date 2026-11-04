@@ -203,6 +203,7 @@ const NAV = {
       { key: 'safety-scorecard',     label: 'บัตรคะแนนความปลอดภัย (Score Card)', href: 'safety-scorecard.html' },
       { key: 'safety-project',       label: 'โครงการปรับปรุงความปลอดภัย', href: 'safety-project.html' },
       { key: 'safety-daily',         label: 'รายงานประจำวัน (Daily Report)', href: 'safety-daily.html' },
+      { key: 'safety-contractor-eval', label: 'ประเมินผู้รับเหมา (Contractor Eval)', href: 'safety-contractor-eval.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -277,6 +278,7 @@ const NAV = {
       { key: 'safety-scorecard',  label: 'บัตรคะแนนความปลอดภัย',          href: 'safety-scorecard.html' },
       { key: 'safety-project',    label: 'โครงการปรับปรุงความปลอดภัย',   href: 'safety-project.html' },
       { key: 'safety-daily',      label: 'รายงานประจำวัน (Daily Report)', href: 'safety-daily.html' },
+      { key: 'safety-contractor-eval', label: 'ประเมินผู้รับเหมา (Contractor Eval)', href: 'safety-contractor-eval.html' },
       { key: 'safety-reports',    label: 'รายงานความปลอดภัย',             href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -440,6 +442,7 @@ const PAGE_DEPARTMENT = {
   "safety-bulletin.html":       "safety_officer",
   "safety-project.html":        "safety_officer",
   "safety-daily.html":          "safety_officer",
+  "safety-contractor-eval.html":"safety_officer",
 };
 
 // ===================================================================
