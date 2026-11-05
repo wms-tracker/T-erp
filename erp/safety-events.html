@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>กิจกรรมความปลอดภัย / Safety Events</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-lbl{font-size:.72rem;color:#64748b;margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff;min-width:130px}
+.view-btns{display:flex;gap:4px;margin-left:auto}
+.view-btn{padding:6px 14px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:.82rem;color:#374151}
+.view-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
+/* timeline view */
+.timeline{position:relative;padding-left:28px}
+.timeline::before{content:'';position:absolute;left:12px;top:0;bottom:0;width:2px;background:#e2e8f0}
+.tl-item{position:relative;margin-bottom:16px}
+.tl-dot{position:absolute;left:-22px;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px var(--dc);background:var(--dc);top:12px}
+.tl-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.tl-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.tl-banner{padding:9px 14px;display:flex;align-items:center;gap:8px}
+.tl-icon{font-size:1.3rem}
+.tl-type{font-weight:700;font-size:.85rem}
+.tl-dates{margin-left:auto;font-size:.73rem;opacity:.85;font-family:monospace;text-align:right}
+.tl-body{padding:10px 14px}
+.tl-title{font-weight:700;font-size:.92rem;margin-bottom:5px}
+.tl-occasion{display:inline-flex;align-items:center;gap:4px;font-size:.73rem;padding:2px 8px;border-radius:12px;margin-bottom:7px}
+.tl-meta{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:.77rem;color:#475569}
+.tl-meta span strong{color:#1e293b}
+.tl-progress{margin-top:8px}
+.prog-bar-wrap{background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;margin-top:3px}
+.prog-bar{height:100%;border-radius:4px;background:#2563eb;transition:width .4s}
+.prog-label{display:flex;justify-content:space-between;font-size:.7rem;color:#64748b}
+.tl-footer{padding:7px 14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px}
+/* card view */
+.ev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.ev-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.ev-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+/* table view */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.action-btn{padding:4px 10px;border:none;border-radius:6px;cursor:pointer;font-size:.75rem}
+.btn-edit{background:#dbeafe;color:#1e40af}
+.btn-del{background:#fee2e2;color:#dc2626}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* panel */
+.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.slide-panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15)}
+.slide-panel.open{transform:none}
+.panel-head{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700;flex:1}
+.panel-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:70px}
+.section-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
+/* activity list in form */
+.activity-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.act-row{display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:6px 10px}
+.act-row input[type=text]{flex:1;border:none;background:transparent;font-size:.82rem;outline:none}
+.act-row input[type=checkbox]{accent-color:#16a34a;width:16px;height:16px;cursor:pointer;flex-shrink:0}
+.act-row button{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:.85rem;padding:0 2px}
+.act-row button:hover{color:#dc2626}
+.add-act-row{display:flex;gap:6px;margin-top:4px}
+.add-act-row input{flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem}
+.add-act-row button{padding:6px 12px;border:none;border-radius:6px;background:#1e40af;color:#fff;cursor:pointer;font-size:.82rem}
+.panel-foot{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151}
+.btn-danger{background:#dc2626;color:#fff}
+.add-btn{padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  EVENT_TYPES, EVENT_OCCASION, EVENT_STATUS,
+  listSafetyEvents, createSafetyEvent, updateSafetyEvent, deleteSafetyEvent
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-events', 'กิจกรรมความปลอดภัย / Safety Events');
+
+let allEvents = [];
+let editId = null;
+let curView = 'timeline';
+let filterType='', filterOccasion='', filterStatus='', filterYear='', filterText='';
+
+// activities state in form
+let formActivities = [];
+
+function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
+
+function formatDate(d){
+  if(!d) return '-';
+  return new Date(d+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'});
+}
+
+function durationDays(start, end){
+  if(!start||!end) return null;
+  const ms = new Date(end+'T00:00:00') - new Date(start+'T00:00:00');
+  return Math.max(1, Math.round(ms/86400000)+1);
+}
+
+function eventProgress(ev){
+  if(!ev.startDate||!ev.endDate) return null;
+  const now = new Date();
+  const start = new Date(ev.startDate+'T00:00:00');
+  const end = new Date(ev.endDate+'T23:59:59');
+  if(now < start) return 0;
+  if(now > end) return 100;
+  return Math.round((now-start)/(end-start)*100);
+}
+
+/* ─── KPIs ─── */
+function kpis(){
+  const total = allEvents.length;
+  const completed = allEvents.filter(e=>e.status==='completed').length;
+  const upcoming = allEvents.filter(e=>e.status==='planned'&&e.startDate&&new Date(e.startDate+'T00:00:00')>=new Date()).length;
+  const totalParticipants = allEvents.filter(e=>e.status==='completed').reduce((s,e)=>s+(Number(e.actualParticipants)||0),0);
+  const totalBudget = allEvents.reduce((s,e)=>s+(Number(e.actualBudget)||0),0);
+  return `
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">กิจกรรมทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${completed}</div><div class="kpi-lbl">✅ เสร็จสิ้น</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${upcoming}</div><div class="kpi-lbl">📅 กำลังจะมา</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${totalParticipants.toLocaleString()}</div><div class="kpi-lbl">👥 ผู้เข้าร่วมสะสม</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2;font-size:1.2rem">${totalBudget?'฿'+totalBudget.toLocaleString():'-'}</div><div class="kpi-lbl">💰 งบจริงสะสม</div></div>
+  </div>`;
+}
+
+function filtered(){
+  return allEvents.filter(e=>{
+    if(filterType && e.eventType!==filterType) return false;
+    if(filterOccasion && e.occasion!==filterOccasion) return false;
+    if(filterStatus && e.status!==filterStatus) return false;
+    if(filterYear && e.startDate && !e.startDate.startsWith(filterYear)) return false;
+    if(filterText){
+      const q=filterText.toLowerCase();
+      if(!(e.name||'').toLowerCase().includes(q)&&!(e.venue||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ─── Card content (shared by timeline and card view) ─── */
+function eventCardInner(ev){
+  const tp = EVENT_TYPES[ev.eventType]||EVENT_TYPES.other;
+  const oc = ev.occasion ? (EVENT_OCCASION[ev.occasion]||null) : null;
+  const st = EVENT_STATUS[ev.status]||EVENT_STATUS.planned;
+  const prog = eventProgress(ev);
+  const dur = durationDays(ev.startDate, ev.endDate);
+  const actTotal = (ev.activities||[]).length;
+  const actDone = (ev.activities||[]).filter(a=>a.done).length;
+  const budgetPct = ev.plannedBudget&&ev.actualBudget ? Math.round(ev.actualBudget/ev.plannedBudget*100) : null;
+
+  return `
+    <div class="tl-banner" style="background:${tp.bg}">
+      <span class="tl-icon">${tp.icon}</span>
+      <span class="tl-type" style="color:${tp.color}">${tp.label}</span>
+      <div class="tl-dates" style="color:${tp.color}">
+        ${formatDate(ev.startDate)}${ev.endDate&&ev.endDate!==ev.startDate?' – '+formatDate(ev.endDate):''}
+        ${dur?`<br><span style="font-size:.68rem">${dur} วัน</span>`:''}
+      </div>
+    </div>
+    <div class="tl-body">
+      <div class="tl-title">${ev.name||'(ไม่มีชื่อ)'}</div>
+      ${oc?`<div class="tl-occasion" style="color:${oc.color};background:${oc.bg}">${oc.icon} ${oc.label}</div>`:''}
+      <div class="tl-meta">
+        <span>📍 <strong>${ev.venue||'-'}</strong></span>
+        <span>👥 เป้า: <strong>${ev.targetParticipants||'-'}</strong></span>
+        ${ev.actualParticipants!==undefined&&ev.actualParticipants!==''?`<span>✅ จริง: <strong>${ev.actualParticipants}</strong></span>`:''}
+        ${ev.coordinator?`<span>👤 <strong>${ev.coordinator}</strong></span>`:''}
+      </div>
+      ${actTotal?`<div style="font-size:.75rem;color:#475569;margin-top:6px">📋 กิจกรรมย่อย: <strong>${actDone}/${actTotal}</strong> เสร็จ</div>`:''}
+      ${prog!==null&&ev.status==='in_progress'?`
+        <div class="tl-progress">
+          <div class="prog-label"><span>ความคืบหน้า</span><span>${prog}%</span></div>
+          <div class="prog-bar-wrap"><div class="prog-bar" style="width:${prog}%"></div></div>
+        </div>`:''}
+      ${budgetPct!==null?`<div style="font-size:.75rem;color:#475569;margin-top:4px">💰 ใช้งบ: ฿${Number(ev.actualBudget).toLocaleString()} / ฿${Number(ev.plannedBudget).toLocaleString()} (${budgetPct}%)</div>`:''}
+    </div>
+    <div class="tl-footer">${badge(st)}</div>`;
+}
+
+/* ─── Timeline view ─── */
+function timelineView(){
+  const data = filtered().slice().sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''));
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  return `<div class="timeline">${data.map(ev=>{
+    const tp=EVENT_TYPES[ev.eventType]||EVENT_TYPES.other;
+    return `<div class="tl-item">
+      <div class="tl-dot" style="--dc:${tp.color}"></div>
+      <div class="tl-card" onclick="window.__editEvent('${ev.id}')">${eventCardInner(ev)}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ─── Card view ─── */
+function cardView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  return `<div class="ev-grid">${data.map(ev=>`
+    <div class="ev-card" onclick="window.__editEvent('${ev.id}')">${eventCardInner(ev)}</div>
+  `).join('')}</div>`;
+}
+
+/* ─── Table view ─── */
+function tableView(){
+  const data = filtered();
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
+  const rows = data.map(ev=>{
+    const tp=EVENT_TYPES[ev.eventType]||EVENT_TYPES.other;
+    const st=EVENT_STATUS[ev.status]||EVENT_STATUS.planned;
+    const dur=durationDays(ev.startDate, ev.endDate);
+    return `<tr>
+      <td style="font-family:monospace;font-size:.78rem">${ev.startDate||'-'}</td>
+      <td><span class="badge" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
+      <td style="font-weight:600;max-width:200px">${ev.name||'-'}</td>
+      <td>${ev.venue||'-'}</td>
+      <td style="text-align:center">${dur?dur+'ว':'-'}</td>
+      <td style="text-align:center">${ev.targetParticipants||'-'}</td>
+      <td style="text-align:center">${ev.actualParticipants||'-'}</td>
+      <td>${badge(st)}</td>
+      <td>
+        <button class="action-btn btn-edit" onclick="window.__editEvent('${ev.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delEvent('${ev.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>วันที่เริ่ม</th><th>ประเภท</th><th>ชื่อกิจกรรม</th><th>สถานที่</th><th>ระยะ</th><th>เป้า</th><th>จริง</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/* ─── Render ─── */
+function render(){
+  const yr = new Date().getFullYear();
+  const yearOpts = [yr+1,yr,yr-1,yr-2].map(y=>`<option value="${y}" ${filterYear==y?'selected':''}>${y+543}</option>`).join('');
+  main.innerHTML = `
+  ${kpis()}
+  <div class="toolbar">
+    <input type="text" placeholder="ค้นหาชื่อ / สถานที่..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <select onchange="window.applyFilter('type',this.value)">
+      <option value="">ประเภททั้งหมด</option>
+      ${Object.entries(EVENT_TYPES).map(([k,v])=>`<option value="${k}" ${filterType===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('occasion',this.value)">
+      <option value="">งานทั้งหมด</option>
+      ${Object.entries(EVENT_OCCASION).map(([k,v])=>`<option value="${k}" ${filterOccasion===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('status',this.value)">
+      <option value="">สถานะทั้งหมด</option>
+      ${Object.entries(EVENT_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('year',this.value)">
+      <option value="">ปีทั้งหมด</option>
+      ${yearOpts}
+    </select>
+    <div class="view-btns">
+      <button class="view-btn ${curView==='timeline'?'active':''}" onclick="window.setView('timeline')">ไทม์ไลน์</button>
+      <button class="view-btn ${curView==='card'?'active':''}" onclick="window.setView('card')">การ์ด</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
+    </div>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ เพิ่มกิจกรรม</button>
+  </div>
+  <div id="content">${renderContent()}</div>
+  ${panelHTML()}`;
+}
+
+function renderContent(){
+  if(curView==='timeline') return timelineView();
+  if(curView==='card') return cardView();
+  return tableView();
+}
+
+/* ─── Panel ─── */
+function panelHTML(){
+  return `
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="slide-panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">เพิ่มกิจกรรมความปลอดภัย</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      ${editId?`<button class="btn btn-danger" onclick="window.__delEvent('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveEvent()">บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function activitiesHTML(){
+  return `<div class="activity-list" id="act-list">
+    ${formActivities.map((a,i)=>`
+    <div class="act-row">
+      <input type="checkbox" ${a.done?'checked':''} onchange="window.__toggleAct(${i})">
+      <input type="text" value="${a.name||''}" placeholder="ชื่อกิจกรรมย่อย..." onchange="window.__updateActName(${i},this.value)">
+      <button onclick="window.__removeAct(${i})">✕</button>
+    </div>`).join('')}
+    <div class="add-act-row">
+      <input id="new-act-input" placeholder="เพิ่มกิจกรรมย่อย...">
+      <button onclick="window.__addAct()">+ เพิ่ม</button>
+    </div>
+  </div>`;
+}
+
+function formHTML(data={}){
+  formActivities = (data.activities||[]).map(a=>({...a}));
+  return `
+  <div class="section-title">ข้อมูลกิจกรรม</div>
+  <div class="form-row full"><div class="form-group">
+    <label>ชื่อกิจกรรม *</label>
+    <input id="f-name" value="${data.name||''}" placeholder="ระบุชื่อกิจกรรม">
+  </div></div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>ประเภทกิจกรรม *</label>
+      <select id="f-eventType">
+        <option value="">-- เลือก --</option>
+        ${Object.entries(EVENT_TYPES).map(([k,v])=>`<option value="${k}" ${(data.eventType||'')==k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>งาน / โอกาส</label>
+      <select id="f-occasion">
+        <option value="">-- เลือก --</option>
+        ${Object.entries(EVENT_OCCASION).map(([k,v])=>`<option value="${k}" ${(data.occasion||'')==k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>วันที่เริ่ม *</label>
+      <input type="date" id="f-startDate" value="${data.startDate||''}">
+    </div>
+    <div class="form-group">
+      <label>วันที่สิ้นสุด</label>
+      <input type="date" id="f-endDate" value="${data.endDate||''}">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>สถานที่จัด</label>
+      <input id="f-venue" value="${data.venue||''}" placeholder="เช่น ห้องประชุมใหญ่ / โรงงาน">
+    </div>
+    <div class="form-group">
+      <label>ผู้รับผิดชอบ / ผู้ประสานงาน</label>
+      <input id="f-coordinator" value="${data.coordinator||''}">
+    </div>
+  </div>
+
+  <div class="section-title">ผู้เข้าร่วมและงบประมาณ</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>เป้าหมายผู้เข้าร่วม (คน)</label>
+      <input type="number" id="f-targetParticipants" value="${data.targetParticipants||''}" min="0">
+    </div>
+    <div class="form-group">
+      <label>จำนวนผู้เข้าร่วมจริง</label>
+      <input type="number" id="f-actualParticipants" value="${data.actualParticipants||''}" min="0">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>งบประมาณที่วางแผน (บาท)</label>
+      <input type="number" id="f-plannedBudget" value="${data.plannedBudget||''}" min="0">
+    </div>
+    <div class="form-group">
+      <label>งบประมาณที่ใช้จริง (บาท)</label>
+      <input type="number" id="f-actualBudget" value="${data.actualBudget||''}" min="0">
+    </div>
+  </div>
+
+  <div class="section-title">กิจกรรมย่อย / Checklist</div>
+  <div id="act-wrap">${activitiesHTML()}</div>
+
+  <div class="section-title">รายละเอียดและผลลัพธ์</div>
+  <div class="form-row full"><div class="form-group">
+    <label>รายละเอียดกิจกรรม / วัตถุประสงค์</label>
+    <textarea id="f-description" placeholder="อธิบายกิจกรรม วัตถุประสงค์ และรูปแบบการดำเนินการ...">${data.description||''}</textarea>
+  </div></div>
+  <div class="form-row full"><div class="form-group">
+    <label>ผลลัพธ์ / สรุปหลังกิจกรรม</label>
+    <textarea id="f-outcome" placeholder="สรุปผลที่ได้รับ บทเรียนที่เรียนรู้ ข้อเสนอแนะ...">${data.outcome||''}</textarea>
+  </div></div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>สถานะ</label>
+      <select id="f-status">
+        ${Object.entries(EVENT_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'planned')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>หมายเหตุ</label>
+      <input id="f-notes" value="${data.notes||''}">
+    </div>
+  </div>`;
+}
+
+window.__toggleAct = (i) => {
+  formActivities[i].done = !formActivities[i].done;
+  document.getElementById('act-wrap').innerHTML = activitiesHTML();
+};
+window.__updateActName = (i, v) => { formActivities[i].name = v; };
+window.__removeAct = (i) => {
+  formActivities.splice(i,1);
+  document.getElementById('act-wrap').innerHTML = activitiesHTML();
+};
+window.__addAct = () => {
+  const inp = document.getElementById('new-act-input');
+  const name = inp.value.trim();
+  if(!name) return;
+  formActivities.push({name, done:false});
+  document.getElementById('act-wrap').innerHTML = activitiesHTML();
+};
+
+window.__openPanel = (id) => {
+  editId = id;
+  const data = id ? (allEvents.find(e=>e.id===id)||{}) : {};
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขกิจกรรม' : 'เพิ่มกิจกรรมความปลอดภัย';
+  document.getElementById('panel-body').innerHTML = formHTML(data);
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  editId = null;
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+window.__editEvent = (id) => window.__openPanel(id);
+
+window.__delEvent = async (id) => {
+  if(!confirm('ยืนยันการลบกิจกรรมนี้?')) return;
+  await deleteSafetyEvent(id);
+  allEvents = allEvents.filter(e=>e.id!==id);
+  window.__closePanel();
+  render();
+};
+
+window.__saveEvent = async () => {
+  const name = document.getElementById('f-name').value.trim();
+  const startDate = document.getElementById('f-startDate').value;
+  if(!name){ alert('กรุณาระบุชื่อกิจกรรม'); return; }
+  if(!startDate){ alert('กรุณาระบุวันที่เริ่ม'); return; }
+
+  // sync activity names from inputs before save
+  document.querySelectorAll('#act-list .act-row input[type=text]').forEach((el,i)=>{
+    if(formActivities[i]) formActivities[i].name=el.value.trim();
+  });
+
+  const data = {
+    name, startDate,
+    endDate: document.getElementById('f-endDate').value||startDate,
+    eventType: document.getElementById('f-eventType').value,
+    occasion: document.getElementById('f-occasion').value,
+    venue: document.getElementById('f-venue').value.trim(),
+    coordinator: document.getElementById('f-coordinator').value.trim(),
+    targetParticipants: document.getElementById('f-targetParticipants').value ? Number(document.getElementById('f-targetParticipants').value) : null,
+    actualParticipants: document.getElementById('f-actualParticipants').value ? Number(document.getElementById('f-actualParticipants').value) : null,
+    plannedBudget: document.getElementById('f-plannedBudget').value ? Number(document.getElementById('f-plannedBudget').value) : null,
+    actualBudget: document.getElementById('f-actualBudget').value ? Number(document.getElementById('f-actualBudget').value) : null,
+    activities: formActivities.filter(a=>a.name),
+    description: document.getElementById('f-description').value.trim(),
+    outcome: document.getElementById('f-outcome').value.trim(),
+    status: document.getElementById('f-status').value,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  if(editId){
+    await updateSafetyEvent(editId, data);
+    const idx = allEvents.findIndex(e=>e.id===editId);
+    if(idx>=0) allEvents[idx] = {...allEvents[idx],...data};
+  } else {
+    const ref = await createSafetyEvent(data);
+    allEvents.unshift({...data, id: ref.id});
+  }
+  allEvents.sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''));
+  window.__closePanel();
+  render();
+};
+
+window.applyFilter = (type, val) => {
+  if(type==='text') filterText=val;
+  else if(type==='type') filterType=val;
+  else if(type==='occasion') filterOccasion=val;
+  else if(type==='status') filterStatus=val;
+  else if(type==='year') filterYear=val;
+  document.getElementById('content').innerHTML = renderContent();
+};
+window.setView = (v) => { curView = v; render(); };
+
+allEvents = await listSafetyEvents();
+render();
+</script>
+</body>
+</html>

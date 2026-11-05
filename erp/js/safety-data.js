@@ -91,6 +91,7 @@ export const COL = {
   safetyTalk:       "safetySafetyTalks",
   machineCheck:     "safetyMachineCheck",
   bbsObs:           "safetyBBSObservations",
+  safetyEvent:      "safetySafetyEvents",
 };
 
 // ────────────────────────────────────────────
@@ -4616,6 +4617,51 @@ export async function updateBBSObs(id, data) {
 }
 export async function deleteBBSObs(id) {
   await deleteDoc(doc(db, COL.bbsObs, id));
+}
+
+// ── Phase 86: Safety Event & Activities Register ─────────────────────────────
+export const EVENT_TYPES = {
+  competition: { label:'การแข่งขัน / Contest',          icon:'🏆', color:'#d97706', bg:'#fef3c7' },
+  training:    { label:'อบรม / Training',                icon:'📚', color:'#2563eb', bg:'#dbeafe' },
+  seminar:     { label:'สัมมนา / Seminar',               icon:'🎤', color:'#7c3aed', bg:'#f5f3ff' },
+  pledge:      { label:'พิธีปฏิญาณตน',                  icon:'🤝', color:'#0891b2', bg:'#e0f2fe' },
+  inspection:  { label:'ตรวจเยี่ยม / Inspection Tour',  icon:'🔍', color:'#64748b', bg:'#f1f5f9' },
+  exhibition:  { label:'นิทรรศการ / Exhibition',         icon:'🖼️', color:'#c026d3', bg:'#fdf4ff' },
+  drill:       { label:'ซ้อมแผนฉุกเฉิน / Drill',        icon:'🚨', color:'#dc2626', bg:'#fee2e2' },
+  recognition: { label:'มอบรางวัล / Recognition',        icon:'🎖️', color:'#16a34a', bg:'#dcfce7' },
+  rally:       { label:'กิจกรรมรณรงค์ / Rally',          icon:'📢', color:'#ea580c', bg:'#fff7ed' },
+  other:       { label:'อื่นๆ',                          icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+};
+export const EVENT_OCCASION = {
+  national_week: { label:'สัปดาห์ความปลอดภัยแห่งชาติ', icon:'🇹🇭', color:'#dc2626', bg:'#fee2e2' },
+  monthly:       { label:'กิจกรรมประจำเดือน',           icon:'📅', color:'#2563eb', bg:'#dbeafe' },
+  quarterly:     { label:'กิจกรรมประจำไตรมาส',           icon:'📊', color:'#7c3aed', bg:'#f5f3ff' },
+  annual:        { label:'กิจกรรมประจำปี',               icon:'🗓️', color:'#0891b2', bg:'#e0f2fe' },
+  special:       { label:'กิจกรรมพิเศษ',                 icon:'⭐', color:'#d97706', bg:'#fef3c7' },
+};
+export const EVENT_STATUS = {
+  planned:     { label:'วางแผนแล้ว',      color:'#2563eb', bg:'#dbeafe', icon:'📋' },
+  in_progress: { label:'กำลังดำเนินการ',  color:'#d97706', bg:'#fef3c7', icon:'🔄' },
+  completed:   { label:'เสร็จสิ้น',       color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  cancelled:   { label:'ยกเลิก',          color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export async function listSafetyEvents() {
+  const s = await getDocs(query(collection(db, COL.safetyEvent), orderBy('startDate','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getSafetyEvent(id) {
+  const d = await getDoc(doc(db, COL.safetyEvent, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createSafetyEvent(data, createdBy) {
+  return addDoc(collection(db, COL.safetyEvent), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetyEvent(id, data) {
+  await updateDoc(doc(db, COL.safetyEvent, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetyEvent(id) {
+  await deleteDoc(doc(db, COL.safetyEvent, id));
 }
 
 export async function listCampaigns() {
