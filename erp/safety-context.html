@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>บริบทและประเด็นองค์กร</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* SWOT matrix */
+.swot{display:grid;grid-template-columns:1fr 1fr;gap:3px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:20px;background:#e2e8f0}
+.swot-cell{background:#fff;padding:14px}
+.swot-cell h3{font-size:.85rem;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.swot-item{padding:8px 10px;border-radius:7px;margin-bottom:6px;font-size:.82rem;cursor:pointer;border-left:3px solid transparent;transition:all .15s}
+.swot-item:hover{filter:brightness(.97)}
+/* table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.type-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
+/* panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  CTX_TYPES, CTX_CATEGORIES_INTERNAL, CTX_CATEGORIES_EXTERNAL,
+  CTX_CLASSIFICATION, CTX_IMPACT, CTX_MONITOR_FREQ,
+  listContextIssues, getContextIssue, createContextIssue, updateContextIssue, deleteContextIssue,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-context', 'บริบทและประเด็นองค์กร (§4.1)');
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'swot';
+
+const ALL_CATS = [...CTX_CATEGORIES_INTERNAL, ...CTX_CATEGORIES_EXTERNAL];
+
+function getCategory(key) { return ALL_CATS.find(c=>c.key===key)||{icon:'📌',label:key||'—'}; }
+
+// ── KPI ──
+function renderKPI(recs) {
+  const internal = recs.filter(r=>r.issueType==='internal').length;
+  const external = recs.filter(r=>r.issueType==='external').length;
+  const strength = recs.filter(r=>r.classification==='strength').length;
+  const weakness = recs.filter(r=>r.classification==='weakness').length;
+  const opp      = recs.filter(r=>r.classification==='opportunity').length;
+  const threat   = recs.filter(r=>r.classification==='threat').length;
+  const highImp  = recs.filter(r=>r.impact==='high').length;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">ประเด็นทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${internal}</div><div class="lbl">🏭 ภายใน</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${external}</div><div class="lbl">🌐 ภายนอก</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${strength + opp}</div><div class="lbl">💪 จุดแข็ง+โอกาส</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${weakness + threat}</div><div class="lbl">⚡ จุดอ่อน+ภัย</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${highImp}</div><div class="lbl">🔴 ผลกระทบสูง</div></div>
+  </div>`;
+}
+
+// ── SWOT Matrix ──
+function renderSWOT(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">🗺️</div><p>ยังไม่มีประเด็น</p></div>`;
+  const groups = { strength:[], weakness:[], opportunity:[], threat:[] };
+  recs.forEach(r => { if (groups[r.classification]) groups[r.classification].push(r); });
+
+  function cell(key) {
+    const cfg = CTX_CLASSIFICATION[key];
+    const items = groups[key];
+    const cards = items.length
+      ? items.map(r => {
+          const imp = CTX_IMPACT[r.impact]||CTX_IMPACT.medium;
+          return `<div class="swot-item" style="background:${cfg.bg};border-left-color:${imp.color}" onclick="window.__editCtx('${r.id}')">
+            <div style="font-weight:600;font-size:.83rem">${r.title||'—'}</div>
+            <div style="font-size:.74rem;color:#6b7280;margin-top:2px">${getCategory(r.category).icon} ${getCategory(r.category).label} · ผลกระทบ ${imp.label}</div>
+          </div>`;
+        }).join('')
+      : `<div style="font-size:.8rem;color:#9ca3af;text-align:center;padding:12px">ไม่มีประเด็น</div>`;
+    return `<div class="swot-cell">
+      <h3 style="color:${cfg.color}">${cfg.icon} ${cfg.label} <span style="font-size:.74rem;font-weight:400;color:#9ca3af">(${items.length})</span></h3>
+      ${cards}
+    </div>`;
+  }
+
+  return `<div class="swot">
+    ${cell('strength')}${cell('opportunity')}
+    ${cell('weakness')}${cell('threat')}
+  </div>`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">🗺️</div><p>ยังไม่มีประเด็น</p></div>`;
+  const rows = recs.map(r => {
+    const tp  = CTX_TYPES[r.issueType]||CTX_TYPES.internal;
+    const cls = CTX_CLASSIFICATION[r.classification]||CTX_CLASSIFICATION.strength;
+    const imp = CTX_IMPACT[r.impact]||CTX_IMPACT.medium;
+    const frq = CTX_MONITOR_FREQ.find(f=>f.key===r.monitorFreq);
+    const cat = getCategory(r.category);
+    return `<tr>
+      <td><span class="type-chip" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
+      <td><strong>${r.title||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${cat.icon} ${cat.label}</span></td>
+      <td style="max-width:180px;font-size:.8rem">${(r.description||'').substring(0,80)}${(r.description||'').length>80?'…':''}</td>
+      <td><span class="badge" style="color:${cls.color};background:${cls.bg}">${cls.icon} ${cls.label}</span></td>
+      <td><span class="badge" style="color:${imp.color};background:${imp.bg}">${imp.label}</span></td>
+      <td style="font-size:.82rem">${frq?.label||r.monitorFreq||'—'}</td>
+      <td style="font-size:.82rem">${r.reviewDate||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editCtx('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteCtx('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>ประเภท</th><th>ประเด็น / หมวด</th><th>รายละเอียด</th>
+      <th>การจำแนก</th><th>ผลกระทบ</th><th>ความถี่ติดตาม</th><th>วันทบทวน</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const typeOpts = Object.entries(CTX_TYPES).map(([k,v])=>
+    `<option value="${k}" ${rec?.issueType===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const clsOpts = Object.entries(CTX_CLASSIFICATION).map(([k,v])=>
+    `<option value="${k}" ${rec?.classification===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const impOpts = Object.entries(CTX_IMPACT).map(([k,v])=>
+    `<option value="${k}" ${(rec?.impact||'medium')===k?'selected':''}>${v.label}</option>`).join('');
+  const freqOpts = CTX_MONITOR_FREQ.map(f=>
+    `<option value="${f.key}" ${rec?.monitorFreq===f.key?'selected':''}>${f.label}</option>`).join('');
+
+  const selType = rec?.issueType||'internal';
+  const intCats  = CTX_CATEGORIES_INTERNAL.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
+  const extCats  = CTX_CATEGORIES_EXTERNAL.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
+
+  return `<form id="ctx-form" onsubmit="return false">
+    <div class="form-row">
+      <div class="form-group"><label>ประเภท *</label>
+        <select id="f-issueType" onchange="window.__onTypeChange()">${typeOpts}</select></div>
+      <div class="form-group"><label>หมวดหมู่ *</label>
+        <select id="f-category">
+          <optgroup label="ภายใน" id="int-opts">${intCats}</optgroup>
+          <optgroup label="ภายนอก" id="ext-opts">${extCats}</optgroup>
+        </select>
+      </div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่อประเด็น *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="ชื่อบริบท / ประเด็นที่วิเคราะห์"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>รายละเอียด / คำอธิบาย</label>
+        <textarea id="f-description" rows="3" placeholder="อธิบายบริบทหรือประเด็นนี้">${rec?.description||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ผลกระทบต่อระบบบริหารความปลอดภัย</label>
+        <textarea id="f-impact_desc" rows="2" placeholder="วิธีที่ประเด็นนี้กระทบต่อเป้าหมายความปลอดภัย">${rec?.impact_desc||''}</textarea></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>การจำแนก</label>
+        <select id="f-classification">${clsOpts}</select></div>
+      <div class="form-group"><label>ระดับผลกระทบ</label>
+        <select id="f-impact">${impOpts}</select></div>
+      <div class="form-group"><label>ความถี่ติดตาม</label>
+        <select id="f-monitorFreq">${freqOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>แนวทางรับมือ / การตอบสนอง</label>
+        <textarea id="f-response" rows="2" placeholder="แนวทางที่องค์กรจะจัดการกับประเด็นนี้">${rec?.response||''}</textarea></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>ผู้รับผิดชอบติดตาม</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / ตำแหน่ง"/></div>
+      <div class="form-group"><label>วันที่ทบทวนครั้งถัดไป</label>
+        <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveCtx()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+window.__onTypeChange = () => {
+  const t = document.getElementById('f-issueType')?.value;
+  const sel = document.getElementById('f-category');
+  if (!sel) return;
+  // highlight relevant optgroup
+  const intG = sel.querySelector('#int-opts');
+  const extG = sel.querySelector('#ext-opts');
+  if (intG) intG.style.fontWeight = t==='internal' ? '700' : '400';
+  if (extG) extG.style.fontWeight = t==='external' ? '700' : '400';
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+  window.__onTypeChange();
+}
+
+window.__newCtx  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มประเด็น'); };
+window.__editCtx = async id => {
+  editId = id;
+  const r = await getContextIssue(id);
+  openPanel(renderForm(r), '✏️ แก้ไขประเด็น');
+};
+
+// ── Save ──
+window.__saveCtx = async () => {
+  const data = {
+    issueType:      document.getElementById('f-issueType').value,
+    category:       document.getElementById('f-category').value,
+    title:          document.getElementById('f-title').value.trim(),
+    description:    document.getElementById('f-description').value.trim(),
+    impact_desc:    document.getElementById('f-impact_desc').value.trim(),
+    classification: document.getElementById('f-classification').value,
+    impact:         document.getElementById('f-impact').value,
+    monitorFreq:    document.getElementById('f-monitorFreq').value,
+    response:       document.getElementById('f-response').value.trim(),
+    responsible:    document.getElementById('f-responsible').value.trim(),
+    reviewDate:     document.getElementById('f-reviewDate').value,
+    notes:          document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.title) { alert('กรุณากรอกชื่อประเด็น'); return; }
+  try {
+    if (editId) await updateContextIssue(editId, data);
+    else        await createContextIssue(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteCtx = async (id, title) => {
+  if (!confirm(`ลบประเด็น "${title}"?`)) return;
+  await deleteContextIssue(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const tp  = document.getElementById('filter-type')?.value||'';
+  const cls = document.getElementById('filter-cls')?.value||'';
+  const imp = document.getElementById('filter-impact')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q   || (r.title||'').toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q)) &&
+    (!tp  || r.issueType===tp) &&
+    (!cls || r.classification===cls) &&
+    (!imp || r.impact===imp)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('content-wrap').innerHTML =
+    viewMode==='swot' ? renderSWOT(filtered) : renderTable(filtered);
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = mode => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listContextIssues();
+  applyFilter();
+}
+
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
+  Object.entries(CTX_TYPES).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+const clsOpts = `<option value="">-- ทุกการจำแนก --</option>` +
+  Object.entries(CTX_CLASSIFICATION).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+const impOpts = `<option value="">-- ทุกระดับ --</option>` +
+  Object.entries(CTX_IMPACT).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาประเด็น…" oninput="applyFilter()"/>
+      <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
+      <select id="filter-cls"    onchange="applyFilter()">${clsOpts}</select>
+      <select id="filter-impact" onchange="applyFilter()">${impOpts}</select>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="swot"  onclick="window.__switchView('swot')">🗺️ SWOT</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newCtx()">+ เพิ่มประเด็น</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">บริบทและประเด็น</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

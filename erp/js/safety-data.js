@@ -81,6 +81,7 @@ export const COL = {
   improvement:      "safetyContinualImprovement",
   commPlan:         "safetyCommunicationPlan",
   lessons:          "safetyLessonsLearned",
+  contextIssue:     "safetyContextIssues",
 };
 
 // ────────────────────────────────────────────
@@ -4087,4 +4088,74 @@ export async function updateLesson(id, data) {
 }
 export async function deleteLesson(id) {
   await deleteDoc(doc(db, COL.lessons, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 76 — Context & Issue Register (ทะเบียนบริบทและประเด็น) ISO 45001 §4.1
+// ────────────────────────────────────────────
+export const CTX_TYPES = {
+  internal: { label:'ภายใน (Internal)', color:'#2563eb', bg:'#dbeafe', icon:'🏭' },
+  external: { label:'ภายนอก (External)', color:'#7c3aed', bg:'#f5f3ff', icon:'🌐' },
+};
+
+export const CTX_CATEGORIES_INTERNAL = [
+  { key:'culture',      label:'วัฒนธรรมองค์กร',          icon:'🤝' },
+  { key:'structure',    label:'โครงสร้าง/บทบาทหน้าที่',  icon:'🏗️' },
+  { key:'resources',    label:'ทรัพยากร/งบประมาณ',       icon:'💰' },
+  { key:'process',      label:'กระบวนการผลิต/ปฏิบัติงาน',icon:'⚙️' },
+  { key:'technology',   label:'เทคโนโลยี/เครื่องจักร',   icon:'🤖' },
+  { key:'competency',   label:'ความสามารถบุคลากร',       icon:'👷' },
+  { key:'policy',       label:'นโยบาย/ระเบียบภายใน',     icon:'📋' },
+  { key:'other_int',    label:'อื่นๆ (ภายใน)',           icon:'📌' },
+];
+
+export const CTX_CATEGORIES_EXTERNAL = [
+  { key:'legal',        label:'กฎหมาย/ข้อบังคับ',        icon:'⚖️' },
+  { key:'economic',     label:'เศรษฐกิจ/การเงิน',        icon:'📈' },
+  { key:'social',       label:'สังคม/ชุมชน',             icon:'🏘️' },
+  { key:'technology_ext',label:'เทคโนโลยีภายนอก',       icon:'💡' },
+  { key:'environment',  label:'สิ่งแวดล้อม/ภูมิอากาศ',  icon:'🌿' },
+  { key:'competitor',   label:'คู่แข่ง/อุตสาหกรรม',     icon:'🏆' },
+  { key:'stakeholder',  label:'ผู้มีส่วนได้ส่วนเสีย',    icon:'👥' },
+  { key:'supply_chain', label:'ซัพพลายเชน/ผู้รับเหมา',  icon:'🔗' },
+  { key:'other_ext',    label:'อื่นๆ (ภายนอก)',          icon:'📌' },
+];
+
+export const CTX_CLASSIFICATION = {
+  strength:    { label:'จุดแข็ง',  color:'#16a34a', bg:'#dcfce7', icon:'💪' },
+  weakness:    { label:'จุดอ่อน',  color:'#dc2626', bg:'#fee2e2', icon:'⚡' },
+  opportunity: { label:'โอกาส',    color:'#059669', bg:'#ecfdf5', icon:'🌟' },
+  threat:      { label:'ภัยคุกคาม',color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+};
+
+export const CTX_IMPACT = {
+  high:   { label:'สูง',     color:'#dc2626', bg:'#fee2e2' },
+  medium: { label:'ปานกลาง', color:'#d97706', bg:'#fef3c7' },
+  low:    { label:'ต่ำ',     color:'#16a34a', bg:'#dcfce7' },
+};
+
+export const CTX_MONITOR_FREQ = [
+  { key:'monthly',   label:'ทุกเดือน' },
+  { key:'quarterly', label:'ทุกไตรมาส' },
+  { key:'biannual',  label:'ทุก 6 เดือน' },
+  { key:'annually',  label:'ทุกปี' },
+  { key:'as_needed', label:'ตามความจำเป็น' },
+];
+
+export async function listContextIssues() {
+  const s = await getDocs(query(collection(db, COL.contextIssue), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getContextIssue(id) {
+  const d = await getDoc(doc(db, COL.contextIssue, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createContextIssue(data, createdBy) {
+  return addDoc(collection(db, COL.contextIssue), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateContextIssue(id, data) {
+  await updateDoc(doc(db, COL.contextIssue, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteContextIssue(id) {
+  await deleteDoc(doc(db, COL.contextIssue, id));
 }
