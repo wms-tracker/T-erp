@@ -88,6 +88,7 @@ export const COL = {
   monitorProg:      "safetyMonitorProgram",
   campaign:         "safetyCampaigns",
   safetyRule:       "safetySafetyRules",
+  safetyTalk:       "safetySafetyTalks",
 };
 
 // ────────────────────────────────────────────
@@ -4459,6 +4460,65 @@ export async function updateSafetyRule(id, data) {
 }
 export async function deleteSafetyRule(id) {
   await deleteDoc(doc(db, COL.safetyRule, id));
+}
+
+// ── Phase 83: Safety Talk / Tool Box Talk ───────────────────────────────────
+export const TALK_TYPES = {
+  toolbox:   { label:'Tool Box Talk',          icon:'🧰', color:'#2563eb', bg:'#dbeafe', desc:'การประชุมสั้นหน้างานก่อนเริ่มงาน' },
+  pre_shift: { label:'Pre-Shift Safety Briefing', icon:'🌅', color:'#d97706', bg:'#fef3c7', desc:'บรีฟิ่งความปลอดภัยก่อนกะงาน' },
+  topic:     { label:'Safety Topic Talk',      icon:'📢', color:'#7c3aed', bg:'#f5f3ff', desc:'Safety Talk ในหัวข้อเฉพาะเรื่อง' },
+  emergency: { label:'Emergency Drill Brief',  icon:'🚨', color:'#dc2626', bg:'#fee2e2', desc:'บรีฟิ่งก่อนซ้อมแผนฉุกเฉิน' },
+  incident:  { label:'Incident Lessons Shared',icon:'🔍', color:'#ea580c', bg:'#fff7ed', desc:'แบ่งปันบทเรียนจากอุบัติเหตุ/เหตุการณ์' },
+  awareness: { label:'Safety Awareness Session',icon:'💡', color:'#0891b2', bg:'#e0f2fe', desc:'การสร้างความตระหนักด้านความปลอดภัย' },
+  special:   { label:'Special Safety Session', icon:'⭐', color:'#16a34a', bg:'#dcfce7', desc:'กิจกรรมความปลอดภัยพิเศษ' },
+};
+export const TALK_TOPICS = [
+  { key:'ppe',          label:'การใช้ PPE อย่างถูกต้อง',          icon:'⛑️' },
+  { key:'housekeeping', label:'5ส / ความสะอาดเรียบร้อย',           icon:'🧹' },
+  { key:'fire',         label:'ป้องกันและระงับอัคคีภัย',           icon:'🔥' },
+  { key:'chemical',     label:'การจัดการสารเคมีอย่างปลอดภัย',      icon:'⚗️' },
+  { key:'ergonomic',    label:'การยศาสตร์ / ท่าทางการทำงาน',       icon:'🧍' },
+  { key:'electrical',   label:'ความปลอดภัยทางไฟฟ้า',              icon:'⚡' },
+  { key:'machine',      label:'ความปลอดภัยเครื่องจักร',           icon:'⚙️' },
+  { key:'height',       label:'งานบนที่สูง',                       icon:'🪜' },
+  { key:'confined',     label:'พื้นที่อับอากาศ',                   icon:'🕳️' },
+  { key:'traffic',      label:'การจราจรและยานพาหนะ',               icon:'🚗' },
+  { key:'emergency',    label:'แผนฉุกเฉินและการอพยพ',              icon:'🚒' },
+  { key:'incident',     label:'บทเรียนจากอุบัติเหตุ',              icon:'🔍' },
+  { key:'loto',         label:'LOTO / การควบคุมพลังงาน',           icon:'🔒' },
+  { key:'near_miss',    label:'Near Miss และการรายงาน',            icon:'⚠️' },
+  { key:'mental',       label:'สุขภาพจิตและความเครียด',            icon:'🧠' },
+  { key:'heat',         label:'การทำงานในสภาพอากาศร้อน',           icon:'🌡️' },
+  { key:'other',        label:'อื่นๆ',                              icon:'📌' },
+];
+export const TALK_STATUS = {
+  planned:   { label:'วางแผนแล้ว',   color:'#2563eb', bg:'#dbeafe', icon:'📅' },
+  completed: { label:'ดำเนินการแล้ว', color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  cancelled: { label:'ยกเลิก',        color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+  postponed: { label:'เลื่อนออกไป',  color:'#d97706', bg:'#fef3c7', icon:'⏳' },
+};
+export const TALK_DEPARTMENTS = [
+  'ฝ่ายผลิต','ฝ่ายคลังสินค้า','ฝ่ายวิศวกรรม','ฝ่ายบำรุงรักษา',
+  'ฝ่ายคุณภาพ','ฝ่ายจัดซื้อ','ฝ่ายบัญชี/การเงิน','ฝ่าย HR',
+  'ฝ่ายความปลอดภัย','ทุกฝ่าย',
+];
+
+export async function listSafetyTalks() {
+  const s = await getDocs(query(collection(db, COL.safetyTalk), orderBy('talkDate','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getSafetyTalk(id) {
+  const d = await getDoc(doc(db, COL.safetyTalk, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createSafetyTalk(data, createdBy) {
+  return addDoc(collection(db, COL.safetyTalk), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetyTalk(id, data) {
+  await updateDoc(doc(db, COL.safetyTalk, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetyTalk(id) {
+  await deleteDoc(doc(db, COL.safetyTalk, id));
 }
 
 export async function listCampaigns() {

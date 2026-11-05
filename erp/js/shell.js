@@ -221,6 +221,7 @@ const NAV = {
       { key: 'safety-monitor-prog',   label: 'แผนติดตามผลการดำเนินงาน (§9.1)', href: 'safety-monitor-prog.html' },
       { key: 'safety-campaigns',     label: 'แคมเปญรณรงค์ความปลอดภัย (§7.3)', href: 'safety-campaigns.html' },
       { key: 'safety-rules',         label: 'ทะเบียนกฎความปลอดภัย (Golden Rules)', href: 'safety-rules.html' },
+      { key: 'safety-talks',         label: 'Safety Talk / Tool Box Talk',    href: 'safety-talks.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -313,6 +314,7 @@ const NAV = {
       { key: 'safety-monitor-prog',   label: 'แผนติดตามผลการดำเนินงาน (§9.1)', href: 'safety-monitor-prog.html' },
       { key: 'safety-campaigns',     label: 'แคมเปญรณรงค์ความปลอดภัย (§7.3)', href: 'safety-campaigns.html' },
       { key: 'safety-rules',         label: 'ทะเบียนกฎความปลอดภัย (Golden Rules)', href: 'safety-rules.html' },
+      { key: 'safety-talks',         label: 'Safety Talk / Tool Box Talk',    href: 'safety-talks.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -494,6 +496,7 @@ const PAGE_DEPARTMENT = {
   "safety-monitor-prog.html":      "safety_officer",
   "safety-campaigns.html":         "safety_officer",
   "safety-rules.html":             "safety_officer",
+  "safety-talks.html":             "safety_officer",
 };
 
 // ===================================================================

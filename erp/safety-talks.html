@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Safety Talk / Tool Box Talk</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-card .kpi-val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-card .kpi-lbl{font-size:.72rem;color:#64748b;margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff;min-width:130px}
+.view-btns{display:flex;gap:4px;margin-left:auto}
+.view-btn{padding:6px 14px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:.82rem;color:#374151}
+.view-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
+/* card view */
+.talk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.talk-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.talk-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.tc-banner{padding:10px 14px;display:flex;align-items:center;gap:10px}
+.tc-banner .tb-icon{font-size:1.5rem}
+.tc-banner .tb-type{font-weight:700;font-size:.85rem}
+.tc-banner .tb-date{margin-left:auto;font-size:.75rem;opacity:.8;font-family:monospace}
+.tc-body{padding:12px 14px}
+.tc-body .tc-title{font-weight:700;font-size:.92rem;margin-bottom:6px}
+.tc-body .tc-topic{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;padding:2px 8px;border-radius:12px;margin-bottom:8px}
+.tc-body .tc-meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:.77rem;color:#475569}
+.tc-body .tc-meta span strong{color:#1e293b}
+.tc-footer{padding:8px 14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* calendar view */
+.cal-nav{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.cal-nav h3{font-size:1rem;font-weight:700;flex:1;text-align:center}
+.cal-nav button{padding:5px 12px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:.82rem}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#e2e8f0;border-radius:10px;overflow:hidden}
+.cal-day-name{background:#f8fafc;text-align:center;padding:6px;font-size:.72rem;font-weight:700;color:#64748b}
+.cal-cell{background:#fff;min-height:80px;padding:4px;position:relative;vertical-align:top}
+.cal-cell.other-month{background:#f8fafc;opacity:.5}
+.cal-cell.today .cal-num{background:#1e40af;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.cal-num{font-size:.78rem;font-weight:600;color:#374151;width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+.cal-event{font-size:.65rem;padding:2px 4px;border-radius:4px;margin-bottom:2px;cursor:pointer;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* table view */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.action-btn{padding:4px 10px;border:none;border-radius:6px;cursor:pointer;font-size:.75rem}
+.btn-edit{background:#dbeafe;color:#1e40af}
+.btn-del{background:#fee2e2;color:#dc2626}
+/* panel */
+.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.slide-panel{position:fixed;right:0;top:0;bottom:0;width:min(600px,100vw);background:#fff;z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15)}
+.slide-panel.open{transform:none}
+.panel-head{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700;flex:1}
+.panel-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:70px}
+.type-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.type-opt{padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:8px}
+.type-opt:hover{border-color:#94a3b8}
+.type-opt.selected{border-color:var(--tc)!important;background:var(--tbg)!important}
+.type-opt .to-icon{font-size:1.1rem}
+.type-opt .to-label{font-size:.78rem;font-weight:700}
+.panel-foot{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151}
+.btn-danger{background:#dc2626;color:#fff}
+.add-btn{padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+.section-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  TALK_TYPES, TALK_TOPICS, TALK_STATUS, TALK_DEPARTMENTS,
+  listSafetyTalks, createSafetyTalk, updateSafetyTalk, deleteSafetyTalk
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-talks', 'Safety Talk / Tool Box Talk');
+
+let allTalks = [];
+let editId = null;
+let curView = 'card';
+let filterType = '', filterStatus = '', filterMonth = '', filterText = '';
+let calYear, calMonth;
+
+const now = new Date();
+calYear = now.getFullYear();
+calMonth = now.getMonth();
+
+function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
+
+function topicInfo(key){ return TALK_TOPICS.find(t=>t.key===key)||{label:key,icon:'📌'}; }
+
+/* ─── KPIs ─── */
+function kpis(){
+  const total = allTalks.length;
+  const mo = now.getMonth(), yr = now.getFullYear();
+  const thisMonth = allTalks.filter(t=>{
+    if(!t.talkDate) return false;
+    const d = new Date(t.talkDate);
+    return d.getMonth()===mo && d.getFullYear()===yr;
+  });
+  const completed = allTalks.filter(t=>t.status==='completed').length;
+  const totalAtt = allTalks.filter(t=>t.status==='completed').reduce((s,t)=>s+(Number(t.attendanceCount)||0),0);
+  const upcoming = allTalks.filter(t=>{
+    if(t.status!=='planned') return false;
+    if(!t.talkDate) return false;
+    return new Date(t.talkDate) >= now;
+  }).length;
+  return `
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${thisMonth.length}</div><div class="kpi-lbl">เดือนนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${completed}</div><div class="kpi-lbl">ดำเนินการแล้ว</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${totalAtt}</div><div class="kpi-lbl">ผู้เข้าร่วมสะสม</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${upcoming}</div><div class="kpi-lbl">กำลังจะถึง</div></div>
+  </div>`;
+}
+
+function filtered(){
+  return allTalks.filter(t=>{
+    if(filterType && t.type!==filterType) return false;
+    if(filterStatus && t.status!==filterStatus) return false;
+    if(filterMonth && t.talkDate && !t.talkDate.startsWith(filterMonth)) return false;
+    if(filterText){
+      const q=filterText.toLowerCase();
+      if(!(t.title||'').toLowerCase().includes(q) && !(t.presenter||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ─── Card view ─── */
+function talkCard(t){
+  const tp = TALK_TYPES[t.type]||TALK_TYPES.toolbox;
+  const topic = topicInfo(t.topic);
+  const st = TALK_STATUS[t.status]||TALK_STATUS.planned;
+  const dateStr = t.talkDate ? new Date(t.talkDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '-';
+  return `
+  <div class="talk-card" onclick="window.__editTalk('${t.id}')">
+    <div class="tc-banner" style="background:${tp.bg}">
+      <span class="tb-icon">${tp.icon}</span>
+      <span class="tb-type" style="color:${tp.color}">${tp.label}</span>
+      <span class="tb-date" style="color:${tp.color}">${dateStr}</span>
+    </div>
+    <div class="tc-body">
+      <div class="tc-title">${t.title||'(ไม่มีชื่อ)'}</div>
+      <div class="tc-topic" style="color:#7c3aed;background:#f5f3ff">${topic.icon} ${topic.label}</div>
+      <div class="tc-meta">
+        <span><strong>วิทยากร:</strong> ${t.presenter||'-'}</span>
+        <span><strong>แผนก:</strong> ${t.department||'-'}</span>
+        <span><strong>สถานที่:</strong> ${t.location||'-'}</span>
+        <span><strong>ผู้เข้าร่วม:</strong> ${t.attendanceCount||'-'} คน</span>
+        ${t.duration?`<span><strong>ระยะเวลา:</strong> ${t.duration} นาที</span>`:''}
+      </div>
+    </div>
+    <div class="tc-footer">
+      ${badge(st)}
+      ${t.followUp?`<span style="font-size:.72rem;color:#ea580c">📋 มี Follow-up</span>`:''}
+    </div>
+  </div>`;
+}
+
+function cardView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  return `<div class="talk-grid">${data.map(talkCard).join('')}</div>`;
+}
+
+/* ─── Calendar view ─── */
+function calView(){
+  const TH_DAYS = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const yr=calYear, mo=calMonth;
+  const first = new Date(yr,mo,1).getDay();
+  const days = new Date(yr,mo+1,0).getDate();
+  const prevDays = new Date(yr,mo,0).getDate();
+  const talksByDate = {};
+  for(const t of allTalks){
+    if(!t.talkDate) continue;
+    const d = t.talkDate.substring(0,10);
+    if(!talksByDate[d]) talksByDate[d]=[];
+    talksByDate[d].push(t);
+  }
+  let cells = '';
+  // prev month fill
+  for(let i=first-1;i>=0;i--){
+    cells+=`<div class="cal-cell other-month"><div class="cal-num">${prevDays-i}</div></div>`;
+  }
+  const todayStr = now.toISOString().substring(0,10);
+  for(let d=1;d<=days;d++){
+    const ds=`${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday=ds===todayStr;
+    const events=(talksByDate[ds]||[]).map(t=>{
+      const tp=TALK_TYPES[t.type]||TALK_TYPES.toolbox;
+      return `<div class="cal-event" style="background:${tp.bg};color:${tp.color}" onclick="event.stopPropagation();window.__editTalk('${t.id}')" title="${t.title||''}">${tp.icon} ${t.title||tp.label}</div>`;
+    }).join('');
+    cells+=`<div class="cal-cell ${isToday?'today':''}" onclick="window.__openPanel(null,'${ds}')">
+      <div class="cal-num">${d}</div>
+      ${events}
+    </div>`;
+  }
+  // next month fill
+  const remaining = 42-(first+days);
+  for(let i=1;i<=remaining;i++) cells+=`<div class="cal-cell other-month"><div class="cal-num">${i}</div></div>`;
+
+  return `
+  <div class="cal-nav">
+    <button onclick="window.__calPrev()">◀</button>
+    <h3>${TH_MONTHS[mo]} ${yr+543}</h3>
+    <button onclick="window.__calNext()">▶</button>
+    <button onclick="window.__calToday()" style="margin-left:auto">วันนี้</button>
+  </div>
+  <div class="cal-grid">
+    ${TH_DAYS.map(d=>`<div class="cal-day-name">${d}</div>`).join('')}
+    ${cells}
+  </div>`;
+}
+
+/* ─── Table view ─── */
+function tableView(){
+  const data = filtered();
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
+  const rows = data.map(t=>{
+    const tp=TALK_TYPES[t.type]||TALK_TYPES.toolbox;
+    const topic=topicInfo(t.topic);
+    const st=TALK_STATUS[t.status]||TALK_STATUS.planned;
+    const dateStr=t.talkDate?new Date(t.talkDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'-';
+    return `<tr>
+      <td>${dateStr}</td>
+      <td><span class="badge" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
+      <td style="font-weight:600;max-width:200px">${t.title||'-'}</td>
+      <td><span style="font-size:.8rem">${topic.icon} ${topic.label}</span></td>
+      <td>${t.presenter||'-'}</td>
+      <td>${t.department||'-'}</td>
+      <td style="text-align:center">${t.attendanceCount||'-'}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td>
+        <button class="action-btn btn-edit" onclick="window.__editTalk('${t.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delTalk('${t.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>วันที่</th><th>ประเภท</th><th>หัวข้อ / ชื่อการประชุม</th><th>หมวดความปลอดภัย</th><th>วิทยากร</th><th>แผนก</th><th>เข้าร่วม</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/* ─── Render ─── */
+function render(){
+  const monthInput = filterMonth ? filterMonth : '';
+  main.innerHTML = `
+  ${kpis()}
+  <div class="toolbar">
+    <input type="text" placeholder="ค้นหาชื่อ / วิทยากร..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <select onchange="window.applyFilter('type',this.value)">
+      <option value="">ประเภททั้งหมด</option>
+      ${Object.entries(TALK_TYPES).map(([k,v])=>`<option value="${k}" ${filterType===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('status',this.value)">
+      <option value="">สถานะทั้งหมด</option>
+      ${Object.entries(TALK_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <input type="month" value="${monthInput}" onchange="window.applyFilter('month',this.value)" title="กรองตามเดือน">
+    <div class="view-btns">
+      <button class="view-btn ${curView==='card'?'active':''}" onclick="window.setView('card')">การ์ด</button>
+      <button class="view-btn ${curView==='calendar'?'active':''}" onclick="window.setView('calendar')">ปฏิทิน</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
+    </div>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ เพิ่ม Safety Talk</button>
+  </div>
+  <div id="content">${renderContent()}</div>
+  ${panelHTML()}`;
+}
+
+function renderContent(){
+  if(curView==='card') return cardView();
+  if(curView==='calendar') return calView();
+  return tableView();
+}
+
+/* ─── Panel ─── */
+function panelHTML(){
+  return `
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="slide-panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">เพิ่ม Safety Talk</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      ${editId?`<button class="btn btn-danger" onclick="window.__delTalk('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveTalk()">บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function formHTML(data={}){
+  const selType = data.type||'toolbox';
+  const typeCards = Object.entries(TALK_TYPES).map(([k,v])=>`
+    <div class="type-opt ${selType===k?'selected':''}" style="--tc:${v.color};--tbg:${v.bg};${selType===k?`border-color:${v.color};background:${v.bg}`:''}"
+      onclick="window.__selType('${k}',this)">
+      <span class="to-icon">${v.icon}</span>
+      <span class="to-label" style="color:${v.color}">${v.label}</span>
+    </div>`).join('');
+
+  return `
+  <input type="hidden" id="f-type" value="${selType}">
+  <div class="section-title">ประเภทและหัวข้อ</div>
+  <div class="form-row full"><div class="form-group">
+    <label>ประเภท Safety Talk *</label>
+    <div class="type-cards">${typeCards}</div>
+  </div></div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>หมวดความปลอดภัย *</label>
+      <select id="f-topic">
+        <option value="">-- เลือกหมวด --</option>
+        ${TALK_TOPICS.map(t=>`<option value="${t.key}" ${(data.topic||'')==t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ชื่อการประชุม / หัวข้อ *</label>
+      <input id="f-title" value="${data.title||''}" placeholder="ระบุชื่อหัวข้อที่จัด">
+    </div>
+  </div>
+
+  <div class="section-title">รายละเอียดการจัด</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>วันที่จัด *</label>
+      <input type="date" id="f-talkDate" value="${data.talkDate||''}">
+    </div>
+    <div class="form-group">
+      <label>เวลา</label>
+      <input type="time" id="f-talkTime" value="${data.talkTime||''}">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>ระยะเวลา (นาที)</label>
+      <input type="number" id="f-duration" value="${data.duration||''}" min="1" max="480" placeholder="เช่น 15">
+    </div>
+    <div class="form-group">
+      <label>สถานที่</label>
+      <input id="f-location" value="${data.location||''}" placeholder="เช่น หน้าสายการผลิต A">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>วิทยากร / ผู้จัด</label>
+      <input id="f-presenter" value="${data.presenter||''}">
+    </div>
+    <div class="form-group">
+      <label>แผนก / กลุ่มเป้าหมาย</label>
+      <select id="f-department">
+        <option value="">-- เลือก --</option>
+        ${TALK_DEPARTMENTS.map(d=>`<option value="${d}" ${(data.department||'')==d?'selected':''}>${d}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>จำนวนผู้เข้าร่วม (คน)</label>
+      <input type="number" id="f-attendanceCount" value="${data.attendanceCount||''}" min="0">
+    </div>
+    <div class="form-group">
+      <label>สถานะ</label>
+      <select id="f-status">
+        ${Object.entries(TALK_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'planned')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="section-title">เนื้อหาและผลลัพธ์</div>
+  <div class="form-row full"><div class="form-group">
+    <label>เนื้อหาที่จัด / สรุปการประชุม</label>
+    <textarea id="f-content" placeholder="สรุปสาระสำคัญที่แบ่งปัน...">${data.content||''}</textarea>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>รายชื่อผู้เข้าร่วม (ถ้ามี)</label>
+    <textarea id="f-attendees" placeholder="แต่ละชื่อขึ้นบรรทัดใหม่">${data.attendees||''}</textarea>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>📋 Follow-up / ข้อมูลติดตาม</label>
+    <textarea id="f-followUp" placeholder="งานที่ต้องติดตามหลังการประชุม...">${data.followUp||''}</textarea>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>เอกสารอ้างอิง / ไฟล์แนบ (ชื่อไฟล์)</label>
+    <input id="f-attachment" value="${data.attachment||''}" placeholder="เช่น toolbox-talk-2025-11.pdf">
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>หมายเหตุ</label>
+    <input id="f-notes" value="${data.notes||''}">
+  </div></div>`;
+}
+
+window.__selType = (key, el) => {
+  document.getElementById('f-type').value = key;
+  el.closest('.type-cards').querySelectorAll('.type-opt').forEach(e=>{
+    e.classList.remove('selected'); e.style.borderColor=''; e.style.background='';
+  });
+  const tp = TALK_TYPES[key];
+  el.classList.add('selected');
+  el.style.borderColor = tp.color;
+  el.style.background = tp.bg;
+};
+
+window.__openPanel = (id, prefillDate='') => {
+  editId = id;
+  const data = id ? (allTalks.find(t=>t.id===id)||{}) : (prefillDate?{talkDate:prefillDate}:{});
+  document.getElementById('panel-title').textContent = id ? 'แก้ไข Safety Talk' : 'เพิ่ม Safety Talk';
+  document.getElementById('panel-body').innerHTML = formHTML(data);
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  editId = null;
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+window.__editTalk = (id) => window.__openPanel(id);
+
+window.__delTalk = async (id) => {
+  if(!confirm('ยืนยันการลบรายการนี้?')) return;
+  await deleteSafetyTalk(id);
+  allTalks = allTalks.filter(t=>t.id!==id);
+  window.__closePanel();
+  render();
+};
+
+window.__saveTalk = async () => {
+  const title = document.getElementById('f-title').value.trim();
+  const talkDate = document.getElementById('f-talkDate').value;
+  if(!title){ alert('กรุณาระบุหัวข้อ'); return; }
+  if(!talkDate){ alert('กรุณาระบุวันที่'); return; }
+
+  const data = {
+    type: document.getElementById('f-type').value,
+    topic: document.getElementById('f-topic').value,
+    title,
+    talkDate,
+    talkTime: document.getElementById('f-talkTime').value,
+    duration: document.getElementById('f-duration').value ? Number(document.getElementById('f-duration').value) : null,
+    location: document.getElementById('f-location').value.trim(),
+    presenter: document.getElementById('f-presenter').value.trim(),
+    department: document.getElementById('f-department').value,
+    attendanceCount: document.getElementById('f-attendanceCount').value ? Number(document.getElementById('f-attendanceCount').value) : null,
+    status: document.getElementById('f-status').value,
+    content: document.getElementById('f-content').value.trim(),
+    attendees: document.getElementById('f-attendees').value.trim(),
+    followUp: document.getElementById('f-followUp').value.trim(),
+    attachment: document.getElementById('f-attachment').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  if(editId){
+    await updateSafetyTalk(editId, data);
+    const idx = allTalks.findIndex(t=>t.id===editId);
+    if(idx>=0) allTalks[idx] = {...allTalks[idx],...data};
+  } else {
+    const ref = await createSafetyTalk(data);
+    allTalks.unshift({...data, id: ref.id});
+  }
+  // re-sort by talkDate desc
+  allTalks.sort((a,b)=>(b.talkDate||'').localeCompare(a.talkDate||''));
+  window.__closePanel();
+  render();
+};
+
+window.applyFilter = (type, val) => {
+  if(type==='text') filterText=val;
+  else if(type==='type') filterType=val;
+  else if(type==='status') filterStatus=val;
+  else if(type==='month') filterMonth=val;
+  document.getElementById('content').innerHTML = renderContent();
+};
+
+window.setView = (v) => { curView = v; render(); };
+
+window.__calPrev = () => {
+  calMonth--; if(calMonth<0){calMonth=11;calYear--;}
+  document.getElementById('content').innerHTML = renderContent();
+};
+window.__calNext = () => {
+  calMonth++; if(calMonth>11){calMonth=0;calYear++;}
+  document.getElementById('content').innerHTML = renderContent();
+};
+window.__calToday = () => {
+  calYear=now.getFullYear(); calMonth=now.getMonth();
+  document.getElementById('content').innerHTML = renderContent();
+};
+
+allTalks = await listSafetyTalks();
+render();
+</script>
+</body>
+</html>
