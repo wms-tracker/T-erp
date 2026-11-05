@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BBS — Behavior-Based Safety Observation</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-lbl{font-size:.72rem;color:#64748b;margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff;min-width:130px}
+.view-btns{display:flex;gap:4px;margin-left:auto}
+.view-btn{padding:6px 14px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:.82rem;color:#374151}
+.view-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
+/* trend view */
+.trend-wrap{display:grid;grid-template-columns:1fr 320px;gap:16px}
+@media(max-width:900px){.trend-wrap{grid-template-columns:1fr}}
+.chart-box{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.chart-box h3{font-size:.88rem;font-weight:700;color:#374151;margin-bottom:12px}
+.bar-chart{display:flex;gap:6px;align-items:flex-end;height:160px;border-bottom:2px solid #e2e8f0;padding-bottom:4px}
+.bar-col{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;min-width:0}
+.bar-stack{display:flex;flex-direction:column;width:100%;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer}
+.bar-safe{background:#16a34a}
+.bar-risk{background:#dc2626}
+.bar-lbl{font-size:.6rem;color:#64748b;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bar-pct{font-size:.65rem;font-weight:700;text-align:center}
+.chart-legend{display:flex;gap:12px;margin-top:8px;font-size:.75rem}
+.leg-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px}
+/* category bars */
+.cat-bars{display:flex;flex-direction:column;gap:8px}
+.cat-row{display:flex;align-items:center;gap:8px}
+.cat-row .cat-icon{font-size:1rem;width:24px;text-align:center;flex-shrink:0}
+.cat-row .cat-name{font-size:.75rem;width:140px;flex-shrink:0;color:#374151}
+.cat-bar-wrap{flex:1;background:#f1f5f9;border-radius:4px;height:10px;overflow:hidden}
+.cat-bar-inner{height:100%;background:#16a34a;border-radius:4px;transition:width .4s}
+.cat-row .cat-pct{font-size:.72rem;font-weight:700;width:36px;text-align:right;flex-shrink:0}
+/* record view */
+.record-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.obs-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.obs-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.oc-banner{padding:10px 14px;display:flex;align-items:center;gap:8px;background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff}
+.oc-date{font-size:.8rem;font-weight:700}
+.oc-zone{margin-left:auto;font-size:.73rem;opacity:.9}
+.oc-body{padding:12px 14px}
+.oc-safe-pct{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pct-ring-wrap{position:relative;width:52px;height:52px;flex-shrink:0}
+.pct-ring-wrap svg{transform:rotate(-90deg)}
+.pct-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700}
+.oc-counts{font-size:.78rem;color:#475569;display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.oc-counts span strong{color:#1e293b}
+.oc-mini-bars{margin-top:8px}
+.oc-mini-row{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.oc-mini-name{font-size:.68rem;color:#64748b;width:90px;flex-shrink:0}
+.oc-mini-bar{flex:1;background:#f1f5f9;border-radius:3px;height:6px;overflow:hidden}
+.oc-mini-fill{height:100%;background:#16a34a;border-radius:3px}
+.oc-footer{padding:7px 14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* table */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.action-btn{padding:4px 10px;border:none;border-radius:6px;cursor:pointer;font-size:.75rem}
+.btn-edit{background:#dbeafe;color:#1e40af}
+.btn-del{background:#fee2e2;color:#dc2626}
+/* panel */
+.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.slide-panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15)}
+.slide-panel.open{transform:none}
+.panel-head{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700;flex:1}
+.panel-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:60px}
+.section-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
+/* BBS category form rows */
+.bbs-cat-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.bbs-cat-table th{background:#f8fafc;padding:7px 10px;text-align:center;font-weight:700;color:#374151;font-size:.78rem;border-bottom:2px solid #e2e8f0}
+.bbs-cat-table th:first-child{text-align:left}
+.bbs-cat-table td{padding:7px 8px;border-bottom:1px solid #f1f5f9}
+.bbs-cat-table td:first-child{font-size:.8rem}
+.bbs-cat-table input[type=number]{width:68px;padding:5px 7px;text-align:center;border:1px solid #d1d5db;border-radius:6px}
+.bbs-cat-table input[type=text]{width:100%;padding:5px 7px;border:1px solid #d1d5db;border-radius:6px}
+.pct-cell{text-align:center;font-size:.8rem;font-weight:700}
+.panel-foot{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151}
+.btn-danger{background:#dc2626;color:#fff}
+.add-btn{padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  BBS_CATEGORIES, BBS_ZONES, BBS_STATUS,
+  listBBSObs, createBBSObs, updateBBSObs, deleteBBSObs
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'bbs-observation', 'BBS — Behavior-Based Safety Observation');
+
+let allObs = [];
+let editId = null;
+let curView = 'trend';
+let filterZone='', filterStatus='', filterMonth='', filterText='';
+
+function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
+
+/* ─── Totals helpers ─── */
+function calcTotals(obs){
+  let safe=0, risk=0;
+  for(const cat of (obs.categories||[])){
+    safe += Number(cat.safe)||0;
+    risk += Number(cat.risk)||0;
+  }
+  return { safe, risk, total: safe+risk };
+}
+function safePct(obs){
+  const {safe, total} = calcTotals(obs);
+  return total ? Math.round(safe/total*100) : null;
+}
+
+/* ─── KPIs ─── */
+function kpis(){
+  const total = allObs.length;
+  const mo = new Date().getMonth(), yr = new Date().getFullYear();
+  const thisMonth = allObs.filter(o=>{
+    if(!o.obsDate) return false;
+    const d = new Date(o.obsDate); return d.getMonth()===mo && d.getFullYear()===yr;
+  });
+  let totSafe=0, totRisk=0;
+  for(const o of allObs){ const t=calcTotals(o); totSafe+=t.safe; totRisk+=t.risk; }
+  const grandTotal = totSafe+totRisk;
+  const pct = grandTotal ? Math.round(totSafe/grandTotal*100) : 0;
+  const pctColor = pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
+  return `
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">สังเกตทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${thisMonth.length}</div><div class="kpi-lbl">เดือนนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${totSafe}</div><div class="kpi-lbl">✅ พฤติกรรมปลอดภัย</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${totRisk}</div><div class="kpi-lbl">⚠️ พฤติกรรมเสี่ยง</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${pctColor}">${pct}%</div><div class="kpi-lbl">Safe Behavior %</div></div>
+  </div>`;
+}
+
+function filtered(){
+  return allObs.filter(o=>{
+    if(filterZone && o.zone!==filterZone) return false;
+    if(filterStatus && o.status!==filterStatus) return false;
+    if(filterMonth && !(o.obsDate||'').startsWith(filterMonth)) return false;
+    if(filterText){
+      const q=filterText.toLowerCase();
+      if(!(o.observer||'').toLowerCase().includes(q)&&!(o.zone||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ─── Trend view ─── */
+function trendView(){
+  const data = filtered();
+  // group by YYYY-MM
+  const byMonth = {};
+  for(const o of data){
+    if(!o.obsDate) continue;
+    const ym = o.obsDate.substring(0,7);
+    if(!byMonth[ym]){byMonth[ym]={safe:0,risk:0,count:0};}
+    const t = calcTotals(o);
+    byMonth[ym].safe += t.safe; byMonth[ym].risk += t.risk; byMonth[ym].count++;
+  }
+  const months = Object.keys(byMonth).sort().slice(-12);
+  const maxTotal = Math.max(1,...months.map(m=>byMonth[m].safe+byMonth[m].risk));
+
+  const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const bars = months.map(ym=>{
+    const d=byMonth[ym];
+    const tot=d.safe+d.risk;
+    const safeH=Math.round(d.safe/maxTotal*140);
+    const riskH=Math.round(d.risk/maxTotal*140);
+    const pct=tot?Math.round(d.safe/tot*100):0;
+    const mon=parseInt(ym.substring(5))-1;
+    return `<div class="bar-col">
+      <div class="bar-pct" style="color:${pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626'}">${pct}%</div>
+      <div class="bar-stack" style="height:${safeH+riskH}px" title="${ym}: ✅${d.safe} ⚠️${d.risk}">
+        <div class="bar-risk" style="height:${riskH}px"></div>
+        <div class="bar-safe" style="height:${safeH}px"></div>
+      </div>
+      <div class="bar-lbl">${TH_MONTHS[mon]}</div>
+    </div>`;
+  }).join('');
+
+  // category breakdown
+  const catTotals = {};
+  for(const cat of BBS_CATEGORIES) catTotals[cat.key]={safe:0,risk:0};
+  for(const o of data){
+    for(const c of (o.categories||[])){
+      if(catTotals[c.key]!==undefined){
+        catTotals[c.key].safe+=Number(c.safe)||0;
+        catTotals[c.key].risk+=Number(c.risk)||0;
+      }
+    }
+  }
+  const catBars = BBS_CATEGORIES.map(cat=>{
+    const t=catTotals[cat.key]; const tot=t.safe+t.risk;
+    const pct=tot?Math.round(t.safe/tot*100):0;
+    const col=pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
+    return `<div class="cat-row">
+      <span class="cat-icon">${cat.icon}</span>
+      <span class="cat-name">${cat.label}</span>
+      <div class="cat-bar-wrap"><div class="cat-bar-inner" style="width:${pct}%;background:${col}"></div></div>
+      <span class="cat-pct" style="color:${col}">${tot?pct+'%':'-'}</span>
+    </div>`;
+  }).join('');
+
+  if(!months.length) return `<div class="empty">ไม่มีข้อมูลเพียงพอสำหรับแสดงแนวโน้ม</div>`;
+
+  return `<div class="trend-wrap">
+    <div>
+      <div class="chart-box" style="margin-bottom:12px">
+        <h3>📊 แนวโน้ม Safe Behavior % รายเดือน</h3>
+        <div class="bar-chart">${bars}</div>
+        <div class="chart-legend">
+          <span><span class="leg-dot" style="background:#16a34a"></span>พฤติกรรมปลอดภัย</span>
+          <span><span class="leg-dot" style="background:#dc2626"></span>พฤติกรรมเสี่ยง</span>
+        </div>
+      </div>
+    </div>
+    <div class="chart-box">
+      <h3>🔍 Safe % แยกตามหมวดพฤติกรรม</h3>
+      <div class="cat-bars">${catBars}</div>
+    </div>
+  </div>`;
+}
+
+/* ─── SVG ring helper ─── */
+function ring(pct, color){
+  if(pct===null) return `<div class="pct-ring-wrap"><div class="pct-label" style="color:#94a3b8">-</div></div>`;
+  const r=20, c=26, circ=2*Math.PI*r;
+  const dash=circ*(pct/100); const gap=circ-dash;
+  return `<div class="pct-ring-wrap">
+    <svg width="52" height="52" viewBox="0 0 52 52">
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+      <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="${color}" stroke-width="5"
+        stroke-dasharray="${dash} ${gap}" stroke-linecap="round"/>
+    </svg>
+    <div class="pct-label" style="color:${color}">${pct}%</div>
+  </div>`;
+}
+
+/* ─── Record view ─── */
+function recordView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  return `<div class="record-grid">${data.map(o=>{
+    const pct=safePct(o);
+    const col=pct===null?'#94a3b8':pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
+    const t=calcTotals(o);
+    const st=BBS_STATUS[o.status]||BBS_STATUS.submitted;
+    const dateStr=o.obsDate?new Date(o.obsDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'-';
+    const miniRows = (o.categories||[]).filter(c=>c.safe||c.risk).slice(0,5).map(c=>{
+      const catInfo=BBS_CATEGORIES.find(x=>x.key===c.key)||{label:c.key,icon:'📌'};
+      const tot=(Number(c.safe)||0)+(Number(c.risk)||0);
+      const p=tot?Math.round((Number(c.safe)||0)/tot*100):0;
+      const mc=p>=90?'#16a34a':p>=75?'#d97706':'#dc2626';
+      return `<div class="oc-mini-row">
+        <span class="oc-mini-name">${catInfo.icon} ${catInfo.label.length>10?catInfo.label.substring(0,10)+'…':catInfo.label}</span>
+        <div class="oc-mini-bar"><div class="oc-mini-fill" style="width:${p}%;background:${mc}"></div></div>
+        <span style="font-size:.65rem;width:28px;text-align:right;color:${mc}">${tot?p+'%':'-'}</span>
+      </div>`;
+    }).join('');
+    return `<div class="obs-card" onclick="window.__editObs('${o.id}')">
+      <div class="oc-banner">
+        <span class="oc-date">📅 ${dateStr}</span>
+        <span class="oc-zone">📍 ${o.zone||'-'}</span>
+      </div>
+      <div class="oc-body">
+        <div class="oc-safe-pct">
+          ${ring(pct,col)}
+          <div class="oc-counts">
+            <span>✅ ปลอดภัย: <strong>${t.safe}</strong></span>
+            <span>⚠️ เสี่ยง: <strong>${t.risk}</strong></span>
+            <span>📊 รวม: <strong>${t.total}</strong></span>
+            <span>👤 ${o.observer||'ไม่ระบุ'}</span>
+          </div>
+        </div>
+        ${miniRows?`<div class="oc-mini-bars">${miniRows}</div>`:''}
+      </div>
+      <div class="oc-footer">${badge(st)}${o.actionItems?`<span style="font-size:.72rem;color:#ea580c">📋 มี Action</span>`:''}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ─── Table view ─── */
+function tableView(){
+  const data = filtered();
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
+  const rows = data.map(o=>{
+    const t=calcTotals(o); const pct=safePct(o);
+    const col=pct===null?'#94a3b8':pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
+    const st=BBS_STATUS[o.status]||BBS_STATUS.submitted;
+    const dateStr=o.obsDate?new Date(o.obsDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'-';
+    return `<tr>
+      <td>${dateStr}</td>
+      <td>${o.zone||'-'}</td>
+      <td>${o.observer||'ไม่ระบุ'}</td>
+      <td style="text-align:center;color:#16a34a;font-weight:700">${t.safe}</td>
+      <td style="text-align:center;color:#dc2626;font-weight:700">${t.risk}</td>
+      <td style="text-align:center;font-weight:700;color:${col}">${pct!=null?pct+'%':'-'}</td>
+      <td>${badge(st)}</td>
+      <td>
+        <button class="action-btn btn-edit" onclick="window.__editObs('${o.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delObs('${o.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>วันที่</th><th>พื้นที่</th><th>ผู้สังเกต</th><th>✅ ปลอดภัย</th><th>⚠️ เสี่ยง</th><th>Safe%</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/* ─── Render ─── */
+function render(){
+  main.innerHTML = `
+  ${kpis()}
+  <div class="toolbar">
+    <input type="text" placeholder="ค้นหาผู้สังเกต / พื้นที่..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <select onchange="window.applyFilter('zone',this.value)">
+      <option value="">พื้นที่ทั้งหมด</option>
+      ${BBS_ZONES.map(z=>`<option value="${z}" ${filterZone===z?'selected':''}>${z}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('status',this.value)">
+      <option value="">สถานะทั้งหมด</option>
+      ${Object.entries(BBS_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <input type="month" value="${filterMonth}" onchange="window.applyFilter('month',this.value)" title="กรองตามเดือน">
+    <div class="view-btns">
+      <button class="view-btn ${curView==='trend'?'active':''}" onclick="window.setView('trend')">แนวโน้ม</button>
+      <button class="view-btn ${curView==='record'?'active':''}" onclick="window.setView('record')">บันทึก</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
+    </div>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ บันทึกการสังเกต</button>
+  </div>
+  <div id="content">${renderContent()}</div>
+  ${panelHTML()}`;
+}
+
+function renderContent(){
+  if(curView==='trend') return trendView();
+  if(curView==='record') return recordView();
+  return tableView();
+}
+
+/* ─── Panel ─── */
+function panelHTML(){
+  return `
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="slide-panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">บันทึก BBS Observation</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      ${editId?`<button class="btn btn-danger" onclick="window.__delObs('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveObs()">บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function catTableHTML(savedCats=[]){
+  const catMap = {};
+  for(const c of savedCats) catMap[c.key]=c;
+  const rows = BBS_CATEGORIES.map(cat=>{
+    const saved = catMap[cat.key]||{safe:'',risk:'',comment:''};
+    const tot = (Number(saved.safe)||0)+(Number(saved.risk)||0);
+    const pct = tot ? Math.round((Number(saved.safe)||0)/tot*100) : null;
+    const col = pct===null?'#94a3b8':pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
+    return `<tr data-catkey="${cat.key}">
+      <td><span style="font-size:.9rem">${cat.icon}</span> <span style="color:${cat.color}">${cat.label}</span></td>
+      <td style="text-align:center"><input type="number" class="ci-safe" min="0" value="${saved.safe||''}" placeholder="0" oninput="window.__updateCatPct(this)"></td>
+      <td style="text-align:center"><input type="number" class="ci-risk" min="0" value="${saved.risk||''}" placeholder="0" oninput="window.__updateCatPct(this)"></td>
+      <td class="pct-cell" style="color:${col}" id="cpct-${cat.key}">${pct!=null?pct+'%':'-'}</td>
+      <td><input type="text" class="ci-comment" value="${saved.comment||''}" placeholder="ข้อสังเกต..."></td>
+    </tr>`;
+  }).join('');
+  return `<table class="bbs-cat-table">
+    <thead><tr>
+      <th style="text-align:left">หมวดพฤติกรรม</th>
+      <th>✅ ปลอดภัย</th><th>⚠️ เสี่ยง</th><th>%</th><th>ข้อสังเกต</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function formHTML(data={}){
+  return `
+  <div class="section-title">ข้อมูลการสังเกต</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>วันที่สังเกต *</label>
+      <input type="date" id="f-obsDate" value="${data.obsDate||new Date().toISOString().substring(0,10)}">
+    </div>
+    <div class="form-group">
+      <label>เวลา</label>
+      <input type="time" id="f-obsTime" value="${data.obsTime||''}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>พื้นที่ที่สังเกต *</label>
+      <select id="f-zone">
+        <option value="">-- เลือกพื้นที่ --</option>
+        ${BBS_ZONES.map(z=>`<option value="${z}" ${(data.zone||'')==z?'selected':''}>${z}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ผู้สังเกต (ระบุหรือไม่ก็ได้)</label>
+      <input id="f-observer" value="${data.observer||''}" placeholder="ชื่อ หรือเว้นว่างไว้">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>จำนวนคนที่สังเกต</label>
+      <input type="number" id="f-observedCount" value="${data.observedCount||''}" min="1" placeholder="จำนวนคนในพื้นที่">
+    </div>
+    <div class="form-group">
+      <label>ระยะเวลาสังเกต (นาที)</label>
+      <input type="number" id="f-duration" value="${data.duration||''}" min="1">
+    </div>
+  </div>
+
+  <div class="section-title">บันทึกพฤติกรรม — ใส่จำนวนที่นับได้</div>
+  <div id="cat-table-wrap">${catTableHTML(data.categories||[])}</div>
+
+  <div class="section-title">สรุปและ Follow-up</div>
+  <div class="form-row full"><div class="form-group">
+    <label>Positive Feedback ที่ให้ไป</label>
+    <textarea id="f-feedback" placeholder="คำชมเชยหรือ feedback ที่มอบให้คนงาน...">${data.feedback||''}</textarea>
+  </div></div>
+  <div class="form-row full"><div class="form-group">
+    <label>📋 Action Items / สิ่งที่ต้องติดตาม</label>
+    <textarea id="f-actionItems" placeholder="ระบุการดำเนินการแก้ไขพฤติกรรมเสี่ยง...">${data.actionItems||''}</textarea>
+  </div></div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>สถานะ</label>
+      <select id="f-status">
+        ${Object.entries(BBS_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'submitted')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>หมายเหตุ</label>
+      <input id="f-notes" value="${data.notes||''}">
+    </div>
+  </div>`;
+}
+
+window.__updateCatPct = (el) => {
+  const row = el.closest('tr');
+  const safe = Number(row.querySelector('.ci-safe').value)||0;
+  const risk = Number(row.querySelector('.ci-risk').value)||0;
+  const tot = safe+risk;
+  const pct = tot ? Math.round(safe/tot*100) : null;
+  const col = pct===null?'#94a3b8':pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
+  const key = row.dataset.catkey;
+  const cell = document.getElementById('cpct-'+key);
+  if(cell){ cell.textContent=pct!=null?pct+'%':'-'; cell.style.color=col; }
+};
+
+function readCategories(){
+  const rows = document.querySelectorAll('.bbs-cat-table tbody tr');
+  return [...rows].map(row=>{
+    const key=row.dataset.catkey;
+    return {
+      key,
+      safe: Number(row.querySelector('.ci-safe').value)||0,
+      risk: Number(row.querySelector('.ci-risk').value)||0,
+      comment: row.querySelector('.ci-comment').value.trim(),
+    };
+  }).filter(c=>c.safe||c.risk||c.comment);
+}
+
+window.__openPanel = (id) => {
+  editId = id;
+  const data = id ? (allObs.find(o=>o.id===id)||{}) : {};
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขบันทึก BBS' : 'บันทึก BBS Observation';
+  document.getElementById('panel-body').innerHTML = formHTML(data);
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  editId = null;
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+window.__editObs = (id) => window.__openPanel(id);
+
+window.__delObs = async (id) => {
+  if(!confirm('ยืนยันการลบบันทึกนี้?')) return;
+  await deleteBBSObs(id);
+  allObs = allObs.filter(o=>o.id!==id);
+  window.__closePanel();
+  render();
+};
+
+window.__saveObs = async () => {
+  const obsDate = document.getElementById('f-obsDate').value;
+  const zone = document.getElementById('f-zone').value;
+  if(!obsDate){ alert('กรุณาระบุวันที่'); return; }
+  if(!zone){ alert('กรุณาเลือกพื้นที่'); return; }
+
+  const categories = readCategories();
+  const data = {
+    obsDate,
+    obsTime: document.getElementById('f-obsTime').value,
+    zone,
+    observer: document.getElementById('f-observer').value.trim(),
+    observedCount: document.getElementById('f-observedCount').value ? Number(document.getElementById('f-observedCount').value) : null,
+    duration: document.getElementById('f-duration').value ? Number(document.getElementById('f-duration').value) : null,
+    categories,
+    feedback: document.getElementById('f-feedback').value.trim(),
+    actionItems: document.getElementById('f-actionItems').value.trim(),
+    status: document.getElementById('f-status').value,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  if(editId){
+    await updateBBSObs(editId, data);
+    const idx = allObs.findIndex(o=>o.id===editId);
+    if(idx>=0) allObs[idx] = {...allObs[idx],...data};
+  } else {
+    const ref = await createBBSObs(data);
+    allObs.unshift({...data, id: ref.id});
+  }
+  allObs.sort((a,b)=>(b.obsDate||'').localeCompare(a.obsDate||''));
+  window.__closePanel();
+  render();
+};
+
+window.applyFilter = (type, val) => {
+  if(type==='text') filterText=val;
+  else if(type==='zone') filterZone=val;
+  else if(type==='status') filterStatus=val;
+  else if(type==='month') filterMonth=val;
+  document.getElementById('content').innerHTML = renderContent();
+};
+window.setView = (v) => { curView = v; render(); };
+
+allObs = await listBBSObs();
+render();
+</script>
+</body>
+</html>

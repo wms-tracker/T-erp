@@ -90,6 +90,7 @@ export const COL = {
   safetyRule:       "safetySafetyRules",
   safetyTalk:       "safetySafetyTalks",
   machineCheck:     "safetyMachineCheck",
+  bbsObs:           "safetyBBSObservations",
 };
 
 // ────────────────────────────────────────────
@@ -4576,6 +4577,45 @@ export async function updateMachineCheck(id, data) {
 }
 export async function deleteMachineCheck(id) {
   await deleteDoc(doc(db, COL.machineCheck, id));
+}
+
+// ── Phase 85: Behavior-Based Safety (BBS) Observation ───────────────────────
+export const BBS_CATEGORIES = [
+  { key:'ppe',         label:'การใช้ PPE',                    icon:'⛑️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'posture',     label:'ท่าทางและการเคลื่อนไหว',        icon:'🧍', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'tools',       label:'การใช้เครื่องมือ / อุปกรณ์',   icon:'🔧', color:'#d97706', bg:'#fef3c7' },
+  { key:'procedure',   label:'การปฏิบัติตามขั้นตอน (SOP)',   icon:'📋', color:'#2563eb', bg:'#dbeafe' },
+  { key:'housekeeping',label:'ความสะอาด / 5ส',               icon:'🧹', color:'#16a34a', bg:'#dcfce7' },
+  { key:'communication',label:'การสื่อสาร / ทีมเวิร์ค',      icon:'💬', color:'#059669', bg:'#ecfdf5' },
+  { key:'environment', label:'สภาพแวดล้อมพื้นที่ทำงาน',      icon:'🏭', color:'#64748b', bg:'#f1f5f9' },
+  { key:'energy',      label:'การจัดการพลังงาน / สารเคมี',   icon:'⚡', color:'#ca8a04', bg:'#fef9c3' },
+];
+export const BBS_ZONES = [
+  'สายการผลิต','คลังสินค้า','พื้นที่โหลด/ขนถ่าย','ลานจอดรถ',
+  'พื้นที่ก่อสร้าง','ห้องแล็บ','ห้องเครื่องจักร','สำนักงาน','ทั่วทั้งโรงงาน',
+];
+export const BBS_STATUS = {
+  draft:     { label:'ร่าง',           color:'#64748b', bg:'#f1f5f9', icon:'📝' },
+  submitted: { label:'ส่งแล้ว',        color:'#2563eb', bg:'#dbeafe', icon:'📤' },
+  reviewed:  { label:'ผ่านการทบทวน',   color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+};
+
+export async function listBBSObs() {
+  const s = await getDocs(query(collection(db, COL.bbsObs), orderBy('obsDate','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getBBSObs(id) {
+  const d = await getDoc(doc(db, COL.bbsObs, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createBBSObs(data, createdBy) {
+  return addDoc(collection(db, COL.bbsObs), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateBBSObs(id, data) {
+  await updateDoc(doc(db, COL.bbsObs, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteBBSObs(id) {
+  await deleteDoc(doc(db, COL.bbsObs, id));
 }
 
 export async function listCampaigns() {

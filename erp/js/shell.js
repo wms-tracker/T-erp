@@ -223,6 +223,7 @@ const NAV = {
       { key: 'safety-rules',         label: 'ทะเบียนกฎความปลอดภัย (Golden Rules)', href: 'safety-rules.html' },
       { key: 'safety-talks',         label: 'Safety Talk / Tool Box Talk',    href: 'safety-talks.html' },
       { key: 'machine-check',        label: 'ตรวจสอบก่อนใช้งานเครื่องจักร',  href: 'safety-machine-check.html' },
+      { key: 'bbs-observation',      label: 'BBS สังเกตพฤติกรรมความปลอดภัย', href: 'safety-bbs.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -317,6 +318,7 @@ const NAV = {
       { key: 'safety-rules',         label: 'ทะเบียนกฎความปลอดภัย (Golden Rules)', href: 'safety-rules.html' },
       { key: 'safety-talks',         label: 'Safety Talk / Tool Box Talk',    href: 'safety-talks.html' },
       { key: 'machine-check',        label: 'ตรวจสอบก่อนใช้งานเครื่องจักร',  href: 'safety-machine-check.html' },
+      { key: 'bbs-observation',      label: 'BBS สังเกตพฤติกรรมความปลอดภัย', href: 'safety-bbs.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -500,6 +502,7 @@ const PAGE_DEPARTMENT = {
   "safety-rules.html":             "safety_officer",
   "safety-talks.html":             "safety_officer",
   "safety-machine-check.html":     "safety_officer",
+  "safety-bbs.html":               "safety_officer",
 };
 
 // ===================================================================
