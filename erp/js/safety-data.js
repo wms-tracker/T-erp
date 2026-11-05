@@ -76,6 +76,7 @@ export const COL = {
   mgmtReview:       "safetyMgmtReview",
   legalCompliance:  "safetyLegalCompliance",
   interestedParty:  "safetyInterestedParty",
+  docControl:       "safetyDocControl",
 };
 
 // ────────────────────────────────────────────
@@ -3836,4 +3837,45 @@ export async function updateInterestedParty(id, data) {
 }
 export async function deleteInterestedParty(id) {
   await deleteDoc(doc(db, COL.interestedParty, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 71 — Document Control (ทะเบียนควบคุมเอกสาร) ISO 45001 §7.5
+// ────────────────────────────────────────────
+export const DOCCTRL_TYPES = [
+  { key:'policy',       label:'นโยบาย (Policy)',                   icon:'📜', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'procedure',    label:'ขั้นตอนปฏิบัติ (Procedure)',         icon:'📋', color:'#2563eb', bg:'#dbeafe' },
+  { key:'work_instr',   label:'วิธีการปฏิบัติงาน (Work Instruction)',icon:'📝', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'form',         label:'แบบฟอร์ม (Form)',                    icon:'📄', color:'#059669', bg:'#ecfdf5' },
+  { key:'record',       label:'บันทึก (Record)',                    icon:'🗂️', color:'#16a34a', bg:'#dcfce7' },
+  { key:'plan',         label:'แผน/โปรแกรม (Plan)',                 icon:'📅', color:'#d97706', bg:'#fef3c7' },
+  { key:'drawing',      label:'แบบ/ผังงาน (Drawing)',               icon:'📐', color:'#f59e0b', bg:'#fef9c3' },
+  { key:'regulation',   label:'ระเบียบ/ข้อบังคับ (Regulation)',     icon:'⚖️', color:'#dc2626', bg:'#fee2e2' },
+  { key:'manual',       label:'คู่มือ (Manual)',                    icon:'📚', color:'#9333ea', bg:'#faf5ff' },
+  { key:'other',        label:'อื่นๆ',                              icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const DOCCTRL_STATUS = {
+  current:      { label:'ปัจจุบัน',         color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  draft:        { label:'ร่าง',             color:'#2563eb', bg:'#dbeafe', icon:'✏️' },
+  under_review: { label:'อยู่ระหว่างทบทวน', color:'#d97706', bg:'#fef3c7', icon:'🔄' },
+  obsolete:     { label:'ยกเลิก/ล้าสมัย',   color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export async function listDocControl() {
+  const s = await getDocs(query(collection(db, COL.docControl), orderBy('createdAt','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getDocControl(id) {
+  const d = await getDoc(doc(db, COL.docControl, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createDocControl(data, createdBy) {
+  return addDoc(collection(db, COL.docControl), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateDocControl(id, data) {
+  await updateDoc(doc(db, COL.docControl, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteDocControl(id) {
+  await deleteDoc(doc(db, COL.docControl, id));
 }

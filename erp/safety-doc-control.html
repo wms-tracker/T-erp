@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ทะเบียนควบคุมเอกสารความปลอดภัย</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#7c3aed;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.type-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
+.review-soon{background:#fef3c7}
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(620px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.review-alert{background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.85rem;color:#92400e;display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  DOCCTRL_TYPES, DOCCTRL_STATUS,
+  listDocControl, getDocControl, createDocControl, updateDocControl, deleteDocControl,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-doc-control', 'ทะเบียนควบคุมเอกสารความปลอดภัย');
+
+let allRecs = [];
+let editId  = null;
+
+const TODAY = new Date();
+TODAY.setHours(0,0,0,0);
+
+function daysDiff(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  d.setHours(0,0,0,0);
+  return Math.round((d - TODAY) / 86400000);
+}
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total    = recs.length;
+  const current  = recs.filter(r=>r.status==='current').length;
+  const draft    = recs.filter(r=>r.status==='draft').length;
+  const review   = recs.filter(r=>r.status==='under_review').length;
+  const obsolete = recs.filter(r=>r.status==='obsolete').length;
+  const dueSoon  = recs.filter(r => { const d = daysDiff(r.nextReview); return d !== null && d >= 0 && d <= 30 && r.status==='current'; }).length;
+  const overdue  = recs.filter(r => { const d = daysDiff(r.nextReview); return d !== null && d < 0 && r.status==='current'; }).length;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เอกสารทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${current}</div><div class="lbl">✅ ปัจจุบัน</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${draft}</div><div class="lbl">✏️ ร่าง</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${review}</div><div class="lbl">🔄 ทบทวน</div></div>
+    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${obsolete}</div><div class="lbl">🚫 ยกเลิก</div></div>
+    <div class="kpi" style="border-color:#f59e0b"><div class="num" style="color:#f59e0b">${dueSoon}</div><div class="lbl">⏰ ใกล้ทบทวน</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">🔴 เกินกำหนด</div></div>
+  </div>`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📂</div><p>ยังไม่มีเอกสาร</p></div>`;
+  const rows = recs.map(r => {
+    const tp  = DOCCTRL_TYPES.find(t=>t.key===r.docType)||{icon:'📌',label:r.docType||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const st  = DOCCTRL_STATUS[r.status]||DOCCTRL_STATUS.current;
+    const diff = daysDiff(r.nextReview);
+    const isSoon    = diff !== null && diff >= 0 && diff <= 30 && r.status==='current';
+    const isOverdue = diff !== null && diff < 0  && r.status==='current';
+    const reviewCell = r.nextReview
+      ? `<span style="color:${isOverdue?'#dc2626':isSoon?'#d97706':'#1e293b'};font-weight:${(isSoon||isOverdue)?600:400}">${r.nextReview}${isOverdue?' 🔴':isSoon?' ⏰':''}</span>`
+      : '—';
+    return `<tr class="${isOverdue||isSoon?'review-soon':''}">
+      <td style="font-size:.8rem;color:#6b7280;white-space:nowrap">${r.docNo||'—'}</td>
+      <td><strong>${r.docName||'—'}</strong></td>
+      <td><span class="type-chip" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
+      <td style="text-align:center">${r.revision||'1.0'}</td>
+      <td style="font-size:.82rem">${r.effectiveDate||'—'}</td>
+      <td style="font-size:.82rem">${reviewCell}</td>
+      <td style="font-size:.82rem">${r.owner||'—'}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editDoc('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteDoc('${r.id}','${(r.docName||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>เลขที่เอกสาร</th><th>ชื่อเอกสาร</th><th>ประเภท</th>
+      <th style="text-align:center">ฉบับที่</th><th>วันบังคับใช้</th>
+      <th>ครบทบทวน</th><th>เจ้าของเอกสาร</th><th>สถานะ</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const typeOpts = DOCCTRL_TYPES.map(t=>`<option value="${t.key}" ${rec?.docType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const stOpts   = Object.entries(DOCCTRL_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'current')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  return `<form id="doc-form" onsubmit="return false">
+    <div class="form-row">
+      <div class="form-group"><label>เลขที่เอกสาร *</label>
+        <input id="f-docNo" value="${rec?.docNo||''}" placeholder="เช่น KPO-SOP-001"/></div>
+      <div class="form-group"><label>ประเภทเอกสาร *</label>
+        <select id="f-docType">${typeOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่อเอกสาร *</label>
+        <input id="f-docName" value="${rec?.docName||''}" placeholder="ชื่อเอกสาร/ขั้นตอน"/></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>ฉบับที่ (Revision)</label>
+        <input id="f-revision" value="${rec?.revision||'1.0'}" placeholder="เช่น 1.0, 2.1"/></div>
+      <div class="form-group"><label>วันที่บังคับใช้</label>
+        <input id="f-effectiveDate" type="date" value="${rec?.effectiveDate||''}"/></div>
+      <div class="form-group"><label>วันครบทบทวน</label>
+        <input id="f-nextReview" type="date" value="${rec?.nextReview||''}"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>เจ้าของเอกสาร / ผู้รับผิดชอบ</label>
+        <input id="f-owner" value="${rec?.owner||''}" placeholder="ชื่อ / แผนก"/></div>
+      <div class="form-group"><label>สถานะ</label>
+        <select id="f-status">${stOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>แผนกที่เกี่ยวข้อง</label>
+        <input id="f-dept" value="${rec?.dept||''}" placeholder="เช่น ความปลอดภัย, ผลิต, QC"/></div>
+      <div class="form-group"><label>ที่เก็บเอกสาร (Location)</label>
+        <input id="f-location" value="${rec?.location||''}" placeholder="เช่น แฟ้ม A ชั้น 2 / Drive /safety"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ขอบเขต / วัตถุประสงค์</label>
+        <textarea id="f-scope" rows="2" placeholder="ขอบเขตการบังคับใช้ของเอกสาร">${rec?.scope||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ประวัติการแก้ไข</label>
+        <textarea id="f-history" rows="2" placeholder="เวอร์ชัน | วันที่ | รายการแก้ไข">${rec?.history||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveDoc()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+window.__newDoc = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มเอกสาร'); };
+window.__editDoc = async id => {
+  editId = id;
+  const r = await getDocControl(id);
+  openPanel(renderForm(r), '✏️ แก้ไขเอกสาร');
+};
+
+// ── Save ──
+window.__saveDoc = async () => {
+  const data = {
+    docNo:         document.getElementById('f-docNo').value.trim(),
+    docName:       document.getElementById('f-docName').value.trim(),
+    docType:       document.getElementById('f-docType').value,
+    revision:      document.getElementById('f-revision').value.trim(),
+    effectiveDate: document.getElementById('f-effectiveDate').value,
+    nextReview:    document.getElementById('f-nextReview').value,
+    owner:         document.getElementById('f-owner').value.trim(),
+    status:        document.getElementById('f-status').value,
+    dept:          document.getElementById('f-dept').value.trim(),
+    location:      document.getElementById('f-location').value.trim(),
+    scope:         document.getElementById('f-scope').value.trim(),
+    history:       document.getElementById('f-history').value.trim(),
+    notes:         document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.docNo)   { alert('กรุณากรอกเลขที่เอกสาร'); return; }
+  if (!data.docName) { alert('กรุณากรอกชื่อเอกสาร'); return; }
+  try {
+    if (editId) await updateDocControl(editId, data);
+    else        await createDocControl(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteDoc = async (id, name) => {
+  if (!confirm(`ลบเอกสาร "${name}"?`)) return;
+  await deleteDocControl(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q  = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const tp = document.getElementById('filter-type')?.value||'';
+  const st = document.getElementById('filter-status')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.docNo||'').toLowerCase().includes(q) || (r.docName||'').toLowerCase().includes(q) || (r.owner||'').toLowerCase().includes(q)) &&
+    (!tp || r.docType===tp) &&
+    (!st || r.status===st)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  // review alert
+  const overdue = filtered.filter(r => { const d = daysDiff(r.nextReview); return d !== null && d < 0 && r.status==='current'; });
+  const alertEl = document.getElementById('review-alert');
+  if (overdue.length) {
+    alertEl.style.display = 'flex';
+    alertEl.innerHTML = `⚠️ มีเอกสาร <strong>${overdue.length} ฉบับ</strong> เกินกำหนดทบทวน: ${overdue.map(r=>r.docNo||r.docName).join(', ')}`;
+  } else {
+    alertEl.style.display = 'none';
+  }
+  document.getElementById('content-wrap').innerHTML = renderTable(filtered);
+}
+window.applyFilter = applyFilter;
+
+async function loadData() {
+  allRecs = await listDocControl();
+  applyFilter();
+}
+
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
+  DOCCTRL_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+  Object.entries(DOCCTRL_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div id="review-alert" class="review-alert" style="display:none"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาเลขที่ / ชื่อเอกสาร…" oninput="applyFilter()"/>
+      <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
+      <button class="btn btn-primary" onclick="window.__newDoc()">+ เพิ่มเอกสาร</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">ทะเบียนควบคุมเอกสาร</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>
