@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ทะเบียนผู้มีส่วนได้ส่วนเสีย</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#4f46e5;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:160px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* Cards grid */
+.party-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.party-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden;transition:box-shadow .2s}
+.party-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.card-stripe{height:5px}
+.card-body{padding:16px}
+.card-header{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.card-icon{font-size:1.6rem;flex-shrink:0}
+.card-title{font-weight:700;font-size:.95rem}
+.card-type{font-size:.77rem;color:#6b7280;margin-top:2px}
+.card-needs{font-size:.82rem;color:#334155;line-height:1.5;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-top:1px solid #f1f5f9}
+.influence-dot{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;font-weight:600}
+.card-actions{display:flex;gap:6px}
+/* Panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.section-title{font-size:.9rem;font-weight:700;color:#334155;margin:16px 0 10px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+.detail-section{background:#f8fafc;border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.detail-section h3{font-size:.88rem;font-weight:700;color:#334155;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.detail-row{display:flex;gap:8px;margin-bottom:5px;font-size:.83rem}
+.detail-row .dk{color:#6b7280;width:150px;flex-shrink:0}
+.detail-row .dv{color:#1e293b;font-weight:500;flex:1}
+.need-tag{display:inline-block;background:#ede9fe;color:#4f46e5;border-radius:6px;padding:3px 10px;font-size:.78rem;margin:2px;font-weight:500}
+.expect-tag{display:inline-block;background:#ecfdf5;color:#059669;border-radius:6px;padding:3px 10px;font-size:.78px;font-size:.78rem;margin:2px;font-weight:500}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+/* Influence selector */
+.infl-opts{display:flex;gap:8px;margin-top:4px}
+.infl-btn{flex:1;padding:8px 10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:.84rem;text-align:center;background:#fff;font-family:inherit;transition:all .15s;font-weight:600}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  IPARTY_TYPES, IPARTY_INFLUENCE, IPARTY_COMM_FREQ,
+  listInterestedParty, getInterestedParty,
+  createInterestedParty, updateInterestedParty, deleteInterestedParty,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-interested-party', 'ทะเบียนผู้มีส่วนได้ส่วนเสีย (ISO 45001 §4.2)');
+
+let allRecs   = [];
+let editId    = null;
+let selInfl   = '';
+
+// ── KPI ──
+function renderKPI(recs) {
+  const high   = recs.filter(r=>r.influence==='high').length;
+  const medium = recs.filter(r=>r.influence==='medium').length;
+  const low    = recs.filter(r=>r.influence==='low').length;
+  const typeCount = new Set(recs.map(r=>r.partyType)).size;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">กลุ่มทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">อิทธิพลสูง</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${medium}</div><div class="lbl">อิทธิพลปานกลาง</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${low}</div><div class="lbl">อิทธิพลต่ำ</div></div>
+    <div class="kpi" style="border-color:#4f46e5"><div class="num" style="color:#4f46e5">${typeCount}</div><div class="lbl">ประเภทกลุ่ม</div></div>
+  </div>`;
+}
+
+// ── Cards ──
+function renderCards(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">👥</div><p>ยังไม่มีข้อมูลผู้มีส่วนได้ส่วนเสีย</p></div>`;
+  return `<div class="party-grid">${recs.map(r => {
+    const pt  = IPARTY_TYPES.find(t=>t.key===r.partyType)||{icon:'🔖',label:r.partyType||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const inf = IPARTY_INFLUENCE[r.influence]||{label:'—',color:'#9ca3af',bg:'#f3f4f6'};
+    const cf  = IPARTY_COMM_FREQ.find(f=>f.key===r.commFrequency)||{label:r.commFrequency||'—'};
+    const needsPreview = (r.needs||'').split('\n').filter(Boolean).slice(0,2).join(' • ')||'—';
+    return `<div class="party-card">
+      <div class="card-stripe" style="background:${pt.color}"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-icon">${pt.icon}</div>
+          <div>
+            <div class="card-title">${r.partyName||'—'}</div>
+            <div class="card-type"><span style="color:${pt.color};font-weight:600">${pt.label}</span></div>
+          </div>
+        </div>
+        <div class="card-needs">${needsPreview}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span class="badge" style="color:${inf.color};background:${inf.bg}">อิทธิพล: ${inf.label}</span>
+          <span class="badge" style="color:#4f46e5;background:#ede9fe">${cf.label}</span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <span style="font-size:.75rem;color:#9ca3af">ทบทวน: ${r.reviewDate||'—'}</span>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-ghost" onclick="window.__viewParty('${r.id}')">ดู</button>
+          <button class="btn btn-sm btn-ghost" onclick="window.__editParty('${r.id}')">แก้ไข</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteParty('${r.id}','${(r.partyName||'').replace(/'/g,"\\'")}')">ลบ</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const typeOpts = IPARTY_TYPES.map(t=>
+    `<option value="${t.key}" ${rec?.partyType===t.key?'selected':''}>${t.icon} ${t.label}</option>`
+  ).join('');
+  const freqOpts = IPARTY_COMM_FREQ.map(f=>
+    `<option value="${f.key}" ${rec?.commFrequency===f.key?'selected':''}>${f.label}</option>`
+  ).join('');
+  const curInfl = rec?.influence||'';
+  const inflBtns = Object.entries(IPARTY_INFLUENCE).map(([k,v])=>
+    `<button type="button" class="infl-btn" id="infl-${k}"
+      style="${curInfl===k?`border-color:${v.color};color:${v.color};background:${v.bg}`:''}"
+      onclick="window.__selInfl('${k}')">${v.label}</button>`
+  ).join('');
+  return `<form id="party-form" onsubmit="return false">
+    <div class="form-row">
+      <div class="form-group"><label>ชื่อกลุ่ม / องค์กร *</label>
+        <input id="f-partyName" value="${rec?.partyName||''}" placeholder="เช่น พนักงานสายการผลิต" required/></div>
+      <div class="form-group"><label>ประเภท *</label>
+        <select id="f-partyType">${typeOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>คำอธิบาย / ใครคือกลุ่มนี้</label>
+        <textarea id="f-description" rows="2" placeholder="อธิบายว่ากลุ่มนี้คือใคร มีความสัมพันธ์กับโรงงานอย่างไร">${rec?.description||''}</textarea></div>
+    </div>
+
+    <div class="section-title">🎯 ระดับอิทธิพล / ผลกระทบ</div>
+    <div class="infl-opts" id="infl-wrap">${inflBtns}</div>
+    <input type="hidden" id="f-influence" value="${curInfl}"/>
+
+    <div class="section-title">📋 ความต้องการและความคาดหวัง</div>
+    <div class="form-row one">
+      <div class="form-group"><label>ความต้องการ (Needs) — สิ่งที่กลุ่มนี้ต้องการจากองค์กร</label>
+        <textarea id="f-needs" rows="4" placeholder="เช่น&#10;- สภาพแวดล้อมการทำงานที่ปลอดภัย&#10;- ค่าตอบแทนและสวัสดิการที่เป็นธรรม&#10;- ข้อมูลความเสี่ยงและมาตรการป้องกัน">${rec?.needs||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ความคาดหวัง (Expectations) — สิ่งที่กลุ่มนี้คาดหวังจากระบบ OH&SMS</label>
+        <textarea id="f-expectations" rows="4" placeholder="เช่น&#10;- การดำเนินงานตามกฎหมายอย่างเคร่งครัด&#10;- การแจ้งเตือนเมื่อเกิดเหตุฉุกเฉิน&#10;- รายงานการปฏิบัติตามข้อกำหนด">${rec?.expectations||''}</textarea></div>
+    </div>
+
+    <div class="section-title">📡 การสื่อสารและติดตาม</div>
+    <div class="form-row">
+      <div class="form-group"><label>วิธีการสื่อสาร</label>
+        <input id="f-commMethod" value="${rec?.commMethod||''}" placeholder="เช่น ประชุม, อีเมล, ประกาศ, Line"/></div>
+      <div class="form-group"><label>ความถี่การสื่อสาร</label>
+        <select id="f-commFrequency">${freqOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>วิธีติดตาม/ประเมินความต้องการ</label>
+        <textarea id="f-monitorMethod" rows="2" placeholder="วิธีการติดตามว่าความต้องการยังคงเป็นเช่นเดิมหรือเปลี่ยนแปลง">${rec?.monitorMethod||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ข้อกำหนด/กฎหมายที่เกี่ยวข้อง</label>
+        <input id="f-relevantReq" value="${rec?.relevantReq||''}" placeholder="เช่น มาตรา 8, ข้อ 4.2 ISO 45001"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>วันที่ทบทวน</label>
+        <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
+      <div class="form-group"><label>ทบทวนครั้งถัดไป</label>
+        <input id="f-nextReviewDate" type="date" value="${rec?.nextReviewDate||''}"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveParty()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+// ── Detail ──
+function renderDetail(r) {
+  const pt  = IPARTY_TYPES.find(t=>t.key===r.partyType)||{icon:'🔖',label:r.partyType||'—',color:'#6b7280',bg:'#f3f4f6'};
+  const inf = IPARTY_INFLUENCE[r.influence]||{label:'—',color:'#9ca3af',bg:'#f3f4f6'};
+  const cf  = IPARTY_COMM_FREQ.find(f=>f.key===r.commFrequency)||{label:r.commFrequency||'—'};
+  const needTags  = (r.needs||'').split('\n').filter(s=>s.trim()).map(s=>`<span class="need-tag">${s.replace(/^[-•]\s*/,'')}</span>`).join('');
+  const expectTags= (r.expectations||'').split('\n').filter(s=>s.trim()).map(s=>`<span class="expect-tag">${s.replace(/^[-•]\s*/,'')}</span>`).join('');
+  return `<div style="padding:20px">
+    <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
+      <div style="font-size:2.5rem">${pt.icon}</div>
+      <div style="flex:1">
+        <div style="font-size:1.1rem;font-weight:800">${r.partyName||'—'}</div>
+        <div style="color:${pt.color};font-size:.82rem;font-weight:600;margin-top:2px">${pt.label}</div>
+        ${r.description?`<div style="color:#6b7280;font-size:.82rem;margin-top:4px">${r.description}</div>`:''}
+      </div>
+      <span class="badge" style="color:${inf.color};background:${inf.bg}">อิทธิพล: ${inf.label}</span>
+    </div>
+
+    <div class="detail-section">
+      <h3>🎯 ความต้องการ (Needs)</h3>
+      <div>${needTags||'<span style="color:#9ca3af;font-size:.85rem">—</span>'}</div>
+    </div>
+    <div class="detail-section">
+      <h3>💡 ความคาดหวัง (Expectations)</h3>
+      <div>${expectTags||'<span style="color:#9ca3af;font-size:.85rem">—</span>'}</div>
+    </div>
+    <div class="detail-section">
+      <h3>📡 การสื่อสาร</h3>
+      <div class="detail-row"><span class="dk">วิธีการสื่อสาร</span><span class="dv">${r.commMethod||'—'}</span></div>
+      <div class="detail-row"><span class="dk">ความถี่</span><span class="dv">${cf.label}</span></div>
+      <div class="detail-row"><span class="dk">วิธีติดตาม</span><span class="dv">${r.monitorMethod||'—'}</span></div>
+    </div>
+    <div class="detail-section">
+      <h3>📋 ข้อมูลเพิ่มเติม</h3>
+      <div class="detail-row"><span class="dk">ข้อกำหนดที่เกี่ยวข้อง</span><span class="dv">${r.relevantReq||'—'}</span></div>
+      <div class="detail-row"><span class="dk">วันที่ทบทวน</span><span class="dv">${r.reviewDate||'—'}</span></div>
+      <div class="detail-row"><span class="dk">ทบทวนครั้งถัดไป</span><span class="dv">${r.nextReviewDate||'—'}</span></div>
+      ${r.notes?`<div class="detail-row"><span class="dk">หมายเหตุ</span><span class="dv">${r.notes}</span></div>`:''}
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button class="btn btn-ghost btn-sm" onclick="window.__editParty('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteParty('${r.id}','${(r.partyName||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
+    </div>
+  </div>`;
+}
+
+// ── Influence selector ──
+window.__selInfl = key => {
+  selInfl = key;
+  document.getElementById('f-influence').value = key;
+  Object.keys(IPARTY_INFLUENCE).forEach(k => {
+    const btn = document.getElementById('infl-'+k);
+    if (!btn) return;
+    const v = IPARTY_INFLUENCE[k];
+    btn.style.borderColor = k===key ? v.color : '';
+    btn.style.color       = k===key ? v.color : '';
+    btn.style.background  = k===key ? v.bg    : '';
+  });
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+window.__newParty = () => { editId = null; selInfl = ''; openPanel(renderForm(null), '+ เพิ่มผู้มีส่วนได้ส่วนเสีย'); };
+window.__editParty = async id => {
+  editId = id;
+  const r = await getInterestedParty(id);
+  selInfl = r.influence||'';
+  openPanel(renderForm(r), '✏️ แก้ไขข้อมูล');
+};
+window.__viewParty = async id => {
+  const r = await getInterestedParty(id);
+  document.getElementById('panel-title').textContent = '👥 รายละเอียดผู้มีส่วนได้ส่วนเสีย';
+  document.getElementById('panel-content').innerHTML = renderDetail(r);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+
+// ── Save ──
+window.__saveParty = async () => {
+  const data = {
+    partyName:      document.getElementById('f-partyName').value.trim(),
+    partyType:      document.getElementById('f-partyType').value,
+    description:    document.getElementById('f-description').value.trim(),
+    influence:      document.getElementById('f-influence').value,
+    needs:          document.getElementById('f-needs').value.trim(),
+    expectations:   document.getElementById('f-expectations').value.trim(),
+    commMethod:     document.getElementById('f-commMethod').value.trim(),
+    commFrequency:  document.getElementById('f-commFrequency').value,
+    monitorMethod:  document.getElementById('f-monitorMethod').value.trim(),
+    relevantReq:    document.getElementById('f-relevantReq').value.trim(),
+    reviewDate:     document.getElementById('f-reviewDate').value,
+    nextReviewDate: document.getElementById('f-nextReviewDate').value,
+    notes:          document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.partyName) { alert('กรุณากรอกชื่อกลุ่ม'); return; }
+  if (!data.influence) { alert('กรุณาเลือกระดับอิทธิพล'); return; }
+  try {
+    if (editId) await updateInterestedParty(editId, data);
+    else        await createInterestedParty(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+window.__deleteParty = async (id, name) => {
+  if (!confirm(`ลบ "${name}" ออกจากระบบ?`)) return;
+  await deleteInterestedParty(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const typ = document.getElementById('filter-type')?.value||'';
+  const inf = document.getElementById('filter-infl')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.partyName||'').toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q)) &&
+    (!typ|| r.partyType===typ) &&
+    (!inf|| r.influence===inf)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('content-wrap').innerHTML = renderCards(filtered);
+}
+window.applyFilter = applyFilter;
+
+async function loadData() {
+  allRecs = await listInterestedParty();
+  applyFilter();
+}
+
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
+  IPARTY_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const inflOpts = `<option value="">-- ทุกระดับ --</option>` +
+  Object.entries(IPARTY_INFLUENCE).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหากลุ่ม…" oninput="applyFilter()"/>
+      <select id="filter-type" onchange="applyFilter()">${typeOpts}</select>
+      <select id="filter-infl" onchange="applyFilter()">${inflOpts}</select>
+      <button class="btn btn-primary" onclick="window.__newParty()">+ เพิ่มกลุ่ม</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">ผู้มีส่วนได้ส่วนเสีย</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

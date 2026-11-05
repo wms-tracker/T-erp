@@ -75,6 +75,7 @@ export const COL = {
   annualPlan:       "safetyAnnualPlan",
   mgmtReview:       "safetyMgmtReview",
   legalCompliance:  "safetyLegalCompliance",
+  interestedParty:  "safetyInterestedParty",
 };
 
 // ────────────────────────────────────────────
@@ -3788,4 +3789,51 @@ export async function updateLegalCompliance(id, data) {
 }
 export async function deleteLegalCompliance(id) {
   await deleteDoc(doc(db, COL.legalCompliance, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 70 — Interested Party Register (ISO 45001 §4.2)
+// ────────────────────────────────────────────
+export const IPARTY_TYPES = [
+  { key:'employees',   label:'พนักงาน',                    icon:'👷', color:'#2563eb', bg:'#dbeafe' },
+  { key:'contractors', label:'ผู้รับเหมา',                 icon:'🏗️', color:'#d97706', bg:'#fef3c7' },
+  { key:'regulators',  label:'หน่วยงานราชการ / กฎหมาย',  icon:'⚖️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'customers',   label:'ลูกค้า',                     icon:'🤝', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'suppliers',   label:'ผู้จัดหา / ซัพพลายเออร์',  icon:'🏭', color:'#059669', bg:'#dcfce7' },
+  { key:'community',   label:'ชุมชนรอบข้าง',              icon:'🏘️', color:'#92400e', bg:'#fef9c3' },
+  { key:'emergency',   label:'หน่วยงานฉุกเฉิน',           icon:'🚒', color:'#dc2626', bg:'#fee2e2' },
+  { key:'unions',      label:'สหภาพแรงงาน / กลุ่มพนักงาน',icon:'👥', color:'#4f46e5', bg:'#eef2ff' },
+  { key:'management',  label:'ฝ่ายบริหาร / ผู้ถือหุ้น',  icon:'👔', color:'#0d9488', bg:'#f0fdfa' },
+  { key:'insurance',   label:'บริษัทประกันภัย',            icon:'🛡️', color:'#6b7280', bg:'#f3f4f6' },
+  { key:'other',       label:'อื่นๆ',                      icon:'🔖', color:'#9ca3af', bg:'#f9fafb' },
+];
+export const IPARTY_INFLUENCE = {
+  high:   { label:'สูง',   color:'#dc2626', bg:'#fee2e2' },
+  medium: { label:'ปานกลาง', color:'#d97706', bg:'#fef3c7' },
+  low:    { label:'ต่ำ',   color:'#16a34a', bg:'#dcfce7' },
+};
+export const IPARTY_COMM_FREQ = [
+  { key:'daily',     label:'ทุกวัน' },
+  { key:'weekly',    label:'ทุกสัปดาห์' },
+  { key:'monthly',   label:'ทุกเดือน' },
+  { key:'quarterly', label:'ทุกไตรมาส' },
+  { key:'annually',  label:'ทุกปี' },
+  { key:'as_needed', label:'ตามความจำเป็น' },
+];
+export async function listInterestedParty() {
+  const s = await getDocs(query(collection(db, COL.interestedParty), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getInterestedParty(id) {
+  const d = await getDoc(doc(db, COL.interestedParty, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createInterestedParty(data, createdBy) {
+  return addDoc(collection(db, COL.interestedParty), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateInterestedParty(id, data) {
+  await updateDoc(doc(db, COL.interestedParty, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteInterestedParty(id) {
+  await deleteDoc(doc(db, COL.interestedParty, id));
 }
