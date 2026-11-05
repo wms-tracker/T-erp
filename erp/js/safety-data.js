@@ -89,6 +89,7 @@ export const COL = {
   campaign:         "safetyCampaigns",
   safetyRule:       "safetySafetyRules",
   safetyTalk:       "safetySafetyTalks",
+  machineCheck:     "safetyMachineCheck",
 };
 
 // ────────────────────────────────────────────
@@ -4519,6 +4520,62 @@ export async function updateSafetyTalk(id, data) {
 }
 export async function deleteSafetyTalk(id) {
   await deleteDoc(doc(db, COL.safetyTalk, id));
+}
+
+// ── Phase 84: Machinery & Equipment Pre-Start Inspection ────────────────────
+export const MACHINE_TYPES = [
+  { key:'forklift',    label:'รถโฟล์คลิฟท์',         icon:'🏗️', color:'#d97706', bg:'#fef3c7' },
+  { key:'crane',       label:'เครนและอุปกรณ์ยก',      icon:'🏭', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'press',       label:'เครื่องปั๊ม / เพรส',    icon:'⚙️', color:'#64748b', bg:'#f1f5f9' },
+  { key:'conveyor',    label:'สายพาน / คอนเวเยอร์',  icon:'📦', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'compressor',  label:'เครื่องอัดอากาศ',        icon:'💨', color:'#2563eb', bg:'#dbeafe' },
+  { key:'generator',   label:'เครื่องกำเนิดไฟฟ้า',    icon:'⚡', color:'#ca8a04', bg:'#fef9c3' },
+  { key:'pump',        label:'เครื่องสูบน้ำ / ปั๊ม',  icon:'🔧', color:'#059669', bg:'#ecfdf5' },
+  { key:'vehicle',     label:'ยานพาหนะ / รถ',         icon:'🚗', color:'#16a34a', bg:'#dcfce7' },
+  { key:'robot',       label:'หุ่นยนต์ / Automation',  icon:'🤖', color:'#9333ea', bg:'#faf5ff' },
+  { key:'cutting',     label:'เครื่องตัด / เจียร',    icon:'🔩', color:'#dc2626', bg:'#fee2e2' },
+  { key:'welding',     label:'เครื่องเชื่อม',          icon:'🔥', color:'#ea580c', bg:'#fff7ed' },
+  { key:'other',       label:'เครื่องจักร / อุปกรณ์อื่น', icon:'🏷️', color:'#6b7280', bg:'#f3f4f6' },
+];
+export const MACHINE_CHECK_RESULT = {
+  pass:        { label:'ผ่าน (Pass)',           color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  conditional: { label:'ผ่านมีเงื่อนไข',         color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+  fail:        { label:'ไม่ผ่าน (Fail)',          color:'#dc2626', bg:'#fee2e2', icon:'❌' },
+};
+export const MACHINE_STATUS = {
+  in_service:    { label:'ใช้งานได้ปกติ',    color:'#16a34a', bg:'#dcfce7', icon:'🟢' },
+  minor_defect:  { label:'บกพร่องเล็กน้อย',  color:'#d97706', bg:'#fef3c7', icon:'🟡' },
+  major_defect:  { label:'บกพร่องร้ายแรง',   color:'#ea580c', bg:'#fff7ed', icon:'🟠' },
+  out_of_service:{ label:'หยุดใช้งาน',       color:'#dc2626', bg:'#fee2e2', icon:'🔴' },
+  maintenance:   { label:'อยู่ระหว่างซ่อมบำรุง', color:'#9333ea', bg:'#faf5ff', icon:'🔧' },
+};
+export const MACHINE_CHECK_ITEMS_DEFAULT = [
+  'ตรวจสอบสภาพภายนอก (ไม่มีรอยแตก/ชำรุด)',
+  'ตรวจสอบระบบนิรภัย (Safety Guard)',
+  'ตรวจสอบระบบหยุดฉุกเฉิน (Emergency Stop)',
+  'ตรวจสอบระดับน้ำมันหล่อลื่น',
+  'ตรวจสอบสายไฟ / การต่อสายดิน',
+  'ตรวจสอบสัญญาณเตือน / ไฟแสดงสถานะ',
+  'ตรวจสอบความสะอาดและสภาพพื้นที่โดยรอบ',
+  'ตรวจสอบเอกสาร / ป้ายแสดงข้อมูล',
+];
+
+export async function listMachineChecks() {
+  const s = await getDocs(query(collection(db, COL.machineCheck), orderBy('checkDate','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getMachineCheck(id) {
+  const d = await getDoc(doc(db, COL.machineCheck, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createMachineCheck(data, createdBy) {
+  return addDoc(collection(db, COL.machineCheck), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateMachineCheck(id, data) {
+  await updateDoc(doc(db, COL.machineCheck, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteMachineCheck(id) {
+  await deleteDoc(doc(db, COL.machineCheck, id));
 }
 
 export async function listCampaigns() {

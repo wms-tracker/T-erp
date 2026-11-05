@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ตรวจสอบก่อนใช้งานเครื่องจักรและอุปกรณ์</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-card .kpi-val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-card .kpi-lbl{font-size:.72rem;color:#64748b;margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff;min-width:130px}
+.view-btns{display:flex;gap:4px;margin-left:auto}
+.view-btn{padding:6px 14px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:.82rem;color:#374151}
+.view-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
+/* status board */
+.board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.board-card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer;transition:box-shadow .15s;border-top:4px solid var(--bc)}
+.board-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.bc-top{padding:12px 14px;display:flex;align-items:center;gap:8px}
+.bc-icon{font-size:1.6rem}
+.bc-name{font-weight:700;font-size:.9rem;flex:1}
+.bc-status-dot{width:12px;height:12px;border-radius:50%;background:var(--bc);flex-shrink:0}
+.bc-body{padding:8px 14px 12px}
+.bc-row{display:flex;justify-content:space-between;font-size:.77rem;color:#475569;margin-bottom:3px}
+.bc-row strong{color:#1e293b}
+.bc-footer{padding:6px 14px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center}
+.pass-bar-wrap{background:#f1f5f9;border-radius:4px;height:6px;flex:1;margin:0 8px;overflow:hidden}
+.pass-bar{height:100%;border-radius:4px;background:#16a34a;transition:width .3s}
+/* record list view */
+.record-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.record-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.record-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.rc-banner{padding:9px 14px;display:flex;align-items:center;gap:8px}
+.rc-banner .rb-icon{font-size:1.2rem}
+.rc-banner .rb-type{font-weight:700;font-size:.82rem}
+.rc-banner .rb-date{margin-left:auto;font-size:.73rem;opacity:.8;font-family:monospace}
+.rc-body{padding:10px 14px}
+.rc-title{font-weight:700;font-size:.9rem;margin-bottom:4px}
+.rc-meta{font-size:.77rem;color:#475569;display:flex;gap:12px;flex-wrap:wrap}
+.check-items-mini{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.ci-dot{width:14px;height:14px;border-radius:50%;font-size:.55rem;display:flex;align-items:center;justify-content:center;color:#fff}
+.rc-footer{padding:6px 14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* table view */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.action-btn{padding:4px 10px;border:none;border-radius:6px;cursor:pointer;font-size:.75rem}
+.btn-edit{background:#dbeafe;color:#1e40af}
+.btn-del{background:#fee2e2;color:#dc2626}
+/* panel */
+.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.slide-panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15)}
+.slide-panel.open{transform:none}
+.panel-head{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700;flex:1}
+.panel-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:60px}
+.section-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
+/* checklist items in form */
+.checklist-items{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.ci-row{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0}
+.ci-row .ci-name{flex:1;font-size:.82rem}
+.ci-pass-fail{display:flex;gap:4px}
+.ci-btn{padding:4px 10px;border:1.5px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:.75rem;font-weight:600;background:#fff}
+.ci-btn.pass{border-color:#16a34a;background:#dcfce7;color:#16a34a}
+.ci-btn.fail{border-color:#dc2626;background:#fee2e2;color:#dc2626}
+.ci-btn.na{border-color:#94a3b8;background:#f1f5f9;color:#64748b}
+.add-item-row{display:flex;gap:6px;margin-top:6px}
+.add-item-row input{flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:.82rem}
+.add-item-row button{padding:6px 12px;border:none;border-radius:6px;background:#1e40af;color:#fff;cursor:pointer;font-size:.82rem}
+.panel-foot{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151}
+.btn-danger{background:#dc2626;color:#fff}
+.add-btn{padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  MACHINE_TYPES, MACHINE_CHECK_RESULT, MACHINE_STATUS, MACHINE_CHECK_ITEMS_DEFAULT,
+  listMachineChecks, createMachineCheck, updateMachineCheck, deleteMachineCheck
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'machine-check', 'ตรวจสอบก่อนใช้งานเครื่องจักรและอุปกรณ์');
+
+let allChecks = [];
+let editId = null;
+let curView = 'board';
+let filterType='', filterResult='', filterDate='', filterText='';
+
+// checklist items state in form
+let formItems = [];
+
+function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
+function typeInfo(key){ return MACHINE_TYPES.find(t=>t.key===key)||{label:key,icon:'🏷️',color:'#6b7280',bg:'#f3f4f6'}; }
+
+function passRate(items){
+  if(!items||!items.length) return null;
+  const counted = items.filter(i=>i.result==='pass'||i.result==='fail');
+  if(!counted.length) return null;
+  return Math.round(items.filter(i=>i.result==='pass').length/counted.length*100);
+}
+
+/* ─── KPIs ─── */
+function kpis(){
+  const today = new Date().toISOString().substring(0,10);
+  const todayChecks = allChecks.filter(c=>c.checkDate===today);
+  const passCount = allChecks.filter(c=>c.result==='pass').length;
+  const failCount = allChecks.filter(c=>c.result==='fail').length;
+  const oos = allChecks.filter(c=>c.machineStatus==='out_of_service').length;
+  const rate = allChecks.length ? Math.round(passCount/allChecks.length*100) : 0;
+  return `
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${allChecks.length}</div><div class="kpi-lbl">บันทึกทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${todayChecks.length}</div><div class="kpi-lbl">วันนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${passCount}</div><div class="kpi-lbl">✅ ผ่าน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${failCount}</div><div class="kpi-lbl">❌ ไม่ผ่าน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#9333ea">${oos}</div><div class="kpi-lbl">🔴 หยุดใช้งาน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${rate>=80?'#16a34a':rate>=60?'#d97706':'#dc2626'}">${rate}%</div><div class="kpi-lbl">อัตราผ่าน</div></div>
+  </div>`;
+}
+
+function filtered(){
+  return allChecks.filter(c=>{
+    if(filterType && c.machineType!==filterType) return false;
+    if(filterResult && c.result!==filterResult) return false;
+    if(filterDate && c.checkDate!==filterDate) return false;
+    if(filterText){
+      const q=filterText.toLowerCase();
+      if(!(c.machineName||'').toLowerCase().includes(q)&&!(c.machineId||'').toLowerCase().includes(q)&&!(c.operator||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ─── Status Board view ─── */
+function boardView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  // group by machineName, show latest record per machine
+  const byMachine = {};
+  for(const c of data){
+    const key = c.machineId||c.machineName||c.id;
+    if(!byMachine[key]||c.checkDate>byMachine[key].checkDate) byMachine[key]=c;
+  }
+  const machines = Object.values(byMachine);
+  return `<div class="board-grid">${machines.map(c=>{
+    const tp = typeInfo(c.machineType);
+    const res = MACHINE_CHECK_RESULT[c.result]||MACHINE_CHECK_RESULT.pass;
+    const st = MACHINE_STATUS[c.machineStatus]||MACHINE_STATUS.in_service;
+    const rate = passRate(c.checkItems);
+    const dateStr = c.checkDate ? new Date(c.checkDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '-';
+    return `<div class="board-card" style="--bc:${st.color}" onclick="window.__editCheck('${c.id}')">
+      <div class="bc-top">
+        <span class="bc-icon">${tp.icon}</span>
+        <span class="bc-name">${c.machineName||c.machineId||'-'}</span>
+        <span class="bc-status-dot"></span>
+      </div>
+      <div class="bc-body">
+        <div class="bc-row"><span>ID: <strong>${c.machineId||'-'}</strong></span><span>ตรวจ: <strong>${dateStr}</strong></span></div>
+        <div class="bc-row"><span>ผู้ตรวจ: <strong>${c.operator||'-'}</strong></span></div>
+        <div class="bc-row" style="margin-top:4px">${badge(st)}</div>
+      </div>
+      <div class="bc-footer">
+        <span style="font-size:.72rem;color:#64748b">ผ่าน</span>
+        <div class="pass-bar-wrap"><div class="pass-bar" style="width:${rate??0}%;background:${(rate??0)>=80?'#16a34a':(rate??0)>=60?'#d97706':'#dc2626'}"></div></div>
+        <span style="font-size:.72rem;font-weight:700;color:${(rate??0)>=80?'#16a34a':(rate??0)>=60?'#d97706':'#dc2626'}">${rate!=null?rate+'%':'-'}</span>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ─── Record view (all checks) ─── */
+function recordView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  return `<div class="record-grid">${data.map(c=>{
+    const tp = typeInfo(c.machineType);
+    const res = MACHINE_CHECK_RESULT[c.result]||MACHINE_CHECK_RESULT.pass;
+    const st = MACHINE_STATUS[c.machineStatus]||MACHINE_STATUS.in_service;
+    const dateStr = c.checkDate ? new Date(c.checkDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '-';
+    const dots = (c.checkItems||[]).map(i=>{
+      const col=i.result==='pass'?'#16a34a':i.result==='fail'?'#dc2626':'#94a3b8';
+      return `<div class="ci-dot" style="background:${col}" title="${i.name}: ${i.result||'N/A'}">${i.result==='pass'?'✓':i.result==='fail'?'✗':'—'}</div>`;
+    }).join('');
+    return `<div class="record-card" onclick="window.__editCheck('${c.id}')">
+      <div class="rc-banner" style="background:${tp.bg}">
+        <span class="rb-icon">${tp.icon}</span>
+        <span class="rb-type" style="color:${tp.color}">${tp.label}</span>
+        <span class="rb-date" style="color:${tp.color}">${dateStr}</span>
+      </div>
+      <div class="rc-body">
+        <div class="rc-title">${c.machineName||c.machineId||'-'} ${c.machineId&&c.machineName?`<span style="font-size:.75rem;color:#64748b">(${c.machineId})</span>`:''}</div>
+        <div class="rc-meta">
+          <span>👤 ${c.operator||'-'}</span>
+          <span>🕐 ${c.checkTime||'-'}</span>
+        </div>
+        ${dots?`<div class="check-items-mini" title="รายการตรวจ">${dots}</div>`:''}
+      </div>
+      <div class="rc-footer">
+        ${badge(res)} ${badge(st)}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ─── Table view ─── */
+function tableView(){
+  const data = filtered();
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
+  const rows = data.map(c=>{
+    const tp=typeInfo(c.machineType);
+    const res=MACHINE_CHECK_RESULT[c.result]||MACHINE_CHECK_RESULT.pass;
+    const st=MACHINE_STATUS[c.machineStatus]||MACHINE_STATUS.in_service;
+    const dateStr=c.checkDate?new Date(c.checkDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'-';
+    const rate=passRate(c.checkItems);
+    return `<tr>
+      <td>${dateStr} ${c.checkTime||''}</td>
+      <td><span class="badge" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
+      <td style="font-weight:600">${c.machineName||'-'}</td>
+      <td style="font-family:monospace;font-size:.78rem">${c.machineId||'-'}</td>
+      <td>${c.operator||'-'}</td>
+      <td style="text-align:center">${rate!=null?rate+'%':'-'}</td>
+      <td>${badge(res)}</td>
+      <td>${badge(st)}</td>
+      <td>
+        <button class="action-btn btn-edit" onclick="window.__editCheck('${c.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delCheck('${c.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>วัน/เวลา</th><th>ประเภท</th><th>ชื่อเครื่องจักร</th><th>รหัส</th><th>ผู้ตรวจ</th><th>%ผ่าน</th><th>ผล</th><th>สถานะเครื่อง</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/* ─── Render ─── */
+function render(){
+  main.innerHTML = `
+  ${kpis()}
+  <div class="toolbar">
+    <input type="text" placeholder="ค้นหาชื่อ / รหัส / ผู้ตรวจ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <select onchange="window.applyFilter('type',this.value)">
+      <option value="">ประเภททั้งหมด</option>
+      ${MACHINE_TYPES.map(t=>`<option value="${t.key}" ${filterType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('result',this.value)">
+      <option value="">ผลทั้งหมด</option>
+      ${Object.entries(MACHINE_CHECK_RESULT).map(([k,v])=>`<option value="${k}" ${filterResult===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <input type="date" value="${filterDate}" onchange="window.applyFilter('date',this.value)" title="กรองตามวันที่">
+    <div class="view-btns">
+      <button class="view-btn ${curView==='board'?'active':''}" onclick="window.setView('board')">สถานะ</button>
+      <button class="view-btn ${curView==='record'?'active':''}" onclick="window.setView('record')">บันทึก</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
+    </div>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ บันทึกการตรวจ</button>
+  </div>
+  <div id="content">${renderContent()}</div>
+  ${panelHTML()}`;
+}
+
+function renderContent(){
+  if(curView==='board') return boardView();
+  if(curView==='record') return recordView();
+  return tableView();
+}
+
+/* ─── Panel ─── */
+function panelHTML(){
+  return `
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="slide-panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">บันทึกการตรวจสอบ</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      ${editId?`<button class="btn btn-danger" onclick="window.__delCheck('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveCheck()">บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function checkItemsHTML(){
+  return `<div class="checklist-items" id="ci-list">
+    ${formItems.map((item,i)=>`
+    <div class="ci-row" data-idx="${i}">
+      <span class="ci-name">${item.name}</span>
+      <div class="ci-pass-fail">
+        <button class="ci-btn pass ${item.result==='pass'?'pass':''}" onclick="window.__setCIResult(${i},'pass')">✓ ผ่าน</button>
+        <button class="ci-btn fail ${item.result==='fail'?'fail':''}" onclick="window.__setCIResult(${i},'fail')">✗ ไม่ผ่าน</button>
+        <button class="ci-btn na ${item.result==='na'?'na':''}" onclick="window.__setCIResult(${i},'na')">N/A</button>
+      </div>
+    </div>`).join('')}
+    <div class="add-item-row">
+      <input id="new-item-input" placeholder="เพิ่มรายการตรวจสอบ...">
+      <button onclick="window.__addCIItem()">+ เพิ่ม</button>
+    </div>
+  </div>`;
+}
+
+function formHTML(data={}){
+  formItems = (data.checkItems||[]).length
+    ? data.checkItems.map(i=>({...i}))
+    : MACHINE_CHECK_ITEMS_DEFAULT.map(n=>({name:n,result:''}));
+
+  return `
+  <div class="section-title">ข้อมูลเครื่องจักร</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>ประเภทเครื่องจักร *</label>
+      <select id="f-machineType">
+        <option value="">-- เลือกประเภท --</option>
+        ${MACHINE_TYPES.map(t=>`<option value="${t.key}" ${(data.machineType||'')==t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>รหัสเครื่องจักร / ID</label>
+      <input id="f-machineId" value="${data.machineId||''}" placeholder="เช่น FK-001, CR-003">
+    </div>
+  </div>
+  <div class="form-row full"><div class="form-group">
+    <label>ชื่อเครื่องจักร / อุปกรณ์ *</label>
+    <input id="f-machineName" value="${data.machineName||''}" placeholder="เช่น รถโฟล์คลิฟท์ Toyota หมายเลข 1">
+  </div></div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>สถานที่ตั้ง / พื้นที่</label>
+      <input id="f-location" value="${data.location||''}" placeholder="เช่น คลังสินค้า A">
+    </div>
+    <div class="form-group">
+      <label>แผนก</label>
+      <input id="f-department" value="${data.department||''}">
+    </div>
+  </div>
+
+  <div class="section-title">ข้อมูลการตรวจ</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>วันที่ตรวจ *</label>
+      <input type="date" id="f-checkDate" value="${data.checkDate||new Date().toISOString().substring(0,10)}">
+    </div>
+    <div class="form-group">
+      <label>เวลา</label>
+      <input type="time" id="f-checkTime" value="${data.checkTime||''}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>ผู้ตรวจสอบ *</label>
+      <input id="f-operator" value="${data.operator||''}">
+    </div>
+    <div class="form-group">
+      <label>กะงาน</label>
+      <select id="f-shift">
+        <option value="">-- เลือก --</option>
+        <option value="day" ${data.shift==='day'?'selected':''}>กะเช้า (Day Shift)</option>
+        <option value="afternoon" ${data.shift==='afternoon'?'selected':''}>กะบ่าย (Afternoon)</option>
+        <option value="night" ${data.shift==='night'?'selected':''}>กะดึก (Night Shift)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section-title">รายการตรวจสอบ (Checklist)</div>
+  <div id="ci-wrapper">${checkItemsHTML()}</div>
+
+  <div class="section-title">ผลการตรวจและสถานะ</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>ผลการตรวจโดยรวม</label>
+      <select id="f-result">
+        ${Object.entries(MACHINE_CHECK_RESULT).map(([k,v])=>`<option value="${k}" ${(data.result||'')==k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>สถานะเครื่องจักรหลังตรวจ</label>
+      <select id="f-machineStatus">
+        ${Object.entries(MACHINE_STATUS).map(([k,v])=>`<option value="${k}" ${(data.machineStatus||'in_service')==k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+  <div class="form-row full"><div class="form-group">
+    <label>ข้อบกพร่อง / ปัญหาที่พบ</label>
+    <textarea id="f-defects" placeholder="ระบุรายละเอียดข้อบกพร่องที่พบ">${data.defects||''}</textarea>
+  </div></div>
+  <div class="form-row full"><div class="form-group">
+    <label>การดำเนินการแก้ไข / Action Taken</label>
+    <textarea id="f-action" placeholder="การแก้ไขที่ดำเนินการแล้ว หรือแผนการแก้ไข">${data.action||''}</textarea>
+  </div></div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>กำหนดตรวจครั้งถัดไป</label>
+      <input type="date" id="f-nextCheckDate" value="${data.nextCheckDate||''}">
+    </div>
+    <div class="form-group">
+      <label>หมายเหตุ</label>
+      <input id="f-notes" value="${data.notes||''}">
+    </div>
+  </div>`;
+}
+
+window.__setCIResult = (idx, result) => {
+  formItems[idx].result = result;
+  document.getElementById('ci-wrapper').innerHTML = checkItemsHTML();
+};
+window.__addCIItem = () => {
+  const input = document.getElementById('new-item-input');
+  const name = input.value.trim();
+  if(!name) return;
+  formItems.push({name, result:''});
+  document.getElementById('ci-wrapper').innerHTML = checkItemsHTML();
+};
+
+window.__openPanel = (id) => {
+  editId = id;
+  const data = id ? (allChecks.find(c=>c.id===id)||{}) : {};
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขบันทึกการตรวจ' : 'บันทึกการตรวจสอบก่อนใช้งาน';
+  document.getElementById('panel-body').innerHTML = formHTML(data);
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  editId = null;
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+window.__editCheck = (id) => window.__openPanel(id);
+
+window.__delCheck = async (id) => {
+  if(!confirm('ยืนยันการลบบันทึกนี้?')) return;
+  await deleteMachineCheck(id);
+  allChecks = allChecks.filter(c=>c.id!==id);
+  window.__closePanel();
+  render();
+};
+
+window.__saveCheck = async () => {
+  const machineName = document.getElementById('f-machineName').value.trim();
+  const checkDate = document.getElementById('f-checkDate').value;
+  const operator = document.getElementById('f-operator').value.trim();
+  if(!machineName){ alert('กรุณาระบุชื่อเครื่องจักร'); return; }
+  if(!checkDate){ alert('กรุณาระบุวันที่ตรวจ'); return; }
+
+  // auto-compute result if not set manually — based on checklist
+  let resultVal = document.getElementById('f-result').value;
+  if(!resultVal){
+    const hasF = formItems.some(i=>i.result==='fail');
+    resultVal = hasF ? 'fail' : 'pass';
+  }
+
+  const data = {
+    machineType: document.getElementById('f-machineType').value,
+    machineId: document.getElementById('f-machineId').value.trim(),
+    machineName,
+    location: document.getElementById('f-location').value.trim(),
+    department: document.getElementById('f-department').value.trim(),
+    checkDate,
+    checkTime: document.getElementById('f-checkTime').value,
+    operator,
+    shift: document.getElementById('f-shift').value,
+    checkItems: formItems,
+    result: resultVal,
+    machineStatus: document.getElementById('f-machineStatus').value,
+    defects: document.getElementById('f-defects').value.trim(),
+    action: document.getElementById('f-action').value.trim(),
+    nextCheckDate: document.getElementById('f-nextCheckDate').value,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  if(editId){
+    await updateMachineCheck(editId, data);
+    const idx = allChecks.findIndex(c=>c.id===editId);
+    if(idx>=0) allChecks[idx] = {...allChecks[idx],...data};
+  } else {
+    const ref = await createMachineCheck(data);
+    allChecks.unshift({...data, id: ref.id});
+  }
+  allChecks.sort((a,b)=>(b.checkDate||'').localeCompare(a.checkDate||''));
+  window.__closePanel();
+  render();
+};
+
+window.applyFilter = (type, val) => {
+  if(type==='text') filterText=val;
+  else if(type==='type') filterType=val;
+  else if(type==='result') filterResult=val;
+  else if(type==='date') filterDate=val;
+  document.getElementById('content').innerHTML = renderContent();
+};
+window.setView = (v) => { curView = v; render(); };
+
+allChecks = await listMachineChecks();
+render();
+</script>
+</body>
+</html>
