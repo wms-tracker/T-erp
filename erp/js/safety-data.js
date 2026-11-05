@@ -92,6 +92,7 @@ export const COL = {
   machineCheck:     "safetyMachineCheck",
   bbsObs:           "safetyBBSObservations",
   safetyEvent:      "safetySafetyEvents",
+  envMeasure:       "safetyEnvMeasure",
 };
 
 // ────────────────────────────────────────────
@@ -4662,6 +4663,74 @@ export async function updateSafetyEvent(id, data) {
 }
 export async function deleteSafetyEvent(id) {
   await deleteDoc(doc(db, COL.safetyEvent, id));
+}
+
+// ── Phase 87: Workplace Environment & Heat Stress Monitoring ────────────────
+export const ENV_PARAMS = {
+  wbgt:         { label:'WBGT (ดัชนีความร้อน)',         icon:'🌡️', unit:'°C',    color:'#dc2626', bg:'#fee2e2',
+                  limits:{ normal:28, alert:30, critical:33 }, desc:'Wet Bulb Globe Temperature' },
+  temperature:  { label:'อุณหภูมิอากาศ',                icon:'🌡️', unit:'°C',    color:'#ea580c', bg:'#fff7ed',
+                  limits:{ normal:30, alert:35, critical:40 }, desc:'Dry Bulb Temperature' },
+  humidity:     { label:'ความชื้นสัมพัทธ์',              icon:'💧', unit:'%RH',   color:'#0891b2', bg:'#e0f2fe',
+                  limits:{ normal:70, alert:80, critical:90 }, desc:'Relative Humidity' },
+  lighting:     { label:'ความเข้มแสงสว่าง',              icon:'💡', unit:'Lux',   color:'#ca8a04', bg:'#fef9c3',
+                  limits:{ normal:300, alert:150, critical:50 }, desc:'Illuminance — higher is better', invert:true },
+  co:           { label:'คาร์บอนมอนอกไซด์ (CO)',         icon:'☁️', unit:'ppm',   color:'#64748b', bg:'#f1f5f9',
+                  limits:{ normal:25, alert:50, critical:200 }, desc:'Carbon Monoxide' },
+  co2:          { label:'คาร์บอนไดออกไซด์ (CO₂)',        icon:'🌫️', unit:'ppm',   color:'#9333ea', bg:'#faf5ff',
+                  limits:{ normal:1000, alert:2000, critical:5000 }, desc:'Carbon Dioxide' },
+  pm25:         { label:'ฝุ่นละออง PM2.5',               icon:'🌪️', unit:'µg/m³', color:'#7c3aed', bg:'#f5f3ff',
+                  limits:{ normal:35, alert:75, critical:150 }, desc:'Fine Particulate Matter' },
+  air_velocity: { label:'ความเร็วลม',                    icon:'💨', unit:'m/s',   color:'#2563eb', bg:'#dbeafe',
+                  limits:{ normal:0.5, alert:1.0, critical:2.0 }, desc:'Air Velocity' },
+  vibration:    { label:'ความสั่นสะเทือน',               icon:'📳', unit:'m/s²',  color:'#d97706', bg:'#fef3c7',
+                  limits:{ normal:2.5, alert:5.0, critical:10.0 }, desc:'Hand-Arm Vibration' },
+  uv:           { label:'รังสีอัลตราไวโอเลต (UV)',        icon:'☀️', unit:'mW/cm²',color:'#16a34a', bg:'#dcfce7',
+                  limits:{ normal:0.1, alert:0.3, critical:1.0 }, desc:'UV Radiation Intensity' },
+};
+export const ENV_LOCATIONS = [
+  'สายการผลิต A','สายการผลิต B','คลังสินค้า','พื้นที่โหลด/ขนถ่าย',
+  'ห้องเครื่องจักร','ห้องแล็บ','พื้นที่เชื่อมโลหะ','ห้องสารเคมี',
+  'สำนักงาน','ลานจอดรถ / กลางแจ้ง','ห้องไฟฟ้า','อื่นๆ',
+];
+export const ENV_SHIFT = ['กะเช้า','กะบ่าย','กะดึก','ไม่ระบุกะ'];
+
+export function envResult(param, value){
+  const p = ENV_PARAMS[param];
+  if(!p||value===null||value===undefined||value==='') return 'normal';
+  const v = Number(value);
+  if(isNaN(v)) return 'normal';
+  if(p.invert){
+    if(v <= p.limits.critical) return 'critical';
+    if(v <= p.limits.alert) return 'alert';
+    return 'normal';
+  }
+  if(v >= p.limits.critical) return 'critical';
+  if(v >= p.limits.alert) return 'alert';
+  return 'normal';
+}
+export const ENV_RESULT = {
+  normal:   { label:'ปกติ',      color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  alert:    { label:'เฝ้าระวัง', color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+  critical: { label:'เกินมาตรฐาน',color:'#dc2626', bg:'#fee2e2', icon:'🚨' },
+};
+
+export async function listEnvMeasures() {
+  const s = await getDocs(query(collection(db, COL.envMeasure), orderBy('measureDate','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getEnvMeasure(id) {
+  const d = await getDoc(doc(db, COL.envMeasure, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createEnvMeasure(data, createdBy) {
+  return addDoc(collection(db, COL.envMeasure), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateEnvMeasure(id, data) {
+  await updateDoc(doc(db, COL.envMeasure, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteEnvMeasure(id) {
+  await deleteDoc(doc(db, COL.envMeasure, id));
 }
 
 export async function listCampaigns() {

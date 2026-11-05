@@ -225,6 +225,7 @@ const NAV = {
       { key: 'machine-check',        label: 'ตรวจสอบก่อนใช้งานเครื่องจักร',  href: 'safety-machine-check.html' },
       { key: 'bbs-observation',      label: 'BBS สังเกตพฤติกรรมความปลอดภัย', href: 'safety-bbs.html' },
       { key: 'safety-events',        label: 'กิจกรรมความปลอดภัย / Safety Events', href: 'safety-events.html' },
+      { key: 'env-measure',          label: 'ตรวจวัดสภาพแวดล้อมการทำงาน',  href: 'safety-env-measure.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -321,6 +322,7 @@ const NAV = {
       { key: 'machine-check',        label: 'ตรวจสอบก่อนใช้งานเครื่องจักร',  href: 'safety-machine-check.html' },
       { key: 'bbs-observation',      label: 'BBS สังเกตพฤติกรรมความปลอดภัย', href: 'safety-bbs.html' },
       { key: 'safety-events',        label: 'กิจกรรมความปลอดภัย / Safety Events', href: 'safety-events.html' },
+      { key: 'env-measure',          label: 'ตรวจวัดสภาพแวดล้อมการทำงาน',  href: 'safety-env-measure.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -506,6 +508,7 @@ const PAGE_DEPARTMENT = {
   "safety-machine-check.html":     "safety_officer",
   "safety-bbs.html":               "safety_officer",
   "safety-events.html":            "safety_officer",
+  "safety-env-measure.html":       "safety_officer",
 };
 
 // ===================================================================

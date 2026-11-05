@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ตรวจวัดสภาพแวดล้อมการทำงาน</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-lbl{font-size:.72rem;color:#64748b;margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff;min-width:130px}
+.view-btns{display:flex;gap:4px;margin-left:auto}
+.view-btn{padding:6px 14px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:.82rem;color:#374151}
+.view-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
+/* dashboard view */
+.param-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.param-card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s;border-top:4px solid var(--pc)}
+.param-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12)}
+.pc-top{padding:12px 14px 6px;display:flex;align-items:center;gap:8px}
+.pc-icon{font-size:1.5rem}
+.pc-name{font-size:.8rem;font-weight:700;color:#374151;line-height:1.2}
+.pc-val-row{padding:4px 14px 10px;display:flex;align-items:baseline;gap:4px}
+.pc-val{font-size:1.8rem;font-weight:800;color:var(--pc)}
+.pc-unit{font-size:.75rem;color:#64748b;font-weight:600}
+.pc-limit{font-size:.7rem;color:#94a3b8;padding:0 14px 4px}
+.pc-footer{padding:6px 14px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center}
+.pc-loc{font-size:.68rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+.pc-date{font-size:.65rem;color:#94a3b8}
+/* gauge bar */
+.gauge-wrap{padding:0 14px 10px}
+.gauge-bg{background:#f1f5f9;border-radius:4px;height:6px;position:relative;overflow:visible}
+.gauge-fill{height:100%;border-radius:4px;transition:width .4s}
+.gauge-markers{display:flex;justify-content:space-between;font-size:.58rem;color:#94a3b8;margin-top:2px}
+/* history view */
+.hist-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.hist-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.hist-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.hc-banner{padding:9px 14px;display:flex;align-items:center;gap:8px}
+.hc-param{font-weight:700;font-size:.85rem}
+.hc-date{margin-left:auto;font-size:.73rem;opacity:.85;font-family:monospace}
+.hc-body{padding:10px 14px}
+.hc-value{font-size:1.4rem;font-weight:800;line-height:1}
+.hc-unit{font-size:.78rem;color:#64748b;margin-left:4px}
+.hc-limit{font-size:.72rem;color:#94a3b8;margin-top:2px}
+.hc-footer{padding:6px 14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hc-loc{font-size:.73rem;color:#475569}
+/* table */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.action-btn{padding:4px 10px;border:none;border-radius:6px;cursor:pointer;font-size:.75rem}
+.btn-edit{background:#dbeafe;color:#1e40af}
+.btn-del{background:#fee2e2;color:#dc2626}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* panel */
+.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.slide-panel{position:fixed;right:0;top:0;bottom:0;width:min(600px,100vw);background:#fff;z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15)}
+.slide-panel.open{transform:none}
+.panel-head{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700;flex:1}
+.panel-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:60px}
+.section-title{font-size:.8rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e2e8f0}
+.result-preview{padding:10px 14px;border-radius:8px;font-size:.85rem;font-weight:700;text-align:center;margin-top:8px}
+.panel-foot{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151}
+.btn-danger{background:#dc2626;color:#fff}
+.add-btn{padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+/* WBGT risk table */
+.wbgt-ref{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:16px;font-size:.78rem}
+.wbgt-ref h4{font-size:.85rem;font-weight:700;margin-bottom:8px;color:#374151}
+.wbgt-row{display:flex;gap:6px;flex-wrap:wrap}
+.wbgt-box{padding:5px 10px;border-radius:6px;text-align:center;min-width:80px}
+.wbgt-box .wbgt-range{font-weight:700;font-size:.82rem}
+.wbgt-box .wbgt-action{font-size:.68rem;margin-top:1px;line-height:1.3}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  ENV_PARAMS, ENV_LOCATIONS, ENV_SHIFT, ENV_RESULT, envResult,
+  listEnvMeasures, createEnvMeasure, updateEnvMeasure, deleteEnvMeasure
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'env-measure', 'ตรวจวัดสภาพแวดล้อมการทำงาน');
+
+let allMeasures = [];
+let editId = null;
+let curView = 'dashboard';
+let filterParam='', filterLoc='', filterResult_='', filterDate='', filterText='';
+
+function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
+function fmtDate(d){ if(!d) return '-'; return new Date(d+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}); }
+
+/* ─── KPIs ─── */
+function kpis(){
+  const today = new Date().toISOString().substring(0,10);
+  const todayM = allMeasures.filter(m=>m.measureDate===today);
+  const critical = allMeasures.filter(m=>envResult(m.param, m.value)==='critical').length;
+  const alert_ = allMeasures.filter(m=>envResult(m.param, m.value)==='alert').length;
+  const locs = new Set(allMeasures.map(m=>m.location).filter(Boolean)).size;
+  const latestWbgt = allMeasures.filter(m=>m.param==='wbgt').sort((a,b)=>(b.measureDate||'').localeCompare(a.measureDate||''))[0];
+  const wbgtVal = latestWbgt ? Number(latestWbgt.value) : null;
+  const wbgtCol = wbgtVal===null?'#64748b':wbgtVal>=33?'#dc2626':wbgtVal>=30?'#d97706':'#16a34a';
+  return `
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${allMeasures.length}</div><div class="kpi-lbl">บันทึกทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${todayM.length}</div><div class="kpi-lbl">วันนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${critical}</div><div class="kpi-lbl">🚨 เกินมาตรฐาน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${alert_}</div><div class="kpi-lbl">⚠️ เฝ้าระวัง</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${locs}</div><div class="kpi-lbl">📍 จุดที่ตรวจวัด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${wbgtCol};font-size:1.3rem">${wbgtVal!==null?wbgtVal+'°C':'-'}</div><div class="kpi-lbl">🌡️ WBGT ล่าสุด</div></div>
+  </div>`;
+}
+
+function filtered(){
+  return allMeasures.filter(m=>{
+    if(filterParam && m.param!==filterParam) return false;
+    if(filterLoc && m.location!==filterLoc) return false;
+    if(filterResult_ && envResult(m.param,m.value)!==filterResult_) return false;
+    if(filterDate && m.measureDate!==filterDate) return false;
+    if(filterText){
+      const q=filterText.toLowerCase();
+      if(!(m.location||'').toLowerCase().includes(q)&&!(m.measuredBy||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ─── Dashboard view: latest per param+location ─── */
+function dashboardView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่มีข้อมูล — กดบันทึกค่าแรก</div>`;
+
+  // WBGT reference table
+  const wbgtRef = `<div class="wbgt-ref">
+    <h4>🌡️ ตารางอ้างอิงระดับ WBGT และแนวปฏิบัติ (งานหนักปานกลาง)</h4>
+    <div class="wbgt-row">
+      <div class="wbgt-box" style="background:#dcfce7;color:#16a34a"><div class="wbgt-range">&lt; 28°C</div><div class="wbgt-action">ทำงานได้ปกติ</div></div>
+      <div class="wbgt-box" style="background:#fef9c3;color:#ca8a04"><div class="wbgt-range">28–30°C</div><div class="wbgt-action">ระวัง / เพิ่มน้ำดื่ม</div></div>
+      <div class="wbgt-box" style="background:#fef3c7;color:#d97706"><div class="wbgt-range">30–33°C</div><div class="wbgt-action">พักบ่อยขึ้น</div></div>
+      <div class="wbgt-box" style="background:#fee2e2;color:#dc2626"><div class="wbgt-range">33–35°C</div><div class="wbgt-action">จำกัดเวลาทำงาน</div></div>
+      <div class="wbgt-box" style="background:#fecaca;color:#b91c1c"><div class="wbgt-range">&gt; 35°C</div><div class="wbgt-action">หยุดงาน/ย้ายพื้นที่</div></div>
+    </div>
+  </div>`;
+
+  // latest per param+location
+  const latest = {};
+  for(const m of [...data].sort((a,b)=>(a.measureDate||'').localeCompare(b.measureDate||''))){
+    latest[`${m.param}|${m.location}`] = m;
+  }
+  const cards = Object.values(latest).map(m=>{
+    const p = ENV_PARAMS[m.param]||{label:m.param,icon:'📊',unit:'',color:'#64748b',bg:'#f1f5f9',limits:{normal:0,alert:50,critical:100}};
+    const res = envResult(m.param, m.value);
+    const rc = ENV_RESULT[res];
+    const v = Number(m.value);
+    const maxV = p.limits.critical * 1.3;
+    const pct = p.invert
+      ? Math.max(0, Math.min(100, 100 - (v / (p.limits.normal||1)) * 100))
+      : Math.max(0, Math.min(100, v / maxV * 100));
+    const fillColor = res==='critical'?'#dc2626':res==='alert'?'#d97706':'#16a34a';
+    return `<div class="param-card" style="--pc:${rc.color}" onclick="window.__openPanel(null,'${m.param}','${m.location||''}')">
+      <div class="pc-top">
+        <span class="pc-icon">${p.icon}</span>
+        <span class="pc-name">${p.label}</span>
+      </div>
+      <div class="pc-val-row">
+        <span class="pc-val">${m.value??'-'}</span>
+        <span class="pc-unit">${p.unit}</span>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge-bg">
+          <div class="gauge-fill" style="width:${pct}%;background:${fillColor}"></div>
+        </div>
+        <div class="gauge-markers">
+          <span>0</span>
+          <span>${p.limits.normal}</span>
+          <span>${p.limits.critical}</span>
+        </div>
+      </div>
+      <div class="pc-limit" style="font-size:.68rem;color:#94a3b8">มาตรฐาน: ≤${p.invert?'≥':''} ${p.limits.normal} ${p.unit}</div>
+      <div class="pc-footer">
+        <span class="pc-loc">📍 ${m.location||'-'}</span>
+        <span class="pc-date">${fmtDate(m.measureDate)}</span>
+      </div>
+      <div style="padding:4px 14px 8px">${badge(rc)}</div>
+    </div>`;
+  }).join('');
+
+  return wbgtRef + `<div class="param-grid">${cards}</div>`;
+}
+
+/* ─── History view ─── */
+function historyView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  return `<div class="hist-grid">${data.map(m=>{
+    const p=ENV_PARAMS[m.param]||{label:m.param,icon:'📊',unit:'',color:'#64748b',bg:'#f1f5f9'};
+    const res=envResult(m.param,m.value);
+    const rc=ENV_RESULT[res];
+    return `<div class="hist-card" onclick="window.__editMeasure('${m.id}')">
+      <div class="hc-banner" style="background:${p.bg}">
+        <span style="font-size:1.1rem">${p.icon}</span>
+        <span class="hc-param" style="color:${p.color}">${p.label}</span>
+        <span class="hc-date" style="margin-left:auto;color:${p.color}">${m.measureDate||'-'} ${m.measureTime||''}</span>
+      </div>
+      <div class="hc-body">
+        <span class="hc-value" style="color:${rc.color}">${m.value??'-'}</span>
+        <span class="hc-unit">${p.unit}</span>
+        <div class="hc-limit">มาตรฐาน: ≤ ${p.limits?.normal??'-'} ${p.unit}</div>
+      </div>
+      <div class="hc-footer">
+        <span class="hc-loc">📍 ${m.location||'-'}</span>
+        ${m.shift?`<span style="font-size:.7rem;color:#64748b">🔄 ${m.shift}</span>`:''}
+        ${badge(rc)}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ─── Table view ─── */
+function tableView(){
+  const data = filtered();
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
+  const rows = data.map(m=>{
+    const p=ENV_PARAMS[m.param]||{label:m.param,icon:'📊',unit:'',color:'#64748b',bg:'#f1f5f9'};
+    const res=envResult(m.param,m.value);
+    const rc=ENV_RESULT[res];
+    return `<tr>
+      <td style="font-family:monospace;font-size:.78rem">${m.measureDate||'-'} ${m.measureTime||''}</td>
+      <td><span class="badge" style="color:${p.color};background:${p.bg}">${p.icon} ${p.label}</span></td>
+      <td>${m.location||'-'}</td>
+      <td style="font-weight:800;font-size:.95rem;color:${rc.color}">${m.value??'-'} <small style="font-weight:400;color:#64748b">${p.unit}</small></td>
+      <td style="color:#94a3b8;font-size:.78rem">≤ ${p.limits?.normal??'-'} ${p.unit}</td>
+      <td>${badge(rc)}</td>
+      <td>${m.measuredBy||'-'}</td>
+      <td>
+        <button class="action-btn btn-edit" onclick="window.__editMeasure('${m.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delMeasure('${m.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>วัน/เวลา</th><th>พารามิเตอร์</th><th>จุดวัด</th><th>ค่าที่วัดได้</th><th>มาตรฐาน</th><th>ผล</th><th>ผู้วัด</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+/* ─── Render ─── */
+function render(){
+  main.innerHTML = `
+  ${kpis()}
+  <div class="toolbar">
+    <input type="text" placeholder="ค้นหาสถานที่ / ผู้วัด..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <select onchange="window.applyFilter('param',this.value)">
+      <option value="">พารามิเตอร์ทั้งหมด</option>
+      ${Object.entries(ENV_PARAMS).map(([k,v])=>`<option value="${k}" ${filterParam===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('loc',this.value)">
+      <option value="">จุดวัดทั้งหมด</option>
+      ${ENV_LOCATIONS.map(l=>`<option value="${l}" ${filterLoc===l?'selected':''}>${l}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('result',this.value)">
+      <option value="">ผลทั้งหมด</option>
+      ${Object.entries(ENV_RESULT).map(([k,v])=>`<option value="${k}" ${filterResult_===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <input type="date" value="${filterDate}" onchange="window.applyFilter('date',this.value)" title="กรองตามวันที่">
+    <div class="view-btns">
+      <button class="view-btn ${curView==='dashboard'?'active':''}" onclick="window.setView('dashboard')">แดชบอร์ด</button>
+      <button class="view-btn ${curView==='history'?'active':''}" onclick="window.setView('history')">ประวัติ</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
+    </div>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ บันทึกค่า</button>
+  </div>
+  <div id="content">${renderContent()}</div>
+  ${panelHTML()}`;
+}
+
+function renderContent(){
+  if(curView==='dashboard') return dashboardView();
+  if(curView==='history') return historyView();
+  return tableView();
+}
+
+/* ─── Panel ─── */
+function panelHTML(){
+  return `
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="slide-panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">บันทึกค่าการวัด</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      ${editId?`<button class="btn btn-danger" onclick="window.__delMeasure('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveMeasure()">บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function formHTML(data={}, prefillParam='', prefillLoc=''){
+  const selParam = data.param||prefillParam||'wbgt';
+  const selLoc = data.location||prefillLoc||'';
+  const p = ENV_PARAMS[selParam]||ENV_PARAMS.wbgt;
+  const res = data.value!==undefined ? envResult(selParam, data.value) : null;
+  const rc = res ? ENV_RESULT[res] : null;
+
+  return `
+  <div class="section-title">พารามิเตอร์และสถานที่</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>พารามิเตอร์ที่วัด *</label>
+      <select id="f-param" onchange="window.__onParamChange()">
+        ${Object.entries(ENV_PARAMS).map(([k,v])=>`<option value="${k}" ${selParam===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>จุดวัด / สถานที่ *</label>
+      <select id="f-location">
+        <option value="">-- เลือก --</option>
+        ${ENV_LOCATIONS.map(l=>`<option value="${l}" ${selLoc===l?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="section-title">ค่าที่วัดได้</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>ค่าที่วัดได้ <span id="f-unit-label">(${p.unit})</span> *</label>
+      <input type="number" id="f-value" value="${data.value??''}" step="0.1" placeholder="ใส่ค่าที่วัดได้" oninput="window.__onValueChange()">
+    </div>
+    <div class="form-group">
+      <label>หน่วย</label>
+      <input id="f-unit" value="${data.unit||p.unit}" readonly style="background:#f8fafc;color:#64748b">
+    </div>
+  </div>
+  <div id="result-preview">${rc?`<div class="result-preview" style="color:${rc.color};background:${rc.bg}">${rc.icon} ${rc.label} — ค่ามาตรฐาน: ≤ ${p.limits?.normal??'-'} ${p.unit}</div>`:''}</div>
+
+  <div class="section-title">รายละเอียดการวัด</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>วันที่วัด *</label>
+      <input type="date" id="f-measureDate" value="${data.measureDate||new Date().toISOString().substring(0,10)}">
+    </div>
+    <div class="form-group">
+      <label>เวลา</label>
+      <input type="time" id="f-measureTime" value="${data.measureTime||''}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>กะงาน</label>
+      <select id="f-shift">
+        <option value="">-- เลือก --</option>
+        ${ENV_SHIFT.map(s=>`<option value="${s}" ${(data.shift||'')==s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>ผู้ตรวจวัด</label>
+      <input id="f-measuredBy" value="${data.measuredBy||''}">
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>เครื่องมือวัด / รหัสเครื่อง</label>
+      <input id="f-instrument" value="${data.instrument||''}" placeholder="เช่น WBGT Meter QT-36">
+    </div>
+    <div class="form-group">
+      <label>สภาพอากาศ / เงื่อนไขขณะวัด</label>
+      <input id="f-condition" value="${data.condition||''}" placeholder="เช่น แดดจัด, มีลม">
+    </div>
+  </div>
+  <div class="form-row full"><div class="form-group">
+    <label>หมายเหตุ / การดำเนินการ</label>
+    <textarea id="f-notes" placeholder="บันทึกเพิ่มเติม หรือมาตรการที่ดำเนินการ...">${data.notes||''}</textarea>
+  </div></div>`;
+}
+
+window.__onParamChange = () => {
+  const selParam = document.getElementById('f-param').value;
+  const p = ENV_PARAMS[selParam]||ENV_PARAMS.wbgt;
+  document.getElementById('f-unit-label').textContent = `(${p.unit})`;
+  document.getElementById('f-unit').value = p.unit;
+  window.__onValueChange();
+};
+
+window.__onValueChange = () => {
+  const param = document.getElementById('f-param').value;
+  const val = document.getElementById('f-value').value;
+  const res = envResult(param, val);
+  const rc = ENV_RESULT[res];
+  const p = ENV_PARAMS[param]||{unit:'',limits:{normal:'-'}};
+  document.getElementById('result-preview').innerHTML = val
+    ? `<div class="result-preview" style="color:${rc.color};background:${rc.bg}">${rc.icon} ${rc.label} — ค่ามาตรฐาน: ≤ ${p.limits?.normal??'-'} ${p.unit}</div>`
+    : '';
+};
+
+window.__openPanel = (id, prefillParam='', prefillLoc='') => {
+  editId = id;
+  const data = id ? (allMeasures.find(m=>m.id===id)||{}) : {};
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขค่าการวัด' : 'บันทึกค่าการวัดสภาพแวดล้อม';
+  document.getElementById('panel-body').innerHTML = formHTML(data, prefillParam, prefillLoc);
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  editId = null;
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+window.__editMeasure = (id) => window.__openPanel(id);
+
+window.__delMeasure = async (id) => {
+  if(!confirm('ยืนยันการลบค่าการวัดนี้?')) return;
+  await deleteEnvMeasure(id);
+  allMeasures = allMeasures.filter(m=>m.id!==id);
+  window.__closePanel();
+  render();
+};
+
+window.__saveMeasure = async () => {
+  const param = document.getElementById('f-param').value;
+  const value = document.getElementById('f-value').value;
+  const measureDate = document.getElementById('f-measureDate').value;
+  const location = document.getElementById('f-location').value;
+  if(!value){ alert('กรุณาใส่ค่าที่วัดได้'); return; }
+  if(!measureDate){ alert('กรุณาระบุวันที่'); return; }
+  if(!location){ alert('กรุณาเลือกจุดวัด'); return; }
+
+  const p = ENV_PARAMS[param]||{unit:''};
+  const data = {
+    param, value: Number(value),
+    unit: document.getElementById('f-unit').value || p.unit,
+    location,
+    measureDate,
+    measureTime: document.getElementById('f-measureTime').value,
+    shift: document.getElementById('f-shift').value,
+    measuredBy: document.getElementById('f-measuredBy').value.trim(),
+    instrument: document.getElementById('f-instrument').value.trim(),
+    condition: document.getElementById('f-condition').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    result: envResult(param, value),
+  };
+
+  if(editId){
+    await updateEnvMeasure(editId, data);
+    const idx = allMeasures.findIndex(m=>m.id===editId);
+    if(idx>=0) allMeasures[idx] = {...allMeasures[idx],...data};
+  } else {
+    const ref = await createEnvMeasure(data);
+    allMeasures.unshift({...data, id: ref.id});
+  }
+  allMeasures.sort((a,b)=>(b.measureDate||'').localeCompare(a.measureDate||''));
+  window.__closePanel();
+  render();
+};
+
+window.applyFilter = (type, val) => {
+  if(type==='text') filterText=val;
+  else if(type==='param') filterParam=val;
+  else if(type==='loc') filterLoc=val;
+  else if(type==='result') filterResult_=val;
+  else if(type==='date') filterDate=val;
+  document.getElementById('content').innerHTML = renderContent();
+};
+window.setView = (v) => { curView = v; render(); };
+
+allMeasures = await listEnvMeasures();
+render();
+</script>
+</body>
+</html>
