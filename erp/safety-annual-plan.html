@@ -72,6 +72,38 @@ tr:hover td{background:#f8fafc}
 .empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
 .empty-state .icon{font-size:3rem;margin-bottom:12px}
 .cat-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
+/* คปอ Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:950;overflow-y:auto;padding:20px}
+.modal-overlay.open{display:flex;align-items:flex-start;justify-content:center}
+.modal-box{background:#fff;border-radius:14px;width:min(760px,100%);box-shadow:0 8px 40px rgba(0,0,0,.18);overflow:hidden}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#064e3b,#065f46)}
+.modal-head h2{font-size:1rem;font-weight:700;color:#fff}
+.modal-body{padding:22px}
+.btn-green{background:#059669;color:#fff}
+.btn-print{background:#1e40af;color:#fff}
+/* Print doc preview */
+.print-doc{display:none;padding:28px;font-family:'Sarabun',sans-serif;color:#000}
+.print-doc.show{display:block}
+.doc-header{text-align:center;margin-bottom:16px;border-bottom:2px solid #000;padding-bottom:12px}
+.doc-header h1{font-size:16pt;font-weight:700;margin-bottom:4px}
+.doc-header p{font-size:11pt;margin:2px 0}
+.doc-meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:14px;font-size:10pt}
+.doc-meta .dm-row{display:flex;gap:6px}
+.doc-meta .dm-k{color:#333;min-width:160px;font-weight:600}
+.doc-plan-table{width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:16px}
+.doc-plan-table th,.doc-plan-table td{border:1px solid #000;padding:4px 6px;vertical-align:middle}
+.doc-plan-table th{background:#d1fae5;text-align:center;font-weight:700}
+.doc-plan-table .mo{text-align:center;width:22px}
+.doc-plan-table .num{text-align:center;width:28px}
+.doc-sign{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px;font-size:10pt}
+.doc-sign .sign-box{text-align:center;padding:8px}
+.sign-line{border-top:1px solid #000;margin-top:40px;margin-bottom:4px}
+/* @media print hides UI */
+@media print{
+  body > *{display:none!important}
+  #print-frame{display:block!important;position:fixed;inset:0;z-index:9999;background:#fff;overflow:visible}
+}
+#print-frame{display:none}
 </style>
 </head>
 <body>
@@ -355,6 +387,127 @@ async function loadData() {
   applyFilter();
 }
 
+// ── คปอ Annual Plan Document ──
+window.__openKPOPlan = () => {
+  const yr = document.getElementById('filter-year')?.value;
+  const kpoYr = document.getElementById('kpo-year');
+  if (kpoYr) kpoYr.value = yr && yr !== '' ? yr : THIS_YEAR;
+  document.getElementById('kpo-modal').classList.add('open');
+};
+window.__closeKPOModal = () => {
+  document.getElementById('kpo-modal').classList.remove('open');
+};
+
+window.__generateKPODoc = () => {
+  const company   = document.getElementById('kpo-company').value.trim() || '(ชื่อสถานประกอบกิจการ)';
+  const address   = document.getElementById('kpo-address').value.trim() || '—';
+  const employees = document.getElementById('kpo-employees').value || '—';
+  const year      = document.getElementById('kpo-year').value || THIS_YEAR;
+  const meetNo    = document.getElementById('kpo-meeting-no').value.trim() || '—';
+  const meetDate  = document.getElementById('kpo-meeting-date').value;
+  const chair     = document.getElementById('kpo-chair').value.trim() || '—';
+  const secretary = document.getElementById('kpo-secretary').value.trim() || '—';
+  const preparer  = document.getElementById('kpo-preparer').value.trim() || '—';
+  const membersRaw= document.getElementById('kpo-members').value.trim();
+  const members   = membersRaw ? membersRaw.split('\n').filter(l=>l.trim()) : [];
+
+  const monthsTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  let meetDateTH = '—';
+  if (meetDate) {
+    const d = new Date(meetDate);
+    meetDateTH = `${d.getDate()} ${monthsTH[d.getMonth()]} พ.ศ.${d.getFullYear()+543}`;
+  }
+
+  const yr = Number(year);
+  const recs = allRecs.filter(r => (r.planYear===yr) || (!r.planYear && yr===THIS_YEAR));
+
+  const grouped = {};
+  APLAN_CATEGORIES.forEach(c => { grouped[c.key] = []; });
+  recs.forEach(r => { const k = r.category||'other'; if (!grouped[k]) grouped[k]=[]; grouped[k].push(r); });
+
+  let rowNum = 0, tableRows = '';
+  APLAN_CATEGORIES.forEach(cat => {
+    const items = grouped[cat.key]||[];
+    if (!items.length) return;
+    tableRows += `<tr><td colspan="17" style="background:#a7f3d0;font-weight:700;padding:5px 8px;font-size:9pt">${cat.icon} ${cat.label}</td></tr>`;
+    items.forEach(r => {
+      rowNum++;
+      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'✓':''}</td>`).join('');
+      tableRows += `<tr>
+        <td class="num">${rowNum}</td>
+        <td>${r.activityName||'—'}</td>
+        <td style="font-size:8pt">${r.objective||'—'}</td>
+        ${mos}
+        <td style="text-align:right;white-space:nowrap">${(r.budget||0).toLocaleString()}</td>
+        <td style="font-size:8pt">${r.responsible||'—'}</td>
+        <td style="font-size:8pt">${r.notes||'—'}</td>
+      </tr>`;
+    });
+  });
+  if (!tableRows) tableRows = `<tr><td colspan="17" style="text-align:center;padding:16px;color:#9ca3af">ไม่มีแผนงานในปีนี้</td></tr>`;
+
+  const moHeads = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'].map(m=>`<th class="mo">${m}</th>`).join('');
+  const memberRows = members.map((m,i)=>`<tr><td style="text-align:center;width:40px">${i+1}</td><td>${m}</td></tr>`).join('');
+
+  const doc = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"/>
+<title>แผนงาน คปอ ปี ${year}</title>
+<style>
+@page{size:A4 landscape;margin:12mm}
+body{font-family:'Sarabun',sans-serif;font-size:10pt;color:#000;margin:0;padding:0}
+h1{font-size:14pt;font-weight:700;text-align:center;margin-bottom:4px}
+h2{font-size:11pt;text-align:center;margin-bottom:12px}
+.meta{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:9.5pt}
+.meta td{padding:3px 8px;vertical-align:top}
+.meta .k{font-weight:700;white-space:nowrap;width:200px}
+.pt{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:16px}
+.pt th,.pt td{border:1px solid #000;padding:3px 5px;vertical-align:middle}
+.pt th{background:#a7f3d0;text-align:center;font-weight:700}
+.mo{text-align:center;width:20px;padding:3px 2px}
+.num{text-align:center;width:24px}
+.mt{border-collapse:collapse;font-size:9pt;margin-top:6px}
+.mt td,.mt th{border:1px solid #ccc;padding:3px 8px}
+.st{width:100%;border-collapse:collapse;margin-top:20px;font-size:9.5pt}
+.st td{padding:4px 8px;text-align:center;width:33%}
+.sl{border-top:1px solid #000;margin-top:44px;margin-bottom:4px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<h1>แผนงานด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน</h1>
+<h2>ประจำปี พ.ศ. ${year}</h2>
+<table class="meta">
+<tr><td class="k">สถานประกอบกิจการ :</td><td>${company}</td><td class="k">ที่อยู่ :</td><td>${address}</td></tr>
+<tr><td class="k">จำนวนลูกจ้าง :</td><td>${employees} คน</td><td class="k">อนุมัติโดย คปอ ครั้งที่ :</td><td>${meetNo} &nbsp; วันที่ ${meetDateTH}</td></tr>
+</table>
+<table class="pt">
+<thead>
+<tr>
+<th rowspan="2" class="num">ที่</th>
+<th rowspan="2" style="min-width:140px">กิจกรรม / โครงการ</th>
+<th rowspan="2" style="min-width:100px">วัตถุประสงค์</th>
+<th colspan="12">เดือนที่ดำเนินการ</th>
+<th rowspan="2" style="min-width:60px">งบประมาณ (บาท)</th>
+<th rowspan="2" style="min-width:80px">ผู้รับผิดชอบ</th>
+<th rowspan="2" style="min-width:80px">หมายเหตุ</th>
+</tr>
+<tr>${moHeads}</tr>
+</thead>
+<tbody>${tableRows}</tbody>
+</table>
+${memberRows ? `<div style="margin-bottom:16px"><strong>รายชื่อคณะกรรมการความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน (คปอ)</strong><table class="mt"><tr><th>ที่</th><th>ชื่อ-นามสกุล / ตำแหน่ง</th></tr>${memberRows}</table></div>` : ''}
+<table class="st">
+<tr>
+<td><div class="sl"></div>ประธานคณะกรรมการความปลอดภัยฯ<br/>(${chair})</td>
+<td><div class="sl"></div>เลขานุการ คปอ<br/>(${secretary})</td>
+<td><div class="sl"></div>ผู้จัดทำ<br/>(${preparer})</td>
+</tr>
+</table>
+<script>window.onload=function(){setTimeout(function(){window.print();},400);}<\/script>
+</body></html>`;
+
+  const w = window.open('','_blank','width=1200,height=800');
+  if (w) { w.document.write(doc); w.document.close(); }
+  else alert('กรุณาอนุญาต pop-up window เพื่อพิมพ์เอกสาร');
+};
+
 // ── Build UI ──
 const catOpts = `<option value="">-- ทุกหมวด --</option>` +
   APLAN_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
@@ -376,6 +529,7 @@ main.innerHTML = `
         <button class="view-btn" data-view="gantt" onclick="window.__switchView('gantt')">📊 Gantt</button>
       </div>
       <button class="btn btn-primary" onclick="window.__newPlan()">+ เพิ่มแผนงาน</button>
+      <button class="btn btn-green" onclick="window.__openKPOPlan()">📄 แผนงาน คปอ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -387,6 +541,54 @@ main.innerHTML = `
       <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
+  </div>
+
+  <!-- Modal คปอ Annual Plan -->
+  <div class="modal-overlay" id="kpo-modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>📄 สร้างแผนงาน คปอ ประจำปี</h2>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none" onclick="window.__closeKPOModal()">✕ ปิด</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>ชื่อสถานประกอบกิจการ *</label>
+            <input id="kpo-company" placeholder="บริษัท…จำกัด"/></div>
+          <div class="form-group"><label>จำนวนลูกจ้าง (คน)</label>
+            <input id="kpo-employees" type="number" min="1" placeholder="จำนวนลูกจ้าง"/></div>
+        </div>
+        <div class="form-row one">
+          <div class="form-group"><label>ที่อยู่สถานประกอบกิจการ</label>
+            <input id="kpo-address" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด"/></div>
+        </div>
+        <div class="form-row three">
+          <div class="form-group"><label>ปีแผน (พ.ศ.) *</label>
+            <input id="kpo-year" type="number" min="2560"/></div>
+          <div class="form-group"><label>ครั้งที่ประชุม คปอ</label>
+            <input id="kpo-meeting-no" placeholder="เช่น 1/2568"/></div>
+          <div class="form-group"><label>วันที่ประชุมอนุมัติ</label>
+            <input id="kpo-meeting-date" type="date"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>ประธาน คปอ</label>
+            <input id="kpo-chair" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+          <div class="form-group"><label>เลขานุการ คปอ</label>
+            <input id="kpo-secretary" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+        </div>
+        <div class="form-row one">
+          <div class="form-group"><label>ผู้จัดทำ</label>
+            <input id="kpo-preparer" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+        </div>
+        <div class="form-row one">
+          <div class="form-group"><label>รายชื่อกรรมการ คปอ (ใส่ชื่อทีละบรรทัด)</label>
+            <textarea id="kpo-members" rows="4" placeholder="นาย ก. เจ้าหน้าที่ความปลอดภัย&#10;นาย ข. ผู้แทนลูกจ้าง&#10;นาง ค. ตัวแทนฝ่ายบุคคล"></textarea></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
+          <button type="button" class="btn btn-print" onclick="window.__generateKPODoc()">🖨️ สร้างเอกสารและพิมพ์</button>
+          <button type="button" class="btn btn-ghost" onclick="window.__closeKPOModal()">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
   </div>
 `;
 
