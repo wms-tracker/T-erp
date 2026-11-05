@@ -218,6 +218,7 @@ const NAV = {
       { key: 'safety-objectives',    label: 'วัตถุประสงค์และเป้าหมาย (§6.2)', href: 'safety-objectives.html' },
       { key: 'safety-hazard-register', label: 'ทะเบียนอันตราย (§6.1.2)',      href: 'safety-hazard-register.html' },
       { key: 'safety-op-controls',    label: 'การควบคุมการปฏิบัติงาน (§8.1)', href: 'safety-op-controls.html' },
+      { key: 'safety-monitor-prog',   label: 'แผนติดตามผลการดำเนินงาน (§9.1)', href: 'safety-monitor-prog.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -307,6 +308,7 @@ const NAV = {
       { key: 'safety-objectives',    label: 'วัตถุประสงค์และเป้าหมาย (§6.2)', href: 'safety-objectives.html' },
       { key: 'safety-hazard-register', label: 'ทะเบียนอันตราย (§6.1.2)',      href: 'safety-hazard-register.html' },
       { key: 'safety-op-controls',    label: 'การควบคุมการปฏิบัติงาน (§8.1)', href: 'safety-op-controls.html' },
+      { key: 'safety-monitor-prog',   label: 'แผนติดตามผลการดำเนินงาน (§9.1)', href: 'safety-monitor-prog.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -485,6 +487,7 @@ const PAGE_DEPARTMENT = {
   "safety-objectives.html":        "safety_officer",
   "safety-hazard-register.html":   "safety_officer",
   "safety-op-controls.html":       "safety_officer",
+  "safety-monitor-prog.html":      "safety_officer",
 };
 
 // ===================================================================

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>แผนการติดตามผลการดำเนินงาน</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* split view */
+.split-view{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:700px){.split-view{grid-template-columns:1fr}}
+.split-col h2{font-size:.88rem;font-weight:700;padding:10px 14px;border-radius:9px 9px 0 0;display:flex;align-items:center;gap:8px}
+.split-col .cards{border:1px solid #e2e8f0;border-top:none;border-radius:0 0 9px 9px;background:#fff;min-height:120px}
+.mon-card{padding:12px 14px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .12s}
+.mon-card:last-child{border-bottom:none}
+.mon-card:hover{background:#f8fafc}
+.mon-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px}
+.mon-card-title{font-size:.85rem;font-weight:700}
+.mon-card-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:.75rem;color:#6b7280}
+.meta-pill{background:#f1f5f9;padding:2px 8px;border-radius:5px}
+.overdue-row{background:#fff5f5}
+/* table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+/* panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.type-selector{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+.type-btn{padding:14px;border-radius:10px;border:2px solid #e2e8f0;cursor:pointer;text-align:center;transition:all .15s;background:#fff}
+.type-btn.selected{border-width:2px}
+.type-btn .icon{font-size:1.5rem;margin-bottom:4px}
+.type-btn .label{font-size:.82rem;font-weight:700}
+.type-btn .desc{font-size:.72rem;color:#6b7280;margin-top:2px}
+.section-head{font-size:.85rem;font-weight:700;color:#475569;padding:10px 0 6px;border-bottom:1px solid #e2e8f0;margin-bottom:12px;margin-top:4px}
+.empty-mini{text-align:center;padding:24px;color:#9ca3af;font-size:.8rem}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  MON_INDICATOR_TYPES, MON_CATEGORIES, MON_FREQ, MON_STATUS,
+  listMonitorProgs, getMonitorProg, createMonitorProg, updateMonitorProg, deleteMonitorProg,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-monitor-prog', 'แผนการติดตามผลการดำเนินงาน (§9.1.1)');
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'split';
+
+function getCategory(key) { return MON_CATEGORIES.find(c=>c.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+function getFreq(key)     { return MON_FREQ.find(f=>f.key===key)||{label:key||'—'}; }
+
+function isOverdue(r) {
+  if (!r.nextMeasureDate) return false;
+  return r.nextMeasureDate < new Date().toISOString().split('T')[0];
+}
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total   = recs.length;
+  const leading = recs.filter(r=>r.indicatorType==='leading').length;
+  const lagging = recs.filter(r=>r.indicatorType==='lagging').length;
+  const active  = recs.filter(r=>r.status==='active').length;
+  const overdue = recs.filter(r=>isOverdue(r)&&r.status==='active').length;
+  const catCnt  = [...new Set(recs.map(r=>r.category))].length;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">ตัวชี้วัดทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${leading}</div><div class="lbl">📈 Leading</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${lagging}</div><div class="lbl">📉 Lagging</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${active}</div><div class="lbl">✅ ใช้งาน</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${overdue}</div><div class="lbl">🔴 เกินกำหนดวัด</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${catCnt}</div><div class="lbl">หมวดหมู่</div></div>
+  </div>`;
+}
+
+// ── Card ──
+function makeCard(r) {
+  const cat  = getCategory(r.category);
+  const sts  = MON_STATUS[r.status]||MON_STATUS.active;
+  const od   = isOverdue(r);
+  const freq = getFreq(r.measureFreq);
+  return `<div class="mon-card${od?' overdue-row':''}" onclick="window.__editMon('${r.id}')">
+    <div class="mon-card-head">
+      <div class="mon-card-title">${cat.icon} ${r.name||'—'}</div>
+      <span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span>
+    </div>
+    <div class="mon-card-meta">
+      <span class="meta-pill" style="background:${cat.bg};color:${cat.color}">${cat.label}</span>
+      <span class="meta-pill">🔄 ${freq.label}</span>
+      ${r.responsible?`<span class="meta-pill">👤 ${r.responsible}</span>`:''}
+      ${r.targetValue?`<span class="meta-pill">🎯 เป้า: ${r.targetValue} ${r.unit||''}</span>`:''}
+      ${r.nextMeasureDate?`<span class="meta-pill${od?' '+`style="color:#dc2626;font-weight:700"`:''}">${od?'⚠️':'📅'} ${r.nextMeasureDate}</span>`:''}
+    </div>
+    ${r.measureMethod?`<div style="font-size:.76rem;color:#6b7280;margin-top:4px">📏 ${r.measureMethod.substring(0,80)}${r.measureMethod.length>80?'…':''}</div>`:''}
+  </div>`;
+}
+
+// ── Split view ──
+function renderSplit(recs) {
+  const leading = recs.filter(r=>r.indicatorType==='leading');
+  const lagging = recs.filter(r=>r.indicatorType==='lagging');
+  const other   = recs.filter(r=>!r.indicatorType||(!['leading','lagging'].includes(r.indicatorType)));
+  const cfg = MON_INDICATOR_TYPES;
+  return `<div class="split-view">
+    <div class="split-col">
+      <h2 style="background:${cfg.leading.bg};color:${cfg.leading.color}">${cfg.leading.icon} ${cfg.leading.label} <span style="font-size:.78rem;font-weight:400">(${leading.length})</span></h2>
+      <div class="cards">${leading.length?leading.map(makeCard).join(''):`<div class="empty-mini">ยังไม่มีตัวชี้วัด Leading</div>`}</div>
+    </div>
+    <div class="split-col">
+      <h2 style="background:${cfg.lagging.bg};color:${cfg.lagging.color}">${cfg.lagging.icon} ${cfg.lagging.label} <span style="font-size:.78rem;font-weight:400">(${lagging.length})</span></h2>
+      <div class="cards">${lagging.length?lagging.map(makeCard).join(''):`<div class="empty-mini">ยังไม่มีตัวชี้วัด Lagging</div>`}</div>
+    </div>
+  </div>
+  ${other.length?`<div style="margin-bottom:16px"><h3 style="font-size:.85rem;color:#6b7280;margin-bottom:8px">อื่นๆ (${other.length})</h3><div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px">${other.map(makeCard).join('')}</div></div>`:''}`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div style="text-align:center;padding:60px;color:#9ca3af"><div style="font-size:3rem">📊</div><p style="margin-top:12px">ยังไม่มีแผนการติดตาม</p></div>`;
+  const rows = recs.map(r => {
+    const itype = MON_INDICATOR_TYPES[r.indicatorType]||MON_INDICATOR_TYPES.leading;
+    const cat   = getCategory(r.category);
+    const sts   = MON_STATUS[r.status]||MON_STATUS.active;
+    const od    = isOverdue(r);
+    return `<tr ${od?"style='background:#fff5f5'":''}>
+      <td><span class="badge" style="color:${itype.color};background:${itype.bg}">${itype.icon} ${r.indicatorType==='leading'?'Leading':'Lagging'}</span></td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:.77rem;background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.label}</span></td>
+      <td><strong>${r.name||'—'}</strong></td>
+      <td style="font-size:.8rem">${r.measureMethod||'—'}</td>
+      <td style="font-size:.8rem">${getFreq(r.measureFreq).label}</td>
+      <td style="font-size:.82rem">${r.targetValue||'—'} ${r.unit||''}</td>
+      <td style="font-size:.82rem${od?';color:#dc2626;font-weight:700':''}">${r.nextMeasureDate||'—'}${od?' ⚠️':''}</td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editMon('${r.id}');event.stopPropagation()">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteMon('${r.id}','${(r.name||'').replace(/'/g,"\\'")}');event.stopPropagation()">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table><thead><tr>
+    <th>ประเภท</th><th>หมวด</th><th>ชื่อตัวชี้วัด</th><th>วิธีวัด</th>
+    <th>ความถี่</th><th>เป้าหมาย</th><th>วัดครั้งถัดไป</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th>จัดการ</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const sel = rec?.indicatorType||'leading';
+  const catOpts  = MON_CATEGORIES.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
+  const freqOpts = MON_FREQ.map(f=>`<option value="${f.key}" ${rec?.measureFreq===f.key?'selected':''}>${f.label}</option>`).join('');
+  const stsOpts  = Object.entries(MON_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'active')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const typeBtns = Object.entries(MON_INDICATOR_TYPES).map(([k,v])=>`
+    <div class="type-btn${sel===k?' selected':''}" id="typebtn-${k}" style="${sel===k?`border-color:${v.color};background:${v.bg}`:''}" onclick="window.__selType('${k}')">
+      <input type="radio" name="indicatorType" id="it-${k}" value="${k}" ${sel===k?'checked':''} style="display:none"/>
+      <div class="icon">${v.icon}</div>
+      <div class="label" style="color:${v.color}">${k==='leading'?'Leading':'Lagging'}</div>
+      <div class="desc">${v.desc}</div>
+    </div>`).join('');
+  return `<form id="mon-form" onsubmit="return false">
+    <div class="section-head">ประเภทตัวชี้วัด *</div>
+    <div class="type-selector">${typeBtns}</div>
+    <div class="form-row">
+      <div class="form-group"><label>หมวดหมู่ *</label><select id="f-category">${catOpts}</select></div>
+      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่อตัวชี้วัด *</label>
+        <input id="f-name" value="${rec?.name||''}" placeholder="เช่น อัตราความถี่การบาดเจ็บ (FR), จำนวนครั้งการตรวจสอบ"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>สูตรคำนวณ / คำนิยาม</label>
+        <textarea id="f-formula" rows="2" placeholder="เช่น (จำนวนอุบัติเหตุ × 1,000,000) ÷ ชั่วโมงทำงาน">${rec?.formula||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>วิธีการวัด / เก็บข้อมูล</label>
+        <textarea id="f-measureMethod" rows="2" placeholder="วิธีการเก็บข้อมูลและเครื่องมือที่ใช้">${rec?.measureMethod||''}</textarea></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>ค่าเป้าหมาย</label>
+        <input id="f-targetValue" value="${rec?.targetValue||''}" placeholder="เช่น 0, ≤2, ≥95"/></div>
+      <div class="form-group"><label>หน่วย</label>
+        <input id="f-unit" value="${rec?.unit||''}" placeholder="เช่น ครั้ง, %, คะแนน"/></div>
+      <div class="form-group"><label>ความถี่การวัด</label>
+        <select id="f-measureFreq">${freqOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>แหล่งข้อมูล / ระบบที่ใช้</label>
+        <input id="f-dataSource" value="${rec?.dataSource||''}" placeholder="เช่น ระบบ ERP, บันทึกอุบัติเหตุ"/></div>
+      <div class="form-group"><label>ผู้รับผิดชอบวัด/รายงาน</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>วันที่วัดครั้งถัดไป</label>
+        <input id="f-nextMeasureDate" type="date" value="${rec?.nextMeasureDate||''}"/></div>
+      <div class="form-group"><label>วันที่ทบทวนตัวชี้วัด</label>
+        <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ผู้ใช้ผลการวัด / รายงานถึง</label>
+        <input id="f-reportTo" value="${rec?.reportTo||''}" placeholder="เช่น ผู้จัดการโรงงาน, คปอ, ที่ประชุมความปลอดภัย"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveMon()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+window.__selType = key => {
+  document.querySelectorAll('.type-btn').forEach(b => {
+    const k = b.id.replace('typebtn-','');
+    const v = MON_INDICATOR_TYPES[k];
+    if (!v) return;
+    const sel = k === key;
+    b.classList.toggle('selected', sel);
+    b.style.borderColor = sel ? v.color : '#e2e8f0';
+    b.style.background  = sel ? v.bg    : '#fff';
+    const inp = document.getElementById(`it-${k}`);
+    if (inp) inp.checked = sel;
+  });
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__newMon  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มตัวชี้วัด'); };
+window.__editMon = async id => {
+  editId = id;
+  const r = await getMonitorProg(id);
+  openPanel(renderForm(r), '✏️ แก้ไขตัวชี้วัด');
+};
+
+// ── Save ──
+window.__saveMon = async () => {
+  const selType = document.querySelector('input[name="indicatorType"]:checked')?.value || 'leading';
+  const data = {
+    indicatorType:   selType,
+    category:        document.getElementById('f-category').value,
+    status:          document.getElementById('f-status').value,
+    name:            document.getElementById('f-name').value.trim(),
+    formula:         document.getElementById('f-formula').value.trim(),
+    measureMethod:   document.getElementById('f-measureMethod').value.trim(),
+    targetValue:     document.getElementById('f-targetValue').value.trim(),
+    unit:            document.getElementById('f-unit').value.trim(),
+    measureFreq:     document.getElementById('f-measureFreq').value,
+    dataSource:      document.getElementById('f-dataSource').value.trim(),
+    responsible:     document.getElementById('f-responsible').value.trim(),
+    nextMeasureDate: document.getElementById('f-nextMeasureDate').value,
+    reviewDate:      document.getElementById('f-reviewDate').value,
+    reportTo:        document.getElementById('f-reportTo').value.trim(),
+    notes:           document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.name) { alert('กรุณากรอกชื่อตัวชี้วัด'); return; }
+  try {
+    if (editId) await updateMonitorProg(editId, data);
+    else        await createMonitorProg(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteMon = async (id, name) => {
+  if (!confirm(`ลบตัวชี้วัด "${name}"?`)) return;
+  await deleteMonitorProg(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const tp  = document.getElementById('filter-type')?.value||'';
+  const cat = document.getElementById('filter-cat')?.value||'';
+  const sts = document.getElementById('filter-status')?.value||'';
+  const od  = document.getElementById('filter-overdue')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.name||'').toLowerCase().includes(q) || (r.measureMethod||'').toLowerCase().includes(q)) &&
+    (!tp  || r.indicatorType===tp) &&
+    (!cat || r.category===cat) &&
+    (!sts || r.status===sts) &&
+    (!od  || (od==='1' && isOverdue(r)))
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('content-wrap').innerHTML =
+    viewMode==='split' ? renderSplit(filtered) : renderTable(filtered);
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = mode => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listMonitorProgs();
+  applyFilter();
+}
+
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>
+  <option value="leading">📈 Leading</option>
+  <option value="lagging">📉 Lagging</option>`;
+const catOpts = `<option value="">-- ทุกหมวด --</option>` + MON_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
+const stsOpts = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(MON_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาตัวชี้วัด…" oninput="applyFilter()"/>
+      <select id="filter-type"    onchange="applyFilter()">${typeOpts}</select>
+      <select id="filter-cat"     onchange="applyFilter()">${catOpts}</select>
+      <select id="filter-status"  onchange="applyFilter()">${stsOpts}</select>
+      <select id="filter-overdue" onchange="applyFilter()">
+        <option value="">-- ทั้งหมด --</option>
+        <option value="1">🔴 เกินกำหนดวัด</option>
+      </select>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="split" onclick="window.__switchView('split')">📊 Leading/Lagging</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newMon()">+ เพิ่มตัวชี้วัด</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">แผนการติดตามผล</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

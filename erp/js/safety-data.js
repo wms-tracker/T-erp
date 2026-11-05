@@ -85,6 +85,7 @@ export const COL = {
   objective:        "safetySafetyObjectives",
   hazard:           "safetyHazardRegister",
   opControl:        "safetyOperationalControls",
+  monitorProg:      "safetyMonitorProgram",
 };
 
 // ────────────────────────────────────────────
@@ -4313,6 +4314,62 @@ export const OPC_STATUS = {
   update_needed: { label:'ต้องปรับปรุง',    color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
   suspended:     { label:'ระงับชั่วคราว',   color:'#dc2626', bg:'#fee2e2', icon:'🚫' },
 };
+
+// ── Phase 80: Safety Performance Monitoring Program (ISO 45001 §9.1.1) ──────
+export const MON_INDICATOR_TYPES = {
+  lagging:  { label:'Lagging (ตัวชี้วัดผลลัพธ์)',  color:'#dc2626', bg:'#fee2e2', icon:'📉', desc:'วัดผลที่เกิดขึ้นแล้ว เช่น อุบัติเหตุ, บาดเจ็บ' },
+  leading:  { label:'Leading (ตัวชี้วัดเชิงรุก)',   color:'#16a34a', bg:'#dcfce7', icon:'📈', desc:'วัดกิจกรรมที่ป้องกันอุบัติเหตุ เช่น ตรวจสอบ, ฝึกอบรม' },
+};
+
+export const MON_CATEGORIES = [
+  { key:'incident',     label:'อุบัติเหตุ / บาดเจ็บ',     icon:'🚨', color:'#dc2626', bg:'#fee2e2' },
+  { key:'near_miss',    label:'เฉียดอุบัติเหตุ',           icon:'⚡', color:'#d97706', bg:'#fef3c7' },
+  { key:'inspection',   label:'การตรวจสอบ / ตรวจประเมิน', icon:'🔍', color:'#2563eb', bg:'#dbeafe' },
+  { key:'training',     label:'การฝึกอบรม / ความสามารถ',  icon:'🎓', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'compliance',   label:'การปฏิบัติตามกฎหมาย',      icon:'⚖️', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'behavior',     label:'พฤติกรรมความปลอดภัย',      icon:'🤝', color:'#059669', bg:'#ecfdf5' },
+  { key:'equipment',    label:'อุปกรณ์ / เครื่องจักร',    icon:'🔧', color:'#64748b', bg:'#f1f5f9' },
+  { key:'environment',  label:'สิ่งแวดล้อม / สุขอนามัย',  icon:'🌿', color:'#16a34a', bg:'#dcfce7' },
+  { key:'emergency',    label:'ความพร้อมเหตุฉุกเฉิน',     icon:'🚒', color:'#ea580c', bg:'#fff7ed' },
+  { key:'culture',      label:'วัฒนธรรมความปลอดภัย',      icon:'🌟', color:'#f59e0b', bg:'#fef9c3' },
+  { key:'audit',        label:'การตรวจสอบภายใน',          icon:'📋', color:'#9333ea', bg:'#faf5ff' },
+  { key:'other',        label:'อื่นๆ',                     icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const MON_FREQ = [
+  { key:'daily',       label:'ทุกวัน' },
+  { key:'weekly',      label:'ทุกสัปดาห์' },
+  { key:'monthly',     label:'ทุกเดือน' },
+  { key:'quarterly',   label:'ทุกไตรมาส' },
+  { key:'biannual',    label:'ทุก 6 เดือน' },
+  { key:'annually',    label:'ทุกปี' },
+  { key:'per_event',   label:'ทุกครั้งที่เกิดเหตุ' },
+];
+
+export const MON_STATUS = {
+  active:   { label:'ใช้งาน',          color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  paused:   { label:'หยุดพักชั่วคราว', color:'#d97706', bg:'#fef3c7', icon:'⏸️' },
+  review:   { label:'กำลังทบทวน',      color:'#2563eb', bg:'#dbeafe', icon:'🔄' },
+  inactive: { label:'ไม่ใช้งาน',       color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export async function listMonitorProgs() {
+  const s = await getDocs(query(collection(db, COL.monitorProg), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getMonitorProg(id) {
+  const d = await getDoc(doc(db, COL.monitorProg, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createMonitorProg(data, createdBy) {
+  return addDoc(collection(db, COL.monitorProg), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateMonitorProg(id, data) {
+  await updateDoc(doc(db, COL.monitorProg, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteMonitorProg(id) {
+  await deleteDoc(doc(db, COL.monitorProg, id));
+}
 
 export async function listOpControls() {
   const s = await getDocs(query(collection(db, COL.opControl), orderBy('createdAt','desc'), limit(500)));
