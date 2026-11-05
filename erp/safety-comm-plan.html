@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>แผนการสื่อสารด้านความปลอดภัย</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#0891b2;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.chip{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;font-size:.74rem;font-weight:600;margin:2px}
+/* calendar grid */
+.cal-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07);overflow:hidden;margin-bottom:20px}
+.cal-head{display:grid;grid-template-columns:200px repeat(12,1fr);border-bottom:2px solid #e2e8f0;background:#f1f5f9}
+.cal-head div{padding:7px 4px;text-align:center;font-size:.75rem;font-weight:700;color:#475569;border-right:1px solid #e2e8f0}
+.cal-head div:first-child{text-align:left;padding-left:12px}
+.cal-row{display:grid;grid-template-columns:200px repeat(12,1fr);border-bottom:1px solid #f1f5f9}
+.cal-row:last-child{border-bottom:none}
+.cal-row:hover{background:#f8fafc}
+.cal-label{padding:8px 12px;font-size:.82rem;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;gap:2px}
+.cal-cell{text-align:center;padding:6px 2px;border-right:1px solid #f1f5f9;font-size:.8rem}
+.cal-dot{display:inline-block;width:16px;height:16px;border-radius:50%;font-size:.7rem;line-height:16px;text-align:center}
+/* panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.check-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4px}
+.check-item{display:flex;align-items:center;gap:5px;font-size:.82rem;cursor:pointer}
+.check-item input{width:14px;height:14px}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  COMM_AUDIENCES, COMM_METHODS, COMM_FREQ, COMM_STATUS,
+  listCommPlan, getCommPlan, createCommPlan, updateCommPlan, deleteCommPlan,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-comm-plan', 'แผนการสื่อสารด้านความปลอดภัย');
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'table';
+
+const MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+// expand frequency into month array
+function getMonthsForFreq(freq, planMonths) {
+  if (planMonths && planMonths.length) return planMonths;
+  switch(freq) {
+    case 'daily':     return [1,2,3,4,5,6,7,8,9,10,11,12];
+    case 'weekly':    return [1,2,3,4,5,6,7,8,9,10,11,12];
+    case 'monthly':   return [1,2,3,4,5,6,7,8,9,10,11,12];
+    case 'quarterly': return [1,4,7,10];
+    case 'biannual':  return [1,7];
+    case 'annually':  return [1];
+    default: return [];
+  }
+}
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total    = recs.length;
+  const done     = recs.filter(r=>r.status==='done').length;
+  const planned  = recs.filter(r=>r.status==='planned').length;
+  const overdue  = recs.filter(r=>r.status==='overdue').length;
+  const partial  = recs.filter(r=>r.status==='partial').length;
+  const audMap   = {};
+  recs.forEach(r=>(r.audiences||[]).forEach(a=>{audMap[a]=(audMap[a]||0)+1;}));
+  const topAud   = Object.entries(audMap).sort((a,b)=>b[1]-a[1])[0];
+  const topLabel = topAud ? (COMM_AUDIENCES.find(a=>a.key===topAud[0])?.label||topAud[0]) : '—';
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">แผนทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${planned}</div><div class="lbl">📋 วางแผนแล้ว</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">✅ ดำเนินการแล้ว</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${partial}</div><div class="lbl">⚠️ บางส่วน</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">🔴 เกินกำหนด</div></div>
+    <div class="kpi" style="border-color:#0891b2"><div class="num" style="color:#0891b2;font-size:.88rem">${topLabel}</div><div class="lbl">กลุ่มเป้าหมายหลัก</div></div>
+  </div>`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📢</div><p>ยังไม่มีแผนการสื่อสาร</p></div>`;
+  const rows = recs.map(r => {
+    const st  = COMM_STATUS[r.status]||COMM_STATUS.planned;
+    const frq = COMM_FREQ.find(f=>f.key===r.frequency);
+    const aud = (r.audiences||[]).map(k=>{
+      const a = COMM_AUDIENCES.find(x=>x.key===k);
+      return a ? `<span class="chip" style="background:#e0f2fe;color:#0369a1">${a.icon} ${a.label}</span>` : '';
+    }).join('');
+    const mth = COMM_METHODS.find(m=>m.key===r.method);
+    return `<tr>
+      <td><strong>${r.topic||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.content||''}</span></td>
+      <td style="font-size:.82rem">${aud||'—'}</td>
+      <td style="font-size:.82rem">${mth?mth.icon+' '+mth.label:'—'}</td>
+      <td style="font-size:.82rem">${frq?.label||r.frequency||'—'}</td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td style="font-size:.82rem">${r.lastDone||'—'}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editComm('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteComm('${r.id}','${(r.topic||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>หัวข้อ / เนื้อหา</th><th>กลุ่มเป้าหมาย</th><th>วิธีการ</th>
+      <th>ความถี่</th><th>ผู้รับผิดชอบ</th><th>ครั้งล่าสุด</th><th>สถานะ</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Calendar view ──
+function renderCalendar(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📅</div><p>ยังไม่มีแผนการสื่อสาร</p></div>`;
+  const monthHeads = MONTHS_TH.map(m=>`<div>${m}</div>`).join('');
+  const rows = recs.map(r => {
+    const st  = COMM_STATUS[r.status]||COMM_STATUS.planned;
+    const months = getMonthsForFreq(r.frequency, r.planMonths);
+    const cells = Array.from({length:12},(_,i)=>{
+      const mo = i+1;
+      return months.includes(mo)
+        ? `<div class="cal-cell"><div class="cal-dot" style="background:${st.bg};color:${st.color};border:1px solid ${st.color}" title="${st.label}">${st.icon}</div></div>`
+        : `<div class="cal-cell"></div>`;
+    }).join('');
+    const mth = COMM_METHODS.find(m=>m.key===r.method);
+    return `<div class="cal-row">
+      <div class="cal-label">
+        <strong style="font-size:.82rem">${r.topic||'—'}</strong>
+        <span style="font-size:.74rem;color:#6b7280">${mth?mth.icon+' '+mth.label:''} · ${r.responsible||''}</span>
+      </div>
+      ${cells}
+    </div>`;
+  }).join('');
+  return `<div class="cal-wrap">
+    <div style="padding:10px 14px;border-bottom:1px solid #e2e8f0;font-size:.85rem;font-weight:700">
+      📅 ตารางแผนการสื่อสารรายเดือน
+    </div>
+    <div class="cal-head">
+      <div>หัวข้อ / วิธีการ</div>${monthHeads}
+    </div>
+    ${rows}
+  </div>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const methOpts = COMM_METHODS.map(m=>`<option value="${m.key}" ${rec?.method===m.key?'selected':''}>${m.icon} ${m.label}</option>`).join('');
+  const freqOpts = COMM_FREQ.map(f=>`<option value="${f.key}" ${rec?.frequency===f.key?'selected':''}>${f.label}</option>`).join('');
+  const stOpts   = Object.entries(COMM_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'planned')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const selAud   = rec?.audiences||[];
+  const audChecks = COMM_AUDIENCES.map(a=>`
+    <label class="check-item">
+      <input type="checkbox" value="${a.key}" ${selAud.includes(a.key)?'checked':''} onchange="window.__toggleAud('${a.key}',this.checked)"/>
+      ${a.icon} ${a.label}
+    </label>`).join('');
+  const selMonths = rec?.planMonths||[];
+  const moChecks  = MONTHS_TH.map((m,i)=>`
+    <label class="check-item">
+      <input type="checkbox" value="${i+1}" ${selMonths.includes(i+1)?'checked':''} onchange="window.__toggleMo(${i+1},this.checked)"/>
+      ${m}
+    </label>`).join('');
+  return `<form id="comm-form" onsubmit="return false">
+    <div class="form-row one">
+      <div class="form-group"><label>หัวข้อการสื่อสาร *</label>
+        <input id="f-topic" value="${rec?.topic||''}" placeholder="เช่น นโยบายความปลอดภัย, ผลสถิติอุบัติเหตุ"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>เนื้อหา / รายละเอียด</label>
+        <textarea id="f-content" rows="2" placeholder="สิ่งที่จะสื่อสาร">${rec?.content||''}</textarea></div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>กลุ่มเป้าหมาย (เลือกได้หลายกลุ่ม)</label>
+      <div class="check-grid" id="aud-wrap">${audChecks}</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>วิธีการสื่อสาร</label>
+        <select id="f-method">${methOpts}</select></div>
+      <div class="form-group"><label>ความถี่</label>
+        <select id="f-frequency" onchange="window.__onFreqChange()">${freqOpts}</select></div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px" id="month-wrap">
+      <label>เดือนที่สื่อสาร (ระบุเองเมื่อเลือก "ตามความจำเป็น" หรือ "ครั้งเดียว")</label>
+      <div class="check-grid" id="mo-checks">${moChecks}</div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / ตำแหน่ง"/></div>
+      <div class="form-group"><label>วันที่ดำเนินการล่าสุด</label>
+        <input id="f-lastDone" type="date" value="${rec?.lastDone||''}"/></div>
+      <div class="form-group"><label>สถานะ</label>
+        <select id="f-status">${stOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หลักฐาน / บันทึก</label>
+        <input id="f-evidence" value="${rec?.evidence||''}" placeholder="เช่น รายงานการประชุม, ภาพถ่าย, ไฟล์เอกสาร"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveComm()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+let selAud    = [];
+let selMonths = [];
+
+window.__toggleAud = (k, chk) => {
+  if (chk) { if (!selAud.includes(k)) selAud.push(k); }
+  else selAud = selAud.filter(a=>a!==k);
+};
+window.__toggleMo = (mo, chk) => {
+  if (chk) { if (!selMonths.includes(mo)) selMonths.push(mo); }
+  else selMonths = selMonths.filter(m=>m!==mo);
+};
+window.__onFreqChange = () => {
+  const f   = document.getElementById('f-frequency')?.value;
+  const wrap = document.getElementById('month-wrap');
+  if (wrap) wrap.style.opacity = (f==='as_needed'||f==='one_time') ? '1' : '0.5';
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+  window.__onFreqChange();
+}
+
+window.__newComm = () => { editId = null; selAud = []; selMonths = []; openPanel(renderForm(null), '+ เพิ่มแผนการสื่อสาร'); };
+window.__editComm = async id => {
+  editId = id;
+  const r = await getCommPlan(id);
+  selAud    = [...(r.audiences||[])];
+  selMonths = [...(r.planMonths||[])];
+  openPanel(renderForm(r), '✏️ แก้ไขแผนการสื่อสาร');
+};
+
+// ── Save ──
+window.__saveComm = async () => {
+  const data = {
+    topic:       document.getElementById('f-topic').value.trim(),
+    content:     document.getElementById('f-content').value.trim(),
+    audiences:   [...selAud],
+    method:      document.getElementById('f-method').value,
+    frequency:   document.getElementById('f-frequency').value,
+    planMonths:  [...selMonths].sort((a,b)=>a-b),
+    responsible: document.getElementById('f-responsible').value.trim(),
+    lastDone:    document.getElementById('f-lastDone').value,
+    status:      document.getElementById('f-status').value,
+    evidence:    document.getElementById('f-evidence').value.trim(),
+    notes:       document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.topic) { alert('กรุณากรอกหัวข้อการสื่อสาร'); return; }
+  try {
+    if (editId) await updateCommPlan(editId, data);
+    else        await createCommPlan(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteComm = async (id, topic) => {
+  if (!confirm(`ลบแผน "${topic}"?`)) return;
+  await deleteCommPlan(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q  = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const mt = document.getElementById('filter-method')?.value||'';
+  const st = document.getElementById('filter-status')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.topic||'').toLowerCase().includes(q) || (r.responsible||'').toLowerCase().includes(q)) &&
+    (!mt || r.method===mt) &&
+    (!st || r.status===st)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('content-wrap').innerHTML =
+    viewMode==='calendar' ? renderCalendar(filtered) : renderTable(filtered);
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = mode => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listCommPlan();
+  applyFilter();
+}
+
+// ── Build UI ──
+const methOpts = `<option value="">-- ทุกวิธี --</option>` +
+  COMM_METHODS.map(m=>`<option value="${m.key}">${m.icon} ${m.label}</option>`).join('');
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+  Object.entries(COMM_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาหัวข้อ / ผู้รับผิดชอบ…" oninput="applyFilter()"/>
+      <select id="filter-method" onchange="applyFilter()">${methOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="table"    onclick="window.__switchView('table')">📋 ตาราง</button>
+        <button class="view-btn"        data-view="calendar" onclick="window.__switchView('calendar')">📅 ปฏิทิน</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newComm()">+ เพิ่มแผน</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">แผนการสื่อสาร</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

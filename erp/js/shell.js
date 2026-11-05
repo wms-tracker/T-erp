@@ -212,6 +212,7 @@ const NAV = {
       { key: 'safety-doc-control',   label: 'ทะเบียนควบคุมเอกสาร (§7.5)', href: 'safety-doc-control.html' },
       { key: 'safety-participation', label: 'การมีส่วนร่วมของพนักงาน (§5.4)', href: 'safety-participation.html' },
       { key: 'safety-improvement',  label: 'การปรับปรุงอย่างต่อเนื่อง (§10.3)', href: 'safety-improvement.html' },
+      { key: 'safety-comm-plan',    label: 'แผนการสื่อสารความปลอดภัย (§7.4)', href: 'safety-comm-plan.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -295,6 +296,7 @@ const NAV = {
       { key: 'safety-doc-control',   label: 'ทะเบียนควบคุมเอกสาร (§7.5)',   href: 'safety-doc-control.html' },
       { key: 'safety-participation', label: 'การมีส่วนร่วมของพนักงาน (§5.4)', href: 'safety-participation.html' },
       { key: 'safety-improvement',  label: 'การปรับปรุงอย่างต่อเนื่อง (§10.3)', href: 'safety-improvement.html' },
+      { key: 'safety-comm-plan',    label: 'แผนการสื่อสารความปลอดภัย (§7.4)', href: 'safety-comm-plan.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -467,6 +469,7 @@ const PAGE_DEPARTMENT = {
   "safety-doc-control.html":       "safety_officer",
   "safety-participation.html":     "safety_officer",
   "safety-improvement.html":       "safety_officer",
+  "safety-comm-plan.html":         "safety_officer",
 };
 
 // ===================================================================

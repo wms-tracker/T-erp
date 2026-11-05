@@ -79,6 +79,7 @@ export const COL = {
   docControl:       "safetyDocControl",
   participation:    "safetyParticipation",
   improvement:      "safetyContinualImprovement",
+  commPlan:         "safetyCommunicationPlan",
 };
 
 // ────────────────────────────────────────────
@@ -3976,4 +3977,68 @@ export async function updateImprovement(id, data) {
 }
 export async function deleteImprovement(id) {
   await deleteDoc(doc(db, COL.improvement, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 74 — Safety Communication Plan (แผนการสื่อสารด้านความปลอดภัย) ISO 45001 §7.4
+// ────────────────────────────────────────────
+export const COMM_AUDIENCES = [
+  { key:'workers',      label:'พนักงานทั่วไป',          icon:'👷' },
+  { key:'management',   label:'ผู้บริหาร',              icon:'👔' },
+  { key:'safety_team',  label:'ทีมความปลอดภัย',         icon:'🛡️' },
+  { key:'contractors',  label:'ผู้รับเหมา',             icon:'🏗️' },
+  { key:'visitors',     label:'ผู้มาเยือน / แขก',       icon:'🚶' },
+  { key:'committee',    label:'คณะกรรมการ คปอ',         icon:'🤝' },
+  { key:'public',       label:'ชุมชน / สาธารณะ',        icon:'🏘️' },
+  { key:'authority',    label:'หน่วยงานราชการ',          icon:'🏛️' },
+];
+
+export const COMM_METHODS = [
+  { key:'meeting',      label:'ประชุม',                  icon:'📅' },
+  { key:'notice_board', label:'บอร์ดประกาศ',            icon:'📌' },
+  { key:'email',        label:'อีเมล / LINE',           icon:'📧' },
+  { key:'toolbox_talk', label:'Toolbox Talk',            icon:'🧰' },
+  { key:'training',     label:'ฝึกอบรม',                icon:'📚' },
+  { key:'intranet',     label:'อินทราเน็ต / ระบบ ERP',  icon:'💻' },
+  { key:'document',     label:'เอกสาร / หนังสือเวียน',  icon:'📄' },
+  { key:'signage',      label:'ป้ายสัญลักษณ์',          icon:'⚠️' },
+  { key:'drill',        label:'ซ้อมแผน / สาธิต',        icon:'🚨' },
+  { key:'other',        label:'อื่นๆ',                  icon:'📢' },
+];
+
+export const COMM_FREQ = [
+  { key:'daily',     label:'ทุกวัน' },
+  { key:'weekly',    label:'ทุกสัปดาห์' },
+  { key:'monthly',   label:'ทุกเดือน' },
+  { key:'quarterly', label:'ทุกไตรมาส' },
+  { key:'biannual',  label:'ทุก 6 เดือน' },
+  { key:'annually',  label:'ทุกปี' },
+  { key:'as_needed', label:'ตามความจำเป็น' },
+  { key:'one_time',  label:'ครั้งเดียว' },
+];
+
+export const COMM_STATUS = {
+  planned:  { label:'วางแผนแล้ว',    color:'#2563eb', bg:'#dbeafe', icon:'📋' },
+  done:     { label:'ดำเนินการแล้ว', color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  partial:  { label:'บางส่วน',       color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+  overdue:  { label:'เกินกำหนด',     color:'#dc2626', bg:'#fee2e2', icon:'🔴' },
+  cancelled:{ label:'ยกเลิก',        color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export async function listCommPlan() {
+  const s = await getDocs(query(collection(db, COL.commPlan), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getCommPlan(id) {
+  const d = await getDoc(doc(db, COL.commPlan, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createCommPlan(data, createdBy) {
+  return addDoc(collection(db, COL.commPlan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateCommPlan(id, data) {
+  await updateDoc(doc(db, COL.commPlan, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteCommPlan(id) {
+  await deleteDoc(doc(db, COL.commPlan, id));
 }
