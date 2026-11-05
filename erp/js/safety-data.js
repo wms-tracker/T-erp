@@ -84,6 +84,7 @@ export const COL = {
   contextIssue:     "safetyContextIssues",
   objective:        "safetySafetyObjectives",
   hazard:           "safetyHazardRegister",
+  opControl:        "safetyOperationalControls",
 };
 
 // ────────────────────────────────────────────
@@ -4267,6 +4268,69 @@ export const HAZARD_LIKELIHOOD = [
   { val:4, label:'4 - น่าจะเกิด (Likely)' },
   { val:5, label:'5 - แน่นอน (Almost certain)' },
 ];
+
+// ── Phase 79: Operational Controls Register (ISO 45001 §8.1) ────────────────
+export const OPC_PROCESS_TYPES = [
+  { key:'production',      label:'กระบวนการผลิต',           icon:'🏭', color:'#2563eb', bg:'#dbeafe' },
+  { key:'maintenance',     label:'ซ่อมบำรุง',               icon:'🔧', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'warehouse',       label:'คลังสินค้า / โลจิสติกส์', icon:'📦', color:'#059669', bg:'#ecfdf5' },
+  { key:'contractor',      label:'การจัดการผู้รับเหมา',     icon:'👷', color:'#d97706', bg:'#fef3c7' },
+  { key:'emergency',       label:'การตอบสนองเหตุฉุกเฉิน',  icon:'🚒', color:'#dc2626', bg:'#fee2e2' },
+  { key:'change_mgmt',     label:'การจัดการการเปลี่ยนแปลง',icon:'🔄', color:'#ea580c', bg:'#fff7ed' },
+  { key:'procurement',     label:'การจัดซื้อ',              icon:'🛒', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'office',          label:'งานสำนักงาน',             icon:'💼', color:'#64748b', bg:'#f1f5f9' },
+  { key:'loading',         label:'รับ-ส่งสินค้า',           icon:'🚛', color:'#9333ea', bg:'#faf5ff' },
+  { key:'chemical',        label:'การจัดการสารเคมี',        icon:'⚗️', color:'#c026d3', bg:'#fdf4ff' },
+  { key:'other',           label:'อื่นๆ',                   icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const OPC_CONTROL_TYPES = [
+  { key:'procedure',       label:'ขั้นตอนปฏิบัติ (Procedure)', icon:'📋' },
+  { key:'work_instruction',label:'วิธีปฏิบัติงาน (WI)',       icon:'📝' },
+  { key:'permit',          label:'ใบอนุญาตทำงาน (PTW)',       icon:'🔑' },
+  { key:'checklist',       label:'แบบตรวจสอบ (Checklist)',     icon:'☑️' },
+  { key:'training',        label:'การฝึกอบรม (Training)',      icon:'🎓' },
+  { key:'engineering',     label:'มาตรการทางวิศวกรรม',         icon:'🛠️' },
+  { key:'ppe',             label:'PPE / อุปกรณ์ป้องกัน',      icon:'🦺' },
+  { key:'monitoring',      label:'การเฝ้าระวัง / ตรวจวัด',   icon:'👁️' },
+  { key:'signage',         label:'ป้ายเตือน / สัญลักษณ์',    icon:'⚠️' },
+  { key:'other',           label:'อื่นๆ',                     icon:'📌' },
+];
+
+export const OPC_VERIFY_FREQ = [
+  { key:'daily',     label:'ทุกวัน' },
+  { key:'weekly',    label:'ทุกสัปดาห์' },
+  { key:'monthly',   label:'ทุกเดือน' },
+  { key:'quarterly', label:'ทุกไตรมาส' },
+  { key:'biannual',  label:'ทุก 6 เดือน' },
+  { key:'annually',  label:'ทุกปี' },
+  { key:'per_task',  label:'ทุกครั้งที่ทำงาน' },
+];
+
+export const OPC_STATUS = {
+  active:        { label:'ใช้งาน',          color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  review:        { label:'อยู่ระหว่างทบทวน', color:'#2563eb', bg:'#dbeafe', icon:'🔄' },
+  update_needed: { label:'ต้องปรับปรุง',    color:'#d97706', bg:'#fef3c7', icon:'⚠️' },
+  suspended:     { label:'ระงับชั่วคราว',   color:'#dc2626', bg:'#fee2e2', icon:'🚫' },
+};
+
+export async function listOpControls() {
+  const s = await getDocs(query(collection(db, COL.opControl), orderBy('createdAt','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getOpControl(id) {
+  const d = await getDoc(doc(db, COL.opControl, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createOpControl(data, createdBy) {
+  return addDoc(collection(db, COL.opControl), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateOpControl(id, data) {
+  await updateDoc(doc(db, COL.opControl, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteOpControl(id) {
+  await deleteDoc(doc(db, COL.opControl, id));
+}
 
 export async function listHazards() {
   const s = await getDocs(query(collection(db, COL.hazard), orderBy('createdAt','desc'), limit(500)));

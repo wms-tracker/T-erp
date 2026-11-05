@@ -216,7 +216,8 @@ const NAV = {
       { key: 'safety-lessons',      label: 'บทเรียนที่ได้รับ (Lessons Learned)', href: 'safety-lessons.html' },
       { key: 'safety-context',      label: 'บริบทและประเด็น (§4.1)',      href: 'safety-context.html' },
       { key: 'safety-objectives',    label: 'วัตถุประสงค์และเป้าหมาย (§6.2)', href: 'safety-objectives.html' },
-      { key: 'safety-hazard-register', label: 'ทะเบียนอันตราย (§6.1.2)',   href: 'safety-hazard-register.html' },
+      { key: 'safety-hazard-register', label: 'ทะเบียนอันตราย (§6.1.2)',      href: 'safety-hazard-register.html' },
+      { key: 'safety-op-controls',    label: 'การควบคุมการปฏิบัติงาน (§8.1)', href: 'safety-op-controls.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -304,7 +305,8 @@ const NAV = {
       { key: 'safety-lessons',      label: 'บทเรียนที่ได้รับ (Lessons Learned)', href: 'safety-lessons.html' },
       { key: 'safety-context',      label: 'บริบทและประเด็น (§4.1)',      href: 'safety-context.html' },
       { key: 'safety-objectives',    label: 'วัตถุประสงค์และเป้าหมาย (§6.2)', href: 'safety-objectives.html' },
-      { key: 'safety-hazard-register', label: 'ทะเบียนอันตราย (§6.1.2)',   href: 'safety-hazard-register.html' },
+      { key: 'safety-hazard-register', label: 'ทะเบียนอันตราย (§6.1.2)',      href: 'safety-hazard-register.html' },
+      { key: 'safety-op-controls',    label: 'การควบคุมการปฏิบัติงาน (§8.1)', href: 'safety-op-controls.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -482,6 +484,7 @@ const PAGE_DEPARTMENT = {
   "safety-context.html":           "safety_officer",
   "safety-objectives.html":        "safety_officer",
   "safety-hazard-register.html":   "safety_officer",
+  "safety-op-controls.html":       "safety_officer",
 };
 
 // ===================================================================
