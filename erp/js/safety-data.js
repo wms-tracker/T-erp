@@ -87,6 +87,7 @@ export const COL = {
   opControl:        "safetyOperationalControls",
   monitorProg:      "safetyMonitorProgram",
   campaign:         "safetyCampaigns",
+  safetyRule:       "safetySafetyRules",
 };
 
 // ────────────────────────────────────────────
@@ -4403,6 +4404,62 @@ export const CAMPAIGN_TARGET = [
   { key:'new_emp',     label:'พนักงานใหม่' },
   { key:'other',       label:'อื่นๆ' },
 ];
+
+// ── Phase 82: Safety Rules Register (กฎความปลอดภัย / Golden Rules) ──────────
+export const RULE_LEVELS = {
+  golden:      { label:'Golden Rule (กฎเหล็ก)',    color:'#b45309', bg:'#fef3c7', icon:'🏆', desc:'ฝ่าฝืนแล้วอาจถึงแก่ชีวิตหรือบาดเจ็บสาหัส — ห้ามทำโดยเด็ดขาด' },
+  mandatory:   { label:'กฎบังคับ (Mandatory)',     color:'#dc2626', bg:'#fee2e2', icon:'🚫', desc:'ข้อปฏิบัติที่บังคับ — ฝ่าฝืนมีผลทางวินัยทันที' },
+  standard:    { label:'มาตรฐาน (Standard)',        color:'#2563eb', bg:'#dbeafe', icon:'📋', desc:'ข้อปฏิบัติมาตรฐาน — ต้องปฏิบัติตามในสถานการณ์ที่เกี่ยวข้อง' },
+  recommended: { label:'แนะนำ (Recommended)',      color:'#16a34a', bg:'#dcfce7', icon:'💡', desc:'แนวปฏิบัติที่ดี — ควรปฏิบัติตามเพื่อความปลอดภัยที่ดีกว่า' },
+};
+
+export const RULE_CATEGORIES = [
+  { key:'general',     label:'ทั่วไป',                     icon:'🦺', color:'#2563eb', bg:'#dbeafe' },
+  { key:'ppe',         label:'การใช้ PPE',                 icon:'⛑️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'electrical',  label:'ไฟฟ้า / LOTO',              icon:'⚡', color:'#d97706', bg:'#fef3c7' },
+  { key:'fire',        label:'อัคคีภัย',                   icon:'🔥', color:'#ea580c', bg:'#fff7ed' },
+  { key:'chemical',    label:'สารเคมี',                    icon:'⚗️', color:'#c026d3', bg:'#fdf4ff' },
+  { key:'height',      label:'งานบนที่สูง',                icon:'🪜', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'mechanical',  label:'เครื่องจักร / อุปกรณ์',    icon:'⚙️', color:'#64748b', bg:'#f1f5f9' },
+  { key:'confined',    label:'พื้นที่อับอากาศ',           icon:'🕳️', color:'#9333ea', bg:'#faf5ff' },
+  { key:'traffic',     label:'การจราจร / ยานพาหนะ',      icon:'🚗', color:'#059669', bg:'#ecfdf5' },
+  { key:'emergency',   label:'เหตุฉุกเฉิน',               icon:'🚒', color:'#dc2626', bg:'#fee2e2' },
+  { key:'housekeeping',label:'5ส / สภาพแวดล้อม',          icon:'🧹', color:'#16a34a', bg:'#dcfce7' },
+  { key:'other',       label:'อื่นๆ',                     icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const RULE_STATUS = {
+  active:  { label:'ใช้งาน',          color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  review:  { label:'อยู่ระหว่างทบทวน', color:'#d97706', bg:'#fef3c7', icon:'🔄' },
+  obsolete:{ label:'ยกเลิกแล้ว',      color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export const RULE_CONSEQUENCE = [
+  { key:'verbal',      label:'ตักเตือนด้วยวาจา' },
+  { key:'written',     label:'ตักเตือนเป็นลายลักษณ์อักษร' },
+  { key:'suspend',     label:'พักงานชั่วคราว' },
+  { key:'terminate',   label:'เลิกจ้างทันที' },
+  { key:'stop_work',   label:'หยุดงานทันที (Stop Work)' },
+  { key:'retrain',     label:'ฝึกอบรมซ้ำก่อนกลับทำงาน' },
+];
+
+export async function listSafetyRules() {
+  const s = await getDocs(query(collection(db, COL.safetyRule), orderBy('createdAt','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getSafetyRule(id) {
+  const d = await getDoc(doc(db, COL.safetyRule, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createSafetyRule(data, createdBy) {
+  return addDoc(collection(db, COL.safetyRule), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateSafetyRule(id, data) {
+  await updateDoc(doc(db, COL.safetyRule, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteSafetyRule(id) {
+  await deleteDoc(doc(db, COL.safetyRule, id));
+}
 
 export async function listCampaigns() {
   const s = await getDocs(query(collection(db, COL.campaign), orderBy('createdAt','desc'), limit(300)));

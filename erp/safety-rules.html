@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ทะเบียนกฎความปลอดภัย (Golden Rules)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi-card{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+.kpi-card .kpi-val{font-size:1.6rem;font-weight:700;line-height:1.1}
+.kpi-card .kpi-lbl{font-size:.72rem;color:#64748b;margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff;min-width:140px}
+.view-btns{display:flex;gap:4px;margin-left:auto}
+.view-btn{padding:6px 14px;border:1px solid #d1d5db;border-radius:7px;background:#fff;cursor:pointer;font-size:.82rem;color:#374151}
+.view-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
+/* grouped view */
+.level-section{margin-bottom:24px}
+.level-header{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:10px;margin-bottom:12px;cursor:pointer}
+.level-header .lh-icon{font-size:1.5rem}
+.level-header .lh-title{font-weight:700;font-size:1rem}
+.level-header .lh-count{margin-left:auto;font-size:.82rem;opacity:.8}
+.rule-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.rule-card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.rule-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.12)}
+.rule-card-banner{padding:10px 14px;display:flex;align-items:center;gap:8px}
+.rule-card-banner .rc-icon{font-size:1.3rem}
+.rule-card-banner .rc-level{font-size:.75rem;font-weight:700;opacity:.85}
+.rule-card-banner .rc-num{margin-left:auto;font-size:.75rem;opacity:.7;font-family:monospace}
+.rule-card-body{padding:12px 14px}
+.rule-card-body .rc-title{font-weight:700;font-size:.92rem;margin-bottom:6px;color:#1e293b}
+.rule-card-body .rc-cat{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;padding:2px 8px;border-radius:12px;margin-bottom:8px}
+.rule-card-body .rc-dos,.rule-card-body .rc-donts{font-size:.78rem;color:#475569;margin-top:4px}
+.rule-card-body .rc-dos strong,.rule-card-body .rc-donts strong{color:#1e293b}
+.rule-card-footer{padding:8px 14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* table view */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+.action-btn{padding:4px 10px;border:none;border-radius:6px;cursor:pointer;font-size:.75rem}
+.btn-edit{background:#dbeafe;color:#1e40af}
+.btn-del{background:#fee2e2;color:#dc2626}
+/* panel */
+.panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s}
+.panel-overlay.open{opacity:1;pointer-events:all}
+.slide-panel{position:fixed;right:0;top:0;bottom:0;width:min(600px,100vw);background:#fff;z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease;box-shadow:-4px 0 24px rgba(0,0,0,.15)}
+.slide-panel.open{transform:none}
+.panel-head{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700;flex:1}
+.panel-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:70px}
+.level-cards{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px}
+.level-opt{padding:10px 12px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:.15s}
+.level-opt:hover{border-color:#94a3b8}
+.level-opt.selected{border-color:var(--lc)!important}
+.level-opt .lo-icon{font-size:1.3rem}
+.level-opt .lo-label{font-size:.78rem;font-weight:700;margin-top:2px}
+.level-opt .lo-desc{font-size:.7rem;color:#64748b;margin-top:2px;line-height:1.3}
+.area-checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.area-check{display:flex;align-items:center;gap:4px;font-size:.78rem;padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;user-select:none}
+.area-check input{accent-color:#1e40af}
+.panel-foot{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:#fff}
+.btn{padding:8px 18px;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-secondary{background:#f1f5f9;color:#374151}
+.btn-danger{background:#dc2626;color:#fff}
+.add-btn{padding:8px 16px;background:#1e40af;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:.85rem;font-weight:600}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  RULE_LEVELS, RULE_CATEGORIES, RULE_STATUS, RULE_CONSEQUENCE,
+  listSafetyRules, createSafetyRule, updateSafetyRule, deleteSafetyRule
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-rules', 'ทะเบียนกฎความปลอดภัย (Golden Rules)');
+
+const WORK_AREAS = [
+  'โรงงาน/การผลิต','คลังสินค้า','สำนักงาน','ลานจอดรถ','พื้นที่ก่อสร้าง',
+  'ห้องแล็บ','พื้นที่อับอากาศ','พื้นที่สูง','ห้องไฟฟ้า','ห้องสารเคมี',
+  'ทั่วทั้งองค์กร'
+];
+
+let allRules = [];
+let editId = null;
+let curView = 'grouped';
+let filterLevel = '', filterCat = '', filterStatus = '', filterText = '';
+
+function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
+
+function kpis(){
+  const total = allRules.length;
+  const counts = {};
+  for(const k of Object.keys(RULE_LEVELS)) counts[k]=0;
+  let active=0;
+  for(const r of allRules){
+    if(counts[r.level]!==undefined) counts[r.level]++;
+    if(r.status==='active') active++;
+  }
+  return `
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">กฎทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.golden.color}">${counts.golden}</div><div class="kpi-lbl">🏆 Golden Rules</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.mandatory.color}">${counts.mandatory}</div><div class="kpi-lbl">🚫 กฎบังคับ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.standard.color}">${counts.standard}</div><div class="kpi-lbl">📋 มาตรฐาน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.recommended.color}">${counts.recommended}</div><div class="kpi-lbl">💡 แนะนำ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${active}</div><div class="kpi-lbl">ใช้งานอยู่</div></div>
+  </div>`;
+}
+
+function filtered(){
+  return allRules.filter(r=>{
+    if(filterLevel && r.level!==filterLevel) return false;
+    if(filterCat && r.category!==filterCat) return false;
+    if(filterStatus && r.status!==filterStatus) return false;
+    if(filterText){
+      const q=filterText.toLowerCase();
+      if(!(r.title||'').toLowerCase().includes(q) && !(r.ruleCode||'').toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function catInfo(key){ return RULE_CATEGORIES.find(c=>c.key===key)||{label:key,icon:'📌',color:'#6b7280',bg:'#f3f4f6'}; }
+
+function ruleCard(r){
+  const lv = RULE_LEVELS[r.level]||RULE_LEVELS.standard;
+  const cat = catInfo(r.category);
+  const st = RULE_STATUS[r.status]||RULE_STATUS.active;
+  const dos = (r.dos||'').split('\n').filter(Boolean).slice(0,2).map(d=>`• ${d}`).join('<br>');
+  const donts = (r.donts||'').split('\n').filter(Boolean).slice(0,2).map(d=>`• ${d}`).join('<br>');
+  return `
+  <div class="rule-card" onclick="window.__editRule('${r.id}')">
+    <div class="rule-card-banner" style="background:${lv.bg}">
+      <span class="rc-icon">${lv.icon}</span>
+      <span class="rc-level" style="color:${lv.color}">${lv.label}</span>
+      <span class="rc-num">${r.ruleCode||''}</span>
+    </div>
+    <div class="rule-card-body">
+      <div class="rc-title">${r.title||'(ไม่มีชื่อ)'}</div>
+      <div class="rc-cat" style="color:${cat.color};background:${cat.bg}">${cat.icon} ${cat.label}</div>
+      ${dos?`<div class="rc-dos"><strong>✅ ต้องทำ:</strong><br>${dos}</div>`:''}
+      ${donts?`<div class="rc-donts" style="margin-top:4px"><strong>❌ ห้ามทำ:</strong><br>${donts}</div>`:''}
+    </div>
+    <div class="rule-card-footer">
+      ${badge(st)}
+      ${r.reviewDate?`<span style="font-size:.72rem;color:#64748b">ทบทวน: ${r.reviewDate}</span>`:''}
+    </div>
+  </div>`;
+}
+
+function groupedView(){
+  const data = filtered();
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
+  const order = ['golden','mandatory','standard','recommended'];
+  let html='';
+  for(const lk of order){
+    const lv = RULE_LEVELS[lk];
+    const rows = data.filter(r=>r.level===lk);
+    if(!rows.length) continue;
+    html+=`<div class="level-section">
+      <div class="level-header" style="background:${lv.bg}" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
+        <span class="lh-icon">${lv.icon}</span>
+        <span class="lh-title" style="color:${lv.color}">${lv.label}</span>
+        <span class="lh-count" style="color:${lv.color}">${rows.length} กฎ</span>
+      </div>
+      <div class="rule-grid">${rows.map(ruleCard).join('')}</div>
+    </div>`;
+  }
+  return html;
+}
+
+function tableView(){
+  const data = filtered();
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
+  const rows = data.map(r=>{
+    const lv=RULE_LEVELS[r.level]||RULE_LEVELS.standard;
+    const cat=catInfo(r.category);
+    const st=RULE_STATUS[r.status]||RULE_STATUS.active;
+    const cons=(r.consequence||[]).map(c=>{const f=RULE_CONSEQUENCE.find(x=>x.key===c);return f?f.label:c;}).join(', ');
+    return `<tr>
+      <td><span class="badge" style="color:${lv.color};background:${lv.bg}">${lv.icon} ${lv.label}</span></td>
+      <td style="font-family:monospace;font-size:.78rem">${r.ruleCode||'-'}</td>
+      <td style="font-weight:600;max-width:220px">${r.title||'-'}</td>
+      <td><span class="badge" style="color:${cat.color};background:${cat.bg}">${cat.icon} ${cat.label}</span></td>
+      <td style="max-width:160px;font-size:.75rem;color:#475569">${cons||'-'}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td>${r.reviewDate||'-'}</td>
+      <td>
+        <button class="action-btn btn-edit" onclick="window.__editRule('${r.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delRule('${r.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table>
+    <thead><tr><th>ระดับ</th><th>รหัส</th><th>ชื่อกฎ</th><th>หมวดหมู่</th><th>ผลกระทบ</th><th>สถานะ</th><th>วันทบทวน</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function render(){
+  main.innerHTML = `
+  ${kpis()}
+  <div class="toolbar">
+    <input type="text" placeholder="ค้นหาชื่อ / รหัสกฎ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <select onchange="window.applyFilter('level',this.value)">
+      <option value="">ระดับทั้งหมด</option>
+      ${Object.entries(RULE_LEVELS).map(([k,v])=>`<option value="${k}" ${filterLevel===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('category',this.value)">
+      <option value="">หมวดทั้งหมด</option>
+      ${RULE_CATEGORIES.map(c=>`<option value="${c.key}" ${filterCat===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
+    </select>
+    <select onchange="window.applyFilter('status',this.value)">
+      <option value="">สถานะทั้งหมด</option>
+      ${Object.entries(RULE_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+    </select>
+    <div class="view-btns">
+      <button class="view-btn ${curView==='grouped'?'active':''}" onclick="window.setView('grouped')">จัดกลุ่ม</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
+    </div>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ เพิ่มกฎ</button>
+  </div>
+  <div id="content">${curView==='grouped'?groupedView():tableView()}</div>
+  ${panelHTML()}`;
+}
+
+function panelHTML(){
+  return `
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="slide-panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">เพิ่มกฎความปลอดภัย</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-foot">
+      ${editId?`<button class="btn btn-danger" onclick="window.__delRule('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveRule()">บันทึก</button>
+    </div>
+  </div>`;
+}
+
+function formHTML(data={}){
+  const selLevel = data.level||'mandatory';
+  const selCat = data.category||'';
+  const areas = data.workAreas||[];
+  const cons = data.consequence||[];
+
+  const levelCards = Object.entries(RULE_LEVELS).map(([k,v])=>`
+    <div class="level-opt ${selLevel===k?'selected':''}" style="--lc:${v.color};${selLevel===k?`border-color:${v.color};background:${v.bg}`:''}"
+      onclick="window.__selLevel('${k}',this)">
+      <div class="lo-icon">${v.icon}</div>
+      <div class="lo-label" style="color:${v.color}">${v.label}</div>
+      <div class="lo-desc">${v.desc}</div>
+    </div>`).join('');
+
+  const areaBoxes = WORK_AREAS.map(a=>`
+    <label class="area-check">
+      <input type="checkbox" value="${a}" ${areas.includes(a)?'checked':''} onchange="void 0"> ${a}
+    </label>`).join('');
+
+  const consOpts = RULE_CONSEQUENCE.map(c=>`
+    <option value="${c.key}" ${cons.includes(c.key)?'selected':''}>${c.label}</option>`).join('');
+
+  return `
+  <input type="hidden" id="f-level" value="${selLevel}">
+  <div class="form-row full"><div class="form-group">
+    <label>ระดับกฎ *</label>
+    <div class="level-cards">${levelCards}</div>
+  </div></div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>รหัสกฎ / Rule Code</label>
+      <input id="f-ruleCode" value="${data.ruleCode||''}" placeholder="เช่น GR-001, MR-005">
+    </div>
+    <div class="form-group">
+      <label>หมวดหมู่ *</label>
+      <select id="f-category">
+        <option value="">-- เลือกหมวดหมู่ --</option>
+        ${RULE_CATEGORIES.map(c=>`<option value="${c.key}" ${selCat===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
+      </select>
+    </div>
+  </div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>ชื่อกฎ / ข้อบังคับ *</label>
+    <input id="f-title" value="${data.title||''}" placeholder="ระบุชื่อกฎที่ชัดเจน">
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>✅ สิ่งที่ต้องปฏิบัติ (Do's)</label>
+    <textarea id="f-dos" placeholder="แต่ละข้อขึ้นบรรทัดใหม่">${data.dos||''}</textarea>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>❌ สิ่งที่ห้ามปฏิบัติ (Don'ts)</label>
+    <textarea id="f-donts" placeholder="แต่ละข้อขึ้นบรรทัดใหม่">${data.donts||''}</textarea>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>เหตุผล / เหตุผลที่ต้องมีกฎนี้</label>
+    <textarea id="f-rationale" placeholder="อธิบายเหตุผลและความสำคัญ">${data.rationale||''}</textarea>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>พื้นที่ที่ใช้บังคับ</label>
+    <div class="area-checks" id="f-areas">${areaBoxes}</div>
+  </div></div>
+
+  <div class="form-row full"><div class="form-group">
+    <label>ผลที่ตามมาหากฝ่าฝืน (เลือกได้หลายข้อ)</label>
+    <select id="f-consequence" multiple style="min-height:100px">
+      ${consOpts}
+    </select>
+  </div></div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>เอกสารอ้างอิง</label>
+      <input id="f-reference" value="${data.reference||''}" placeholder="เช่น ISO 45001 §8.1">
+    </div>
+    <div class="form-group">
+      <label>ผู้รับผิดชอบ</label>
+      <input id="f-responsible" value="${data.responsible||''}">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>วันที่มีผลบังคับใช้</label>
+      <input type="date" id="f-effectiveDate" value="${data.effectiveDate||''}">
+    </div>
+    <div class="form-group">
+      <label>วันทบทวนครั้งถัดไป</label>
+      <input type="date" id="f-reviewDate" value="${data.reviewDate||''}">
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>สถานะ</label>
+      <select id="f-status">
+        ${Object.entries(RULE_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'active')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>หมายเหตุ</label>
+      <input id="f-notes" value="${data.notes||''}">
+    </div>
+  </div>`;
+}
+
+window.__selLevel = (key, el) => {
+  document.getElementById('f-level').value = key;
+  el.closest('.level-cards').querySelectorAll('.level-opt').forEach(e=>e.classList.remove('selected'));
+  const lv = RULE_LEVELS[key];
+  el.classList.add('selected');
+  el.style.borderColor = lv.color;
+  el.style.background = lv.bg;
+  el.closest('.level-cards').querySelectorAll('.level-opt:not(.selected)').forEach(e=>{e.style.borderColor='';e.style.background='';});
+};
+
+window.__openPanel = (id) => {
+  editId = id;
+  const data = id ? allRules.find(r=>r.id===id)||{} : {};
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขกฎความปลอดภัย' : 'เพิ่มกฎความปลอดภัย';
+  document.getElementById('panel-body').innerHTML = formHTML(data);
+  document.getElementById('panel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+};
+
+window.__closePanel = () => {
+  editId = null;
+  document.getElementById('panel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+};
+
+window.__editRule = (id) => window.__openPanel(id);
+
+window.__delRule = async (id) => {
+  if(!confirm('ยืนยันการลบกฎนี้?')) return;
+  await deleteSafetyRule(id);
+  allRules = allRules.filter(r=>r.id!==id);
+  window.__closePanel();
+  render();
+};
+
+window.__saveRule = async () => {
+  const level = document.getElementById('f-level').value;
+  const title = document.getElementById('f-title').value.trim();
+  const category = document.getElementById('f-category').value;
+  if(!title){ alert('กรุณาระบุชื่อกฎ'); return; }
+  if(!category){ alert('กรุณาเลือกหมวดหมู่'); return; }
+
+  const checkedAreas = [...document.querySelectorAll('#f-areas input:checked')].map(e=>e.value);
+  const selOptions = [...document.getElementById('f-consequence').selectedOptions].map(o=>o.value);
+
+  const data = {
+    level, title, category,
+    ruleCode: document.getElementById('f-ruleCode').value.trim(),
+    dos: document.getElementById('f-dos').value.trim(),
+    donts: document.getElementById('f-donts').value.trim(),
+    rationale: document.getElementById('f-rationale').value.trim(),
+    workAreas: checkedAreas,
+    consequence: selOptions,
+    reference: document.getElementById('f-reference').value.trim(),
+    responsible: document.getElementById('f-responsible').value.trim(),
+    effectiveDate: document.getElementById('f-effectiveDate').value,
+    reviewDate: document.getElementById('f-reviewDate').value,
+    status: document.getElementById('f-status').value,
+    notes: document.getElementById('f-notes').value.trim(),
+  };
+
+  if(editId){
+    await updateSafetyRule(editId, data);
+    const idx = allRules.findIndex(r=>r.id===editId);
+    if(idx>=0) allRules[idx] = {...allRules[idx],...data};
+  } else {
+    const ref = await createSafetyRule(data);
+    allRules.unshift({...data, id: ref.id});
+  }
+  window.__closePanel();
+  render();
+};
+
+window.applyFilter = (type, val) => {
+  if(type==='text') filterText=val;
+  else if(type==='level') filterLevel=val;
+  else if(type==='category') filterCat=val;
+  else if(type==='status') filterStatus=val;
+  document.getElementById('content').innerHTML = curView==='grouped'?groupedView():tableView();
+};
+
+window.setView = (v) => {
+  curView = v;
+  render();
+};
+
+allRules = await listSafetyRules();
+render();
+</script>
+</body>
+</html>
