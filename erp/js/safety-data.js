@@ -80,6 +80,7 @@ export const COL = {
   participation:    "safetyParticipation",
   improvement:      "safetyContinualImprovement",
   commPlan:         "safetyCommunicationPlan",
+  lessons:          "safetyLessonsLearned",
 };
 
 // ────────────────────────────────────────────
@@ -4041,4 +4042,49 @@ export async function updateCommPlan(id, data) {
 }
 export async function deleteCommPlan(id) {
   await deleteDoc(doc(db, COL.commPlan, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 75 — Lessons Learned Register (ทะเบียนบทเรียนที่ได้รับ)
+// ────────────────────────────────────────────
+export const LESSON_SOURCES = [
+  { key:'incident',     label:'อุบัติเหตุ / บาดเจ็บ',         icon:'🚨', color:'#dc2626', bg:'#fee2e2' },
+  { key:'near_miss',    label:'เกือบเกิดเหตุ (Near Miss)',      icon:'⚠️', color:'#d97706', bg:'#fef3c7' },
+  { key:'audit',        label:'การตรวจประเมิน (Audit)',         icon:'🔍', color:'#2563eb', bg:'#dbeafe' },
+  { key:'drill',        label:'ซ้อมแผนฉุกเฉิน',               icon:'🚒', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'inspection',   label:'การตรวจความปลอดภัย',            icon:'📋', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'capa',         label:'CAPA / ข้อบกพร่อง',            icon:'🔧', color:'#059669', bg:'#ecfdf5' },
+  { key:'external',     label:'เหตุการณ์ภายนอก / อุตสาหกรรม', icon:'🌐', color:'#9333ea', bg:'#faf5ff' },
+  { key:'regulation',   label:'การเปลี่ยนแปลงกฎหมาย',         icon:'⚖️', color:'#f59e0b', bg:'#fef9c3' },
+  { key:'other',        label:'อื่นๆ',                         icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const LESSON_STATUS = {
+  draft:       { label:'ร่าง',               color:'#9ca3af', bg:'#f3f4f6', icon:'✏️' },
+  distributed: { label:'แจกจ่ายแล้ว',        color:'#2563eb', bg:'#dbeafe', icon:'📤' },
+  implemented: { label:'นำไปปฏิบัติแล้ว',    color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+};
+
+export const LESSON_SEVERITY = {
+  high:   { label:'สูง',     color:'#dc2626', bg:'#fee2e2' },
+  medium: { label:'ปานกลาง', color:'#d97706', bg:'#fef3c7' },
+  low:    { label:'ต่ำ',     color:'#16a34a', bg:'#dcfce7' },
+};
+
+export async function listLessons() {
+  const s = await getDocs(query(collection(db, COL.lessons), orderBy('eventDate','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getLesson(id) {
+  const d = await getDoc(doc(db, COL.lessons, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createLesson(data, createdBy) {
+  return addDoc(collection(db, COL.lessons), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateLesson(id, data) {
+  await updateDoc(doc(db, COL.lessons, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteLesson(id) {
+  await deleteDoc(doc(db, COL.lessons, id));
 }

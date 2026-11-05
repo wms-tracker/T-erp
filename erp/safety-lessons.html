@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>บทเรียนที่ได้รับ</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#7c3aed;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* card view */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.lesson-card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden;cursor:pointer;transition:box-shadow .15s}
+.lesson-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.card-top{padding:14px 16px;border-bottom:1px solid #f1f5f9}
+.card-title{font-size:.9rem;font-weight:700;margin-bottom:6px}
+.card-body{padding:12px 16px;font-size:.82rem;color:#475569}
+.card-body .row{display:flex;gap:8px;margin-bottom:4px}
+.card-body .label{color:#9ca3af;min-width:80px;font-size:.78rem}
+/* table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.src-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
+/* panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:80px}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.dept-tag{display:inline-block;padding:2px 7px;background:#f1f5f9;border-radius:4px;font-size:.74rem;margin:2px;color:#475569}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  LESSON_SOURCES, LESSON_STATUS, LESSON_SEVERITY,
+  listLessons, getLesson, createLesson, updateLesson, deleteLesson,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-lessons', 'บทเรียนที่ได้รับ (Lessons Learned)');
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'card';
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total  = recs.length;
+  const draft  = recs.filter(r=>r.status==='draft').length;
+  const dist   = recs.filter(r=>r.status==='distributed').length;
+  const impl   = recs.filter(r=>r.status==='implemented').length;
+  const high   = recs.filter(r=>r.severity==='high').length;
+  const srcMap = {};
+  recs.forEach(r=>{ srcMap[r.source]=(srcMap[r.source]||0)+1; });
+  const topSrc = Object.entries(srcMap).sort((a,b)=>b[1]-a[1])[0];
+  const topLabel = topSrc ? (LESSON_SOURCES.find(s=>s.key===topSrc[0])?.label||topSrc[0]) : '—';
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">บทเรียนทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${draft}</div><div class="lbl">✏️ ร่าง</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${dist}</div><div class="lbl">📤 แจกจ่ายแล้ว</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${impl}</div><div class="lbl">✅ นำไปปฏิบัติ</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">🔴 ความสำคัญสูง</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed;font-size:.82rem">${topLabel}</div><div class="lbl">แหล่งที่มาหลัก</div></div>
+  </div>`;
+}
+
+// ── Card view ──
+function renderCards(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📖</div><p>ยังไม่มีบทเรียน</p></div>`;
+  return `<div class="card-grid">${recs.map(r => {
+    const src = LESSON_SOURCES.find(s=>s.key===r.source)||{icon:'📌',label:'—',color:'#6b7280',bg:'#f3f4f6'};
+    const st  = LESSON_STATUS[r.status]||LESSON_STATUS.draft;
+    const sev = LESSON_SEVERITY[r.severity]||LESSON_SEVERITY.medium;
+    const depts = (r.departments||'').split(',').map(d=>d.trim()).filter(Boolean);
+    return `<div class="lesson-card" onclick="window.__editLesson('${r.id}')">
+      <div class="card-top" style="border-left:4px solid ${sev.color}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <span class="src-chip" style="color:${src.color};background:${src.bg}">${src.icon} ${src.label}</span>
+          <span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span>
+        </div>
+        <div class="card-title">${r.title||'—'}</div>
+        <div style="font-size:.78rem;color:#6b7280">${r.eventDate||'—'}</div>
+      </div>
+      <div class="card-body">
+        <div class="row"><span class="label">บทเรียน:</span><span>${r.lesson||'—'}</span></div>
+        <div class="row"><span class="label">การป้องกัน:</span><span>${r.prevention||'—'}</span></div>
+        <div style="margin-top:6px">
+          ${depts.map(d=>`<span class="dept-tag">${d}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📖</div><p>ยังไม่มีบทเรียน</p></div>`;
+  const rows = recs.map(r => {
+    const src = LESSON_SOURCES.find(s=>s.key===r.source)||{icon:'📌',label:'—',color:'#6b7280',bg:'#f3f4f6'};
+    const st  = LESSON_STATUS[r.status]||LESSON_STATUS.draft;
+    const sev = LESSON_SEVERITY[r.severity]||LESSON_SEVERITY.medium;
+    return `<tr>
+      <td style="font-size:.82rem;white-space:nowrap">${r.eventDate||'—'}</td>
+      <td><span class="src-chip" style="color:${src.color};background:${src.bg}">${src.icon} ${src.label}</span></td>
+      <td><strong style="font-size:.85rem">${r.title||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${(r.lesson||'').substring(0,60)}${(r.lesson||'').length>60?'…':''}</span></td>
+      <td><span class="badge" style="color:${sev.color};background:${sev.bg}">${sev.label}</span></td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td style="font-size:.82rem">${r.distDate||'—'}</td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editLesson('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteLesson('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>วันที่เกิดเหตุ</th><th>แหล่งที่มา</th><th>หัวข้อ / บทเรียน</th>
+      <th>ระดับ</th><th>ผู้รับผิดชอบ</th><th>วันที่แจกจ่าย</th><th>สถานะ</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const srcOpts = LESSON_SOURCES.map(s=>`<option value="${s.key}" ${rec?.source===s.key?'selected':''}>${s.icon} ${s.label}</option>`).join('');
+  const stOpts  = Object.entries(LESSON_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'draft')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const sevOpts = Object.entries(LESSON_SEVERITY).map(([k,v])=>`<option value="${k}" ${(rec?.severity||'medium')===k?'selected':''}>${v.label}</option>`).join('');
+  return `<form id="lesson-form" onsubmit="return false">
+    <div class="form-row one">
+      <div class="form-group"><label>หัวข้อบทเรียน *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="สรุปบทเรียนในหนึ่งประโยค"/></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>วันที่เกิดเหตุ *</label>
+        <input id="f-eventDate" type="date" value="${rec?.eventDate||''}"/></div>
+      <div class="form-group"><label>แหล่งที่มา</label>
+        <select id="f-source">${srcOpts}</select></div>
+      <div class="form-group"><label>ระดับความสำคัญ</label>
+        <select id="f-severity">${sevOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>รายละเอียดเหตุการณ์ / ที่มา</label>
+        <textarea id="f-event" rows="3" placeholder="อธิบายเหตุการณ์ที่เกิดขึ้น หรือที่มาของบทเรียน">${rec?.event||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>สาเหตุหลัก (Root Cause)</label>
+        <textarea id="f-rootCause" rows="2" placeholder="สาเหตุที่แท้จริงที่ทำให้เกิดเหตุการณ์">${rec?.rootCause||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>บทเรียนที่ได้รับ *</label>
+        <textarea id="f-lesson" rows="3" placeholder="สิ่งที่เรียนรู้ได้จากเหตุการณ์นี้ เพื่อป้องกันการเกิดซ้ำ">${rec?.lesson||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>มาตรการป้องกันการเกิดซ้ำ</label>
+        <textarea id="f-prevention" rows="2" placeholder="สิ่งที่ต้องทำเพื่อป้องกันไม่ให้เกิดซ้ำ">${rec?.prevention||''}</textarea></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / ตำแหน่ง"/></div>
+      <div class="form-group"><label>วันที่แจกจ่าย</label>
+        <input id="f-distDate" type="date" value="${rec?.distDate||''}"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>แผนก / ส่วนงานที่แจกจ่าย (คั่นด้วยจุลภาค)</label>
+        <input id="f-departments" value="${rec?.departments||''}" placeholder="เช่น ผลิต, QC, คลังสินค้า, ทุกแผนก"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>วิธีการสื่อสาร / เผยแพร่</label>
+        <input id="f-commMethod" value="${rec?.commMethod||''}" placeholder="เช่น Toolbox Talk, Email, บอร์ดประกาศ"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>สถานะ</label>
+        <select id="f-status">${stOpts}</select></div>
+      <div class="form-group"><label>อ้างอิง (เลขที่ใบ CAPA / เหตุการณ์)</label>
+        <input id="f-reference" value="${rec?.reference||''}" placeholder="เลขอ้างอิง"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveLesson()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+window.__newLesson  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มบทเรียน'); };
+window.__editLesson = async id => {
+  editId = id;
+  const r = await getLesson(id);
+  openPanel(renderForm(r), '✏️ แก้ไขบทเรียน');
+};
+
+// ── Save ──
+window.__saveLesson = async () => {
+  const data = {
+    title:       document.getElementById('f-title').value.trim(),
+    eventDate:   document.getElementById('f-eventDate').value,
+    source:      document.getElementById('f-source').value,
+    severity:    document.getElementById('f-severity').value,
+    event:       document.getElementById('f-event').value.trim(),
+    rootCause:   document.getElementById('f-rootCause').value.trim(),
+    lesson:      document.getElementById('f-lesson').value.trim(),
+    prevention:  document.getElementById('f-prevention').value.trim(),
+    responsible: document.getElementById('f-responsible').value.trim(),
+    distDate:    document.getElementById('f-distDate').value,
+    departments: document.getElementById('f-departments').value.trim(),
+    commMethod:  document.getElementById('f-commMethod').value.trim(),
+    status:      document.getElementById('f-status').value,
+    reference:   document.getElementById('f-reference').value.trim(),
+  };
+  if (!data.title)     { alert('กรุณากรอกหัวข้อบทเรียน'); return; }
+  if (!data.eventDate) { alert('กรุณาเลือกวันที่เกิดเหตุ'); return; }
+  if (!data.lesson)    { alert('กรุณากรอกบทเรียนที่ได้รับ'); return; }
+  try {
+    if (editId) await updateLesson(editId, data);
+    else        await createLesson(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteLesson = async (id, title) => {
+  if (!confirm(`ลบบทเรียน "${title}"?`)) return;
+  await deleteLesson(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const src = document.getElementById('filter-source')?.value||'';
+  const st  = document.getElementById('filter-status')?.value||'';
+  const sev = document.getElementById('filter-sev')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q   || (r.title||'').toLowerCase().includes(q) || (r.lesson||'').toLowerCase().includes(q) || (r.departments||'').toLowerCase().includes(q)) &&
+    (!src || r.source===src) &&
+    (!st  || r.status===st) &&
+    (!sev || r.severity===sev)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('content-wrap').innerHTML =
+    viewMode==='table' ? renderTable(filtered) : renderCards(filtered);
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = mode => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listLessons();
+  applyFilter();
+}
+
+// ── Build UI ──
+const srcOpts = `<option value="">-- ทุกแหล่งที่มา --</option>` +
+  LESSON_SOURCES.map(s=>`<option value="${s.key}">${s.icon} ${s.label}</option>`).join('');
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+  Object.entries(LESSON_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+const sevOpts = `<option value="">-- ทุกระดับ --</option>` +
+  Object.entries(LESSON_SEVERITY).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาหัวข้อ / บทเรียน / แผนก…" oninput="applyFilter()"/>
+      <select id="filter-source" onchange="applyFilter()">${srcOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
+      <select id="filter-sev"    onchange="applyFilter()">${sevOpts}</select>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="card"  onclick="window.__switchView('card')">🗂️ การ์ด</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newLesson()">+ เพิ่มบทเรียน</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">บทเรียนที่ได้รับ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>
