@@ -83,6 +83,7 @@ export const COL = {
   lessons:          "safetyLessonsLearned",
   contextIssue:     "safetyContextIssues",
   objective:        "safetySafetyObjectives",
+  hazard:           "safetyHazardRegister",
 };
 
 // ────────────────────────────────────────────
@@ -4203,6 +4204,86 @@ export async function updateObjective(id, data) {
 }
 export async function deleteObjective(id) {
   await deleteDoc(doc(db, COL.objective, id));
+}
+
+// ── Phase 78: Hazard Register (ISO 45001 §6.1.2) ────────────────────────────
+export const HAZARD_TYPES = [
+  { key:'physical',      label:'กายภาพ (Physical)',          icon:'⚡', color:'#d97706', bg:'#fef3c7' },
+  { key:'chemical',      label:'เคมี (Chemical)',             icon:'⚗️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'biological',    label:'ชีวภาพ (Biological)',         icon:'🦠', color:'#16a34a', bg:'#dcfce7' },
+  { key:'ergonomic',     label:'การยศาสตร์ (Ergonomic)',      icon:'🪑', color:'#2563eb', bg:'#dbeafe' },
+  { key:'psychological', label:'จิตวิทยา (Psychological)',    icon:'🧠', color:'#ec4899', bg:'#fdf2f8' },
+  { key:'electrical',    label:'ไฟฟ้า (Electrical)',          icon:'🔌', color:'#f59e0b', bg:'#fef9c3' },
+  { key:'fire',          label:'อัคคีภัย (Fire)',             icon:'🔥', color:'#ea580c', bg:'#fff7ed' },
+  { key:'mechanical',    label:'เครื่องกล (Mechanical)',      icon:'⚙️', color:'#64748b', bg:'#f1f5f9' },
+  { key:'radiation',     label:'รังสี (Radiation)',           icon:'☢️', color:'#dc2626', bg:'#fee2e2' },
+  { key:'fall',          label:'ตกจากที่สูง (Fall)',          icon:'📉', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'confined',      label:'พื้นที่อับอากาศ (Confined)',  icon:'🕳️', color:'#9333ea', bg:'#faf5ff' },
+  { key:'other',         label:'อื่นๆ',                       icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const HAZARD_AREAS = [
+  { key:'production',   label:'พื้นที่ผลิต' },
+  { key:'warehouse',    label:'คลังสินค้า' },
+  { key:'maintenance',  label:'ซ่อมบำรุง' },
+  { key:'office',       label:'สำนักงาน' },
+  { key:'loading',      label:'จุดรับ-ส่งสินค้า' },
+  { key:'outdoor',      label:'พื้นที่ภายนอกอาคาร' },
+  { key:'lab',          label:'ห้องปฏิบัติการ' },
+  { key:'canteen',      label:'โรงอาหาร' },
+  { key:'utility',      label:'ห้องสาธารณูปโภค' },
+  { key:'all',          label:'ทั้งโรงงาน' },
+  { key:'other',        label:'อื่นๆ' },
+];
+
+export const HAZARD_CONTROL_HIERARCHY = [
+  { key:'elimination',   label:'การขจัด (Elimination)',           icon:'🚫', color:'#16a34a', bg:'#dcfce7', level:1 },
+  { key:'substitution',  label:'การทดแทน (Substitution)',         icon:'🔄', color:'#059669', bg:'#ecfdf5', level:2 },
+  { key:'engineering',   label:'มาตรการทางวิศวกรรม (Engineering)',icon:'🛠️', color:'#2563eb', bg:'#dbeafe', level:3 },
+  { key:'admin',         label:'มาตรการบริหาร (Administrative)',  icon:'📋', color:'#d97706', bg:'#fef3c7', level:4 },
+  { key:'ppe',           label:'อุปกรณ์คุ้มครองส่วนบุคคล (PPE)', icon:'🦺', color:'#dc2626', bg:'#fee2e2', level:5 },
+];
+
+export const HAZARD_STATUS = {
+  identified:  { label:'บ่งชี้แล้ว',         color:'#9ca3af', bg:'#f3f4f6', icon:'🔍' },
+  assessed:    { label:'ประเมินแล้ว',         color:'#2563eb', bg:'#dbeafe', icon:'📊' },
+  controlled:  { label:'มีมาตรการควบคุม',    color:'#d97706', bg:'#fef3c7', icon:'🛡️' },
+  monitored:   { label:'กำลังติดตาม',        color:'#059669', bg:'#ecfdf5', icon:'👁️' },
+  closed:      { label:'ปิด/ไม่มีความเสี่ยง', color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+};
+
+// Risk = Severity × Likelihood (1-5 scale)
+export const HAZARD_SEVERITY = [
+  { val:1, label:'1 - เล็กน้อย (Negligible)' },
+  { val:2, label:'2 - น้อย (Minor)' },
+  { val:3, label:'3 - ปานกลาง (Moderate)' },
+  { val:4, label:'4 - สูง (Major)' },
+  { val:5, label:'5 - วิกฤต (Catastrophic)' },
+];
+export const HAZARD_LIKELIHOOD = [
+  { val:1, label:'1 - ไม่น่าจะเกิด (Rare)' },
+  { val:2, label:'2 - โอกาสน้อย (Unlikely)' },
+  { val:3, label:'3 - อาจเกิด (Possible)' },
+  { val:4, label:'4 - น่าจะเกิด (Likely)' },
+  { val:5, label:'5 - แน่นอน (Almost certain)' },
+];
+
+export async function listHazards() {
+  const s = await getDocs(query(collection(db, COL.hazard), orderBy('createdAt','desc'), limit(500)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getHazard(id) {
+  const d = await getDoc(doc(db, COL.hazard, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createHazard(data, createdBy) {
+  return addDoc(collection(db, COL.hazard), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateHazard(id, data) {
+  await updateDoc(doc(db, COL.hazard, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteHazard(id) {
+  await deleteDoc(doc(db, COL.hazard, id));
 }
 
 export async function listContextIssues() {

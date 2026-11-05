@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ทะเบียนอันตราย</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* risk matrix */
+.matrix-wrap{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:20px}
+.matrix-title{font-size:.9rem;font-weight:700;margin-bottom:14px;color:#1e293b}
+.matrix-grid{display:grid;grid-template-columns:40px repeat(5,1fr);grid-template-rows:repeat(5,1fr) 20px;gap:3px;max-width:600px}
+.matrix-cell{border-radius:5px;min-height:48px;display:flex;align-items:center;justify-content:center;font-size:.7rem;cursor:pointer;transition:filter .15s;position:relative;flex-direction:column;gap:2px}
+.matrix-cell:hover{filter:brightness(.93)}
+.matrix-cell .dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.8)}
+.matrix-axis-y{display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#6b7280;writing-mode:vertical-lr;transform:rotate(180deg)}
+.matrix-axis-x{display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#6b7280}
+/* hierarchy bar */
+.hierarchy-wrap{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:20px}
+.hier-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f1f5f9}
+.hier-row:last-child{border-bottom:none}
+.hier-level{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;flex-shrink:0}
+.hier-bar-wrap{flex:1;background:#e2e8f0;border-radius:999px;height:10px;overflow:hidden}
+.hier-bar{height:100%;border-radius:999px}
+/* table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.risk-chip{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;font-size:.85rem;font-weight:800;flex-shrink:0}
+/* panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(720px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.risk-preview{padding:12px;border-radius:8px;text-align:center;font-weight:700;font-size:.9rem;margin-top:4px;transition:all .3s}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.section-head{font-size:.85rem;font-weight:700;color:#475569;padding:12px 0 6px;border-bottom:1px solid #e2e8f0;margin-bottom:12px}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  HAZARD_TYPES, HAZARD_AREAS, HAZARD_CONTROL_HIERARCHY, HAZARD_STATUS,
+  HAZARD_SEVERITY, HAZARD_LIKELIHOOD,
+  listHazards, getHazard, createHazard, updateHazard, deleteHazard,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-hazard-register', 'ทะเบียนอันตราย (§6.1.2)');
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'matrix';
+
+function getHazardType(key) { return HAZARD_TYPES.find(t=>t.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+function getArea(key)       { return HAZARD_AREAS.find(a=>a.key===key)||{label:key||'—'}; }
+function getControl(key)    { return HAZARD_CONTROL_HIERARCHY.find(c=>c.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+
+function riskScore(r) { return (parseInt(r.severity)||1) * (parseInt(r.likelihood)||1); }
+function riskColor(score) {
+  if (score >= 15) return { color:'#7f1d1d', bg:'#fca5a5', label:'สูงมาก' };
+  if (score >= 10) return { color:'#dc2626', bg:'#fee2e2', label:'สูง' };
+  if (score >= 6)  return { color:'#d97706', bg:'#fef3c7', label:'ปานกลาง' };
+  if (score >= 3)  return { color:'#2563eb', bg:'#dbeafe', label:'ต่ำ' };
+  return { color:'#16a34a', bg:'#dcfce7', label:'ต่ำมาก' };
+}
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total  = recs.length;
+  const high   = recs.filter(r=>riskScore(r)>=10).length;
+  const medium = recs.filter(r=>{ const s=riskScore(r); return s>=6&&s<10; }).length;
+  const low    = recs.filter(r=>riskScore(r)<6).length;
+  const noCtrl = recs.filter(r=>r.status==='identified'||r.status==='assessed').length;
+  const typeCnt = [...new Set(recs.map(r=>r.hazardType))].length;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">อันตรายทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">🔴 ความเสี่ยงสูง</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${medium}</div><div class="lbl">🟡 ความเสี่ยงปานกลาง</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${low}</div><div class="lbl">🟢 ความเสี่ยงต่ำ</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${noCtrl}</div><div class="lbl">⚠️ รอมาตรการ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${typeCnt}</div><div class="lbl">ประเภทอันตราย</div></div>
+  </div>`;
+}
+
+// ── Risk Matrix ──
+function renderMatrix(recs) {
+  // 5x5 grid: x=likelihood(1-5), y=severity(5-1)
+  const cells = {};
+  recs.forEach(r => {
+    const s = parseInt(r.severity)||1;
+    const l = parseInt(r.likelihood)||1;
+    const key = `${s}_${l}`;
+    if (!cells[key]) cells[key] = [];
+    cells[key].push(r);
+  });
+
+  function cellBg(s, l) {
+    const score = s * l;
+    if (score >= 15) return '#fca5a5';
+    if (score >= 10) return '#fecaca';
+    if (score >= 6)  return '#fef3c7';
+    if (score >= 3)  return '#dbeafe';
+    return '#dcfce7';
+  }
+  function cellTextColor(s, l) {
+    const score = s * l;
+    if (score >= 15) return '#7f1d1d';
+    if (score >= 10) return '#dc2626';
+    if (score >= 6)  return '#92400e';
+    if (score >= 3)  return '#1e40af';
+    return '#14532d';
+  }
+
+  let grid = `<div style="display:flex;gap:20px;flex-wrap:wrap">
+    <div>
+      <div class="matrix-grid">`;
+
+  for (let s = 5; s >= 1; s--) {
+    grid += `<div class="matrix-axis-y" style="font-size:.65rem">S${s}</div>`;
+    for (let l = 1; l <= 5; l++) {
+      const key = `${s}_${l}`;
+      const items = cells[key]||[];
+      const score = s * l;
+      const bg = cellBg(s, l);
+      const tc = cellTextColor(s, l);
+      grid += `<div class="matrix-cell" style="background:${bg};color:${tc}"
+        onclick="window.__filterMatrix(${s},${l})" title="S${s}×L${l}=${score} · ${items.length} รายการ">
+        <span style="font-weight:800;font-size:.8rem">${score}</span>
+        ${items.length ? `<span style="font-size:.65rem;background:rgba(0,0,0,.12);padding:1px 5px;border-radius:999px">${items.length}</span>` : ''}
+      </div>`;
+    }
+  }
+  grid += `<div></div>`;
+  for (let l = 1; l <= 5; l++) {
+    grid += `<div class="matrix-axis-x" style="font-size:.65rem">L${l}</div>`;
+  }
+  grid += `</div>
+      <div style="font-size:.72rem;color:#6b7280;margin-top:8px">
+        S=ความรุนแรง (Severity) · L=โอกาสเกิด (Likelihood) · คลิกช่องเพื่อกรอง
+      </div>
+    </div>
+    <div style="flex:1;min-width:200px">
+      <div class="section-head">ลำดับชั้นการควบคุม</div>
+      ${renderHierarchy(recs)}
+    </div>
+  </div>`;
+  return `<div class="matrix-wrap"><div class="matrix-title">🗺️ Risk Matrix (5×5)</div>${grid}</div>`;
+}
+
+function renderHierarchy(recs) {
+  const counts = {};
+  HAZARD_CONTROL_HIERARCHY.forEach(h => { counts[h.key] = 0; });
+  recs.forEach(r => {
+    (r.controlMeasures||[]).forEach(c => { if (counts[c] !== undefined) counts[c]++; });
+  });
+  const max = Math.max(...Object.values(counts), 1);
+  return HAZARD_CONTROL_HIERARCHY.map(h => {
+    const cnt = counts[h.key]||0;
+    const pct = Math.round((cnt/max)*100);
+    return `<div class="hier-row">
+      <div class="hier-level" style="background:${h.bg};color:${h.color}">${h.level}</div>
+      <div style="flex:1">
+        <div style="font-size:.8rem;font-weight:600;margin-bottom:4px">${h.icon} ${h.label}</div>
+        <div class="hier-bar-wrap"><div class="hier-bar" style="width:${pct}%;background:${h.color}"></div></div>
+      </div>
+      <div style="font-size:.8rem;font-weight:700;color:${h.color};min-width:28px;text-align:right">${cnt}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🛡️</div><p style="margin-top:12px">ยังไม่มีข้อมูลอันตราย</p></div>`;
+  const rows = recs.map(r => {
+    const ht  = getHazardType(r.hazardType);
+    const sts = HAZARD_STATUS[r.status]||HAZARD_STATUS.identified;
+    const sc  = riskScore(r);
+    const rc  = riskColor(sc);
+    const area = getArea(r.area);
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:${ht.bg};color:${ht.color}">${ht.icon} ${ht.label}</span></td>
+      <td style="font-size:.82rem">${area.label}</td>
+      <td><strong>${r.title||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${(r.activity||'').substring(0,40)}</span></td>
+      <td style="font-size:.82rem">${(r.consequence||'').substring(0,60)}</td>
+      <td style="text-align:center">
+        <div class="risk-chip" style="background:${rc.bg};color:${rc.color}">${sc}</div>
+      </td>
+      <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editHaz('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteHaz('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table><thead><tr>
+    <th>ประเภทอันตราย</th><th>พื้นที่</th><th>ชื่ออันตราย / กิจกรรม</th>
+    <th>ผลที่อาจเกิด</th><th>ความเสี่ยง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const typeOpts = HAZARD_TYPES.map(t=>`<option value="${t.key}" ${rec?.hazardType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const areaOpts = HAZARD_AREAS.map(a=>`<option value="${a.key}" ${rec?.area===a.key?'selected':''}>${a.label}</option>`).join('');
+  const stsOpts  = Object.entries(HAZARD_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'identified')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const sevOpts  = HAZARD_SEVERITY.map(s=>`<option value="${s.val}" ${(rec?.severity||1)==s.val?'selected':''}>${s.label}</option>`).join('');
+  const likOpts  = HAZARD_LIKELIHOOD.map(l=>`<option value="${l.val}" ${(rec?.likelihood||1)==l.val?'selected':''}>${l.label}</option>`).join('');
+  const ctrlBoxes = HAZARD_CONTROL_HIERARCHY.map(h=>`
+    <label style="display:flex;align-items:center;gap:6px;padding:6px;border-radius:6px;cursor:pointer;border:1px solid ${(rec?.controlMeasures||[]).includes(h.key)?h.color:'#e2e8f0'};background:${(rec?.controlMeasures||[]).includes(h.key)?h.bg:'#fff'};font-size:.82rem" id="ctrl-wrap-${h.key}">
+      <input type="checkbox" id="ctrl-${h.key}" value="${h.key}" onchange="window.__onCtrlChange()" ${(rec?.controlMeasures||[]).includes(h.key)?'checked':''}/> ${h.icon} ${h.label}
+    </label>`).join('');
+  return `<form id="haz-form" onsubmit="return false">
+    <div class="form-row">
+      <div class="form-group"><label>ประเภทอันตราย *</label><select id="f-hazardType">${typeOpts}</select></div>
+      <div class="form-group"><label>พื้นที่ / แผนก *</label><select id="f-area">${areaOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่ออันตราย *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="เช่น การทำงานบนที่สูง, สารเคมีรั่วไหล"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>กิจกรรม / งานที่เกี่ยวข้อง</label>
+        <input id="f-activity" value="${rec?.activity||''}" placeholder="เช่น งานเชื่อม, งานซ่อมบำรุงสายพาน"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>รายละเอียดอันตราย</label>
+        <textarea id="f-description" rows="2" placeholder="อธิบายอันตรายที่อาจเกิดขึ้น">${rec?.description||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ผลที่อาจเกิดขึ้น (Consequence)</label>
+        <textarea id="f-consequence" rows="2" placeholder="เช่น บาดเจ็บสาหัส, เสียชีวิต, เพลิงไหม้">${rec?.consequence||''}</textarea></div>
+    </div>
+    <div class="section-head">การประเมินความเสี่ยง</div>
+    <div class="form-row">
+      <div class="form-group"><label>ความรุนแรง (Severity)</label>
+        <select id="f-severity" onchange="window.__updateRiskPreview()">${sevOpts}</select></div>
+      <div class="form-group"><label>โอกาสเกิด (Likelihood)</label>
+        <select id="f-likelihood" onchange="window.__updateRiskPreview()">${likOpts}</select></div>
+    </div>
+    <div id="risk-preview-wrap"></div>
+    <div class="section-head" style="margin-top:16px">มาตรการควบคุม (Hierarchy of Controls)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px" id="ctrl-boxes">${ctrlBoxes}</div>
+    <div class="form-row one">
+      <div class="form-group"><label>รายละเอียดมาตรการควบคุมที่มีอยู่</label>
+        <textarea id="f-existingControls" rows="2" placeholder="ระบุมาตรการที่ใช้งานอยู่ปัจจุบัน">${rec?.existingControls||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>มาตรการที่ต้องการเพิ่มเติม</label>
+        <textarea id="f-requiredControls" rows="2" placeholder="มาตรการที่ต้องดำเนินการเพิ่มเติม">${rec?.requiredControls||''}</textarea></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>วันที่ทบทวนครั้งถัดไป</label>
+        <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveHaz()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+window.__updateRiskPreview = () => {
+  const s  = parseInt(document.getElementById('f-severity')?.value)||1;
+  const l  = parseInt(document.getElementById('f-likelihood')?.value)||1;
+  const sc = s * l;
+  const rc = riskColor(sc);
+  const wrap = document.getElementById('risk-preview-wrap');
+  if (wrap) wrap.innerHTML = `<div class="risk-preview" style="background:${rc.bg};color:${rc.color}">
+    ระดับความเสี่ยง: <span style="font-size:1.1rem">${sc}</span> — ${rc.label}
+  </div>`;
+};
+
+window.__onCtrlChange = () => {
+  HAZARD_CONTROL_HIERARCHY.forEach(h => {
+    const cb   = document.getElementById(`ctrl-${h.key}`);
+    const wrap = document.getElementById(`ctrl-wrap-${h.key}`);
+    if (cb && wrap) {
+      wrap.style.borderColor = cb.checked ? h.color : '#e2e8f0';
+      wrap.style.background  = cb.checked ? h.bg    : '#fff';
+    }
+  });
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+  window.__updateRiskPreview();
+}
+window.__newHaz  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มอันตราย'); };
+window.__editHaz = async id => {
+  editId = id;
+  const r = await getHazard(id);
+  openPanel(renderForm(r), '✏️ แก้ไขอันตราย');
+};
+
+// ── Save ──
+window.__saveHaz = async () => {
+  const controlMeasures = HAZARD_CONTROL_HIERARCHY
+    .map(h => document.getElementById(`ctrl-${h.key}`)?.checked ? h.key : null)
+    .filter(Boolean);
+  const data = {
+    hazardType:       document.getElementById('f-hazardType').value,
+    area:             document.getElementById('f-area').value,
+    title:            document.getElementById('f-title').value.trim(),
+    activity:         document.getElementById('f-activity').value.trim(),
+    description:      document.getElementById('f-description').value.trim(),
+    consequence:      document.getElementById('f-consequence').value.trim(),
+    severity:         document.getElementById('f-severity').value,
+    likelihood:       document.getElementById('f-likelihood').value,
+    controlMeasures,
+    existingControls: document.getElementById('f-existingControls').value.trim(),
+    requiredControls: document.getElementById('f-requiredControls').value.trim(),
+    status:           document.getElementById('f-status').value,
+    responsible:      document.getElementById('f-responsible').value.trim(),
+    reviewDate:       document.getElementById('f-reviewDate').value,
+    notes:            document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.title) { alert('กรุณากรอกชื่ออันตราย'); return; }
+  try {
+    if (editId) await updateHazard(editId, data);
+    else        await createHazard(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteHaz = async (id, title) => {
+  if (!confirm(`ลบ "${title}"?`)) return;
+  await deleteHazard(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Matrix filter ──
+window.__filterMatrix = (s, l) => {
+  document.getElementById('filter-sev').value = '';
+  document.getElementById('filter-lik').value = '';
+  // set text search to clear, then filter
+  const sEl = document.getElementById('filter-sev');
+  const lEl = document.getElementById('filter-lik');
+  if (sEl) sEl.value = s;
+  if (lEl) lEl.value = l;
+  applyFilter();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const tp  = document.getElementById('filter-type')?.value||'';
+  const ar  = document.getElementById('filter-area')?.value||'';
+  const sts = document.getElementById('filter-status')?.value||'';
+  const sevF = document.getElementById('filter-sev')?.value||'';
+  const likF = document.getElementById('filter-lik')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q   || (r.title||'').toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q)) &&
+    (!tp  || r.hazardType===tp) &&
+    (!ar  || r.area===ar) &&
+    (!sts || r.status===sts) &&
+    (!sevF || r.severity==sevF) &&
+    (!likF || r.likelihood==likF)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  if (viewMode==='matrix') {
+    document.getElementById('content-wrap').innerHTML = renderMatrix(filtered) + renderTable(filtered);
+  } else {
+    document.getElementById('content-wrap').innerHTML = renderTable(filtered);
+  }
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = mode => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listHazards();
+  applyFilter();
+}
+
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` + HAZARD_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const areaOpts = `<option value="">-- ทุกพื้นที่ --</option>` + HAZARD_AREAS.map(a=>`<option value="${a.key}">${a.label}</option>`).join('');
+const stsOpts  = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(HAZARD_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาอันตราย…" oninput="applyFilter()"/>
+      <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
+      <select id="filter-area"   onchange="applyFilter()">${areaOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stsOpts}</select>
+      <input id="filter-sev" type="hidden"/><input id="filter-lik" type="hidden"/>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="matrix" onclick="window.__switchView('matrix')">🗺️ Matrix</button>
+        <button class="view-btn"        data-view="table"  onclick="window.__switchView('table')">📋 ตาราง</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newHaz()">+ เพิ่มอันตราย</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">ทะเบียนอันตราย</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>
