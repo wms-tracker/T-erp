@@ -210,6 +210,7 @@ const NAV = {
       { key: 'safety-legal-comply',   label: 'ประเมินการปฏิบัติตามกฎหมาย', href: 'safety-legal-comply.html' },
       { key: 'safety-interested-party', label: 'ผู้มีส่วนได้ส่วนเสีย (§4.2)', href: 'safety-interested-party.html' },
       { key: 'safety-doc-control',   label: 'ทะเบียนควบคุมเอกสาร (§7.5)', href: 'safety-doc-control.html' },
+      { key: 'safety-participation', label: 'การมีส่วนร่วมของพนักงาน (§5.4)', href: 'safety-participation.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -291,6 +292,7 @@ const NAV = {
       { key: 'safety-legal-comply',      label: 'ประเมินการปฏิบัติตามกฎหมาย',  href: 'safety-legal-comply.html' },
       { key: 'safety-interested-party', label: 'ผู้มีส่วนได้ส่วนเสีย (§4.2)',   href: 'safety-interested-party.html' },
       { key: 'safety-doc-control',   label: 'ทะเบียนควบคุมเอกสาร (§7.5)',   href: 'safety-doc-control.html' },
+      { key: 'safety-participation', label: 'การมีส่วนร่วมของพนักงาน (§5.4)', href: 'safety-participation.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -461,6 +463,7 @@ const PAGE_DEPARTMENT = {
   "safety-legal-comply.html":      "safety_officer",
   "safety-interested-party.html":  "safety_officer",
   "safety-doc-control.html":       "safety_officer",
+  "safety-participation.html":     "safety_officer",
 };
 
 // ===================================================================

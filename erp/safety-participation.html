@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>การมีส่วนร่วมของพนักงาน</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#2563eb;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+.type-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(640px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:80px}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+.empty-state .icon{font-size:3rem;margin-bottom:12px}
+.action-list{list-style:none;padding:0;margin-top:6px}
+.action-list li{display:flex;align-items:flex-start;gap:6px;padding:4px 0;font-size:.82rem;border-bottom:1px solid #f1f5f9}
+.action-list li:last-child{border-bottom:none}
+.action-add{display:flex;gap:8px;margin-top:8px}
+.action-add input{flex:1;padding:6px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.83rem;font-family:inherit}
+.action-add button{padding:6px 12px;border:none;border-radius:7px;background:#e0f2fe;color:#0369a1;font-size:.82rem;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  PARTI_TYPES, PARTI_STATUS,
+  listParticipation, getParticipation, createParticipation, updateParticipation, deleteParticipation,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-participation', 'การมีส่วนร่วมของพนักงาน');
+
+let allRecs   = [];
+let editId    = null;
+let actions   = []; // follow-up action list
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total   = recs.length;
+  const open    = recs.filter(r=>r.status==='open').length;
+  const closed  = recs.filter(r=>r.status==='closed').length;
+  const workers = recs.reduce((s,r)=>s+(r.workerCount||0),0);
+  const issues  = recs.reduce((s,r)=>s+((r.issues||[]).length),0);
+  const typeCount = {};
+  recs.forEach(r=>{ typeCount[r.actType] = (typeCount[r.actType]||0)+1; });
+  const topType = Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0];
+  const topLabel = topType ? (PARTI_TYPES.find(t=>t.key===topType[0])?.label||topType[0]) : '—';
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">กิจกรรมทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${open}</div><div class="lbl">🔄 รอดำเนินการ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${closed}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${workers.toLocaleString()}</div><div class="lbl">👷 พนักงานเข้าร่วม (รวม)</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${issues}</div><div class="lbl">💬 ประเด็นที่หยิบยก</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed;font-size:.9rem">${topLabel}</div><div class="lbl">กิจกรรมหลัก</div></div>
+  </div>`;
+}
+
+// ── Table ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div class="icon">🤝</div><p>ยังไม่มีบันทึกกิจกรรม</p></div>`;
+  const rows = recs.map(r => {
+    const tp = PARTI_TYPES.find(t=>t.key===r.actType)||{icon:'📌',label:r.actType||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const st = PARTI_STATUS[r.status]||PARTI_STATUS.open;
+    const issueCount  = (r.issues||[]).length;
+    const actionCount = (r.followUp||[]).length;
+    const actionOpen  = (r.followUp||[]).filter(a=>!a.done).length;
+    return `<tr>
+      <td style="font-size:.82rem;white-space:nowrap">${r.activityDate||'—'}</td>
+      <td><span class="type-chip" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
+      <td><strong>${r.topic||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.location||''}</span></td>
+      <td style="text-align:center">${r.workerCount||0}</td>
+      <td style="font-size:.82rem">${r.facilitator||'—'}</td>
+      <td style="text-align:center">
+        ${issueCount ? `<span class="badge" style="color:#dc2626;background:#fee2e2">${issueCount} ประเด็น</span>` : '<span style="color:#9ca3af">—</span>'}
+      </td>
+      <td style="text-align:center">
+        ${actionCount ? `<span class="badge" style="color:${actionOpen?'#d97706':'#16a34a'};background:${actionOpen?'#fef3c7':'#dcfce7'}">${actionOpen?actionOpen+' รอ':actionCount+' เสร็จ'}</span>` : '<span style="color:#9ca3af">—</span>'}
+      </td>
+      <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editParti('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteParti('${r.id}','${(r.topic||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>วันที่</th><th>ประเภท</th><th>หัวข้อ / สถานที่</th>
+      <th style="text-align:center">ผู้เข้าร่วม</th><th>ผู้ดำเนินการ</th>
+      <th style="text-align:center">ประเด็น</th><th style="text-align:center">Follow-up</th>
+      <th>สถานะ</th><th>จัดการ</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const typeOpts = PARTI_TYPES.map(t=>`<option value="${t.key}" ${rec?.actType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const stOpts   = Object.entries(PARTI_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'open')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const issueList = (actions.filter(a=>a.kind==='issue')).map((a,i)=>
+    `<li>💬 ${a.text} <button onclick="window.__removeItem('issue',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('');
+  const actionList = (actions.filter(a=>a.kind==='action')).map((a,i)=>
+    `<li>→ ${a.text} ${a.done?'<span style="color:#16a34a">✅</span>':''} <button onclick="window.__removeItem('action',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('');
+  return `<form id="parti-form" onsubmit="return false">
+    <div class="form-row">
+      <div class="form-group"><label>วันที่กิจกรรม *</label>
+        <input id="f-date" type="date" value="${rec?.activityDate||''}"/></div>
+      <div class="form-group"><label>ประเภทกิจกรรม *</label>
+        <select id="f-actType">${typeOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หัวข้อ / เรื่องที่ปรึกษาหารือ *</label>
+        <input id="f-topic" value="${rec?.topic||''}" placeholder="หัวข้อหลักของกิจกรรม"/></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>สถานที่ / แผนก</label>
+        <input id="f-location" value="${rec?.location||''}" placeholder="เช่น โรงงาน A / ฝ่ายผลิต"/></div>
+      <div class="form-group"><label>จำนวนพนักงานเข้าร่วม</label>
+        <input id="f-workerCount" type="number" min="0" value="${rec?.workerCount||0}"/></div>
+      <div class="form-group"><label>สถานะ</label>
+        <select id="f-status">${stOpts}</select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>ผู้ดำเนินการ / วิทยากร</label>
+        <input id="f-facilitator" value="${rec?.facilitator||''}" placeholder="ชื่อ / ตำแหน่ง"/></div>
+      <div class="form-group"><label>ระยะเวลา (นาที)</label>
+        <input id="f-duration" type="number" min="0" value="${rec?.duration||''}"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>สรุปผล / มติที่ประชุม</label>
+        <textarea id="f-summary" rows="3" placeholder="สรุปสิ่งที่เกิดขึ้น มติ หรือข้อตกลงที่ได้">${rec?.summary||''}</textarea></div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>ประเด็น / ข้อกังวลที่พนักงานยกขึ้น</label>
+      <ul class="action-list" id="issue-list">${issueList||'<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีประเด็น</li>'}</ul>
+      <div class="action-add">
+        <input id="new-issue" placeholder="เพิ่มประเด็น/ข้อกังวล…"/>
+        <button onclick="window.__addItem('issue')">+ เพิ่ม</button>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>การดำเนินการติดตาม (Follow-up Actions)</label>
+      <ul class="action-list" id="action-list">${actionList||'<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีการติดตาม</li>'}</ul>
+      <div class="action-add">
+        <input id="new-action" placeholder="เพิ่ม follow-up action…"/>
+        <button onclick="window.__addItem('action')">+ เพิ่ม</button>
+      </div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveParti()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+function refreshLists() {
+  const il = document.getElementById('issue-list');
+  const al = document.getElementById('action-list');
+  if (il) il.innerHTML = actions.filter(a=>a.kind==='issue').map((a,i)=>
+    `<li>💬 ${a.text} <button onclick="window.__removeItem('issue',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('')
+    || '<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีประเด็น</li>';
+  if (al) al.innerHTML = actions.filter(a=>a.kind==='action').map((a,i)=>
+    `<li>→ ${a.text} <button onclick="window.__removeItem('action',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('')
+    || '<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีการติดตาม</li>';
+}
+
+window.__addItem = kind => {
+  const inp = document.getElementById(`new-${kind}`);
+  if (!inp?.value.trim()) return;
+  actions.push({ kind, text: inp.value.trim(), done: false });
+  inp.value = '';
+  refreshLists();
+};
+window.__removeItem = (kind, idx) => {
+  const ofKind = actions.filter(a=>a.kind===kind);
+  const item = ofKind[idx];
+  actions = actions.filter(a=>a!==item);
+  refreshLists();
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+
+window.__newParti = () => { editId = null; actions = []; openPanel(renderForm(null), '+ เพิ่มบันทึกกิจกรรม'); };
+window.__editParti = async id => {
+  editId = id;
+  const r = await getParticipation(id);
+  actions = [
+    ...(r.issues||[]).map(t=>({ kind:'issue',  text:t, done:false })),
+    ...(r.followUp||[]).map(a=>({ kind:'action', text:a.text||a, done:!!a.done })),
+  ];
+  openPanel(renderForm(r), '✏️ แก้ไขบันทึกกิจกรรม');
+};
+
+// ── Save ──
+window.__saveParti = async () => {
+  const data = {
+    activityDate: document.getElementById('f-date').value,
+    actType:      document.getElementById('f-actType').value,
+    topic:        document.getElementById('f-topic').value.trim(),
+    location:     document.getElementById('f-location').value.trim(),
+    workerCount:  Number(document.getElementById('f-workerCount').value||0),
+    status:       document.getElementById('f-status').value,
+    facilitator:  document.getElementById('f-facilitator').value.trim(),
+    duration:     Number(document.getElementById('f-duration').value||0),
+    summary:      document.getElementById('f-summary').value.trim(),
+    notes:        document.getElementById('f-notes').value.trim(),
+    issues:   actions.filter(a=>a.kind==='issue').map(a=>a.text),
+    followUp: actions.filter(a=>a.kind==='action').map(a=>({ text:a.text, done:a.done })),
+  };
+  if (!data.activityDate) { alert('กรุณาเลือกวันที่กิจกรรม'); return; }
+  if (!data.topic)        { alert('กรุณากรอกหัวข้อกิจกรรม'); return; }
+  try {
+    if (editId) await updateParticipation(editId, data);
+    else        await createParticipation(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteParti = async (id, topic) => {
+  if (!confirm(`ลบบันทึก "${topic}"?`)) return;
+  await deleteParticipation(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q  = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const tp = document.getElementById('filter-type')?.value||'';
+  const st = document.getElementById('filter-status')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.topic||'').toLowerCase().includes(q) || (r.facilitator||'').toLowerCase().includes(q) || (r.location||'').toLowerCase().includes(q)) &&
+    (!tp || r.actType===tp) &&
+    (!st || r.status===st)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  document.getElementById('content-wrap').innerHTML = renderTable(filtered);
+}
+window.applyFilter = applyFilter;
+
+async function loadData() {
+  allRecs = await listParticipation();
+  applyFilter();
+}
+
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
+  PARTI_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+  Object.entries(PARTI_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาหัวข้อ / ผู้ดำเนินการ…" oninput="applyFilter()"/>
+      <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
+      <button class="btn btn-primary" onclick="window.__newParti()">+ เพิ่มบันทึก</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">บันทึกการมีส่วนร่วม</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

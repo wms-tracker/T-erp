@@ -77,6 +77,7 @@ export const COL = {
   legalCompliance:  "safetyLegalCompliance",
   interestedParty:  "safetyInterestedParty",
   docControl:       "safetyDocControl",
+  participation:    "safetyParticipation",
 };
 
 // ────────────────────────────────────────────
@@ -3878,4 +3879,42 @@ export async function updateDocControl(id, data) {
 }
 export async function deleteDocControl(id) {
   await deleteDoc(doc(db, COL.docControl, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 72 — Worker Participation & Consultation (การมีส่วนร่วมของพนักงาน) ISO 45001 §5.4
+// ────────────────────────────────────────────
+export const PARTI_TYPES = [
+  { key:'consultation',    label:'การปรึกษาหารือ (Consultation)',         icon:'🤝', color:'#2563eb', bg:'#dbeafe' },
+  { key:'toolbox_talk',    label:'Toolbox Talk',                          icon:'🧰', color:'#059669', bg:'#ecfdf5' },
+  { key:'safety_talk',     label:'Safety Talk / บรรยายความปลอดภัย',      icon:'🎙️', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'suggestion',      label:'รับฟังข้อเสนอแนะ (Suggestion Session)', icon:'💡', color:'#d97706', bg:'#fef3c7' },
+  { key:'survey',          label:'แบบสำรวจความคิดเห็น (Survey)',          icon:'📊', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'focus_group',     label:'Focus Group',                           icon:'👥', color:'#9333ea', bg:'#faf5ff' },
+  { key:'safety_walk',     label:'Safety Walk ร่วมกับพนักงาน',           icon:'🚶', color:'#16a34a', bg:'#dcfce7' },
+  { key:'drill_debrief',   label:'ถอดบทเรียนหลังซ้อมแผน',               icon:'📋', color:'#dc2626', bg:'#fee2e2' },
+  { key:'other',           label:'อื่นๆ',                                 icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const PARTI_STATUS = {
+  open:   { label:'รอดำเนินการ',  color:'#d97706', bg:'#fef3c7', icon:'🔄' },
+  closed: { label:'เสร็จสิ้น',    color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+};
+
+export async function listParticipation() {
+  const s = await getDocs(query(collection(db, COL.participation), orderBy('activityDate','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getParticipation(id) {
+  const d = await getDoc(doc(db, COL.participation, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createParticipation(data, createdBy) {
+  return addDoc(collection(db, COL.participation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateParticipation(id, data) {
+  await updateDoc(doc(db, COL.participation, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteParticipation(id) {
+  await deleteDoc(doc(db, COL.participation, id));
 }
