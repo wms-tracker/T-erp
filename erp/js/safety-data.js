@@ -78,6 +78,7 @@ export const COL = {
   interestedParty:  "safetyInterestedParty",
   docControl:       "safetyDocControl",
   participation:    "safetyParticipation",
+  improvement:      "safetyContinualImprovement",
 };
 
 // ────────────────────────────────────────────
@@ -3917,4 +3918,62 @@ export async function updateParticipation(id, data) {
 }
 export async function deleteParticipation(id) {
   await deleteDoc(doc(db, COL.participation, id));
+}
+
+// ────────────────────────────────────────────
+// Phase 73 — Continual Improvement Register (ทะเบียนการปรับปรุงอย่างต่อเนื่อง) ISO 45001 §10.3
+// ────────────────────────────────────────────
+export const IMPV_SOURCES = [
+  { key:'audit',          label:'การตรวจประเมิน (Audit)',              icon:'🔍' },
+  { key:'incident',       label:'อุบัติเหตุ/เกือบเกิดเหตุ',           icon:'⚠️' },
+  { key:'mgmt_review',    label:'การทบทวนของฝ่ายบริหาร',              icon:'📊' },
+  { key:'risk_assess',    label:'การประเมินความเสี่ยง',                icon:'🎯' },
+  { key:'suggestion',     label:'ข้อเสนอแนะพนักงาน',                  icon:'💡' },
+  { key:'legal',          label:'ข้อกำหนดกฎหมาย',                     icon:'⚖️' },
+  { key:'benchmark',      label:'เปรียบเทียบกับมาตรฐาน (Benchmark)',  icon:'📐' },
+  { key:'kpi',            label:'ผล KPI ต่ำกว่าเป้า',                 icon:'📉' },
+  { key:'other',          label:'อื่นๆ',                              icon:'📌' },
+];
+
+export const IMPV_CATEGORIES = [
+  { key:'leadership',   label:'ภาวะผู้นำ',          icon:'👑', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'planning',     label:'การวางแผน',           icon:'📅', color:'#2563eb', bg:'#dbeafe' },
+  { key:'support',      label:'การสนับสนุน',         icon:'🤝', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'operation',    label:'การปฏิบัติงาน',       icon:'⚙️', color:'#059669', bg:'#ecfdf5' },
+  { key:'evaluation',   label:'การประเมินสมรรถนะ',  icon:'📈', color:'#d97706', bg:'#fef3c7' },
+  { key:'culture',      label:'วัฒนธรรมความปลอดภัย',icon:'🛡️', color:'#16a34a', bg:'#dcfce7' },
+  { key:'environment',  label:'สิ่งแวดล้อม/สภาพงาน',icon:'🌿', color:'#15803d', bg:'#f0fdf4' },
+  { key:'other',        label:'อื่นๆ',               icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const IMPV_PRIORITY = {
+  high:   { label:'สูง',     color:'#dc2626', bg:'#fee2e2' },
+  medium: { label:'ปานกลาง', color:'#d97706', bg:'#fef3c7' },
+  low:    { label:'ต่ำ',     color:'#16a34a', bg:'#dcfce7' },
+};
+
+export const IMPV_STATUS = {
+  idea:        { label:'แนวคิด',          color:'#9ca3af', bg:'#f3f4f6',  icon:'💡' },
+  planning:    { label:'วางแผน',          color:'#2563eb', bg:'#dbeafe',  icon:'📋' },
+  in_progress: { label:'กำลังดำเนินการ', color:'#d97706', bg:'#fef3c7',  icon:'🔄' },
+  completed:   { label:'เสร็จสิ้น',      color:'#16a34a', bg:'#dcfce7',  icon:'✅' },
+  cancelled:   { label:'ยกเลิก',         color:'#6b7280', bg:'#f3f4f6',  icon:'🚫' },
+};
+
+export async function listImprovement() {
+  const s = await getDocs(query(collection(db, COL.improvement), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getImprovement(id) {
+  const d = await getDoc(doc(db, COL.improvement, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createImprovement(data, createdBy) {
+  return addDoc(collection(db, COL.improvement), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateImprovement(id, data) {
+  await updateDoc(doc(db, COL.improvement, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteImprovement(id) {
+  await deleteDoc(doc(db, COL.improvement, id));
 }
