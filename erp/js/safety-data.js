@@ -82,6 +82,7 @@ export const COL = {
   commPlan:         "safetyCommunicationPlan",
   lessons:          "safetyLessonsLearned",
   contextIssue:     "safetyContextIssues",
+  objective:        "safetySafetyObjectives",
 };
 
 // ────────────────────────────────────────────
@@ -4141,6 +4142,68 @@ export const CTX_MONITOR_FREQ = [
   { key:'annually',  label:'ทุกปี' },
   { key:'as_needed', label:'ตามความจำเป็น' },
 ];
+
+// ── Phase 77: Safety Objectives & Targets (ISO 45001 §6.2) ──────────────────
+export const OBJ_CATEGORIES = [
+  { key:'incident_reduction', label:'ลดอุบัติเหตุ / บาดเจ็บ',           icon:'🚨', color:'#dc2626', bg:'#fee2e2' },
+  { key:'compliance',         label:'การปฏิบัติตามกฎหมาย',              icon:'⚖️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'training',           label:'การฝึกอบรม / พัฒนาศักยภาพ',        icon:'🎓', color:'#2563eb', bg:'#dbeafe' },
+  { key:'audit',              label:'การตรวจสอบ / ตรวจประเมิน',         icon:'🔍', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'culture',            label:'วัฒนธรรมความปลอดภัย',              icon:'🤝', color:'#059669', bg:'#ecfdf5' },
+  { key:'risk_control',       label:'การควบคุมความเสี่ยง',               icon:'🛡️', color:'#d97706', bg:'#fef3c7' },
+  { key:'emergency',          label:'ความพร้อมรับมือเหตุฉุกเฉิน',        icon:'🚒', color:'#ea580c', bg:'#fff7ed' },
+  { key:'environment',        label:'สิ่งแวดล้อม / การจัดการของเสีย',   icon:'🌿', color:'#16a34a', bg:'#dcfce7' },
+  { key:'health',             label:'สุขภาพ / อาชีวอนามัย',             icon:'❤️', color:'#e11d48', bg:'#fff1f2' },
+  { key:'equipment',          label:'อุปกรณ์ / เครื่องมือ / PPE',       icon:'🔧', color:'#9333ea', bg:'#faf5ff' },
+  { key:'documentation',      label:'เอกสาร / ระเบียบปฏิบัติ',          icon:'📋', color:'#64748b', bg:'#f1f5f9' },
+  { key:'other',              label:'อื่นๆ',                              icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const OBJ_STATUS = {
+  planning:    { label:'วางแผน',           color:'#64748b', bg:'#f1f5f9', icon:'📋' },
+  in_progress: { label:'กำลังดำเนินการ',  color:'#d97706', bg:'#fef3c7', icon:'🔄' },
+  on_track:    { label:'เป็นไปตามแผน',    color:'#2563eb', bg:'#dbeafe', icon:'✅' },
+  at_risk:     { label:'มีความเสี่ยง',    color:'#ea580c', bg:'#fff7ed', icon:'⚠️' },
+  behind:      { label:'ล่าช้า',          color:'#dc2626', bg:'#fee2e2', icon:'🔴' },
+  completed:   { label:'บรรลุเป้าหมาย',  color:'#16a34a', bg:'#dcfce7', icon:'🏆' },
+  cancelled:   { label:'ยกเลิก',          color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export const OBJ_PRIORITY = {
+  critical: { label:'วิกฤต',    color:'#7f1d1d', bg:'#fee2e2' },
+  high:     { label:'สูง',      color:'#dc2626', bg:'#fecaca' },
+  medium:   { label:'ปานกลาง', color:'#d97706', bg:'#fef3c7' },
+  low:      { label:'ต่ำ',      color:'#16a34a', bg:'#dcfce7' },
+};
+
+export const OBJ_MEASURE_UNITS = [
+  { key:'percent',  label:'% (เปอร์เซ็นต์)' },
+  { key:'number',   label:'จำนวน (ครั้ง/ราย)' },
+  { key:'hour',     label:'ชั่วโมง' },
+  { key:'day',      label:'วัน' },
+  { key:'score',    label:'คะแนน' },
+  { key:'ratio',    label:'อัตรา (rate)' },
+  { key:'baht',     label:'บาท' },
+  { key:'other',    label:'อื่นๆ' },
+];
+
+export async function listObjectives() {
+  const s = await getDocs(query(collection(db, COL.objective), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getObjective(id) {
+  const d = await getDoc(doc(db, COL.objective, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createObjective(data, createdBy) {
+  return addDoc(collection(db, COL.objective), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateObjective(id, data) {
+  await updateDoc(doc(db, COL.objective, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteObjective(id) {
+  await deleteDoc(doc(db, COL.objective, id));
+}
 
 export async function listContextIssues() {
   const s = await getDocs(query(collection(db, COL.contextIssue), orderBy('createdAt','desc'), limit(300)));

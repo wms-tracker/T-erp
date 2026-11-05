@@ -215,6 +215,7 @@ const NAV = {
       { key: 'safety-comm-plan',    label: 'แผนการสื่อสารความปลอดภัย (§7.4)', href: 'safety-comm-plan.html' },
       { key: 'safety-lessons',      label: 'บทเรียนที่ได้รับ (Lessons Learned)', href: 'safety-lessons.html' },
       { key: 'safety-context',      label: 'บริบทและประเด็น (§4.1)',      href: 'safety-context.html' },
+      { key: 'safety-objectives',   label: 'วัตถุประสงค์และเป้าหมาย (§6.2)', href: 'safety-objectives.html' },
       { key: 'safety-reports',       label: 'รายงานความปลอดภัย',         href: 'safety-reports.html' },
       { key: 'safety-analytics',     label: 'สถิติและวิเคราะห์',          href: 'safety-analytics.html' },
       { key: 'safety-kpi',           label: 'เป้าหมาย KPI',               href: 'safety-kpi.html' },
@@ -301,6 +302,7 @@ const NAV = {
       { key: 'safety-comm-plan',    label: 'แผนการสื่อสารความปลอดภัย (§7.4)', href: 'safety-comm-plan.html' },
       { key: 'safety-lessons',      label: 'บทเรียนที่ได้รับ (Lessons Learned)', href: 'safety-lessons.html' },
       { key: 'safety-context',      label: 'บริบทและประเด็น (§4.1)',      href: 'safety-context.html' },
+      { key: 'safety-objectives',   label: 'วัตถุประสงค์และเป้าหมาย (§6.2)', href: 'safety-objectives.html' },
       { key: 'safety-reports',          label: 'รายงานความปลอดภัย',            href: 'safety-reports.html' },
       { key: 'safety-analytics',  label: 'สถิติและวิเคราะห์',              href: 'safety-analytics.html' },
       { key: 'safety-budget',     label: 'งบประมาณความปลอดภัย',           href: 'safety-budget.html' },
@@ -476,6 +478,7 @@ const PAGE_DEPARTMENT = {
   "safety-comm-plan.html":         "safety_officer",
   "safety-lessons.html":           "safety_officer",
   "safety-context.html":           "safety_officer",
+  "safety-objectives.html":        "safety_officer",
 };
 
 // ===================================================================
