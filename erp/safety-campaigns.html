@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>แคมเปญรณรงค์ความปลอดภัย</title>
+<link rel="stylesheet" href="css/style.css"/>
+<style>
+:root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--c-primary)}
+.kpi .num{font-size:1.6rem;font-weight:700;color:var(--c-primary)}
+.kpi .lbl{font-size:.78rem;color:var(--c-gray);margin-top:2px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar input,.toolbar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.toolbar input{flex:1;min-width:140px}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.btn-primary{background:var(--c-primary);color:#fff}
+.btn-sm{padding:5px 10px;font-size:.8rem}
+.btn-ghost{background:#f1f5f9;color:#334155}
+.btn-danger{background:#fee2e2;color:var(--c-danger)}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.75rem;font-weight:600}
+/* campaign card */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.cmp-card{background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07);transition:box-shadow .15s}
+.cmp-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.1)}
+.cmp-banner{padding:14px 16px;position:relative}
+.cmp-banner-title{font-size:.95rem;font-weight:800;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.3);margin-bottom:4px}
+.cmp-banner-sub{font-size:.78rem;color:rgba(255,255,255,.85)}
+.cmp-body{padding:14px 16px}
+.cmp-dates{display:flex;gap:12px;font-size:.78rem;color:#6b7280;margin-bottom:10px}
+.cmp-activities{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.act-chip{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;background:#f1f5f9;border-radius:5px;font-size:.74rem}
+/* progress bar */
+.progress-wrap{background:#e2e8f0;border-radius:999px;height:6px;overflow:hidden;margin:6px 0 2px}
+.progress-bar{height:100%;border-radius:999px}
+/* timeline */
+.timeline{position:relative;padding-left:20px}
+.timeline::before{content:'';position:absolute;left:7px;top:0;bottom:0;width:2px;background:#e2e8f0}
+.tl-item{position:relative;margin-bottom:16px}
+.tl-dot{position:absolute;left:-16px;width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 2px currentColor;top:3px}
+.tl-content{background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px}
+.tl-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.tl-title{font-size:.87rem;font-weight:700}
+/* table */
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+th{background:#f1f5f9;padding:9px 12px;text-align:left;font-size:.8rem;color:#475569;font-weight:600;border-bottom:1px solid #e2e8f0}
+td{padding:9px 12px;font-size:.84rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8fafc}
+/* panel */
+.panel-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:900}
+.panel-overlay.open{display:block}
+.panel{position:fixed;right:0;top:0;bottom:0;width:min(680px,100vw);background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.12);z-index:901;overflow-y:auto;transform:translateX(100%);transition:transform .3s ease}
+.panel.open{transform:none}
+.panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #e2e8f0;position:sticky;top:0;background:#fff;z-index:1}
+.panel-head h2{font-size:1rem;font-weight:700}
+.panel-body{padding:22px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#475569}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--c-primary)}
+.form-group textarea{resize:vertical;min-height:70px}
+.act-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px}
+.act-box{padding:7px 10px;border-radius:7px;border:1px solid #e2e8f0;cursor:pointer;font-size:.8rem;display:flex;align-items:center;gap:5px;transition:all .15s;background:#fff}
+.act-box.checked{border-color:var(--c-primary);background:#dbeafe;font-weight:600;color:#1e40af}
+.section-head{font-size:.85rem;font-weight:700;color:#475569;padding:10px 0 6px;border-bottom:1px solid #e2e8f0;margin-bottom:12px;margin-top:4px}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.view-btn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.view-btn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  CAMPAIGN_TOPICS, CAMPAIGN_ACTIVITIES, CAMPAIGN_STATUS, CAMPAIGN_TARGET,
+  listCampaigns, getCampaign, createCampaign, updateCampaign, deleteCampaign,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(profile, 'safety-campaigns', 'แคมเปญรณรงค์ความปลอดภัย (§7.3)');
+
+let allRecs  = [];
+let editId   = null;
+let viewMode = 'card';
+
+function getTopic(key) { return CAMPAIGN_TOPICS.find(t=>t.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+function getTarget(key){ return CAMPAIGN_TARGET.find(t=>t.key===key)||{label:key||'—'}; }
+function getAct(key)   { return CAMPAIGN_ACTIVITIES.find(a=>a.key===key)||{icon:'📌',label:key||'—'}; }
+
+function dateProgress(r) {
+  if (!r.startDate || !r.endDate) return 0;
+  const start = new Date(r.startDate).getTime();
+  const end   = new Date(r.endDate).getTime();
+  const now   = Date.now();
+  if (now <= start) return 0;
+  if (now >= end)   return 100;
+  return Math.round(((now - start) / (end - start)) * 100);
+}
+
+// ── KPI ──
+function renderKPI(recs) {
+  const total     = recs.length;
+  const active    = recs.filter(r=>r.status==='active').length;
+  const completed = recs.filter(r=>r.status==='completed').length;
+  const planned   = recs.filter(r=>r.status==='planned').length;
+  const totalReach = recs.reduce((s,r)=>s+(parseInt(r.reachCount)||0), 0);
+  const topicCnt  = [...new Set(recs.map(r=>r.topic))].length;
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">แคมเปญทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${active}</div><div class="lbl">🔄 กำลังดำเนินการ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${completed}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${planned}</div><div class="lbl">📋 วางแผนแล้ว</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${totalReach.toLocaleString()}</div><div class="lbl">👥 ผู้เข้าร่วมรวม</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${topicCnt}</div><div class="lbl">หัวข้อรณรงค์</div></div>
+  </div>`;
+}
+
+// ── Card view ──
+function renderCards(recs) {
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🎯</div><p style="margin-top:12px">ยังไม่มีแคมเปญ</p></div>`;
+  return `<div class="card-grid">${recs.map(r => {
+    const tp  = getTopic(r.topic);
+    const sts = CAMPAIGN_STATUS[r.status]||CAMPAIGN_STATUS.planned;
+    const pct = dateProgress(r);
+    const acts = (r.activities||[]).map(k => { const a = getAct(k); return `<span class="act-chip">${a.icon} ${a.label}</span>`; }).join('');
+    const tgt = getTarget(r.targetAudience);
+    return `<div class="cmp-card">
+      <div class="cmp-banner" style="background:linear-gradient(135deg,${tp.color},${tp.color}cc)">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <span style="font-size:1.6rem">${tp.icon}</span>
+          <span class="badge" style="color:${sts.color};background:rgba(255,255,255,.9)">${sts.icon} ${sts.label}</span>
+        </div>
+        <div class="cmp-banner-title">${r.name||'—'}</div>
+        <div class="cmp-banner-sub">${tp.label} · ${tgt.label}</div>
+      </div>
+      <div class="cmp-body">
+        <div class="cmp-dates">
+          ${r.startDate?`<span>📅 ${r.startDate}</span>`:''}
+          ${r.endDate?`<span>→ ${r.endDate}</span>`:''}
+          ${r.reachCount?`<span>👥 ${parseInt(r.reachCount).toLocaleString()} คน</span>`:''}
+        </div>
+        ${(r.activities||[]).length?`<div class="cmp-activities">${acts}</div>`:''}
+        ${r.status==='active'?`
+          <div style="font-size:.76rem;color:#6b7280;margin-bottom:2px">ความคืบหน้าตามเวลา</div>
+          <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%;background:${tp.color}"></div></div>
+          <div style="font-size:.74rem;color:${tp.color};font-weight:700">${pct}%</div>`:''}
+        ${r.effectScore?`<div style="font-size:.8rem;color:#6b7280;margin-top:6px">📊 ผลประเมิน: <strong>${r.effectScore}/10</strong></div>`:''}
+        <div style="display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9">
+          <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">✏️ แก้ไข</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">ลบ</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── Timeline view ──
+function renderTimeline(recs) {
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">📅</div><p style="margin-top:12px">ยังไม่มีแคมเปญ</p></div>`;
+  const sorted = [...recs].sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''));
+  return `<div class="timeline">${sorted.map(r => {
+    const tp  = getTopic(r.topic);
+    const sts = CAMPAIGN_STATUS[r.status]||CAMPAIGN_STATUS.planned;
+    return `<div class="tl-item">
+      <div class="tl-dot" style="color:${tp.color};background:${tp.bg}"></div>
+      <div class="tl-content">
+        <div class="tl-head">
+          <div>
+            <div class="tl-title">${tp.icon} ${r.name||'—'}</div>
+            <div style="font-size:.76rem;color:#6b7280">${tp.label} · ${r.startDate||''}${r.endDate?' → '+r.endDate:''}</div>
+          </div>
+          <span class="badge" style="color:${sts.color};background:${sts.bg};white-space:nowrap">${sts.icon} ${sts.label}</span>
+        </div>
+        ${r.description?`<div style="font-size:.8rem;color:#475569;margin-bottom:6px">${r.description.substring(0,100)}${r.description.length>100?'…':''}</div>`:''}
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:.76rem;color:#6b7280">
+          ${r.reachCount?`<span>👥 ${parseInt(r.reachCount).toLocaleString()} คน</span>`:''}
+          ${r.responsible?`<span>👤 ${r.responsible}</span>`:''}
+          ${r.budget?`<span>💰 ${parseInt(r.budget).toLocaleString()} บาท</span>`:''}
+          ${r.effectScore?`<span>📊 ผล: ${r.effectScore}/10</span>`:''}
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">แก้ไข</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">ลบ</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── Table view ──
+function renderTable(recs) {
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">📋</div><p style="margin-top:12px">ยังไม่มีแคมเปญ</p></div>`;
+  const rows = recs.map(r => {
+    const tp  = getTopic(r.topic);
+    const sts = CAMPAIGN_STATUS[r.status]||CAMPAIGN_STATUS.planned;
+    const tgt = getTarget(r.targetAudience);
+    return `<tr>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:${tp.bg};color:${tp.color}">${tp.icon} ${tp.label}</span></td>
+      <td><strong>${r.name||'—'}</strong></td>
+      <td style="font-size:.82rem">${tgt.label}</td>
+      <td style="font-size:.82rem">${r.startDate||'—'}</td>
+      <td style="font-size:.82rem">${r.endDate||'—'}</td>
+      <td style="font-size:.82rem">${r.reachCount?parseInt(r.reachCount).toLocaleString()+'คน':'—'}</td>
+      <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
+      <td style="font-size:.82rem">${r.effectScore?r.effectScore+'/10':'—'}</td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<table><thead><tr>
+    <th>หัวข้อ</th><th>ชื่อแคมเปญ</th><th>กลุ่มเป้าหมาย</th>
+    <th>เริ่ม</th><th>สิ้นสุด</th><th>ผู้เข้าร่วม</th>
+    <th>สถานะ</th><th>ผลประเมิน</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ── Form ──
+function renderForm(rec) {
+  const topicOpts = CAMPAIGN_TOPICS.map(t=>`<option value="${t.key}" ${rec?.topic===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
+  const stsOpts   = Object.entries(CAMPAIGN_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'planned')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
+  const tgtOpts   = CAMPAIGN_TARGET.map(t=>`<option value="${t.key}" ${rec?.targetAudience===t.key?'selected':''}>${t.label}</option>`).join('');
+  const actBoxes  = CAMPAIGN_ACTIVITIES.map(a => {
+    const checked = (rec?.activities||[]).includes(a.key);
+    return `<div class="act-box${checked?' checked':''}" id="actb-${a.key}" onclick="window.__toggleAct('${a.key}')">
+      <input type="checkbox" id="act-${a.key}" style="display:none" ${checked?'checked':''}/>${a.icon} ${a.label}
+    </div>`;
+  }).join('');
+  return `<form id="cmp-form" onsubmit="return false">
+    <div class="form-row">
+      <div class="form-group"><label>หัวข้อ / ประเด็นรณรงค์ *</label><select id="f-topic">${topicOpts}</select></div>
+      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ชื่อแคมเปญ *</label>
+        <input id="f-name" value="${rec?.name||''}" placeholder="เช่น เดือนรณรงค์ความปลอดภัย 2568, Zero Accident Campaign Q1"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>วัตถุประสงค์ / เป้าหมายของแคมเปญ</label>
+        <textarea id="f-description" rows="2" placeholder="สิ่งที่ต้องการให้พนักงานรู้ เข้าใจ หรือปฏิบัติหลังจากแคมเปญนี้">${rec?.description||''}</textarea></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>กลุ่มเป้าหมาย</label><select id="f-targetAudience">${tgtOpts}</select></div>
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>วันที่เริ่ม</label>
+        <input id="f-startDate" type="date" value="${rec?.startDate||''}"/></div>
+      <div class="form-group"><label>วันที่สิ้นสุด</label>
+        <input id="f-endDate" type="date" value="${rec?.endDate||''}"/></div>
+    </div>
+    <div class="section-head">กิจกรรมที่ใช้ (เลือกได้หลายข้อ)</div>
+    <div class="act-grid">${actBoxes}</div>
+    <div class="form-row one">
+      <div class="form-group"><label>รายละเอียดกิจกรรม</label>
+        <textarea id="f-actDetail" rows="3" placeholder="อธิบายกิจกรรมที่จัดหรือวางแผนจะจัด">${rec?.actDetail||''}</textarea></div>
+    </div>
+    <div class="form-row three">
+      <div class="form-group"><label>จำนวนผู้เข้าร่วม (คน)</label>
+        <input id="f-reachCount" type="number" value="${rec?.reachCount||''}" placeholder="0"/></div>
+      <div class="form-group"><label>งบประมาณ (บาท)</label>
+        <input id="f-budget" type="number" value="${rec?.budget||''}" placeholder="0"/></div>
+      <div class="form-group"><label>คะแนนประสิทธิผล (1-10)</label>
+        <input id="f-effectScore" type="number" min="1" max="10" value="${rec?.effectScore||''}" placeholder="หลังแคมเปญเสร็จ"/></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>ผลการประเมินความตระหนัก / feedback</label>
+        <textarea id="f-effectNote" rows="2" placeholder="สรุปผลการประเมินหรือ feedback จากผู้เข้าร่วม">${rec?.effectNote||''}</textarea></div>
+    </div>
+    <div class="form-row one">
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <button type="button" class="btn btn-primary" onclick="window.__saveCmp()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>
+  </form>`;
+}
+
+window.__toggleAct = key => {
+  const cb  = document.getElementById(`act-${key}`);
+  const box = document.getElementById(`actb-${key}`);
+  if (!cb || !box) return;
+  cb.checked = !cb.checked;
+  box.classList.toggle('checked', cb.checked);
+};
+
+// ── Panel ──
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+function openPanel(html, title) {
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+}
+window.__newCmp  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มแคมเปญ'); };
+window.__editCmp = async id => {
+  editId = id;
+  const r = await getCampaign(id);
+  openPanel(renderForm(r), '✏️ แก้ไขแคมเปญ');
+};
+
+// ── Save ──
+window.__saveCmp = async () => {
+  const activities = CAMPAIGN_ACTIVITIES
+    .map(a => document.getElementById(`act-${a.key}`)?.checked ? a.key : null)
+    .filter(Boolean);
+  const data = {
+    topic:           document.getElementById('f-topic').value,
+    status:          document.getElementById('f-status').value,
+    name:            document.getElementById('f-name').value.trim(),
+    description:     document.getElementById('f-description').value.trim(),
+    targetAudience:  document.getElementById('f-targetAudience').value,
+    responsible:     document.getElementById('f-responsible').value.trim(),
+    startDate:       document.getElementById('f-startDate').value,
+    endDate:         document.getElementById('f-endDate').value,
+    activities,
+    actDetail:       document.getElementById('f-actDetail').value.trim(),
+    reachCount:      document.getElementById('f-reachCount').value,
+    budget:          document.getElementById('f-budget').value,
+    effectScore:     document.getElementById('f-effectScore').value,
+    effectNote:      document.getElementById('f-effectNote').value.trim(),
+    notes:           document.getElementById('f-notes').value.trim(),
+  };
+  if (!data.name) { alert('กรุณากรอกชื่อแคมเปญ'); return; }
+  try {
+    if (editId) await updateCampaign(editId, data);
+    else        await createCampaign(data, profile.uid||profile.email||'unknown');
+    window.__closePanel();
+    await loadData();
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+};
+
+// ── Delete ──
+window.__deleteCmp = async (id, name) => {
+  if (!confirm(`ลบแคมเปญ "${name}"?`)) return;
+  await deleteCampaign(id);
+  window.__closePanel();
+  await loadData();
+};
+
+// ── Filter ──
+function applyFilter() {
+  const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
+  const tp  = document.getElementById('filter-topic')?.value||'';
+  const sts = document.getElementById('filter-status')?.value||'';
+  const tgt = document.getElementById('filter-target')?.value||'';
+  const filtered = allRecs.filter(r =>
+    (!q  || (r.name||'').toLowerCase().includes(q) || (r.description||'').toLowerCase().includes(q)) &&
+    (!tp  || r.topic===tp) &&
+    (!sts || r.status===sts) &&
+    (!tgt || r.targetAudience===tgt)
+  );
+  document.getElementById('kpi-wrap').innerHTML = renderKPI(filtered);
+  const content =
+    viewMode==='card'     ? renderCards(filtered) :
+    viewMode==='timeline' ? renderTimeline(filtered) :
+                            renderTable(filtered);
+  document.getElementById('content-wrap').innerHTML = content;
+}
+window.applyFilter = applyFilter;
+
+window.__switchView = mode => {
+  viewMode = mode;
+  document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===mode));
+  applyFilter();
+};
+
+async function loadData() {
+  allRecs = await listCampaigns();
+  applyFilter();
+}
+
+// ── Build UI ──
+const topicOpts = `<option value="">-- ทุกหัวข้อ --</option>` + CAMPAIGN_TOPICS.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const stsOpts   = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(CAMPAIGN_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+const tgtOpts   = `<option value="">-- ทุกกลุ่ม --</option>` + CAMPAIGN_TARGET.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
+
+main.innerHTML = `
+  <div style="padding:20px">
+    <div id="kpi-wrap"></div>
+    <div class="toolbar">
+      <input id="search-box" placeholder="🔍 ค้นหาแคมเปญ…" oninput="applyFilter()"/>
+      <select id="filter-topic"  onchange="applyFilter()">${topicOpts}</select>
+      <select id="filter-status" onchange="applyFilter()">${stsOpts}</select>
+      <select id="filter-target" onchange="applyFilter()">${tgtOpts}</select>
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="card"     onclick="window.__switchView('card')">🎯 การ์ด</button>
+        <button class="view-btn"        data-view="timeline" onclick="window.__switchView('timeline')">📅 ไทม์ไลน์</button>
+        <button class="view-btn"        data-view="table"    onclick="window.__switchView('table')">📋 ตาราง</button>
+      </div>
+      <button class="btn btn-primary" onclick="window.__newCmp()">+ เพิ่มแคมเปญ</button>
+    </div>
+    <div id="content-wrap"></div>
+  </div>
+
+  <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-head">
+      <h2 id="panel-title">แคมเปญรณรงค์</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+    </div>
+    <div class="panel-body" id="panel-content"></div>
+  </div>
+`;
+
+await loadData();
+</script>
+</body>
+</html>

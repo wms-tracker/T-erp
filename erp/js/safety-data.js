@@ -86,6 +86,7 @@ export const COL = {
   hazard:           "safetyHazardRegister",
   opControl:        "safetyOperationalControls",
   monitorProg:      "safetyMonitorProgram",
+  campaign:         "safetyCampaigns",
 };
 
 // ────────────────────────────────────────────
@@ -4352,6 +4353,74 @@ export const MON_STATUS = {
   review:   { label:'กำลังทบทวน',      color:'#2563eb', bg:'#dbeafe', icon:'🔄' },
   inactive: { label:'ไม่ใช้งาน',       color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
 };
+
+// ── Phase 81: Safety Campaign & Awareness Tracker (ISO 45001 §7.3) ──────────
+export const CAMPAIGN_TOPICS = [
+  { key:'general',       label:'ความปลอดภัยทั่วไป',           icon:'🦺', color:'#2563eb', bg:'#dbeafe' },
+  { key:'ppe',           label:'การใช้ PPE',                   icon:'⛑️', color:'#7c3aed', bg:'#f5f3ff' },
+  { key:'fire',          label:'ความปลอดภัยจากอัคคีภัย',      icon:'🔥', color:'#ea580c', bg:'#fff7ed' },
+  { key:'chemical',      label:'ความปลอดภัยสารเคมี',          icon:'⚗️', color:'#c026d3', bg:'#fdf4ff' },
+  { key:'ergonomic',     label:'การยศาสตร์ / ท่าทางทำงาน',   icon:'🪑', color:'#0891b2', bg:'#e0f2fe' },
+  { key:'housekeeping',  label:'5ส / ความเป็นระเบียบ',         icon:'🧹', color:'#059669', bg:'#ecfdf5' },
+  { key:'traffic',       label:'ความปลอดภัยการจราจร',         icon:'🚦', color:'#d97706', bg:'#fef3c7' },
+  { key:'mental',        label:'สุขภาพจิต / ความเครียด',      icon:'🧠', color:'#ec4899', bg:'#fdf2f8' },
+  { key:'emergency',     label:'การตอบสนองเหตุฉุกเฉิน',       icon:'🚒', color:'#dc2626', bg:'#fee2e2' },
+  { key:'zero_accident', label:'Zero Accident Campaign',       icon:'🏆', color:'#16a34a', bg:'#dcfce7' },
+  { key:'covid',         label:'อาชีวอนามัย / โรคระบาด',     icon:'🩺', color:'#64748b', bg:'#f1f5f9' },
+  { key:'environment',   label:'สิ่งแวดล้อม',                 icon:'🌿', color:'#15803d', bg:'#f0fdf4' },
+  { key:'other',         label:'อื่นๆ',                       icon:'📌', color:'#6b7280', bg:'#f3f4f6' },
+];
+
+export const CAMPAIGN_ACTIVITIES = [
+  { key:'poster',       label:'โปสเตอร์ / ป้าย',           icon:'🖼️' },
+  { key:'meeting',      label:'การประชุม / บรรยาย',         icon:'🗣️' },
+  { key:'toolbox',      label:'Toolbox Talk',               icon:'🧰' },
+  { key:'competition',  label:'การแข่งขัน / ประกวด',       icon:'🏅' },
+  { key:'drill',        label:'การซ้อมแผนฉุกเฉิน',         icon:'🚨' },
+  { key:'walk',         label:'Safety Walk / ตรวจเยี่ยม',  icon:'🚶' },
+  { key:'video',        label:'วิดีโอ / สื่อดิจิทัล',     icon:'📹' },
+  { key:'newsletter',   label:'จดหมายข่าว / เอกสาร',       icon:'📰' },
+  { key:'recognition',  label:'ยกย่องผู้ปฏิบัติดี',        icon:'🌟' },
+  { key:'survey',       label:'แบบสำรวจ / ประเมินผล',      icon:'📊' },
+  { key:'other',        label:'อื่นๆ',                     icon:'📌' },
+];
+
+export const CAMPAIGN_STATUS = {
+  planned:   { label:'วางแผนแล้ว',      color:'#2563eb', bg:'#dbeafe', icon:'📋' },
+  active:    { label:'กำลังดำเนินการ', color:'#d97706', bg:'#fef3c7', icon:'🔄' },
+  completed: { label:'เสร็จสิ้น',       color:'#16a34a', bg:'#dcfce7', icon:'✅' },
+  cancelled: { label:'ยกเลิก',          color:'#9ca3af', bg:'#f3f4f6', icon:'🚫' },
+};
+
+export const CAMPAIGN_TARGET = [
+  { key:'all',         label:'พนักงานทุกคน' },
+  { key:'production',  label:'ฝ่ายผลิต' },
+  { key:'maintenance', label:'ฝ่ายซ่อมบำรุง' },
+  { key:'office',      label:'ฝ่ายสำนักงาน' },
+  { key:'warehouse',   label:'ฝ่ายคลังสินค้า' },
+  { key:'contractor',  label:'ผู้รับเหมา' },
+  { key:'management',  label:'ผู้บริหาร' },
+  { key:'new_emp',     label:'พนักงานใหม่' },
+  { key:'other',       label:'อื่นๆ' },
+];
+
+export async function listCampaigns() {
+  const s = await getDocs(query(collection(db, COL.campaign), orderBy('createdAt','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getCampaign(id) {
+  const d = await getDoc(doc(db, COL.campaign, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createCampaign(data, createdBy) {
+  return addDoc(collection(db, COL.campaign), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateCampaign(id, data) {
+  await updateDoc(doc(db, COL.campaign, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteCampaign(id) {
+  await deleteDoc(doc(db, COL.campaign, id));
+}
 
 export async function listMonitorProgs() {
   const s = await getDocs(query(collection(db, COL.monitorProg), orderBy('createdAt','desc'), limit(300)));
