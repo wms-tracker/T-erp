@@ -28,6 +28,9 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 .duty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:28px}
 .duty-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;transition:box-shadow .2s}
 .duty-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.duty-link-bar{padding:0 16px 12px;display:flex;justify-content:flex-end}
+.duty-link{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:7px;font-size:.74rem;font-weight:600;text-decoration:none;background:#f0f4ff;color:#2563eb;border:1px solid #c7d7fe;transition:background .15s}
+.duty-link:hover{background:#dbeafe}
 .duty-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
 .duty-no{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0}
 .duty-title{flex:1;min-width:0}
@@ -62,6 +65,21 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 import { requireRole } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import { KPO_DUTIES, APLAN_STATUS, listAnnualPlan } from './js/safety-data.js';
+
+const DUTY_PAGES = {
+  duty1:  'safety-kpo-policy.html',
+  duty2:  'safety-kpo-prevention.html',
+  duty3:  'safety-kpo-improvement.html',
+  duty4:  'safety-kpo-campaign.html',
+  duty5:  'safety-kpo-rules.html',
+  duty6:  'safety-kpo-inspection.html',
+  duty7:  'safety-kpo-training.html',
+  duty8:  'safety-kpo-report-channel.html',
+  duty9:  'safety-kpo-action.html',
+  duty10: 'safety-kpo-annual-report.html',
+  duty11: 'safety-kpo-eval.html',
+  duty12: 'safety-kpo-assignment.html',
+};
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-dashboard', 'Dashboard 12 หน้าที่ คปอ');
@@ -106,6 +124,7 @@ function dutyCard(d, st) {
   const noData = !st;
   const pct    = st ? st.pct : 0;
   const barW   = noData ? 0 : pct;
+  const page   = DUTY_PAGES[d.key] || '#';
   return `<div class="duty-card">
     <div class="duty-head">
       <div class="duty-no" style="background:${d.color}">${d.no}</div>
@@ -130,6 +149,9 @@ function dutyCard(d, st) {
         ${statCell(st.delayed,'ล่าช้า',   '#d97706')}
         ${statCell(st.overdue,'เกินกำหนด','#dc2626')}
       </div>`}
+    </div>
+    <div class="duty-link-bar">
+      <a href="${page}" class="duty-link">เปิด Module ${d.no} →</a>
     </div>
   </div>`;
 }
