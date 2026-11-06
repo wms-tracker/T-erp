@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 10 — รายงานผลประจำปี คปอ.</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.year-bar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.year-sel{padding:8px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:.9rem;font-family:'Sarabun',sans-serif;background:#fff}
+.section{margin-bottom:24px}
+.section-title{font-size:1rem;font-weight:700;color:#1e40af;margin-bottom:12px;padding-bottom:6px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:8px}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:4px}
+.kpi{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.5rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.7rem;color:#64748b;margin-top:3px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.red{border-top-color:#dc2626}.kpi.red .num{color:#dc2626}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+.duty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;padding:16px}
+.duty-item{background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:12px}
+.duty-item .header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.duty-item .icon{font-size:1rem;width:24px;text-align:center}
+.duty-item .title{font-size:.8rem;font-weight:700;line-height:1.3;flex:1}
+.bar-wrap{display:flex;align-items:center;gap:8px}
+.bar-track{flex:1;height:7px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .5s}
+.bar-num{font-size:.8rem;font-weight:700;min-width:38px;text-align:right}
+.stat-row{font-size:.74rem;color:#64748b;margin-top:5px;display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+.btn-sm{padding:5px 12px;font-size:.8rem}
+.print-hint{font-size:.78rem;color:#94a3b8;text-align:center;margin-top:8px}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+.report-header{background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;border-radius:12px;padding:20px 24px;margin-bottom:20px}
+.report-header h2{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.report-header p{font-size:.85rem;opacity:.9}
+.stat-table{width:100%;border-collapse:collapse}
+.stat-table th{padding:8px 12px;background:#f8fafc;font-size:.74rem;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0}
+.stat-table td{padding:8px 12px;font-size:.82rem;border-bottom:1px solid #f1f5f9}
+@media print{
+  body{background:#fff}
+  .year-bar .btn{display:none}
+  .report-header{background:#1e40af!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listActionPlan, listAnnualPlan, KPO_DUTIES, APLAN_STATUS,
+  listInspections, INSPECTION_STATUS,
+  listTrainings, TRAINING_STATUS,
+  listCapaRecords, CAPA_STATUS,
+  listNearMiss, NM_STATUS,
+  listObservations, OBS_STATUS,
+  listTalks, listDrills,
+  listLegalRegisters, LEGAL_STATUS,
+  computeSafetyKPIs
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-annual-report', 'Module 10 — รายงานผลประจำปี คปอ.');
+
+const NOW_CE = new Date().getFullYear();
+let selectedYear = NOW_CE;
+let allData = {};
+
+function fmtNum(n) { return (n||0).toLocaleString(); }
+function barColor(pct) {
+  if (pct >= 80) return '#059669';
+  if (pct >= 50) return '#d97706';
+  return '#dc2626';
+}
+
+main.innerHTML = `
+<div style="padding:20px">
+  <div class="year-bar">
+    <label style="font-size:.9rem;font-weight:700;color:#374151">ปีที่รายงาน:</label>
+    <select id="year-sel" class="year-sel" onchange="window._loadReport()">
+      ${[NOW_CE,NOW_CE-1,NOW_CE-2].map(y=>`<option value="${y}">${y+543}</option>`).join('')}
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨 พิมพ์รายงาน</button>
+  </div>
+  <div id="report-area"><div class="spinner">กำลังโหลดข้อมูล...</div></div>
+  <p class="print-hint">💡 กด "พิมพ์รายงาน" เพื่อส่งออกเป็น PDF</p>
+</div>`;
+
+async function loadAllData(year) {
+  const yearStr = String(year);
+  const [
+    annualPlans, inspections, trainings,
+    capas, nearMisses, observations,
+    talks, drills, legalRegs, actionItems, kpis
+  ] = await Promise.all([
+    listAnnualPlan(year).catch(()=>[]),
+    listInspections({ lim:500 }).catch(()=>[]),
+    listTrainings({ lim:500 }).catch(()=>[]),
+    listCapaRecords({ lim:500 }).catch(()=>[]),
+    listNearMiss({ lim:500 }).catch(()=>[]),
+    listObservations({ lim:500 }).catch(()=>[]),
+    listTalks({ lim:500 }).catch(()=>[]),
+    listDrills({ lim:500 }).catch(()=>[]),
+    listLegalRegisters({ lim:300 }).catch(()=>[]),
+    listActionPlan({ lim:500 }).catch(()=>[]),
+    computeSafetyKPIs().catch(()=>({})),
+  ]);
+
+  const fy = r => (r.createdAt?.toDate?.() || new Date(r.createdAt?.seconds*1000||Date.now())).getFullYear() === year
+              || (r.talkDate||r.drillDate||r.targetDate||r.inspectionDate||r.trainingDate||r.reportDate||r.occurredDate||'').startsWith(yearStr);
+
+  return {
+    annualPlans:  annualPlans,
+    inspections:  inspections.filter(r => (r.inspectionDate||'').startsWith(yearStr)),
+    trainings:    trainings.filter(r => (r.trainingDate||'').startsWith(yearStr)),
+    capas:        capas.filter(r => (r.createdAt?.toDate?.()?.getFullYear() === year)),
+    nearMisses:   nearMisses.filter(r => (r.reportDate||r.occurredDate||'').startsWith(yearStr)),
+    observations: observations.filter(fy),
+    talks:        talks.filter(r => (r.talkDate||'').startsWith(yearStr)),
+    drills:       drills.filter(r => (r.drillDate||'').startsWith(yearStr)),
+    legalRegs,
+    actionItems:  actionItems.filter(r => r.year === year || r.year === yearStr),
+    kpis,
+  };
+}
+
+function dutyStats(d) {
+  const a = allData;
+  switch(d.key) {
+    case 'duty1': { const items = a.actionItems.filter(r=>r.kpoDuty==='duty1'); return { total:items.length, done:items.filter(r=>r.status==='completed').length, label:'รายการนโยบาย' }; }
+    case 'duty2': { const items = a.nearMisses; return { total:items.length, done:items.filter(r=>r.status==='closed').length, label:'Near Miss/เหตุการณ์' }; }
+    case 'duty3': { const items = a.actionItems.filter(r=>r.kpoDuty==='duty3'); return { total:items.length, done:items.filter(r=>r.status==='completed').length, label:'รายการปรับปรุง' }; }
+    case 'duty4': { return { total:a.talks.length+a.drills.length, done:a.talks.length+a.drills.filter(r=>r.status==='completed').length, label:'กิจกรรม/ซ้อม' }; }
+    case 'duty5': { return { total:a.legalRegs.length, done:a.legalRegs.filter(r=>r.status==='compliant').length, label:'กฎหมาย/ข้อกำหนด' }; }
+    case 'duty6': { return { total:a.inspections.length, done:a.inspections.filter(r=>r.status==='completed'||r.status==='closed').length, label:'การตรวจสอบ' }; }
+    case 'duty7': { return { total:a.trainings.length, done:a.trainings.filter(r=>r.status==='completed').length, label:'การฝึกอบรม' }; }
+    case 'duty8': { const items = a.observations.filter(r=>r.obsType==='unsafe'||r.obsType==='condition'); return { total:items.length, done:items.filter(r=>r.status==='closed'||r.status==='na').length, label:'รายงานไม่ปลอดภัย' }; }
+    case 'duty9': { return { total:a.capas.length, done:a.capas.filter(r=>r.status==='closed').length, label:'CAPA' }; }
+    case 'duty10':{ const items = a.actionItems.filter(r=>r.kpoDuty==='duty10'); return { total:items.length||1, done:items.filter(r=>r.status==='completed').length, label:'รายงานประจำปี' }; }
+    case 'duty11':{ const items = a.actionItems.filter(r=>r.kpoDuty==='duty11'); return { total:items.length||1, done:items.filter(r=>r.status==='completed').length, label:'การประเมินผล' }; }
+    case 'duty12':{ const items = a.actionItems.filter(r=>r.kpoDuty==='duty12'); return { total:items.length, done:items.filter(r=>r.status==='completed').length, label:'งานมอบหมาย' }; }
+    default: return { total:0, done:0, label:'-' };
+  }
+}
+
+function renderReport() {
+  const a = allData;
+  const year = selectedYear;
+
+  /* Overall KPIs */
+  const totalInspect = a.inspections.length;
+  const totalTrain   = a.trainings.length;
+  const trainPax     = a.trainings.reduce((s,r)=>s+(r.actualParticipants||r.targetParticipants||0),0);
+  const totalCapa    = a.capas.length;
+  const capaClosed   = a.capas.filter(r=>r.status==='closed').length;
+  const legalComp    = a.legalRegs.filter(r=>r.status==='compliant').length;
+  const legalTotal   = a.legalRegs.length;
+  const talks        = a.talks.length;
+  const drills       = a.drills.length;
+
+  /* Duty completion */
+  const dutyRows = KPO_DUTIES.map(d => {
+    const s = dutyStats(d);
+    const pct = s.total > 0 ? Math.min(100, Math.round(s.done/s.total*100)) : 0;
+    return { ...d, ...s, pct };
+  });
+  const avgPct = Math.round(dutyRows.reduce((s,r)=>s+r.pct,0)/dutyRows.length);
+
+  document.getElementById('report-area').innerHTML = `
+  <div class="report-header">
+    <h2>📊 รายงานผลการปฏิบัติงาน คณะกรรมการ คปอ. ประจำปี ${year+543}</h2>
+    <p>วันที่จัดทำ: ${new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})} | ผู้จัดทำ: ${profile.name||profile.email||'-'}</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📈 สรุปภาพรวมประจำปี ${year+543}</div>
+    <div class="kpi-row">
+      <div class="kpi blue"><div class="num">${avgPct}%</div><div class="lbl">ความสำเร็จ 12 หน้าที่</div></div>
+      <div class="kpi green"><div class="num">${fmtNum(totalInspect)}</div><div class="lbl">ครั้งตรวจสอบ</div></div>
+      <div class="kpi purple"><div class="num">${fmtNum(totalTrain)}</div><div class="lbl">หลักสูตรอบรม</div></div>
+      <div class="kpi amber"><div class="num">${fmtNum(trainPax)}</div><div class="lbl">ผู้เข้าอบรม (คน)</div></div>
+      <div class="kpi green"><div class="num">${talks+drills}</div><div class="lbl">กิจกรรม/ซ้อมแผน</div></div>
+      <div class="kpi ${capaClosed===totalCapa&&totalCapa>0?'green':'red'}"><div class="num">${capaClosed}/${totalCapa}</div><div class="lbl">CAPA ปิด/ทั้งหมด</div></div>
+      <div class="kpi ${legalComp===legalTotal&&legalTotal>0?'green':'amber'}"><div class="num">${legalComp}/${legalTotal}</div><div class="lbl">กม. สอดคล้อง</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🔖 ผลการปฏิบัติงานตาม 12 หน้าที่ คปอ.</div>
+    <div class="card">
+      <div class="duty-grid">
+        ${dutyRows.map(d => `
+        <div class="duty-item" style="border-left:3px solid ${d.color}">
+          <div class="header">
+            <span class="icon">${d.icon}</span>
+            <div class="title">${d.no}. ${d.short}</div>
+          </div>
+          <div class="bar-wrap">
+            <div class="bar-track"><div class="bar-fill" style="width:${d.pct}%;background:${barColor(d.pct)}"></div></div>
+            <div class="bar-num" style="color:${barColor(d.pct)}">${d.pct}%</div>
+          </div>
+          <div class="stat-row">
+            <span>${d.label}: ${fmtNum(d.done)}/${fmtNum(d.total)}</span>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🔍 Module 06 — สถิติการตรวจสอบ</div>
+    <div class="kpi-row">
+      <div class="kpi blue"><div class="num">${fmtNum(totalInspect)}</div><div class="lbl">ครั้งตรวจสอบ</div></div>
+      <div class="kpi green"><div class="num">${fmtNum(a.inspections.filter(r=>r.status==='completed'||r.status==='closed').length)}</div><div class="lbl">เสร็จสิ้น</div></div>
+      <div class="kpi amber"><div class="num">${a.inspections.length?Math.round(a.inspections.reduce((s,r)=>s+(r.passRate||0),0)/a.inspections.length)+'%':'-'}</div><div class="lbl">Pass Rate เฉลี่ย</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📚 Module 07 — ผลการฝึกอบรม</div>
+    <div class="kpi-row">
+      <div class="kpi blue"><div class="num">${fmtNum(totalTrain)}</div><div class="lbl">หลักสูตร</div></div>
+      <div class="kpi green"><div class="num">${fmtNum(a.trainings.filter(r=>r.status==='completed').length)}</div><div class="lbl">เสร็จสิ้น</div></div>
+      <div class="kpi purple"><div class="num">${fmtNum(trainPax)}</div><div class="lbl">ผู้เข้าร่วม</div></div>
+      <div class="kpi amber"><div class="num">${a.trainings.length?Math.round(a.trainings.filter(r=>r.status==='completed').length/a.trainings.length*100)+'%':'-'}</div><div class="lbl">ความสำเร็จ</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🗣 Module 04 — กิจกรรมและซ้อมแผน</div>
+    <div class="kpi-row">
+      <div class="kpi blue"><div class="num">${talks}</div><div class="lbl">Safety Talk</div></div>
+      <div class="kpi blue"><div class="num">${a.talks.reduce((s,r)=>s+(r.participants||0),0)}</div><div class="lbl">ผู้ร่วม Talk</div></div>
+      <div class="kpi green"><div class="num">${drills}</div><div class="lbl">ซ้อมแผนฉุกเฉิน</div></div>
+      <div class="kpi green"><div class="num">${a.drills.reduce((s,r)=>s+(r.participants||0),0)}</div><div class="lbl">ผู้ร่วมซ้อม</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📌 Module 09 — CAPA ติดตามผล</div>
+    <div class="kpi-row">
+      <div class="kpi blue"><div class="num">${fmtNum(totalCapa)}</div><div class="lbl">รายการทั้งหมด</div></div>
+      <div class="kpi green"><div class="num">${fmtNum(capaClosed)}</div><div class="lbl">ปิดแล้ว</div></div>
+      <div class="kpi red"><div class="num">${fmtNum(a.capas.filter(r=>r.status!=='closed').length)}</div><div class="lbl">ค้างดำเนินการ</div></div>
+      <div class="kpi amber"><div class="num">${totalCapa?Math.round(capaClosed/totalCapa*100)+'%':'-'}</div><div class="lbl">อัตราปิด</div></div>
+    </div>
+  </div>`;
+}
+
+window._loadReport = async () => {
+  selectedYear = parseInt(document.getElementById('year-sel')?.value) || NOW_CE;
+  document.getElementById('report-area').innerHTML = '<div class="spinner">กำลังโหลดข้อมูล...</div>';
+  try {
+    allData = await loadAllData(selectedYear);
+    renderReport();
+  } catch(e) {
+    document.getElementById('report-area').innerHTML = `<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}</div>`;
+  }
+};
+
+try {
+  allData = await loadAllData(selectedYear);
+  renderReport();
+} catch(e) {
+  main.innerHTML=`<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}</div>`;
+}
+</script>
+</body>
+</html>

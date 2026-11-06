@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 11 — ประเมินผลดำเนินงาน</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.5rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.7rem;color:#64748b;margin-top:3px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.red{border-top-color:#dc2626}.kpi.red .num{color:#dc2626}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+.card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap}
+.card-head h2{font-size:.95rem;font-weight:700;flex:1}
+.score-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:16px}
+.score-item{background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;padding:14px}
+.score-item .header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.score-item .icon{font-size:1.1rem;width:28px;text-align:center}
+.score-item .title{font-size:.82rem;font-weight:700;line-height:1.3;flex:1}
+.score-row{display:flex;align-items:center;gap:8px}
+.score-bar{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+.score-fill{height:100%;border-radius:4px;transition:width .4s}
+.score-num{font-size:.8rem;font-weight:700;min-width:36px;text-align:right}
+.score-select{margin-top:8px;width:100%;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:.78rem;font-family:'Sarabun',sans-serif;background:#fff}
+.score-textarea{width:100%;padding:5px 8px;border:1px solid #d1d5db;border-radius:6px;font-size:.78rem;font-family:'Sarabun',sans-serif;resize:none;min-height:48px;margin-top:6px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:5px 12px;font-size:.8rem}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+.btn-success{background:#059669;color:#fff}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 12px;background:#f8fafc;font-size:.74rem;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0}
+.tbl td{padding:8px 12px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+.level-chip{display:inline-flex;padding:2px 10px;border-radius:20px;font-size:.72rem;font-weight:700}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listActionPlan, createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
+  KPO_DUTIES
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-eval', 'Module 11 — ประเมินผลดำเนินงาน');
+
+const NOW_CE = new Date().getFullYear();
+const NOW_BE = NOW_CE + 543;
+
+function scoreColor(s) {
+  if (s >= 80) return '#059669';
+  if (s >= 60) return '#d97706';
+  return '#dc2626';
+}
+function levelLabel(s) {
+  if (s >= 80) return { label:'ดี', color:'#059669', bg:'#dcfce7' };
+  if (s >= 60) return { label:'พอใช้', color:'#d97706', bg:'#fef3c7' };
+  return { label:'ต้องปรับปรุง', color:'#dc2626', bg:'#fee2e2' };
+}
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${parseInt(y)+543}`;
+}
+
+let evalRecords = [], currentYear = NOW_CE, currentEval = null, editMode = false;
+
+main.innerHTML = `
+<div style="padding:20px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+    <select id="year-sel" class="form-sel" style="padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.88rem;font-family:'Sarabun',sans-serif;background:#fff" onchange="window._loadYear()">
+      ${[NOW_CE,NOW_CE-1,NOW_CE-2].map(y=>`<option value="${y}">${y+543}</option>`).join('')}
+    </select>
+    <div id="eval-header" style="flex:1"></div>
+    <button class="btn btn-primary btn-sm" onclick="window._newEval()">➕ ประเมินรอบใหม่</button>
+  </div>
+  <div id="kpi-row" class="kpi-row"></div>
+  <div id="eval-content"><div class="spinner">กำลังโหลด...</div></div>
+</div>`;
+
+function renderEvalForm(evalData = {}) {
+  const scores = KPO_DUTIES.reduce((acc, d) => {
+    acc[d.key] = evalData.scores?.[d.key] ?? 0;
+    return acc;
+  }, {});
+  const remarks = KPO_DUTIES.reduce((acc, d) => {
+    acc[d.key] = evalData.remarks?.[d.key] || '';
+    return acc;
+  }, {});
+
+  document.getElementById('eval-content').innerHTML = `
+  <div class="card">
+    <div class="card-head">
+      <h2>✅ แบบประเมินผลดำเนินงาน คปอ. ประจำปี ${currentYear+543}</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-success btn-sm" onclick="window._saveEval()">💾 บันทึกการประเมิน</button>
+        ${evalData.id?`<button class="btn btn-ghost btn-sm" onclick="window._cancelEdit()" style="font-size:.75rem">ยกเลิก</button>`:''}
+      </div>
+    </div>
+    <div class="score-grid">
+      ${KPO_DUTIES.map(d => `
+      <div class="score-item" id="item-${d.key}">
+        <div class="header">
+          <span class="icon">${d.icon}</span>
+          <div class="title">${d.no}. ${d.short}</div>
+        </div>
+        <div class="score-row">
+          <div class="score-bar"><div class="score-fill" id="fill-${d.key}" style="width:${scores[d.key]}%;background:${scoreColor(scores[d.key])}"></div></div>
+          <div class="score-num" id="num-${d.key}" style="color:${scoreColor(scores[d.key])}">${scores[d.key]}%</div>
+        </div>
+        <select class="score-select" id="sc-${d.key}" onchange="window._updateScore('${d.key}',this.value)">
+          ${[0,10,20,30,40,50,60,70,80,90,100].map(v=>`<option value="${v}"${scores[d.key]===v?' selected':''}>${v}%</option>`).join('')}
+        </select>
+        <textarea class="score-textarea" id="rm-${d.key}" placeholder="หมายเหตุ...">${remarks[d.key]}</textarea>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+window._updateScore = (key, val) => {
+  const v = parseInt(val);
+  const fill = document.getElementById(`fill-${key}`);
+  const num  = document.getElementById(`num-${key}`);
+  if (fill) { fill.style.width=v+'%'; fill.style.background=scoreColor(v); }
+  if (num)  { num.textContent=v+'%'; num.style.color=scoreColor(v); }
+};
+
+window._newEval = () => {
+  editMode = true; currentEval = null;
+  document.getElementById('eval-header').textContent = `กำลังสร้างการประเมินใหม่ ปี ${currentYear+543}`;
+  renderEvalForm({});
+};
+
+window._cancelEdit = () => { editMode = false; renderHistory(); };
+
+window._saveEval = async () => {
+  const scores = {}, remarks = {};
+  for (const d of KPO_DUTIES) {
+    scores[d.key]  = parseInt(document.getElementById(`sc-${d.key}`)?.value || 0);
+    remarks[d.key] = document.getElementById(`rm-${d.key}`)?.value?.trim() || '';
+  }
+  const avg = Math.round(Object.values(scores).reduce((a,b)=>a+b,0) / KPO_DUTIES.length);
+  const payload = {
+    year:        currentYear,
+    title:       `การประเมิน คปอ. ปี ${currentYear+543}`,
+    category:    'other',
+    scores,
+    remarks,
+    avgScore:    avg,
+    status:      'completed',
+    kpoDuty:     'duty11',
+    targetDate:  new Date().toISOString().slice(0,10),
+  };
+  try {
+    if (currentEval) await updateActionPlanItem(currentEval.id, payload);
+    else             await createActionPlanItem(payload, profile.uid);
+    const all = await listActionPlan({ lim:300 });
+    evalRecords = all.filter(r => r.kpoDuty === 'duty11');
+    editMode = false; currentEval = null;
+    renderHistory();
+  } catch(e) { alert('บันทึกไม่ได้: '+(e?.message||e)); }
+};
+
+function renderHistory() {
+  const data = evalRecords.filter(r => r.year === currentYear || r.year === String(currentYear));
+  const best = data.reduce((a,b) => ((b.avgScore||0) > (a?.avgScore||0)) ? b : a, null);
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi blue"><div class="num">${data.length}</div><div class="lbl">รอบที่ประเมิน</div></div>
+    <div class="kpi green"><div class="num">${best?best.avgScore+'%':'-'}</div><div class="lbl">คะแนนสูงสุด</div></div>
+    <div class="kpi amber"><div class="num">${data.length?Math.round(data.reduce((s,r)=>s+(r.avgScore||0),0)/data.length)+'%':'-'}</div><div class="lbl">เฉลี่ยทุกรอบ</div></div>`;
+
+  if (!data.length) {
+    document.getElementById('eval-content').innerHTML = `<div class="empty" style="padding:40px">📋 ยังไม่มีการประเมินปี ${currentYear+543}<br><br><button class="btn btn-primary btn-sm" onclick="window._newEval()">➕ เริ่มประเมิน</button></div>`;
+    return;
+  }
+
+  const rows = [...data].sort((a,b) => b.targetDate?.localeCompare(a.targetDate||'')||0);
+  document.getElementById('eval-content').innerHTML = `
+  <div class="card">
+    <div class="card-head"><h2>📋 ประวัติการประเมิน ปี ${currentYear+543}</h2></div>
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>วันที่</th><th>คะแนนเฉลี่ย</th><th>ระดับ</th><th>ผู้ประเมิน</th><th></th></tr></thead>
+      <tbody>
+      ${rows.map(r => {
+        const lv = levelLabel(r.avgScore||0);
+        return `<tr>
+          <td>${fmtDate(r.targetDate)}</td>
+          <td style="font-weight:700;font-size:1rem;color:${scoreColor(r.avgScore||0)}">${r.avgScore||0}%</td>
+          <td><span class="level-chip" style="background:${lv.bg};color:${lv.color}">${lv.label}</span></td>
+          <td style="font-size:.78rem">${r.createdBy||'-'}</td>
+          <td style="display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="window._viewEval('${r.id}')">👁 ดูรายละเอียด</button>
+            <button class="btn btn-ghost btn-sm" onclick="window._editEval('${r.id}')">✏️</button>
+            <button class="btn btn-ghost btn-sm" style="color:#dc2626" onclick="window._delEval('${r.id}')">🗑</button>
+          </td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>
+  </div>`;
+}
+
+window._viewEval = (id) => {
+  const r = evalRecords.find(x=>x.id===id);
+  if (!r || !r.scores) return;
+  const avg = r.avgScore || 0;
+  const lv = levelLabel(avg);
+  const scoreHtml = KPO_DUTIES.map(d => {
+    const s = r.scores[d.key]||0;
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <span style="min-width:28px;font-size:.9rem">${d.icon}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:.78rem;font-weight:600;margin-bottom:3px">${d.no}. ${d.short}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px"><div style="width:${s}%;height:100%;background:${scoreColor(s)};border-radius:3px"></div></div>
+          <span style="font-size:.76rem;font-weight:700;color:${scoreColor(s)};min-width:36px">${s}%</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('eval-content').innerHTML = `
+  <div class="card">
+    <div class="card-head">
+      <h2>✅ รายละเอียดการประเมิน ปี ${(r.year||NOW_CE)+543}</h2>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:1.3rem;font-weight:700;color:${scoreColor(avg)}">${avg}%</span>
+        <span class="level-chip" style="background:${lv.bg};color:${lv.color}">${lv.label}</span>
+        <button class="btn btn-ghost btn-sm" onclick="renderHistory()">← กลับ</button>
+      </div>
+    </div>
+    <div style="padding:16px">${scoreHtml}</div>
+  </div>`;
+};
+
+window._editEval = (id) => {
+  const r = evalRecords.find(x=>x.id===id);
+  if (!r) return;
+  currentEval = r; editMode = true;
+  renderEvalForm(r);
+  for (const d of KPO_DUTIES) {
+    const sc = r.scores?.[d.key] || 0;
+    const sel = document.getElementById(`sc-${d.key}`);
+    if (sel) sel.value = sc;
+    window._updateScore(d.key, sc);
+  }
+};
+
+window._delEval = async (id) => {
+  if (!confirm('ลบการประเมินนี้?')) return;
+  try { await deleteActionPlanItem(id); evalRecords=evalRecords.filter(x=>x.id!==id); renderHistory(); }
+  catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+window._loadYear = () => {
+  currentYear = parseInt(document.getElementById('year-sel')?.value) || NOW_CE;
+  renderHistory();
+};
+
+try {
+  const all = await listActionPlan({ lim:300 });
+  evalRecords = all.filter(r => r.kpoDuty === 'duty11');
+  renderHistory();
+} catch(e) {
+  main.innerHTML=`<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}</div>`;
+}
+</script>
+</body>
+</html>
