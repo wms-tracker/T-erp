@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📊 ระบบวิเคราะห์สถิติหวยไทย</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;800&display=swap" rel="stylesheet">
+<!-- SheetJS สำหรับอ่าน .xlsx โดยตรง (โหลดจาก CDN เมื่อออนไลน์ · ถ้าออฟไลน์ยังใช้ CSV ได้) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg1:#0e1020; --bg2:#1a1530; --acc:#a78bfa; --acc2:#f0abfc; --gold:#fcd34d;
+    --hot:#fb7185; --cold:#38bdf8; --ok:#4ade80;
+    --card:rgba(255,255,255,.05); --line:rgba(255,255,255,.12); --txt:#eef0fb; --muted:#a5a3c4;
+    --font:"Plus Jakarta Sans","Noto Sans Thai",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--txt);font-family:var(--font);line-height:1.5;-webkit-font-smoothing:antialiased;
+    background:radial-gradient(800px 400px at 10% -10%,rgba(167,139,250,.15),transparent),
+      radial-gradient(800px 460px at 90% 5%,rgba(240,171,252,.12),transparent),
+      linear-gradient(165deg,var(--bg1),var(--bg2));background-attachment:fixed;padding:24px 14px 60px}
+  :focus-visible{outline:3px solid var(--acc2);outline-offset:2px;border-radius:8px}
+  @media(prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+  .wrap{max-width:1000px;margin:0 auto}
+  h1{text-align:center;font-size:clamp(22px,4.5vw,30px);margin:.1em 0;font-weight:800;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px}
+  .disc{text-align:center;font-size:12px;color:var(--gold);background:rgba(252,211,77,.08);
+    border:1px solid rgba(252,211,77,.25);border-radius:10px;padding:9px 12px;margin-bottom:18px;line-height:1.6}
+
+  .tabs{display:flex;gap:8px;justify-content:center;margin-bottom:18px;flex-wrap:wrap}
+  .tab{cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:12px 18px;font-weight:700;font-size:14px;
+    font-family:var(--font);background:var(--card);color:var(--muted);transition:.15s;min-height:44px}
+  .tab:hover{color:var(--txt)}
+  .tab.active{color:#160a2e;background:linear-gradient(90deg,var(--acc),var(--acc2));border-color:transparent;
+    box-shadow:0 8px 22px rgba(167,139,250,.35)}
+  .view{display:none} .view.active{display:block;animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;
+    backdrop-filter:blur(12px);box-shadow:0 12px 36px rgba(0,0,0,.4);margin-bottom:14px}
+  .panel h2{margin:0 0 12px;font-size:16px;color:var(--acc2)}
+  .panel h3{margin:14px 0 8px;font-size:14px;color:var(--gold)}
+  label{display:block;font-weight:600;margin:0 0 6px;font-size:13px}
+  input,select,textarea,button{font-family:var(--font)}
+  input,select,textarea{width:100%;border-radius:10px;padding:10px;border:1px solid var(--line);
+    background:rgba(0,0,0,.28);color:var(--txt);font-size:14px;outline:none;transition:.15s}
+  input:focus,select:focus,textarea:focus{border-color:var(--acc2);box-shadow:0 0 0 3px rgba(240,171,252,.18)}
+  textarea{min-height:110px;resize:vertical;font-family:ui-monospace,monospace;font-size:12.5px}
+  .btn{cursor:pointer;border:none;border-radius:11px;padding:12px 18px;font-size:15px;font-weight:800;color:#160a2e;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));box-shadow:0 8px 20px rgba(167,139,250,.3);transition:.15s}
+  .btn:hover{transform:translateY(-2px);filter:brightness(1.05)} .btn:active{transform:translateY(0)}
+  .btn.sec{background:rgba(255,255,255,.08);color:var(--txt);box-shadow:none}
+  .btn.sm{padding:7px 13px;font-size:13px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+  .grid{display:grid;gap:12px}
+  .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:1fr 1fr 1fr} .g4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:640px){.g2,.g3,.g4{grid-template-columns:1fr 1fr}}
+  .field{flex:1;min-width:120px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:center}
+  th{color:var(--muted);font-weight:600;position:sticky;top:0;background:#161228}
+  .scroll{overflow:auto;max-height:420px;border-radius:10px}
+  .num{font-weight:800;font-variant-numeric:tabular-nums}
+  .digit{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9px;
+    font-weight:800;font-size:16px;background:rgba(255,255,255,.06);border:1px solid var(--line)}
+  .digit.hot{background:rgba(251,113,133,.2);border-color:var(--hot);color:#ffd9df}
+  .digit.cold{background:rgba(56,189,248,.16);border-color:var(--cold);color:#d0eeff}
+
+  .stat{background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .stat .v{font-size:26px;font-weight:800;background:linear-gradient(135deg,var(--acc),var(--acc2));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:3px}
+  .bar-row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px}
+  .bar-row .lab{width:22px;text-align:right;font-weight:700}
+  .bar-track{flex:1;height:18px;background:rgba(255,255,255,.06);border-radius:5px;overflow:hidden}
+  .bar-fill{height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:5px;min-width:2px}
+  .bar-row .val{width:56px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;background:rgba(167,139,250,.15);border:1px solid var(--acc);color:var(--acc2);
+    border-radius:8px;padding:3px 9px;margin:2px;font-size:13px;font-weight:700}
+  .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .status{font-size:13px;margin-top:8px}
+  .report{background:rgba(0,0,0,.22);border:1px solid var(--line);border-radius:12px;padding:16px;line-height:1.9;font-size:14px}
+  .report b{color:var(--gold)}
+  .foot{text-align:center;font-size:11.5px;color:var(--muted);margin-top:18px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📊 ระบบวิเคราะห์สถิติหวยไทย</h1>
+  <div class="sub">Thai Lottery Database &amp; Statistical Analysis · เก็บข้อมูลย้อนหลัง + วิเคราะห์เชิงสถิติ</div>
+  <div class="disc">⚠️ ระบบนี้แสดง <b>ข้อมูลสถิติย้อนหลังเท่านั้น</b> — ไม่รับประกันและไม่สามารถยืนยันผลการออกรางวัลในอนาคตได้ · การออกรางวัลเป็นกระบวนการสุ่ม</div>
+  <div id="demoBanner" style="display:none;text-align:center;font-size:13px;color:#160a2e;background:linear-gradient(90deg,#fb7185,#fca5a5);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-weight:700">
+    🎲 กำลังใช้ <b>ข้อมูลตัวอย่าง (สุ่ม)</b> — <b>ไม่ใช่ผลหวยจริง!</b> สถิติที่เห็นจึงไม่ตรงกับความเป็นจริง · กด "🗑️ ล้างข้อมูล" แล้วนำเข้าข้อมูลจริงเพื่อวิเคราะห์จริง
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-view="data" role="tab">📥 ข้อมูล</button>
+    <button class="tab" data-view="dash" role="tab">📊 Dashboard</button>
+    <button class="tab" data-view="freq" role="tab">🔢 ความถี่</button>
+    <button class="tab" data-view="pattern" role="tab">🎯 รูปแบบ</button>
+    <button class="tab" data-view="score" role="tab">⭐ คะแนนสถิติ</button>
+    <button class="tab" data-view="ai" role="tab">🤖 วิเคราะห์อัตโนมัติ</button>
+  </div>
+
+  <!-- ===== ช่วงข้อมูล (ใช้ร่วมทุกแท็บวิเคราะห์) ===== -->
+  <div class="panel" id="rangeBar" style="display:none">
+    <div class="row">
+      <div class="field">
+        <label>ช่วงข้อมูลที่วิเคราะห์</label>
+        <select id="range">
+          <option value="10">10 งวดล่าสุด</option>
+          <option value="20">20 งวดล่าสุด</option>
+          <option value="50" selected>50 งวดล่าสุด</option>
+          <option value="100">100 งวดล่าสุด</option>
+          <option value="y1">1 ปีล่าสุด</option>
+          <option value="y3">3 ปีล่าสุด</option>
+          <option value="y5">5 ปีล่าสุด</option>
+          <option value="all">ทั้งหมด</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>วิเคราะห์จากเลข</label>
+        <select id="target">
+          <option value="last2" selected>เลขท้าย 2 ตัว (ล่าง)</option>
+          <option value="top2">2 ตัวบน (ท้ายรางวัลที่ 1)</option>
+          <option value="first">รางวัลที่ 1 (6 หลัก)</option>
+          <option value="last3">เลขท้าย 3 ตัว (ล่าง)</option>
+          <option value="front3">เลขหน้า 3 ตัว (บน)</option>
+        </select>
+      </div>
+      <div style="align-self:center;color:var(--muted);font-size:13px" id="rangeInfo"></div>
+    </div>
+  </div>
+
+  <!-- ========== แท็บ: ข้อมูล ========== -->
+  <div class="view active" id="view-data">
+    <div class="panel">
+      <h2>📥 นำเข้าข้อมูล (CSV / Excel / Google Sheets)</h2>
+      <p class="hint">รูปแบบคอลัมน์ (บรรทัดแรกคือหัวตาราง): <code>date,period,first,front3a,front3b,last3a,last3b,last2</code><br>
+        ตัวอย่าง: <code>2024-01-16,2567/01,123456,111,222,333,444,56</code> · <b>เก็บเลข 0 นำหน้าไว้</b> (เช่น 007, 01)</p>
+      <textarea id="csvInput" placeholder="วางข้อมูล CSV ที่นี่ หรือกดเลือกไฟล์ด้านล่าง&#10;date,period,first,front3a,front3b,last3a,last3b,last2&#10;2024-01-16,2567/01,123456,111,222,333,444,56"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="fetchLatest">🔄 ดึงผลงวดล่าสุด (อัตโนมัติ)</button>
+        <button class="btn" id="importBtn">⬆️ นำเข้าข้อมูล</button>
+        <label class="btn sec" style="cursor:pointer;text-align:center">📁 เลือกไฟล์ CSV / Excel
+          <input type="file" id="csvFile" accept=".csv,.txt,.xlsx,.xls" style="display:none"></label>
+        <button class="btn sec" id="demoBtn">🎲 โหลดข้อมูลตัวอย่าง (สุ่มเพื่อสาธิต)</button>
+        <button class="btn sec" id="tplBtn">📋 คัดลอกเทมเพลต</button>
+      </div>
+      <div class="status" id="importStatus"></div>
+    </div>
+
+    <div class="panel">
+      <h2>✍️ เพิ่มงวดเดียว (กรอกมือ)</h2>
+      <div class="grid g4">
+        <div><label>วันที่ออกรางวัล</label><input type="date" id="mDate"></div>
+        <div><label>งวดที่</label><input id="mPeriod" placeholder="2567/01"></div>
+        <div><label>รางวัลที่ 1 (6 หลัก)</label><input id="mFirst" maxlength="6" placeholder="123456" inputmode="numeric"></div>
+        <div><label>เลขท้าย 2 ตัว</label><input id="mLast2" maxlength="2" placeholder="56" inputmode="numeric"></div>
+        <div><label>เลขหน้า 3 ตัว (1)</label><input id="mFront3a" maxlength="3" placeholder="111" inputmode="numeric"></div>
+        <div><label>เลขหน้า 3 ตัว (2)</label><input id="mFront3b" maxlength="3" placeholder="222" inputmode="numeric"></div>
+        <div><label>เลขท้าย 3 ตัว (1)</label><input id="mLast3a" maxlength="3" placeholder="333" inputmode="numeric"></div>
+        <div><label>เลขท้าย 3 ตัว (2)</label><input id="mLast3b" maxlength="3" placeholder="444" inputmode="numeric"></div>
+      </div>
+      <button class="btn" id="addBtn" style="margin-top:12px">➕ เพิ่มงวดนี้</button>
+      <div class="status" id="addStatus"></div>
+    </div>
+
+    <div class="panel">
+      <h2>🗂️ ข้อมูลในฐานข้อมูล (<span id="count">0</span> งวด)</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn sec sm" id="exportBtn">💾 ส่งออก CSV</button>
+        <button class="btn sec sm" id="clearDemoBtn" style="color:#fcd34d">🧹 ลบเฉพาะข้อมูลตัวอย่าง</button>
+        <button class="btn sec sm" id="clearBtn" style="color:#fb7185">🗑️ ล้างข้อมูลทั้งหมด</button>
+      </div>
+      <div class="scroll">
+        <table id="dataTable"><thead><tr><th>วันที่</th><th>งวด</th><th>รางวัลที่ 1</th><th>ท้าย 2</th><th>หน้า 3</th><th>ท้าย 3</th><th></th></tr></thead>
+        <tbody id="dataBody"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== แท็บ: Dashboard ========== -->
+  <div class="view" id="view-dash">
+    <div class="panel">
+      <h2>📊 ภาพรวม (Overview)</h2>
+      <div class="grid g4" id="overview"></div>
+    </div>
+    <div class="panel">
+      <h2>🔢 ความถี่เลข 0–9 (รวมทุกตำแหน่ง)</h2>
+      <div id="dashFreq"></div>
+    </div>
+    <div class="grid g2">
+      <div class="panel"><h2>🔥 Hot / ❄️ Cold</h2><div id="dashHotCold"></div></div>
+      <div class="panel"><h2>⏳ ห่างจากออกล่าสุด (Missing)</h2><div id="dashMissing"></div></div>
+    </div>
+    <div class="panel"><h2>🎯 รูปแบบเลขท้าย 2 ตัว</h2><div class="grid g4" id="dashPattern"></div></div>
+  </div>
+
+  <!-- ========== แท็บ: ความถี่ ========== -->
+  <div class="view" id="view-freq">
+    <div class="panel">
+      <h2>🔢 ความถี่ตามตำแหน่งหลัก</h2>
+      <div class="scroll"><table id="posFreqTable"></table></div>
+    </div>
+    <div class="grid g2">
+      <div class="panel"><h2>🔥 Hot Number</h2><div id="hotList"></div></div>
+      <div class="panel"><h2>❄️ Cold Number</h2><div id="coldList"></div></div>
+    </div>
+    <div class="panel">
+      <h2>⏳ Missing Streak (ระยะห่างจากออกล่าสุด)</h2>
+      <p class="hint">จำนวนงวดตั้งแต่เลขนั้นปรากฏครั้งล่าสุด (ในตำแหน่งใดก็ได้ของเลขเป้าหมาย) · เป็นข้อมูลเชิงสถิติย้อนหลังเท่านั้น</p>
+      <div class="scroll"><table id="missTable"></table></div>
+    </div>
+    <div class="panel">
+      <h2>🔄 Rolling Window (เปรียบเทียบหลายช่วง)</h2>
+      <p class="hint">%ที่เลขแต่ละตัวปรากฏ เทียบกันระหว่าง 10 / 20 / 50 / 100 งวดล่าสุด</p>
+      <div class="scroll"><table id="rollTable"></table></div>
+    </div>
+  </div>
+
+  <!-- ========== แท็บ: รูปแบบ ========== -->
+  <div class="view" id="view-pattern">
+    <div class="grid g2">
+      <div class="panel"><h2>➗ คู่ / คี่ (เลขท้าย 2 ตัว)</h2><div id="oddEven"></div></div>
+      <div class="panel"><h2>📈 สูง / ต่ำ (0–4 ต่ำ · 5–9 สูง)</h2><div id="highLow"></div></div>
+    </div>
+    <div class="panel">
+      <h2>➕ ผลรวมตัวเลข (Sum)</h2>
+      <div class="grid g4" id="sumStats"></div>
+      <h3>การกระจายของผลรวม</h3>
+      <div id="sumDist"></div>
+    </div>
+    <div class="grid g2">
+      <div class="panel"><h2>👯 เลขเบิ้ล / เลขซ้ำ</h2><div id="doubles"></div></div>
+      <div class="panel"><h2>🔃 เลขกลับ</h2><div id="reverse"></div></div>
+    </div>
+    <div class="panel">
+      <h2>🔗 ความสัมพันธ์ตัวเลข (Correlation)</h2>
+      <p class="hint">คู่เลข (หลักสิบ-หลักหน่วย) ที่พบร่วมกันบ่อยในเลขท้าย 2 ตัว · <b>ความสัมพันธ์ทางสถิติไม่ได้แปลว่าเลขหนึ่ง "ทำให้" อีกเลขออก</b></p>
+      <div id="corr"></div>
+    </div>
+  </div>
+
+  <!-- ========== แท็บ: คะแนนสถิติ ========== -->
+  <div class="view" id="view-score">
+    <div class="panel">
+      <h2>⭐ Statistical Score (คะแนนจากข้อมูลย้อนหลัง)</h2>
+      <p class="hint">รวมหลายปัจจัย: ความถี่ + ความถี่ล่าสุด + ความถี่ตามตำแหน่ง + Missing Streak + ความถี่รูปแบบ → Normalize 0–100<br>
+        <b>⚠️ นี่คือ "คะแนนทางสถิติ" ไม่ใช่ "เลขที่จะออก"</b> — ไม่สามารถยืนยันผลอนาคตได้</p>
+      <div class="scroll"><table id="scoreTable"></table></div>
+    </div>
+  </div>
+
+  <!-- ========== แท็บ: AI วิเคราะห์ ========== -->
+  <div class="view" id="view-ai">
+    <div class="panel">
+      <h2>🤖 การวิเคราะห์อัตโนมัติ</h2>
+      <p class="hint">สร้างสรุปเชิงสถิติจากข้อมูลย้อนหลังตามช่วง/เลขที่เลือกด้านบน · เป็นการสรุปข้อมูลที่มี ไม่ใช่การทำนาย</p>
+      <button class="btn" id="aiBtn">📝 สร้างรายงานวิเคราะห์</button>
+      <div class="report" id="aiReport" style="margin-top:14px;display:none"></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    ระบบนี้เพื่อการศึกษา/วิเคราะห์สถิติเท่านั้น · ข้อมูลย้อนหลังไม่สามารถยืนยันผลการออกรางวัลในอนาคต · การพนันมีความเสี่ยง เล่นอย่างมีสติ · ปรึกษาปัญหาการพนัน โทร 1413
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Thai Lottery Statistical Analysis — เก็บข้อมูลใน localStorage
+   หลักการ: เก็บเลขทุกตัวเป็น "string" เสมอ (คงเลข 0 นำหน้า)
+            แยกข้อเท็จจริงจากฐานข้อมูล ออกจากการวิเคราะห์
+   ============================================================ */
+const $=s=>document.querySelector(s);
+const KEY="thaiLottoDB";
+let DB=load();   // array ของงวด {date,period,first,front3:[a,b],last3:[a,b],last2}
+
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]} }
+function save(){ localStorage.setItem(KEY,JSON.stringify(DB)); }
+
+/* ---------- Normalize (รับได้หลายรูปแบบ: YYYY-MM-DD, D/M/YYYY, ปี พ.ศ.) ---------- */
+function normDate(s){
+  s=String(s||"").trim();
+  let y,m,d;
+  const a=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);   // YYYY-MM-DD
+  const b=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);   // D/M/YYYY
+  if(a){ y=+a[1]; m=+a[2]; d=+a[3]; }
+  else if(b){ d=+b[1]; m=+b[2]; y=+b[3]; }
+  else return "";
+  if(y>2400) y-=543;                     // ปี พ.ศ. → ค.ศ.
+  if(m<1||m>12||d<1||d>31) return "";
+  return `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+}
+// ทำความสะอาดเลข n หลัก (คงเลข 0 นำหน้า) · "0"/ว่าง = ไม่มีข้อมูล
+const cleanN=(s,n)=>{ s=String(s||"").replace(/\D/g,""); return s?s.padStart(n,"0").slice(-n):""; };
+const clean3=s=>{ s=String(s||"").trim(); if(s===""||s==="0"||s==="00") return ""; return cleanN(s,3); };
+
+/* ---------- Validation (ข้อ 17) ---------- */
+const isDigits=(s,n)=> typeof s==="string" && new RegExp(`^\\d{${n}}$`).test(s);
+function validDraw(d){
+  if(!d.date || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return "วันที่ไม่ถูกต้อง (YYYY-MM-DD)";
+  if(!isDigits(d.first,6)) return "รางวัลที่ 1 ต้องเป็นตัวเลข 6 หลัก";
+  if(!isDigits(d.last2,2)) return "เลขท้าย 2 ตัวต้องเป็น 2 หลัก";
+  for(const x of d.front3) if(x && !isDigits(x,3)) return "เลขหน้า 3 ตัวต้องเป็น 3 หลัก";
+  for(const x of d.last3) if(x && !isDigits(x,3)) return "เลขท้าย 3 ตัวต้องเป็น 3 หลัก";
+  return null;
+}
+
+/* ---------- เพิ่มงวด (กันซ้ำด้วย date เป็น unique key) ---------- */
+function upsert(draws){
+  let added=0, dup=0, bad=0; const errs=[];
+  for(const d of draws){
+    const err=validDraw(d);
+    if(err){ bad++; if(errs.length<3) errs.push(`${d.date||"?"}: ${err}`); continue; }
+    const i=DB.findIndex(x=>x.date===d.date);
+    if(i>=0){ DB[i]=d; dup++; } else { DB.push(d); added++; }
+  }
+  DB.sort((a,b)=> a.date<b.date?1:-1);   // ใหม่→เก่า
+  save();
+  return {added,dup,bad,errs};
+}
+
+/* ---------- Parse CSV ---------- */
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length) return [];
+  // ข้ามหัวตารางถ้ามีคำว่า date
+  let start = /date/i.test(lines[0]) ? 1 : 0;
+  const out=[];
+  for(let i=start;i<lines.length;i++){
+    const c=lines[i].split(",").map(s=>s.trim());
+    if(c.length<3 || !c[0]) continue;                 // ข้ามแถวว่าง
+    const date=normDate(c[0]);
+    if(!date) continue;                                // ข้ามแถวที่วันที่อ่านไม่ออก
+    out.push({ date, period:c[1]||"", first:cleanN(c[2],6),
+      front3:[clean3(c[3]),clean3(c[4])], last3:[clean3(c[5]),clean3(c[6])], last2:cleanN(c[7],2) });
+  }
+  return out;
+}
+
+/* ============================================================
+   ตัวช่วยวิเคราะห์ — ดึงชุดเลขตามช่วง (range) และเป้าหมาย (target)
+   ============================================================ */
+function windowedDraws(){
+  const r=$("#range").value;
+  const sorted=[...DB]; // already newest-first
+  if(/^\d+$/.test(r)) return sorted.slice(0, +r);
+  if(r.startsWith("y")){
+    const yrs=+r.slice(1); const cut=new Date(); cut.setFullYear(cut.getFullYear()-yrs);
+    const cs=cut.toISOString().slice(0,10);
+    return sorted.filter(d=>d.date>=cs);
+  }
+  return sorted; // all
+}
+// คืน array ของ "สตริงเลขเป้าหมาย" ตาม target (เรียงใหม่→เก่า)
+// ท้าย 2 หลักของรางวัลที่ 1 = "2 ตัวบน"
+const top2Of=d=> (d.first&&d.first.length===6) ? d.first.slice(-2) : "";
+function targetStrings(draws){
+  const t=$("#target").value;
+  const out=[];
+  for(const d of draws){
+    if(t==="last2") out.push(d.last2);
+    else if(t==="top2") out.push(top2Of(d));
+    else if(t==="first") out.push(d.first);
+    else if(t==="last3"){ if(d.last3[0])out.push(d.last3[0]); if(d.last3[1])out.push(d.last3[1]); }
+    else if(t==="front3"){ if(d.front3[0])out.push(d.front3[0]); if(d.front3[1])out.push(d.front3[1]); }
+  }
+  return out.filter(s=>s);
+}
+function targetLen(){ const t=$("#target").value; return (t==="last2"||t==="top2")?2 : t==="first"?6 : 3; }
+// คืนสตริง 2 หลักสำหรับแท็บรูปแบบ/dashboard (ตามที่เลือก ล่าง/บน)
+function pair2(draw){ return $("#target").value==="top2" ? top2Of(draw) : draw.last2; }
+const posNames=n=> n===2?["สิบ","หน่วย"] : n===6?["แสน","หมื่น","พัน","ร้อย","สิบ","หน่วย"] : ["ร้อย","สิบ","หน่วย"];
+
+/* ---------- นับความถี่ต่อหลัก + รวม ---------- */
+function digitFreq(strings,len){
+  const pos=Array.from({length:len},()=>Array(10).fill(0));
+  const total=Array(10).fill(0);
+  for(const s of strings){
+    if(s.length!==len) continue;
+    for(let p=0;p<len;p++){ const d=+s[p]; pos[p][d]++; total[d]++; }
+  }
+  return {pos,total};
+}
+
+/* ============================================================
+   RENDER — Data tab
+   ============================================================ */
+function renderData(){
+  $("#count").textContent=DB.length;
+  const tb=$("#dataBody"); tb.innerHTML="";
+  DB.slice(0,300).forEach(d=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${d.date}</td><td>${d.period||"-"}</td>
+      <td class="num" style="letter-spacing:2px">${d.first}</td>
+      <td class="num" style="color:var(--gold)">${d.last2}</td>
+      <td>${d.front3.filter(Boolean).join(" ")||"-"}</td>
+      <td>${d.last3.filter(Boolean).join(" ")||"-"}</td>
+      <td><button class="btn sec sm" data-del="${d.date}">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    DB=DB.filter(x=>x.date!==b.dataset.del); save(); renderAll();
+  });
+}
+
+/* ============================================================
+   RENDER — Dashboard
+   ============================================================ */
+function renderDash(){
+  const ov=$("#overview");
+  const latest=DB[0];
+  ov.innerHTML=`
+    <div class="stat"><div class="v">${DB.length}</div><div class="l">จำนวนงวดทั้งหมด</div></div>
+    <div class="stat"><div class="v" style="font-size:18px">${latest?latest.date:"-"}</div><div class="l">งวดล่าสุด</div></div>
+    <div class="stat"><div class="v" style="font-size:20px;color:var(--gold)">${latest?latest.last2:"--"}</div><div class="l">เลขท้าย 2 ตัวล่าสุด</div></div>
+    <div class="stat"><div class="v" style="font-size:16px">${new Date().toLocaleDateString("th-TH")}</div><div class="l">อัปเดตล่าสุด</div></div>`;
+
+  if(!DB.length){ ["#dashFreq","#dashHotCold","#dashMissing","#dashPattern"].forEach(s=>$(s).innerHTML='<p class="hint">ยังไม่มีข้อมูล — เพิ่มข้อมูลในแท็บ "ข้อมูล" ก่อน</p>'); return; }
+
+  const draws=windowedDraws(), strings=targetStrings(draws), len=targetLen();
+  const {total}=digitFreq(strings,len);
+  const maxT=Math.max(...total,1);
+  $("#dashFreq").innerHTML=total.map((c,d)=>barRow(d,c,maxT,total.reduce((a,b)=>a+b,0))).join("");
+
+  // hot/cold
+  const rank=total.map((c,d)=>({d,c})).sort((a,b)=>b.c-a.c);
+  $("#dashHotCold").innerHTML=
+    `<div style="margin-bottom:6px">🔥 มากสุด: ${rank.slice(0,3).map(x=>`<span class="digit hot">${x.d}</span>`).join(" ")}</div>`+
+    `<div>❄️ น้อยสุด: ${rank.slice(-3).reverse().map(x=>`<span class="digit cold">${x.d}</span>`).join(" ")}</div>`;
+
+  // missing
+  const miss=missingStreak(draws,len);
+  const mrank=miss.map((v,d)=>({d,v})).sort((a,b)=>b.v-a.v);
+  $("#dashMissing").innerHTML=mrank.slice(0,5).map(x=>
+    `<div class="bar-row"><span class="digit">${x.d}</span> <span style="color:var(--muted)">ไม่พบ ${x.v} งวดล่าสุด</span></div>`).join("");
+
+  // pattern (เลขท้าย 2 ตัว เสมอ)
+  const l2=draws.map(d=>pair2(d)).filter(s=>s.length===2);
+  const oe=oddEvenStats(l2), hl=highLowStats(l2);
+  $("#dashPattern").innerHTML=
+    patCard("คู่-คู่",oe["EE"],l2.length)+patCard("คู่-คี่",oe["EO"],l2.length)+
+    patCard("คี่-คู่",oe["OE"],l2.length)+patCard("คี่-คี่",oe["OO"],l2.length);
+}
+function barRow(label,c,max,sum){
+  const pct=sum?(c/sum*100):0;
+  return `<div class="bar-row"><span class="lab">${label}</span>
+    <div class="bar-track"><div class="bar-fill" style="width:${max?c/max*100:0}%"></div></div>
+    <span class="val">${c} · ${pct.toFixed(1)}%</span></div>`;
+}
+function patCard(name,c,tot){ return `<div class="stat"><div class="v" style="font-size:20px">${c}</div>
+  <div class="l">${name}<br>${tot?(c/tot*100).toFixed(1):0}%</div></div>`; }
+
+/* ---------- Missing streak: งวดตั้งแต่ digit ปรากฏล่าสุด (ในเลขเป้าหมาย) ---------- */
+function missingStreak(draws,len){
+  const res=Array(10).fill(draws.length); // ถ้าไม่เจอเลย = ทั้งหมด
+  for(let d=0;d<10;d++){
+    for(let i=0;i<draws.length;i++){       // i=0 คือล่าสุด
+      const s=targetOf(draws[i]);
+      if(s.some(v=>v.includes(String(d)))){ res[d]=i; break; }
+    }
+  }
+  return res;
+}
+function targetOf(draw){
+  const t=$("#target").value;
+  if(t==="last2") return [draw.last2];
+  if(t==="top2") return [top2Of(draw)].filter(Boolean);
+  if(t==="first") return [draw.first];
+  if(t==="last3") return draw.last3.filter(Boolean);
+  return draw.front3.filter(Boolean);
+}
+
+/* ============================================================
+   RENDER — ความถี่
+   ============================================================ */
+function renderFreq(){
+  if(!DB.length){ ["#posFreqTable","#hotList","#coldList","#missTable","#rollTable"].forEach(s=>$(s).innerHTML='<p class="hint">ยังไม่มีข้อมูล</p>'); return; }
+  const draws=windowedDraws(), strings=targetStrings(draws), len=targetLen();
+  const {pos,total}=digitFreq(strings,len), names=posNames(len);
+
+  // ตารางความถี่ต่อหลัก
+  let h="<thead><tr><th>เลข</th>"+names.map(n=>`<th>${n}</th>`).join("")+"<th>รวม</th></tr></thead><tbody>";
+  for(let d=0;d<10;d++){
+    h+=`<tr><td class="num">${d}</td>`+pos.map(p=>`<td>${p[d]}</td>`).join("")+`<td class="num">${total[d]}</td></tr>`;
+  }
+  h+="</tbody>"; $("#posFreqTable").innerHTML=h;
+
+  // hot/cold
+  const rank=total.map((c,d)=>({d,c})).sort((a,b)=>b.c-a.c);
+  const sum=total.reduce((a,b)=>a+b,0);
+  $("#hotList").innerHTML=rank.slice(0,5).map(x=>
+    `<div class="bar-row"><span class="digit hot">${x.d}</span><div class="bar-track"><div class="bar-fill" style="width:${rank[0].c?x.c/rank[0].c*100:0}%"></div></div><span class="val">${x.c} · ${sum?(x.c/sum*100).toFixed(1):0}%</span></div>`).join("");
+  $("#coldList").innerHTML=rank.slice(-5).reverse().map(x=>
+    `<div class="bar-row"><span class="digit cold">${x.d}</span><div class="bar-track"><div class="bar-fill" style="width:${rank[0].c?x.c/rank[0].c*100:0}%"></div></div><span class="val">${x.c} · ${sum?(x.c/sum*100).toFixed(1):0}%</span></div>`).join("");
+
+  // missing table
+  const miss=missingStreak(draws,len);
+  let m="<thead><tr><th>เลข</th><th>ไม่พบมาแล้ว (งวด)</th><th>สถานะ</th></tr></thead><tbody>";
+  miss.map((v,d)=>({d,v})).sort((a,b)=>b.v-a.v).forEach(x=>{
+    m+=`<tr><td class="num">${x.d}</td><td class="num">${x.v}</td><td style="color:var(--muted)">${x.v>=draws.length?"ไม่พบในช่วงนี้":"ล่าสุดเมื่อ "+x.v+" งวดก่อน"}</td></tr>`;
+  });
+  m+="</tbody>"; $("#missTable").innerHTML=m;
+
+  // rolling window
+  renderRolling();
+}
+function renderRolling(){
+  const wins=[10,20,50,100], len=targetLen();
+  const cache=wins.map(w=>{
+    const dr=[...DB].slice(0,w); const st=targetStringsFrom(dr);
+    const {total}=digitFreq(st,len); const sum=total.reduce((a,b)=>a+b,0);
+    return total.map(c=>sum?(c/sum*100):0);
+  });
+  let h="<thead><tr><th>เลข</th>"+wins.map(w=>`<th>${w} งวด</th>`).join("")+"<th>แนวโน้ม</th></tr></thead><tbody>";
+  for(let d=0;d<10;d++){
+    const vals=cache.map(c=>c[d]);
+    const trend=vals[0]>vals[vals.length-1]+1?"📈 เพิ่ม":vals[0]<vals[vals.length-1]-1?"📉 ลด":"➖ คงที่";
+    h+=`<tr><td class="num">${d}</td>`+vals.map(v=>`<td>${v.toFixed(1)}%</td>`).join("")+`<td>${trend}</td></tr>`;
+  }
+  h+="</tbody>"; $("#rollTable").innerHTML=h;
+}
+function targetStringsFrom(draws){
+  const t=$("#target").value, out=[];
+  for(const d of draws){
+    if(t==="last2")out.push(d.last2); else if(t==="top2")out.push(top2Of(d));
+    else if(t==="first")out.push(d.first);
+    else if(t==="last3"){if(d.last3[0])out.push(d.last3[0]);if(d.last3[1])out.push(d.last3[1]);}
+    else if(t==="front3"){if(d.front3[0])out.push(d.front3[0]);if(d.front3[1])out.push(d.front3[1]);}
+  }
+  return out.filter(Boolean);
+}
+
+/* ============================================================
+   RENDER — รูปแบบ (คู่/คี่, สูง/ต่ำ, ผลรวม, เบิ้ล, กลับ, correlation)
+   ============================================================ */
+function oddEvenStats(l2){
+  const r={EE:0,EO:0,OE:0,OO:0};
+  for(const s of l2){ if(s.length!==2)continue;
+    const a=+s[0]%2?"O":"E", b=+s[1]%2?"O":"E"; r[a+b]++; }
+  return r;
+}
+function highLowStats(l2){
+  const r={LL:0,LH:0,HL:0,HH:0};
+  for(const s of l2){ if(s.length!==2)continue;
+    const a=+s[0]>=5?"H":"L", b=+s[1]>=5?"H":"L"; r[a+b]++; }
+  return r;
+}
+function renderPattern(){
+  const draws=windowedDraws();
+  const l2=draws.map(d=>pair2(d)).filter(s=>s.length===2);
+  const tot=l2.length;
+  if(!tot){ ["#oddEven","#highLow","#sumStats","#sumDist","#doubles","#reverse","#corr"].forEach(s=>$(s).innerHTML='<p class="hint">ยังไม่มีข้อมูล</p>'); return; }
+
+  const oe=oddEvenStats(l2);
+  $("#oddEven").innerHTML=[["คู่-คู่","EE"],["คู่-คี่","EO"],["คี่-คู่","OE"],["คี่-คี่","OO"]]
+    .map(([n,k])=>miniBar(n,oe[k],tot)).join("");
+  const hl=highLowStats(l2);
+  $("#highLow").innerHTML=[["ต่ำ-ต่ำ","LL"],["ต่ำ-สูง","LH"],["สูง-ต่ำ","HL"],["สูง-สูง","HH"]]
+    .map(([n,k])=>miniBar(n,hl[k],tot)).join("");
+
+  // ผลรวม
+  const sums=l2.map(s=>+s[0]+ +s[1]);
+  const mean=avg(sums), med=median(sums), mo=mode(sums);
+  $("#sumStats").innerHTML=
+    `<div class="stat"><div class="v">${Math.min(...sums)}</div><div class="l">ต่ำสุด</div></div>`+
+    `<div class="stat"><div class="v">${Math.max(...sums)}</div><div class="l">สูงสุด</div></div>`+
+    `<div class="stat"><div class="v">${mean.toFixed(1)}</div><div class="l">เฉลี่ย</div></div>`+
+    `<div class="stat"><div class="v">${med}</div><div class="l">Median · Mode ${mo}</div></div>`;
+  const dist={}; sums.forEach(s=>dist[s]=(dist[s]||0)+1);
+  const maxD=Math.max(...Object.values(dist));
+  $("#sumDist").innerHTML=Object.keys(dist).map(Number).sort((a,b)=>a-b)
+    .map(k=>barRow(k,dist[k],maxD,tot)).join("");
+
+  // เบิ้ล / ซ้ำ
+  const dbl=l2.filter(s=>s[0]===s[1]);
+  const dblCount={}; dbl.forEach(s=>dblCount[s]=(dblCount[s]||0)+1);
+  const firstRepeat=draws.filter(d=>new Set(d.first).size<6).length;
+  $("#doubles").innerHTML=
+    `<div>เลขเบิ้ลในเลขท้าย 2 ตัว: <b class="num" style="color:var(--gold)">${dbl.length}</b> ครั้ง (${(dbl.length/tot*100).toFixed(1)}%)</div>`+
+    `<div style="margin:8px 0">${Object.keys(dblCount).sort().map(k=>`<span class="pill">${k} ×${dblCount[k]}</span>`).join("")||'<span class="hint">ไม่พบ</span>'}</div>`+
+    `<div class="hint">รางวัลที่ 1 ที่มีตัวเลขซ้ำ (เช่น 112233): <b>${firstRepeat}</b> งวด</div>`;
+
+  // เลขกลับ
+  $("#reverse").innerHTML=reverseReport(draws);
+
+  // correlation (คู่หลักสิบ-หน่วย ที่พบบ่อย)
+  const pair={}; l2.forEach(s=>pair[s]=(pair[s]||0)+1);
+  const top=Object.entries(pair).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  $("#corr").innerHTML=`<p class="hint" style="margin-top:0">เลขท้าย 2 ตัวที่พบบ่อยสุดในช่วงนี้:</p>`+
+    top.map(([k,c])=>`<span class="pill">${k} <b>×${c}</b></span>`).join("");
+}
+function miniBar(name,c,tot){ const p=tot?(c/tot*100):0;
+  return `<div class="bar-row"><span style="width:64px;font-weight:600">${name}</span>
+    <div class="bar-track"><div class="bar-fill" style="width:${p}%"></div></div>
+    <span class="val">${c} · ${p.toFixed(1)}%</span></div>`;
+}
+function reverseReport(draws){
+  const l2=draws.map(d=>pair2(d)).filter(s=>s.length===2);
+  const seen={}; l2.forEach((s,i)=>{ if(!(s in seen)) seen[s]=i; });
+  let rows=[], checked=new Set();
+  l2.forEach((s,i)=>{
+    const rev=s[1]+s[0];
+    if(s[0]===s[1]||checked.has(s)||checked.has(rev)) return;
+    checked.add(s); checked.add(rev);
+    if(rev in seen){ rows.push({a:s,b:rev,gap:Math.abs(seen[s]-seen[rev])}); }
+  });
+  rows=rows.sort((a,b)=>a.gap-b.gap).slice(0,10);
+  if(!rows.length) return '<span class="hint">ไม่พบคู่เลขกลับในช่วงนี้</span>';
+  return `<p class="hint" style="margin-top:0">คู่เลขกลับที่พบทั้งคู่ในช่วงนี้ (ห่างกันกี่งวด):</p>`+
+    rows.map(r=>`<div class="bar-row"><span class="pill">${r.a} ↔ ${r.b}</span> <span class="hint">ห่าง ${r.gap} งวด</span></div>`).join("");
+}
+const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+const median=a=>{const s=[...a].sort((x,y)=>x-y);const m=s.length>>1;return s.length%2?s[m]:((s[m-1]+s[m])/2);};
+const mode=a=>{const c={};a.forEach(x=>c[x]=(c[x]||0)+1);return +Object.entries(c).sort((x,y)=>y[1]-x[1])[0][0];};
+
+/* ============================================================
+   RENDER — Statistical Score (ข้อ 15) — คะแนน 0-100 ต่อเลข 0-9
+   ============================================================ */
+function renderScore(){
+  if(!DB.length){ $("#scoreTable").innerHTML='<p class="hint">ยังไม่มีข้อมูล</p>'; return; }
+  const draws=windowedDraws(), len=targetLen();
+  const strings=targetStrings(draws);
+  const {total}=digitFreq(strings,len);
+  const recent=targetStringsFrom([...DB].slice(0,10)); // ล่าสุด 10 งวด
+  const {total:rTotal}=digitFreq(recent,len);
+  const miss=missingStreak(draws,len);
+  const sumAll=total.reduce((a,b)=>a+b,0)||1, sumR=rTotal.reduce((a,b)=>a+b,0)||1, maxMiss=Math.max(...miss,1);
+
+  const raw=[];
+  for(let d=0;d<10;d++){
+    const freq=total[d]/sumAll;          // ความถี่รวม
+    const rec=rTotal[d]/sumR;            // ความถี่ล่าสุด
+    const missN=miss[d]/maxMiss;         // ยิ่งหายนานคะแนนสูง (สถิติ ไม่ใช่คำทำนาย)
+    raw.push(freq*0.4 + rec*0.35 + missN*0.25);
+  }
+  const mn=Math.min(...raw), mx=Math.max(...raw);
+  const score=raw.map(v=> mx>mn ? Math.round((v-mn)/(mx-mn)*100) : 50);
+
+  const rank=score.map((s,d)=>({d,s})).sort((a,b)=>b.s-a.s);
+  let h="<thead><tr><th>อันดับ</th><th>เลข</th><th>Statistical Score</th><th>ความถี่</th><th>ล่าสุด(10)</th><th>ห่าง(งวด)</th></tr></thead><tbody>";
+  rank.forEach((x,i)=>{
+    h+=`<tr><td>${i+1}</td><td><span class="digit">${x.d}</span></td>
+      <td><div class="bar-row" style="margin:0"><div class="bar-track"><div class="bar-fill" style="width:${x.s}%"></div></div><span class="val num">${x.s}</span></div></td>
+      <td>${total[x.d]}</td><td>${rTotal[x.d]}</td><td>${miss[x.d]}</td></tr>`;
+  });
+  h+="</tbody>"; $("#scoreTable").innerHTML=h;
+}
+
+/* ============================================================
+   AI Analysis (ข้อ 14) — สร้างรายงานจากสถิติ (rule-based)
+   ============================================================ */
+function buildReport(){
+  if(!DB.length) return '<p class="hint">ยังไม่มีข้อมูลให้วิเคราะห์</p>';
+  const draws=windowedDraws(), strings=targetStrings(draws), len=targetLen();
+  const tName={last2:"เลขท้าย 2 ตัว",first:"รางวัลที่ 1",last3:"เลขท้าย 3 ตัว",front3:"เลขหน้า 3 ตัว"}[$("#target").value];
+  const {total}=digitFreq(strings,len);
+  const rank=total.map((c,d)=>({d,c})).sort((a,b)=>b.c-a.c);
+  const miss=missingStreak(draws,len);
+  const missTop=miss.map((v,d)=>({d,v})).sort((a,b)=>b.v-a.v)[0];
+  const l2=draws.map(d=>pair2(d)).filter(s=>s.length===2);
+  const oe=oddEvenStats(l2), hl=highLowStats(l2);
+  const oeTop=Object.entries(oe).sort((a,b)=>b[1]-a[1])[0];
+  const hlTop=Object.entries(hl).sort((a,b)=>b[1]-a[1])[0];
+  const sums=l2.map(s=>+s[0]+ +s[1]); const sumMode=sums.length?mode(sums):"-";
+  const dbl=l2.filter(s=>s[0]===s[1]);
+  const oeName={EE:"คู่-คู่",EO:"คู่-คี่",OE:"คี่-คู่",OO:"คี่-คี่"};
+  const hlName={LL:"ต่ำ-ต่ำ",LH:"ต่ำ-สูง",HL:"สูง-ต่ำ",HH:"สูง-สูง"};
+
+  return `<b>📋 สรุปข้อมูลย้อนหลัง ${draws.length} งวด · ${tName}</b><br><br>
+    <b>1. เลขที่พบมากที่สุด:</b> ${rank.slice(0,3).map(x=>`${x.d} (${x.c} ครั้ง)`).join(", ")}<br>
+    <b>2. เลขที่พบน้อยที่สุด:</b> ${rank.slice(-3).reverse().map(x=>`${x.d} (${x.c} ครั้ง)`).join(", ")}<br>
+    <b>3. เลขที่ไม่พบในช่วงล่าสุด:</b> เลข ${missTop.d} ไม่ปรากฏมา ${missTop.v} งวด (ข้อมูลย้อนหลังเท่านั้น)<br>
+    <b>4. คู่/คี่ ที่พบมากสุด:</b> ${oeTop?oeName[oeTop[0]]+" ("+oeTop[1]+" ครั้ง)":"-"}<br>
+    <b>5. สูง/ต่ำ ที่พบมากสุด:</b> ${hlTop?hlName[hlTop[0]]+" ("+hlTop[1]+" ครั้ง)":"-"}<br>
+    <b>6. ผลรวมที่พบบ่อยสุด:</b> ${sumMode}<br>
+    <b>7. เลขเบิ้ลที่พบ:</b> ${dbl.length?[...new Set(dbl)].join(", ")+" (รวม "+dbl.length+" ครั้ง)":"ไม่พบ"}<br>
+    <b>8. เลขกลับที่พบทั้งคู่:</b> ${(()=>{const t=reverseCount(l2);return t?t+" คู่":"ไม่พบ";})()}<br>
+    <b>9. รูปแบบที่น่าสนใจ:</b> ${rank[0].c>0?`เลข ${rank[0].d} ปรากฏบ่อยสุด (${(rank[0].c/total.reduce((a,b)=>a+b,0)*100).toFixed(1)}% ของทุกตำแหน่ง)`:"-"}<br>
+    <b>10. ข้อจำกัดของข้อมูล:</b> <span style="color:var(--gold)">นี่คือสถิติย้อนหลังของ ${draws.length} งวดเท่านั้น การออกรางวัลเป็นการสุ่ม — ข้อมูลนี้ไม่สามารถยืนยันหรือทำนายผลงวดถัดไปได้</span>`;
+}
+function reverseCount(l2){
+  const seen=new Set(l2), checked=new Set(); let n=0;
+  l2.forEach(s=>{ if(s[0]===s[1])return; const r=s[1]+s[0];
+    if(checked.has(s))return; checked.add(s);checked.add(r);
+    if(seen.has(r))n++; });
+  return n;
+}
+
+/* ============================================================
+   Render orchestration + range info
+   ============================================================ */
+function renderAll(){
+  // เตือนถ้ามีข้อมูลตัวอย่าง (สุ่ม) ปนอยู่
+  $("#demoBanner").style.display = DB.some(d=>d.period==="ตัวอย่าง") ? "block" : "none";
+  const active=document.querySelector(".tab.active").dataset.view;
+  $("#rangeBar").style.display=["dash","freq","pattern","score","ai"].includes(active)?"block":"none";
+  const draws=windowedDraws();
+  $("#rangeInfo").textContent=DB.length?`วิเคราะห์จาก ${draws.length} งวด (จากทั้งหมด ${DB.length})`:"";
+  renderData();
+  if(active==="dash")renderDash();
+  if(active==="freq")renderFreq();
+  if(active==="pattern")renderPattern();
+  if(active==="score")renderScore();
+}
+
+/* ============================================================
+   Events
+   ============================================================ */
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
+  document.querySelectorAll(".tab").forEach(x=>{x.classList.remove("active");x.setAttribute("aria-selected","false")});
+  document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active"); t.setAttribute("aria-selected","true");
+  $("#view-"+t.dataset.view).classList.add("active");
+  renderAll();
+}));
+$("#range").addEventListener("change",renderAll);
+$("#target").addEventListener("change",renderAll);
+
+$("#importBtn").onclick=()=>{
+  const draws=parseCSV($("#csvInput").value);
+  if(!draws.length){ $("#importStatus").innerHTML='<span style="color:var(--hot)">❌ ไม่พบข้อมูล CSV</span>'; return; }
+  const r=upsert(draws);
+  $("#importStatus").innerHTML=`<span style="color:var(--ok)">✅ นำเข้า ${r.added} งวดใหม่ · อัปเดต ${r.dup} · ข้าม(ผิดรูปแบบ) ${r.bad}</span>`+
+    (r.errs.length?`<br><span class="hint">${r.errs.join(" · ")}</span>`:"");
+  renderAll();
+};
+$("#csvFile").onchange=e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const isExcel=/\.xlsx?$/i.test(f.name);
+  if(isExcel && typeof XLSX!=="undefined"){
+    // อ่าน .xlsx โดยตรง (SheetJS) → บังคับเป็น string เพื่อคงเลข 0 นำหน้า
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const wb=XLSX.read(rd.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""});
+        const draws=rowsToDraws(rows);
+        if(!draws.length){ $("#importStatus").innerHTML='<span style="color:var(--hot)">❌ อ่านไฟล์ Excel ไม่พบข้อมูล (เช็กหัวคอลัมน์)</span>'; return; }
+        const r=upsert(draws);
+        $("#importStatus").innerHTML=`<span style="color:var(--ok)">✅ นำเข้าจาก Excel: ${r.added} งวดใหม่ · อัปเดต ${r.dup} · ข้าม ${r.bad}</span>`+(r.errs.length?`<br><span class="hint">${r.errs.join(" · ")}</span>`:"");
+        renderAll();
+      }catch(err){ $("#importStatus").innerHTML='<span style="color:var(--hot)">❌ อ่าน Excel ไม่สำเร็จ: '+err.message+'</span>'; }
+    };
+    rd.readAsArrayBuffer(f);
+  }else if(isExcel){
+    $("#importStatus").innerHTML='<span style="color:var(--hot)">⚠️ อ่าน .xlsx ต้องออนไลน์ (โหลด SheetJS) — หรือ export เป็น CSV ก่อน</span>';
+  }else{
+    const rd=new FileReader(); rd.onload=()=>{ $("#csvInput").value=rd.result; $("#importBtn").click(); }; rd.readAsText(f);
+  }
+};
+// แปลงแถว 2 มิติ (จาก Excel) → รูปแบบงวด (รองรับหัวคอลัมน์เหมือน CSV)
+function rowsToDraws(rows){
+  if(!rows.length) return [];
+  const hasHead=/date/i.test((rows[0]||[]).join(","));
+  const start=hasHead?1:0, out=[];
+  for(let i=start;i<rows.length;i++){
+    const c=(rows[i]||[]).map(v=>String(v==null?"":v).trim());
+    if(c.length<3||!c[0]) continue;
+    const date=normDate(c[0]);
+    if(!date) continue;
+    out.push({ date, period:c[1]||"", first:cleanN(c[2],6),
+      front3:[clean3(c[3]),clean3(c[4])], last3:[clean3(c[5]),clean3(c[6])], last2:cleanN(c[7],2) });
+  }
+  return out;
+}
+$("#addBtn").onclick=()=>{
+  const d={ date:$("#mDate").value, period:$("#mPeriod").value.trim(),
+    first:$("#mFirst").value.trim(), last2:$("#mLast2").value.trim(),
+    front3:[$("#mFront3a").value.trim(),$("#mFront3b").value.trim()],
+    last3:[$("#mLast3a").value.trim(),$("#mLast3b").value.trim()] };
+  const err=validDraw(d);
+  if(err){ $("#addStatus").innerHTML=`<span style="color:var(--hot)">❌ ${err}</span>`; return; }
+  const r=upsert([d]);
+  $("#addStatus").innerHTML=`<span style="color:var(--ok)">✅ ${r.added?"เพิ่มแล้ว":"อัปเดตงวดเดิมแล้ว"}</span>`;
+  ["mFirst","mLast2","mFront3a","mFront3b","mLast3a","mLast3b"].forEach(id=>$("#"+id).value="");
+  renderAll();
+};
+$("#exportBtn").onclick=()=>{
+  if(!DB.length)return;
+  const head="date,period,first,front3a,front3b,last3a,last3b,last2";
+  const rows=DB.map(d=>[d.date,d.period,d.first,d.front3[0],d.front3[1],d.last3[0],d.last3[1],d.last2].join(","));
+  const blob=new Blob([head+"\n"+rows.join("\n")],{type:"text/csv"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="thai-lottery-data.csv"; a.click();
+};
+$("#clearBtn").onclick=()=>{ if(confirm("ลบข้อมูลทั้งหมด? (ย้อนกลับไม่ได้)")){ DB=[]; save(); renderAll(); } };
+$("#clearDemoBtn").onclick=()=>{
+  const n=DB.filter(d=>d.period==="ตัวอย่าง").length;
+  if(!n){ $("#importStatus").innerHTML='<span class="hint">ไม่มีข้อมูลตัวอย่างในระบบ</span>'; return; }
+  if(confirm(`ลบข้อมูลตัวอย่าง (สุ่ม) ${n} งวด? (ข้อมูลจริงไม่ถูกแตะ)`)){
+    DB=DB.filter(d=>d.period!=="ตัวอย่าง"); save(); renderAll();
+    $("#importStatus").innerHTML=`<span style="color:var(--ok)">✅ ลบข้อมูลตัวอย่าง ${n} งวด · เหลือข้อมูลจริง ${DB.length} งวด</span>`;
+  }
+};
+$("#tplBtn").onclick=async()=>{
+  const tpl="date,period,first,front3a,front3b,last3a,last3b,last2\n2024-01-16,2567/01,123456,111,222,333,444,56";
+  try{ await navigator.clipboard.writeText(tpl); $("#tplBtn").textContent="✅ คัดลอกแล้ว"; setTimeout(()=>$("#tplBtn").textContent="📋 คัดลอกเทมเพลต",1500);}catch{ $("#csvInput").value=tpl; }
+};
+$("#aiBtn").onclick=()=>{ $("#aiReport").style.display="block"; $("#aiReport").innerHTML=buildReport(); };
+
+/* ---------- ดึงผลงวดล่าสุดอัตโนมัติ (ผ่าน backend scrape mthai) ---------- */
+const LOTTO_API="https://football-predictor-3506.onrender.com/api/lotto/latest";
+$("#fetchLatest").onclick=async()=>{
+  const s=$("#importStatus"); s.innerHTML="⏳ กำลังดึงผลงวดล่าสุด... (ครั้งแรกอาจช้า ~30 วิ เซิร์ฟเวอร์ตื่น)";
+  try{
+    const r=await fetch(LOTTO_API,{cache:"no-store"});
+    const d=await r.json();
+    if(d.error) throw new Error(d.error);
+    const err=validDraw(d);
+    if(err) throw new Error("ข้อมูลที่ดึงมาไม่สมบูรณ์: "+err);
+    const res=upsert([d]);
+    s.innerHTML=`<span style="color:var(--ok)">✅ ดึงผลงวด <b>${d.period}</b> สำเร็จ · รางวัลที่ 1: <b>${d.first}</b> · ท้าย 2: <b>${d.last2}</b> ${res.added?"(เพิ่มใหม่)":"(มีอยู่แล้ว/อัปเดต)"}</span>`;
+    renderAll();
+  }catch(e){
+    s.innerHTML=`<span style="color:var(--hot)">❌ ดึงไม่สำเร็จ: ${e.message}</span><br><span class="hint">อาจเป็นเพราะเซิร์ฟเวอร์กำลังตื่น (ลองใหม่อีกครั้ง) หรือเว็บต้นทางเปลี่ยนโครงสร้าง · ใช้ import เองได้ตามปกติ</span>`;
+  }
+};
+
+/* ---------- ข้อมูลตัวอย่าง (สุ่ม — เพื่อสาธิตระบบเท่านั้น) ---------- */
+$("#demoBtn").onclick=()=>{
+  if(DB.length && !confirm("มีข้อมูลอยู่แล้ว — เพิ่มข้อมูลตัวอย่าง (สุ่ม) เข้าไปด้วยไหม?")) return;
+  const pad=(n,l)=>String(n).padStart(l,"0");
+  const rnd=m=>Math.floor(Math.random()*m);
+  // สร้างวันที่งวดจริง (ทุกวันที่ 1 และ 16) ย้อนหลัง — เลขเป็นสุ่มเพื่อสาธิต
+  const demo=[]; const now=new Date();
+  let y=now.getFullYear(), m=now.getMonth(), day=now.getDate()>=16?16:1;
+  for(let i=0;i<120;i++){
+    demo.push({ date:`${y}-${String(m+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`, period:"ตัวอย่าง",
+      first:pad(rnd(1000000),6), last2:pad(rnd(100),2),
+      front3:[pad(rnd(1000),3),pad(rnd(1000),3)], last3:[pad(rnd(1000),3),pad(rnd(1000),3)] });
+    if(day===16){ day=1; } else { day=16; m--; if(m<0){m=11;y--;} }
+  }
+  upsert(demo);
+  $("#importStatus").innerHTML='<span style="color:var(--ok)">✅ โหลดข้อมูลตัวอย่าง 120 งวด (สุ่มเพื่อสาธิต — ไม่ใช่ผลจริง) · กด "ล้างข้อมูล" แล้วนำเข้าข้อมูลจริงได้</span>';
+  renderAll();
+};
+
+renderAll();
+</script>
+</body>
+</html>

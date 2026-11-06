@@ -1,0 +1,12 @@
+{
+  "name": "AI Predictive Engine",
+  "short_name": "Predictor",
+  "description": "Numerology + Football Poisson/Dixon-Coles predictor",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1224",
+  "theme_color": "#0d1224",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "engineering-design-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Parametric CAD studio for conveyor / warehouse / factory design — Phase 1: CAD 2D/3D foundation",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev --workspace apps/api\" \"npm run dev --workspace apps/web\"",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:web": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

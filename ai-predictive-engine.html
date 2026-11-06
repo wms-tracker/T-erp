@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚡ AI Predictive Engine — Numerology &amp; Football Analytics</title>
+<!-- PWA: ติดตั้งเป็นแอปบนมือถือ + ออฟไลน์ -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0d1224">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#0a0e1f; --bg2:#121a35; --acc:#4ade80; --acc2:#22d3ee;
+    --gold:#ffd86b; --warn:#fb7185;
+    --card:rgba(255,255,255,.045); --card2:rgba(255,255,255,.07);
+    --line:rgba(255,255,255,.1); --txt:#eef2fb; --muted:#9aa7c7;
+    --radius:16px; --shadow:0 16px 48px rgba(0,0,0,.45);
+    --font:"Plus Jakarta Sans","Noto Sans Thai",system-ui,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--txt);font-family:var(--font);line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(900px 480px at 12% -8%,rgba(74,222,128,.10),transparent),
+      radial-gradient(900px 520px at 88% 4%,rgba(34,211,238,.12),transparent),
+      linear-gradient(165deg,var(--bg1),var(--bg2));
+    background-attachment:fixed;padding:30px 15px 72px}
+
+  /* ===== Accessibility layer (UI/UX Pro Max priority 1 & 7) ===== */
+  /* โฟกัสที่มองเห็นชัดสำหรับคีย์บอร์ด (ทุก element ที่กดได้) */
+  :focus-visible{outline:3px solid var(--acc2);outline-offset:2px;border-radius:8px}
+  a{color:var(--acc2)}
+  /* เคารพผู้ใช้ที่ปิด animation (ลดอาการเวียนหัว) */
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important;scroll-behavior:auto!important}
+  }
+
+  .wrap{max-width:960px;margin:0 auto}
+  h1{text-align:center;font-size:clamp(24px,5vw,34px);margin:.1em 0;font-weight:800;letter-spacing:-.5px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{text-align:center;color:var(--muted);font-size:13px;margin-bottom:24px;line-height:1.9}
+
+  .tabs{display:flex;gap:10px;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+  .tab{cursor:pointer;border:1px solid var(--line);border-radius:999px;padding:11px 24px;font-weight:700;font-size:15px;
+    font-family:var(--font);background:var(--card);color:var(--muted);
+    transition:transform .15s,box-shadow .2s,color .2s,background .2s}
+  .tab:hover{color:var(--txt);transform:translateY(-1px)}
+  .tab.active{color:#06121f;background:linear-gradient(90deg,var(--acc),var(--acc2));border-color:transparent;
+    box-shadow:0 8px 24px rgba(34,211,238,.35)}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;
+    backdrop-filter:blur(14px);box-shadow:var(--shadow)}
+  .view{display:none} .view.active{display:block;animation:fade .4s cubic-bezier(.2,.7,.3,1)}
+  @keyframes fade{from{opacity:0;transform:translateY(10px)}to{opacity:1}}
+
+  label{display:block;font-weight:600;margin:0 0 6px;font-size:14px}
+  textarea,input,select{width:100%;border-radius:11px;padding:12px;border:1px solid var(--line);
+    background:rgba(0,0,0,.25);color:var(--txt);font-size:15px;outline:none;font-family:var(--font);
+    transition:border-color .15s,box-shadow .15s}
+  textarea:focus,input:focus,select:focus{border-color:var(--acc2);box-shadow:0 0 0 3px rgba(34,211,238,.18)}
+  textarea{min-height:84px;resize:vertical}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  @media(max-width:620px){.grid2,.grid3{grid-template-columns:1fr}}
+  .field{margin-bottom:12px}
+  .hint{font-size:12px;color:var(--muted);margin-top:3px}
+
+  .btn{position:relative;overflow:hidden;margin-top:12px;width:100%;border:none;cursor:pointer;border-radius:12px;
+    padding:15px;font-size:17px;font-weight:800;color:#06121f;font-family:var(--font);letter-spacing:.2px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));box-shadow:0 10px 26px rgba(34,211,238,.3);
+    transition:transform .12s,box-shadow .2s,filter .15s}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(34,211,238,.42);filter:brightness(1.06)}
+  .btn:active{transform:translateY(0) scale(.985)}
+  /* ประกายวิ่งบนปุ่มตอน hover */
+  .btn::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.45),transparent);
+    transform:skewX(-20deg);transition:left .5s ease}
+  .btn:hover::after{left:120%}
+  .btn:disabled{opacity:.55;cursor:not-allowed;filter:grayscale(.3);transform:none}
+
+  /* ส่วนพับ "ปรับปัจจัยเพิ่มเติม" */
+  .advanced{margin-top:8px;border:1px solid var(--line);border-radius:12px;
+    background:rgba(0,0,0,.15);overflow:hidden}
+  .advanced summary{cursor:pointer;list-style:none;padding:13px 16px;font-weight:700;font-size:14px;
+    color:var(--acc2);display:flex;align-items:center;gap:8px;user-select:none;transition:background .15s}
+  .advanced summary::-webkit-details-marker{display:none}
+  .advanced summary::before{content:"▸";transition:transform .2s;color:var(--muted)}
+  .advanced[open] summary::before{transform:rotate(90deg)}
+  .advanced summary:hover{background:rgba(255,255,255,.04)}
+  .advanced[open] summary{border-bottom:1px solid var(--line)}
+  .advanced > :not(summary){margin-left:16px;margin-right:16px}
+  .advanced > :last-child{margin-bottom:14px}
+
+  .result{display:none;margin-top:20px} .result.show{display:block;animation:fade .4s cubic-bezier(.2,.7,.3,1)}
+  .box{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:12px}
+  .box h3{margin:0 0 12px;font-size:14px;color:var(--acc2);font-weight:700}
+  .nums{display:flex;flex-wrap:wrap;gap:9px}
+  .num{font-weight:800;border-radius:9px;padding:9px 13px;background:linear-gradient(135deg,#fff,#d7f9e6);color:#08251a;
+    display:flex;flex-direction:column;align-items:center;line-height:1.15}
+  .num small{font-weight:600;font-size:10px;color:#0a7a4a}
+  .num.three{font-size:22px} .num.two{font-size:18px}
+
+  /* confidence bar */
+  .conf{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .conf .track{flex:1;height:10px;border-radius:6px;background:rgba(255,255,255,.1);overflow:hidden}
+  .conf .fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+  .conf .pct{font-weight:800;min-width:48px;text-align:right}
+  .reason{font-size:13px;line-height:1.65;color:#d6def5;margin-top:6px}
+  .reason b{color:var(--gold)} .kw{display:inline-block;background:rgba(74,222,128,.13);border:1px solid var(--acc);
+    color:var(--acc);border-radius:7px;padding:1px 7px;margin:2px;font-size:12px}
+
+  /* football outcome */
+  .outcome{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center}
+  .oc{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:11px;padding:12px}
+  .oc .t{font-size:12px;color:var(--muted)} .oc .v{font-size:26px;font-weight:900;margin-top:3px}
+  .oc.best{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--muted);font-weight:600}
+  .value-yes{color:var(--acc);font-weight:700} .value-no{color:var(--muted)}
+
+  .disclaimer{margin-top:18px;text-align:center;font-size:12px;color:var(--muted);line-height:1.6}
+  .disclaimer .w{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚡ AI Predictive Engine</h1>
+  <div class="sub">Multi-Factor Analysis · Numerology Vector + Football Poisson Model<br>
+    <a href="/dashboard.html" style="color:#22d3ee;font-size:13px">📊 ตารางคะแนน</a> ·
+    <a href="/predictions.html" style="color:#22d3ee;font-size:13px">🔮 ทำนายรวมทุกนัด</a> ·
+    <a href="/accuracy.html" style="color:#22d3ee;font-size:13px">🎯 ความแม่นโมเดล</a></div>
+
+  <div class="tabs" role="tablist" aria-label="เลือกโหมดทำนาย">
+    <button class="tab active" type="button" role="tab" aria-selected="true" data-view="num">🔢 ทำนายตัวเลขศาสตร์</button>
+    <button class="tab" type="button" role="tab" aria-selected="false" data-view="foot">⚽ วิเคราะห์ฟุตบอล</button>
+  </div>
+
+  <!-- ================= TAB 1: NUMBERS ================= -->
+  <div class="view active" id="view-num">
+    <div class="panel">
+      <div class="field">
+        <label>① Qualitative Input — ความฝัน / เหตุการณ์ / สิ่งลี้ลับ</label>
+        <textarea id="numText" placeholder="เช่น ฝันเห็นพญานาคใหญ่พ่นน้ำ / รถป้ายแดงชนท้าย / เลขจากต้นไม้ประหลาด"></textarea>
+      </div>
+      <div class="field">
+        <label>② Temporal Data — วันที่เกิดเหตุการณ์ (ใช้คำนวณ Astrological Seed)</label>
+        <input type="date" id="numDate">
+        <div class="hint">เว้นว่าง = ใช้วันที่วันนี้ · ระบบดึง วัน/เดือน/ปี + ตำแหน่งดวงตามคาบ มาเป็น seed</div>
+      </div>
+      <button class="btn" id="numGo">🔮 ประมวลผล Multi-Factor</button>
+
+      <div class="result" id="numResult">
+        <div class="conf">
+          <div class="track"><div class="fill" id="numConfFill"></div></div>
+          <div class="pct" id="numConfPct">0%</div>
+        </div>
+        <div class="box">
+          <h3>🏃 เลขวิ่ง (หลักเด่น โอกาสตรงสูงสุด)</h3>
+          <div class="nums" id="numRun"></div>
+        </div>
+        <div class="box">
+          <h3>🎯 ชุดเลข 3 ตัว (เรียงตามน้ำหนักความน่าจะเป็น)</h3>
+          <div class="nums" id="numThree"></div>
+        </div>
+        <div class="box">
+          <h3>🎲 ชุดเลข 2 ตัว</h3>
+          <div class="nums" id="numTwo"></div>
+        </div>
+        <div class="box">
+          <h3>🧠 Reasoning Output — เหตุผลเชิงตรรกะ</h3>
+          <div class="reason" id="numReason"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn" id="numShare" style="margin-top:0;flex:1;font-size:15px;padding:12px;background:linear-gradient(90deg,#a78bfa,#22d3ee)">📤 แชร์</button>
+          <button class="btn" id="numCopy" style="margin-top:0;flex:1;font-size:15px;padding:12px;background:rgba(255,255,255,.08);color:var(--txt)">📋 คัดลอกเลข</button>
+        </div>
+      </div>
+    </div>
+    <div class="disclaimer">
+      <span class="w">⚠️ ส่วนตัวเลขเป็นการคำนวณเชิงสัญลักษณ์เพื่อความบันเทิงเท่านั้น</span> — เลขรางวัลเป็นกระบวนการสุ่มแท้
+      ไม่มีโมเดลใดทำนายได้จริง · เล่นอย่างมีสติ · ปรึกษาปัญหาพนัน โทร 1413
+    </div>
+  </div>
+
+  <!-- ================= TAB 2: FOOTBALL ================= -->
+  <div class="view" id="view-foot">
+    <div class="panel">
+      <div class="grid2">
+        <div class="field"><label>🏠 ทีมเหย้า</label><input id="homeName" value="ทีมเหย้า"></div>
+        <div class="field"><label>🚌 ทีมเยือน</label><input id="awayName" value="ทีมเยือน"></div>
+      </div>
+
+      <!-- ===== ดึงข้อมูลจริงผ่าน backend (football-data.org) ===== -->
+      <div class="box" style="margin-top:0">
+        <h3>🌐 ดึงสถิติ 5 นัดหลังจากข้อมูลจริง (ฤดูกาลปัจจุบัน)</h3>
+        <div class="field"><label>ลีก</label>
+          <select id="comp">
+            <optgroup label="⚽ ทีมชาติ">
+              <option value="NATIONAL">🌐 ทีมชาติ — รวมทุกรายการ (บอลโลก+ยูโร)</option>
+              <option value="WC">🌍 เฉพาะฟุตบอลโลก 2026</option>
+              <option value="EC">🇪🇺 เฉพาะยูโร 2024</option>
+            </optgroup>
+            <optgroup label="🏆 ลีกสโมสรยุโรป">
+              <option value="PL">พรีเมียร์ลีก (อังกฤษ)</option>
+              <option value="ELC">แชมเปียนชิพ (อังกฤษ ดิวิชั่น 2)</option>
+              <option value="PD">ลาลีกา (สเปน)</option>
+              <option value="BL1">บุนเดสลีกา (เยอรมัน)</option>
+              <option value="SA">เซเรีย อา (อิตาลี)</option>
+              <option value="FL1">ลีกเอิง (ฝรั่งเศส)</option>
+              <option value="DED">เอเรอดีวีซี (ฮอลแลนด์)</option>
+              <option value="PPL">ปรีไมรา (โปรตุเกส)</option>
+              <option value="CL">แชมเปียนส์ลีก (UCL)</option>
+            </optgroup>
+            <optgroup label="🌎 สโมสรอเมริกาใต้">
+              <option value="BSA">บราซิล ซีรีอา</option>
+              <option value="CLI">โคปา ลิเบอร์ตาดอเรส</option>
+            </optgroup>
+          </select>
+          <div class="hint">ทั้งสองทีมต้องอยู่รายการเดียวกัน · พิมพ์ชื่อทีมชาติเป็นอังกฤษ เช่น Brazil, France, Japan · ข้อมูลทางการจาก football-data.org</div>
+        </div>
+        <div class="field" id="seasonField">
+          <label>ฤดูกาล (เฉพาะลีกสโมสร)</label>
+          <select id="season">
+            <option value="2025">2025/26 (ล่าสุดที่จบ)</option>
+            <option value="2024">2024/25</option>
+            <option value="2023">2023/24</option>
+          </select>
+          <div class="hint">ช่วง มิ.ย.–ก.ค. ลีกปิดฤดูกาล — เลือกฤดูกาลที่จบแล้วเพื่อให้มีข้อมูล</div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>ทีมเหย้า (เลือกหรือพิมพ์)</label>
+            <input id="homeSearch" list="teamList" placeholder="เลือกลีกก่อน แล้วเลือกทีม"><div class="hint" id="homeStatus"></div></div>
+          <div class="field"><label>ทีมเยือน (เลือกหรือพิมพ์)</label>
+            <input id="awaySearch" list="teamList" placeholder="เลือกลีกก่อน แล้วเลือกทีม"><div class="hint" id="awayStatus"></div></div>
+        </div>
+        <datalist id="teamList"></datalist>
+        <button class="btn" id="fetchReal" style="margin-top:4px;font-size:15px;padding:11px">⬇️ ดึงข้อมูลจริงมาเติมฟอร์ม</button>
+        <div class="hint" id="fetchStatus" style="margin-top:8px"></div>
+        <div class="hint" style="margin-top:4px">⚠️ ต้องรัน <b>node server.js</b> และเปิดผ่าน <b>localhost:3000</b> ไม่ใช่เปิดไฟล์ตรงๆ</div>
+      </div>
+
+      <h3 style="color:var(--acc2);font-size:13px;margin:6px 0">① Performance Metrics (เฉลี่ย 5 นัดหลัง · กรอกเอง หรือกดดึงข้อมูลจริงด้านบน)</h3>
+      <div class="grid3">
+        <div class="field"><label>ประตูทำได้/เกม (เหย้า)</label><input type="number" step="0.1" id="hXgFor" value="1.7"></div>
+        <div class="field"><label>ประตูเสีย/เกม (เหย้า)</label><input type="number" step="0.1" id="hXgAg" value="1.0"></div>
+        <div class="field"><label>ฟอร์ม 5 นัด (W=3,D=1,L=0)</label><input id="hForm" value="W W D L W"></div>
+      </div>
+      <div class="grid3">
+        <div class="field"><label>ประตูทำได้/เกม (เยือน)</label><input type="number" step="0.1" id="aXgFor" value="1.3"></div>
+        <div class="field"><label>ประตูเสีย/เกม (เยือน)</label><input type="number" step="0.1" id="aXgAg" value="1.4"></div>
+        <div class="field"><label>ฟอร์ม 5 นัด (เยือน)</label><input id="aForm" value="L D W L D"></div>
+      </div>
+
+      <details class="advanced">
+        <summary>⚙️ ปรับปัจจัยเพิ่มเติม (ไม่บังคับ — ค่าเริ่มต้นก็ใช้ได้)</summary>
+
+        <h3 style="color:var(--acc2);font-size:13px;margin:12px 0 6px">② External & ③ Human Factors</h3>
+        <div class="grid3">
+          <div class="field"><label>Head-to-Head (เหย้าชนะ-เสมอ-แพ้)</label><input id="h2h" value="2-1-2"></div>
+          <div class="field"><label>Home Advantage</label>
+            <select id="homeAdv"><option value="1.15">สูง (สนามแข็ง)</option><option value="1.08" selected>ปกติ</option><option value="1.0">ต่ำ</option></select></div>
+          <div class="field"><label>สภาพอากาศ</label>
+            <select id="weather"><option value="1.0">ปกติ</option><option value="0.9">ฝน/ลื่น (เกมรุกตก)</option><option value="0.85">ร้อนจัด (ล้าเร็ว)</option></select></div>
+        </div>
+        <div class="grid3">
+          <div class="field"><label>ความล้า/เดินทางทีมเยือน</label>
+            <select id="fatigue"><option value="1.0">ปกติ</option><option value="0.92">เดินทางไกล</option><option value="0.85">เตะมิดวีค+ไกล</option></select></div>
+          <div class="field"><label>ตัวเจ็บ/แบน เหย้า (กี่ตัวหลัก)</label><input type="number" id="hInjury" value="0" min="0" max="5"></div>
+          <div class="field"><label>ตัวเจ็บ/แบน เยือน (กี่ตัวหลัก)</label><input type="number" id="aInjury" value="1" min="0" max="5"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>ดัชนีความกดดัน เหย้า</label>
+            <select id="hPress"><option value="1.06">ลุ้นแชมป์/หนีตกชั้น (ฮึด)</option><option value="1.0" selected>ปกติ</option><option value="0.95">ไม่มีเป้าหมาย</option></select></div>
+          <div class="field"><label>ดัชนีความกดดัน เยือน</label>
+            <select id="aPress"><option value="1.06">ลุ้นแชมป์/หนีตกชั้น (ฮึด)</option><option value="1.0" selected>ปกติ</option><option value="0.95">ไม่มีเป้าหมาย</option></select></div>
+        </div>
+
+        <h3 style="color:var(--acc2);font-size:13px;margin:12px 0 6px">④ Value Bet — ใส่ราคาต่อรองตลาด (Decimal Odds)</h3>
+        <div class="grid3">
+          <div class="field"><label>ราคา เหย้าชนะ</label><input type="number" step="0.01" id="oddH" value="2.10"></div>
+          <div class="field"><label>ราคา เสมอ</label><input type="number" step="0.01" id="oddD" value="3.40"></div>
+          <div class="field"><label>ราคา เยือนชนะ</label><input type="number" step="0.01" id="oddA" value="3.60"></div>
+        </div>
+      </details>
+
+      <button class="btn" id="footGo">⚽ รัน Poisson Simulation</button>
+
+      <div class="result" id="footResult">
+        <div class="box">
+          <h3>📊 ความน่าจะเป็นผลการแข่งขัน</h3>
+          <div class="outcome" id="footOutcome"></div>
+          <div class="conf" style="margin-top:14px">
+            <div class="track"><div class="fill" id="footConfFill"></div></div>
+            <div class="pct" id="footConfPct">0%</div>
+          </div>
+          <div class="hint">Confidence = ความมั่นใจในผลที่โมเดลเลือกเป็นอันดับ 1</div>
+        </div>
+        <div class="box">
+          <h3>🥅 สกอร์ที่น่าจะเกิดมากสุด (Expected Correct Score)</h3>
+          <table id="footScores"></table>
+        </div>
+        <div class="box">
+          <h3>🎯 ตลาดเดิมพันเสริม (จาก score matrix)</h3>
+          <table id="footMarkets"></table>
+        </div>
+        <div class="box">
+          <h3>💰 Value Bet Detection</h3>
+          <table id="footValue"></table>
+          <div class="hint">Value = (โอกาสจริงของโมเดล × ราคา) − 1 · ถ้า &gt; 0 แปลว่าราคาคุ้ม (Edge เป็นบวก)</div>
+        </div>
+        <div class="box">
+          <h3>🧠 Reasoning Output</h3>
+          <div class="reason" id="footReason"></div>
+        </div>
+      </div>
+    </div>
+    <div class="disclaimer">
+      <span class="w">⚠️ การทำนายผลกีฬามีความไม่แน่นอนสูง</span> — โมเดลคำนวณจากสถิติที่คุณกรอกเท่านั้น ใช้เพื่อการศึกษา/วิเคราะห์
+      ไม่ใช่คำชี้นำการพนัน · เล่นอย่างมีสติ · ปรึกษาปัญหาพนัน โทร 1413
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==================================================================
+   AI PREDICTIVE ENGINE
+   สถาปัตยกรรมแบบ OOP แยก 2 engine อิสระ ขยายฐานข้อมูลปัจจัยได้:
+     - NumerologyEngine  : ทำนายเลข 2/3 ตัว จาก 4 ปัจจัย
+     - FootballPredictor : ทำนายผลบอลด้วย Poisson Distribution
+   ทั้งสองคืน { confidence, reasoning, ... } เพื่อให้ UI วาดผลแบบเดียวกัน
+   ================================================================== */
+
+/* ---------- Utility: deterministic RNG (mulberry32) ---------- */
+function makeRNG(seed){
+  let a = seed>>>0;
+  return ()=>{ a|=0; a=(a+0x6D2B79F5)|0; let t=Math.imul(a^(a>>>15),1|a);
+    t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; };
+}
+/* djb2 hash: ข้อความเดิม → seed เดิม */
+function hashText(s){ let h=5381; for(let i=0;i<s.length;i++){h=((h<<5)+h)+s.charCodeAt(i); h&=0xffffffff;} return Math.abs(h); }
+
+/* permutation ไม่ซ้ำ */
+function permute(str){
+  if(str.length<=1) return [str];
+  const set=new Set();
+  for(let i=0;i<str.length;i++){const rest=str.slice(0,i)+str.slice(i+1);
+    for(const p of permute(rest)) set.add(str[i]+p);}
+  return [...set];
+}
+/* Poisson PMF: P(X=k | λ) */
+function poisson(k,lambda){
+  let f=1; for(let i=2;i<=k;i++) f*=i;            // k!
+  return Math.pow(lambda,k)*Math.exp(-lambda)/f;
+}
+
+/* ==================================================================
+   PART 1 — NumerologyEngine
+   4 ปัจจัย: (NLP vector) + (temporal/astro seed) + (10yr frequency) + (permutation scoring)
+   ================================================================== */
+class NumerologyEngine {
+  constructor(){
+    // ① ฐานข้อมูลศาสตร์ตัวเลข (คำ → เวกเตอร์น้ำหนักตัวเลข) + weight ความเด่น
+    this.dict = [
+      {keys:["พญานาค","นาค"],nums:[5,6,8,9],w:5,m:"พญานาค = โชคก้อนใหญ่/บารมี"},
+      {keys:["งูใหญ่","งู","เหลือม"],nums:[5,6,8],w:3,m:"งู = โชคลาภและความรัก"},
+      {keys:["จับปลา","ปลาช่อน","ปลา","น้ำ"],nums:[8,2,1],w:3,m:"ปลา/น้ำ = ความอุดมสมบูรณ์"},
+      {keys:["ทอง","ทรัพย์","เงิน","พระ"],nums:[9,1,0],w:4,m:"ทอง/พระ = เงินทองไหลมา"},
+      {keys:["คนตาย","ศพ","ผี","โลงศพ"],nums:[0,4,7],w:4,m:"ศพ/ผี = ตำราว่าให้โชคใหญ่"},
+      {keys:["เลือด"],nums:[3,7,0],w:3,m:"เลือด = โชคเฉียบพลัน"},
+      {keys:["ช้าง"],nums:[1,9,3],w:4,m:"ช้าง = บารมีและอำนาจ"},
+      {keys:["เสือ","แมว"],nums:[3,0,5],w:2,m:"เสือ/แมว = อำนาจวาสนา"},
+      {keys:["ต้นไม้","งูเขียว","ใบไม้"],nums:[4,7,9],w:2,m:"ต้นไม้ = เลขจากธรรมชาติ"},
+      {keys:["รถ","ทะเบียน","ป้ายแดง"],nums:[4,7],w:2,m:"รถ/ทะเบียน = ตัวเลขเดินทาง"},
+      {keys:["ตุ๊กแก","จิ้งจก"],nums:[7,1],w:3,m:"ตุ๊กแก = สัตว์ทักโชค"},
+      {keys:["ไฟ","เพลิง"],nums:[7,2],w:2,m:"ไฟ = ความรุ่งโรจน์"},
+    ];
+    // ③ ตารางความถี่จำลอง 10 ปี (น้ำหนักเลขแต่ละหลักที่ "ออกบ่อย" เชิงสัญลักษณ์, รวม≈1)
+    //    หมายเหตุ: ในความจริงการออกรางวัลเป็น uniform — ตารางนี้ใช้เพื่อ demo การถ่วงน้ำหนัก
+    this.freq = [0.092,0.104,0.103,0.099,0.097,0.101,0.108,0.099,0.099,0.098];
+  }
+
+  // ② แปลงวันที่ → Astrological Seed (วัน+เดือน+ปี + ตำแหน่งดวงตามคาบโดยประมาณ)
+  temporalSeed(dateStr){
+    const d = dateStr ? new Date(dateStr) : new Date();
+    const day=d.getDate(), mon=d.getMonth()+1, yr=d.getFullYear();
+    const dow=d.getDay();                         // 0-6 วันในสัปดาห์ (มีเลขกำลังวันในไทย)
+    // ตำแหน่งดวงโดยประมาณ: มุมของโลกบนวงโคจร (วันในปี/365 * 360)
+    const dayOfYear = Math.floor((d - new Date(yr,0,0))/86400000);
+    const astro = Math.round((dayOfYear/365)*360);
+    return { day, mon, yr, dow, astro, value: hashText(`${day}-${mon}-${yr}-${astro}`) };
+  }
+
+  // ① NLP word-vector อย่างง่าย: จับคำ → รวมเวกเตอร์เลข (ถ่วงตาม weight)
+  embedText(text){
+    const found=[]; const vec=[];
+    for(const e of this.dict){
+      for(const k of e.keys){
+        if(text.includes(k)){ found.push(e); for(let i=0;i<e.w;i++) vec.push(...e.nums); break; }
+      }
+    }
+    found.sort((a,b)=>b.w-a.w);
+    return { found, vec };
+  }
+
+  predict(text, dateStr){
+    text=(text||"").trim();
+    const temporal=this.temporalSeed(dateStr);
+    const {found,vec}=this.embedText(text);
+
+    // ดึงตัวเลขตรงตัว + กลุ่มวัน/เดือน
+    const groups=(text.match(/\d+/g)||[]);
+    const directDigits=[]; const pairs=[];
+    groups.forEach(g=>{ for(const c of g) directDigits.push(+c);
+      pairs.push(g.length<=2 ? g.padStart(2,"0") : g.slice(-2)); });
+    // เติมวัน/เดือนจาก temporal เป็นคู่ตั้งต้น
+    pairs.push(String(temporal.day).padStart(2,"0"), String(temporal.mon).padStart(2,"0"));
+
+    // รวม seed จากทุกปัจจัย → RNG เดียว (ข้อความ+วันที่เดิม = ผลเดิม)
+    const seed = hashText(text) ^ temporal.value ^ (temporal.astro*2654435761);
+    const rng = makeRNG(seed);
+
+    // basePool ถ่วงน้ำหนัก: เวกเตอร์คำ + เลขในข้อความ + เลขกำลังวัน + bias ตามตารางความถี่
+    const basePool=[...vec, ...directDigits, temporal.dow, temporal.astro%10];
+    for(let n=0;n<10;n++){ const reps=Math.round(this.freq[n]*40); for(let i=0;i<reps;i++) basePool.push(n); }
+
+    const pick=()=> basePool.length? basePool[Math.floor(rng()*basePool.length)] : Math.floor(rng()*10);
+
+    // ④ สร้าง candidate 3 ตัว แล้วให้คะแนนน้ำหนัก = ผลคูณความถี่ของแต่ละหลัก
+    const score3=new Map();
+    for(let i=0;i<400;i++){
+      const d=`${pick()}${pick()}${pick()}`;
+      const s=this.freq[+d[0]]*this.freq[+d[1]]*this.freq[+d[2]];
+      score3.set(d,(score3.get(d)||0)+s);
+    }
+    const three=[...score3.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5)
+      .map(([d])=>({main:d, perms:permute(d).filter(p=>p!==d).slice(0,2)}));
+
+    // เลข 2 ตัว: เริ่มจาก pairs (วัน/เดือน/เลขในข้อความ) แล้วเติม candidate เด่น
+    const two=[]; const usedTwo=new Set();
+    pairs.forEach(p=>{ if(two.length<5 && !usedTwo.has(p)){usedTwo.add(p); two.push(p);} });
+    const score2=new Map();
+    for(let i=0;i<400;i++){ const d=`${pick()}${pick()}`;
+      score2.set(d,(score2.get(d)||0)+this.freq[+d[0]]*this.freq[+d[1]]); }
+    [...score2.entries()].sort((a,b)=>b[1]-a[1]).forEach(([d])=>{
+      if(two.length<8 && !usedTwo.has(d)){usedTwo.add(d); two.push(d);} });
+
+    // ⑤ เลขวิ่ง (run) — หลักเดี่ยวที่ปรากฏใน basePool บ่อยสุด (โอกาสตรงสูงสุด)
+    const digitFreq={};
+    basePool.forEach(d=>{ digitFreq[d]=(digitFreq[d]||0)+1; });
+    const run=Object.entries(digitFreq).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([d])=>d);
+
+    // Confidence: ยิ่งมีปัจจัยสนับสนุน (คำตรงตำรา + ตัวเลขในข้อความ) ยิ่งมั่นใจ — เพดาน 78%
+    let conf=42 + found.length*7 + Math.min(directDigits.length,4)*3;
+    conf=Math.min(conf,78);
+
+    // Reasoning
+    const reason=[];
+    if(found.length) reason.push(`พบคีย์เวิร์ดตามตำรา: ${found.map(f=>`<span class="kw">${f.keys[0]}→${f.nums.join(",")}</span>`).join(" ")}`);
+    else reason.push(`ไม่พบคีย์เวิร์ดในตำรา — ใช้ Hash ของข้อความเป็นตัวขับเคลื่อนหลัก`);
+    if(found.length) reason.push("ความหมาย: "+found.map(f=>f.m).join(" · "));
+    reason.push(`<b>②มิติเวลา:</b> วันที่ ${temporal.day}/${temporal.mon}/${temporal.yr} · เลขกำลังวัน ${temporal.dow} · ตำแหน่งดวงโดยประมาณ ${temporal.astro}° → ผสานเป็น astrological seed`);
+    if(directDigits.length) reason.push(`<b>ตัวเลขในข้อความ:</b> ${directDigits.join(" ")} (ดึงมาเป็นตัวตั้ง)`);
+    reason.push(`<b>③สถิติ:</b> ถ่วงน้ำหนักหลักด้วยตารางความถี่จำลอง 10 ปี แล้วให้คะแนน 400 candidates เลือกชุดน้ำหนักสูงสุด`);
+    reason.push(`<b>④อัลกอริทึม:</b> Permutation + Frequency Scoring · seed=${seed>>>0} (input เดิมได้ผลเดิมเสมอ)`);
+
+    return { three, two, run, confidence:conf, reasoning:reason };
+  }
+}
+
+/* ==================================================================
+   PART 2 — FootballPredictor (Poisson Distribution)
+   λ_home, λ_away = expected goals จากปัจจัยทั้งหมด
+   จากนั้นสร้าง score matrix → P(win/draw/loss), correct scores, value bet
+   ================================================================== */
+class FootballPredictor {
+  constructor(){ this.maxGoals=8; this.rho=-0.13; }   // 0..8 ประตู, rho = ค่าปรับ Dixon-Coles
+
+  // Dixon-Coles tau: ปรับความน่าจะเป็นของสกอร์ต่ำ (0-0,1-0,0-1,1-1)
+  // Poisson ธรรมดาประเมินสกอร์ต่ำคลาดเคลื่อน — DC แก้จุดนี้ให้แม่นกับข้อมูลจริง
+  tau(x,y,lh,la){
+    const r=this.rho;
+    if(x===0&&y===0) return 1 - lh*la*r;
+    if(x===0&&y===1) return 1 + lh*r;
+    if(x===1&&y===0) return 1 + la*r;
+    if(x===1&&y===1) return 1 - r;
+    return 1;
+  }
+
+  formPoints(str){ // "W W D L W" → คะแนนเฉลี่ย 0..1 (เทียบเต็ม 3)
+    const map={W:3,D:1,L:0,w:3,d:1,l:0};
+    const arr=(str||"").split(/[\s,]+/).filter(Boolean).map(x=>map[x[0]]??1);
+    if(!arr.length) return 0.5;
+    return (arr.reduce((a,b)=>a+b,0)/arr.length)/3;
+  }
+  h2hBias(str){ // "2-1-2" (เหย้า-เสมอ-แพ้) → ตัวคูณเอนเอียงเข้าทีมเหย้า
+    const [h=1,d=1,a=1]=(str||"").split("-").map(Number);
+    const tot=h+d+a||1; return 0.9 + (h-a)/tot*0.2;   // ~0.8..1.0..1.1
+  }
+
+  // คำนวณ λ ของแต่ละทีมจากทุกปัจจัย
+  expectedGoals(I){
+    const hForm=this.formPoints(I.hForm), aForm=this.formPoints(I.aForm);
+    const h2h=this.h2hBias(I.h2h);
+
+    // ฐาน: xG รุกของเรา ปรับด้วย xG รับของคู่แข่ง (ต่ำ=รับดี → เราได้น้อยลง)
+    let lh = (I.hXgFor * (I.aXgAg/1.3));
+    let la = (I.aXgFor * (I.hXgAg/1.3));
+
+    // ① ฟอร์ม (±15%)
+    lh *= 0.85 + hForm*0.30;  la *= 0.85 + aForm*0.30;
+    // ② external: home advantage / h2h / weather (กระทบทั้งคู่) / fatigue (เฉพาะเยือน)
+    lh *= I.homeAdv * h2h * I.weather;
+    la *= I.weather * I.fatigue / Math.sqrt(h2h);
+    // ③ human: ตัวเจ็บ (−7%/ตัว ฝั่งรุกของทีมนั้น) + ดัชนีกดดัน
+    lh *= Math.pow(0.93,I.hInjury) * I.hPress;
+    la *= Math.pow(0.93,I.aInjury) * I.aPress;
+
+    // กันค่าเพี้ยน
+    lh=Math.max(0.2,Math.min(lh,4.5)); la=Math.max(0.2,Math.min(la,4.5));
+    return { lh, la, hForm, aForm, h2h };
+  }
+
+  predict(I){
+    const {lh,la,hForm,aForm,h2h}=this.expectedGoals(I);
+
+    // สร้าง score matrix ด้วย Poisson + Dixon-Coles correction
+    const scores=[]; let totP=0;
+    for(let i=0;i<=this.maxGoals;i++){
+      for(let j=0;j<=this.maxGoals;j++){
+        const p=poisson(i,lh)*poisson(j,la)*this.tau(i,j,lh,la);
+        scores.push({h:i,a:j,p}); totP+=p;
+      }
+    }
+    // normalize ทั้ง matrix → ใช้คำนวณทุกตลาด
+    scores.forEach(s=> s.p/=totP);
+
+    // ผล 1X2 + ตลาดอื่นๆ จาก matrix ที่ normalize แล้ว
+    let pHome=0,pDraw=0,pAway=0, bttsYes=0;
+    const overP={1.5:0,2.5:0,3.5:0};
+    for(const s of scores){
+      if(s.h>s.a) pHome+=s.p; else if(s.h===s.a) pDraw+=s.p; else pAway+=s.p;
+      if(s.h>=1 && s.a>=1) bttsYes+=s.p;
+      for(const ln of [1.5,2.5,3.5]) if(s.h+s.a>ln) overP[ln]+=s.p;
+    }
+    const topScores=[...scores].sort((x,y)=>y.p-x.p).slice(0,5);
+
+    // ตลาดเสริม: สูง/ต่ำ, ทั้งคู่ยิง, Double Chance
+    const markets={
+      ou: [1.5,2.5,3.5].map(ln=>({line:ln, over:overP[ln], under:1-overP[ln]})),
+      btts: { yes:bttsYes, no:1-bttsYes },
+      dc: [ {label:I.homeName+" หรือ เสมอ (1X)", p:pHome+pDraw},
+            {label:"ไม่เสมอ (12)",               p:pHome+pAway},
+            {label:"เสมอ หรือ "+I.awayName+" (X2)", p:pDraw+pAway} ],
+      expGoals: lh+la
+    };
+
+    // ผลที่โมเดลเลือก + confidence
+    const outcomes=[{k:"home",label:I.homeName+" ชนะ",p:pHome},
+                    {k:"draw",label:"เสมอ",p:pDraw},
+                    {k:"away",label:I.awayName+" ชนะ",p:pAway}];
+    const best=[...outcomes].sort((a,b)=>b.p-a.p)[0];
+
+    // ④ Value bet: edge = p_model * odds - 1
+    const odds={home:I.oddH,draw:I.oddD,away:I.oddA};
+    const value=outcomes.map(o=>{
+      const od=odds[o.k]; const edge=o.p*od-1;
+      return {label:o.label, p:o.p, odd:od, edge, value:edge>0.02};
+    });
+
+    // Reasoning
+    const reason=[];
+    reason.push(`<b>Expected Goals (λ):</b> ${I.homeName} ${lh.toFixed(2)} − ${la.toFixed(2)} ${I.awayName}`);
+    reason.push(`<b>① ฟอร์ม:</b> เหย้า ${(hForm*100|0)}% · เยือน ${(aForm*100|0)}% (เต็ม=ชนะรวด)`);
+    reason.push(`<b>② แวดล้อม:</b> Home adv ×${I.homeAdv} · H2H bias ×${h2h.toFixed(2)} · อากาศ ×${I.weather} · ความล้าเยือน ×${I.fatigue}`);
+    reason.push(`<b>③ ปัจจัยคน:</b> ตัวเจ็บ เหย้า ${I.hInjury} / เยือน ${I.aInjury} · ความกดดัน เหย้า ×${I.hPress} · เยือน ×${I.aPress}`);
+    reason.push(`<b>④ Dixon-Coles:</b> score matrix 0–${this.maxGoals} ประตู (ปรับสกอร์ต่ำ ρ=${this.rho}) → ผลเด่น <b>${best.label}</b> ที่ ${(best.p*100).toFixed(1)}%`);
+    reason.push(`<b>⑤ คาดการณ์ประตูรวม:</b> ~${markets.expGoals.toFixed(2)} ลูก · สูง/ต่ำ 2.5 = ${(markets.ou[1].over*100).toFixed(0)}%/${(markets.ou[1].under*100).toFixed(0)}% · ทั้งคู่ยิง = ${(markets.btts.yes*100).toFixed(0)}%`);
+    const vb=value.filter(v=>v.value);
+    reason.push(vb.length? `<b>💰 Value Bet:</b> พบราคาคุ้มที่ → ${vb.map(v=>`${v.label} (edge +${(v.edge*100).toFixed(1)}%)`).join(", ")}`
+                         : `<b>💰 Value Bet:</b> ไม่พบราคาที่ให้ edge เป็นบวกชัดเจน — ตลาดตั้งราคาสมเหตุผล`);
+
+    return {
+      outcomes, best, topScores, value, markets,
+      confidence: Math.round(best.p*100),
+      reasoning: reason
+    };
+  }
+}
+
+/* ==================================================================
+   PART 3 — BackendClient
+   เรียก backend ของเราเอง (server.js) ที่ proxy ข้อมูลจริงจาก
+   football-data.org · backend คืน { name, form, goalsFor, goalsAg, games }
+   ของ 5 นัดหลังฤดูกาลปัจจุบัน (same-origin → ไม่มีปัญหา CORS)
+   ================================================================== */
+class BackendClient {
+  async team(comp, name, seasonQ=""){
+    const res=await fetch(`/api/team?comp=${encodeURIComponent(comp)}&name=${encodeURIComponent(name)}${seasonQ}`);
+    const json=await res.json();
+    if(!res.ok || json.error) throw new Error(json.error||("HTTP "+res.status));
+    return json;
+  }
+}
+
+/* ==================================================================
+   UI CONTROLLER — เชื่อม engine กับ DOM
+   ================================================================== */
+const $=s=>document.querySelector(s);
+const numEngine=new NumerologyEngine();
+const footEngine=new FootballPredictor();
+
+// ----- tabs -----
+const tabs=[...document.querySelectorAll(".tab")];
+function activateTab(t){
+  tabs.forEach(x=>{ x.classList.remove("active"); x.setAttribute("aria-selected","false"); });
+  document.querySelectorAll(".view").forEach(x=>x.classList.remove("active"));
+  t.classList.add("active"); t.setAttribute("aria-selected","true");
+  $("#view-"+t.dataset.view).classList.add("active");
+}
+tabs.forEach((t,i)=>{
+  t.addEventListener("click",()=>activateTab(t));
+  // ลูกศรซ้าย/ขวาเลื่อนแท็บ (มาตรฐาน ARIA tablist)
+  t.addEventListener("keydown",e=>{
+    if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+      e.preventDefault();
+      const n=tabs[(i+(e.key==="ArrowRight"?1:tabs.length-1))%tabs.length];
+      n.focus(); activateTab(n);
+    }
+  });
+});
+
+function setConf(fill,pct,val){ fill.style.width=val+"%"; pct.textContent=val+"%"; }
+
+// ----- numbers -----
+$("#numGo").addEventListener("click",()=>{
+  // ต้องพิมพ์ข้อความก่อน — ไม่งั้นจะขึ้นเลขจากวันที่เฉยๆ
+  if(!$("#numText").value.trim()){
+    $("#numResult").classList.remove("show");
+    $("#numText").focus();
+    $("#numText").style.borderColor="var(--warn)";
+    $("#numText").placeholder="⚠️ พิมพ์ความฝัน/เหตุการณ์ก่อน แล้วค่อยกดทำนาย";
+    setTimeout(()=>$("#numText").style.borderColor="",1500);
+    return;
+  }
+  const r=numEngine.predict($("#numText").value,$("#numDate").value);
+  $("#numThree").innerHTML=r.three.map((s,i)=>
+    `<span class="num three"><small>อันดับ${i+1}</small>${s.main}</span>`+
+    s.perms.map(p=>`<span class="num three" style="opacity:.7"><small>กลับ</small>${p}</span>`).join("")).join("");
+  $("#numTwo").innerHTML=r.two.map(d=>`<span class="num two">${d}</span>`).join("");
+  $("#numRun").innerHTML=r.run.map(d=>`<span class="num three">${d}</span>`).join("");
+  $("#numReason").innerHTML=r.reasoning.map(x=>"• "+x).join("<br>");
+  setConf($("#numConfFill"),$("#numConfPct"),r.confidence);
+  $("#numResult").classList.add("show");
+  lastNum=r;   // เก็บผลไว้แชร์/คัดลอก
+});
+
+// ----- แชร์/คัดลอกผลทำนายเลข -----
+let lastNum=null;
+function numText(){
+  if(!lastNum) return "";
+  const t3=lastNum.three.map(s=>[s.main,...s.perms].join("/")).join("  ");
+  return `🔮 เลขนำโชคจาก: ${$("#numText").value.trim()}\n`+
+    `🏃 เลขวิ่ง: ${lastNum.run.join(" ")}\n🎯 3 ตัว: ${t3}\n🎲 2 ตัว: ${lastNum.two.join("  ")}\n(เพื่อความบันเทิงเท่านั้น)`;
+}
+$("#numCopy").addEventListener("click",async()=>{
+  if(!lastNum) return;
+  try{ await navigator.clipboard.writeText(numText());
+    $("#numCopy").textContent="✅ คัดลอกแล้ว";
+    setTimeout(()=>$("#numCopy").textContent="📋 คัดลอกเลข",1500);}catch{}
+});
+$("#numShare").addEventListener("click",async()=>{
+  if(!lastNum) return;
+  const text=numText();
+  if(navigator.share){ try{ await navigator.share({title:"เลขนำโชค",text}); }catch{} }
+  else { try{ await navigator.clipboard.writeText(text);
+    alert("คัดลอกไปคลิปบอร์ดแล้ว (อุปกรณ์นี้ไม่รองรับแชร์โดยตรง)"); }catch{} }
+});
+
+// ----- football -----
+$("#footGo").addEventListener("click",()=>{
+  const I={
+    homeName:$("#homeName").value||"เหย้า", awayName:$("#awayName").value||"เยือน",
+    hXgFor:+$("#hXgFor").value, hXgAg:+$("#hXgAg").value, hForm:$("#hForm").value,
+    aXgFor:+$("#aXgFor").value, aXgAg:+$("#aXgAg").value, aForm:$("#aForm").value,
+    h2h:$("#h2h").value, homeAdv:+$("#homeAdv").value, weather:+$("#weather").value,
+    fatigue:+$("#fatigue").value, hInjury:+$("#hInjury").value, aInjury:+$("#aInjury").value,
+    hPress:+$("#hPress").value, aPress:+$("#aPress").value,
+    oddH:+$("#oddH").value, oddD:+$("#oddD").value, oddA:+$("#oddA").value,
+  };
+  const r=footEngine.predict(I);
+
+  $("#footOutcome").innerHTML=r.outcomes.map(o=>
+    `<div class="oc ${o===r.best?'best':''}"><div class="t">${o.label}</div><div class="v">${(o.p*100).toFixed(1)}%</div></div>`).join("");
+  setConf($("#footConfFill"),$("#footConfPct"),r.confidence);
+
+  $("#footScores").innerHTML="<tr><th>สกอร์</th><th>โอกาส</th></tr>"+
+    r.topScores.map(s=>`<tr><td><b>${I.homeName} ${s.h} - ${s.a} ${I.awayName}</b></td><td>${(s.p*100).toFixed(1)}%</td></tr>`).join("");
+
+  // ตลาดเสริม: สูง/ต่ำ, ทั้งคู่ยิง, Double Chance
+  const m=r.markets; const pc=x=>(x*100).toFixed(1)+"%";
+  let mk="<tr><th>ตลาด</th><th>ตัวเลือก</th><th>โอกาส</th></tr>";
+  m.ou.forEach(o=>{ mk+=`<tr><td>สูง/ต่ำ ${o.line}</td><td>สูง ${o.line} ▲</td><td class="value-yes">${pc(o.over)}</td></tr>
+                         <tr><td></td><td>ต่ำ ${o.line} ▼</td><td>${pc(o.under)}</td></tr>`; });
+  mk+=`<tr><td>ทั้งคู่ยิง (BTTS)</td><td>ยิงทั้งคู่</td><td class="value-yes">${pc(m.btts.yes)}</td></tr>
+       <tr><td></td><td>ไม่ยิงทั้งคู่</td><td>${pc(m.btts.no)}</td></tr>`;
+  m.dc.forEach(d=>{ mk+=`<tr><td>Double Chance</td><td>${d.label}</td><td>${pc(d.p)}</td></tr>`; });
+  $("#footMarkets").innerHTML=mk;
+
+  $("#footValue").innerHTML="<tr><th>ผล</th><th>โอกาสโมเดล</th><th>ราคา</th><th>Edge</th><th>คุ้ม?</th></tr>"+
+    r.value.map(v=>`<tr><td>${v.label}</td><td>${(v.p*100).toFixed(1)}%</td><td>${v.odd.toFixed(2)}</td>
+      <td class="${v.edge>0?'value-yes':'value-no'}">${v.edge>0?'+':''}${(v.edge*100).toFixed(1)}%</td>
+      <td class="${v.value?'value-yes':'value-no'}">${v.value?'✅ คุ้ม':'—'}</td></tr>`).join("");
+
+  $("#footReason").innerHTML=r.reasoning.map(x=>"• "+x).join("<br>");
+  $("#footResult").classList.add("show");
+});
+
+// ----- ดึงข้อมูลจริงผ่าน backend (server.js → football-data.org) -----
+const backend=new BackendClient();
+
+// รายการที่มีฤดูกาลตายตัว → ไม่ใช้ดรอปดาวน์ season
+// (ทีมชาติ = ตามทัวร์นาเมนต์ · ลีกเอเชีย = ฟรีดึงได้แค่ 2023)
+// รายการที่ไม่มีดรอปดาวน์ฤดูกาล (ทัวร์นาเมนต์ทีมชาติ = ฤดูกาลตายตัว)
+const FIXED_SEASON=["WC","EC","NATIONAL"];
+// รายการที่ดึงผ่าน API-Football (แพ็กฟรี = ฤดูกาล 2022-2024)
+const AF_COMPS=["INTL","JP1","KR1","TH1"];
+const usesSeason = c => !FIXED_SEASON.includes(c);
+// คำนวณฤดูกาลปัจจุบันจากวันที่ → ตัวเลือกอัปเดตเองทุกปี ไม่ต้องแก้โค้ด
+// ลีกยุโรปข้ามปี (เริ่ม ก.ค.) · บราซิลใช้ปีปฏิทิน
+const CALENDAR_LEAGUES=["BSA","CLI"];
+function currentSeasonYear(comp){
+  const d=new Date(), y=d.getFullYear(), m=d.getMonth()+1;
+  if(CALENDAR_LEAGUES.includes(comp)) return y;
+  return m>=7 ? y : y-1;
+}
+function seasonLabel(y,comp){
+  return CALENDAR_LEAGUES.includes(comp) ? String(y) : `${y}/${String((y+1)%100).padStart(2,"0")}`;
+}
+function setSeasonOptions(comp){
+  const c=currentSeasonYear(comp);
+  const yrs = AF_COMPS.includes(comp) ? [2024,2023,2022] : [c,c-1,c-2];
+  const cur = $("#season").value;
+  $("#season").innerHTML = yrs.map(y=>`<option value="${y}">${seasonLabel(y,comp)}</option>`).join("");
+  if(yrs.map(String).includes(cur)) $("#season").value=cur;  // คงค่าถ้ายังเลือกได้
+}
+// รายชื่อทีมชาติยอดนิยม (ไว้แนะนำในโหมด INTL — พิมพ์ชาติอื่นก็ได้)
+const INTL_SUGGEST=["Thailand","Vietnam","Laos","Indonesia","Malaysia","Singapore","Myanmar",
+  "Japan","South Korea","Australia","Saudi Arabia","Iran","Iraq","Qatar","China",
+  "Brazil","Argentina","France","Germany","England","Spain","Portugal"];
+// สร้าง query string season (เฉพาะลีกที่เลือกฤดูกาลได้)
+const seasonQS = () => usesSeason($("#comp").value) ? `&season=${$("#season").value}` : "";
+
+// ซ่อน/แสดงช่องฤดูกาลตามประเภทรายการ
+function toggleSeason(){
+  const comp=$("#comp").value;
+  const show=usesSeason(comp);
+  $("#seasonField").style.display = show ? "block" : "none";
+  if(show) setSeasonOptions(comp);
+}
+
+// โหลดรายชื่อทีมของลีกที่เลือก → เติม datalist (เลือกจาก dropdown ได้)
+async function loadTeamList(){
+  const comp=$("#comp").value;
+  toggleSeason();
+  const dl=$("#teamList");
+  dl.innerHTML="";
+  // โหมดทีมชาติทั่วโลก: ใช้รายชื่อแนะนำ (พิมพ์ชาติอื่นได้) ไม่ต้องเรียก API
+  if(comp==="INTL"){
+    dl.innerHTML=INTL_SUGGEST.map(n=>`<option value="${n}">`).join("");
+    $("#homeSearch").placeholder="พิมพ์ชื่อชาติ เช่น Thailand";
+    $("#awaySearch").placeholder="พิมพ์ชื่อชาติ เช่น Laos";
+    return;
+  }
+  $("#homeSearch").placeholder="กำลังโหลดรายชื่อทีม...";
+  $("#awaySearch").placeholder="กำลังโหลดรายชื่อทีม...";
+  try{
+    const res=await fetch(`/api/teams?comp=${comp}${seasonQS()}`);
+    const json=await res.json();
+    if(json.error) throw new Error(json.error);
+    dl.innerHTML=json.teams.map(n=>`<option value="${n}">`).join("");
+    $("#homeSearch").placeholder=`เลือกทีม (${json.teams.length} ทีม)`;
+    $("#awaySearch").placeholder=`เลือกทีม (${json.teams.length} ทีม)`;
+  }catch(e){
+    $("#homeSearch").placeholder="พิมพ์ชื่อทีม (อังกฤษ)";
+    $("#awaySearch").placeholder="พิมพ์ชื่อทีม (อังกฤษ)";
+    $("#fetchStatus").innerHTML="⚠️ โหลดรายชื่อทีมไม่ได้: "+e.message+" — เช็กว่ารัน server แล้ว";
+  }
+}
+$("#comp").addEventListener("change",loadTeamList);
+$("#season").addEventListener("change",loadTeamList);
+loadTeamList();   // โหลดทันทีตอนเปิดหน้า
+$("#fetchReal").addEventListener("click",async()=>{
+  const comp=$("#comp").value;
+  const hQ=$("#homeSearch").value.trim(), aQ=$("#awaySearch").value.trim();
+  const status=$("#fetchStatus");
+  if(!hQ||!aQ){ status.innerHTML="❌ ใส่ชื่อทีมเหย้าและเยือนให้ครบ"; return; }
+
+  status.innerHTML="⏳ กำลังดึง 5 นัดหลังจากข้อมูลจริง...";
+  try{
+    // football-data.org แพ็กฟรีจำกัด 10 req/นาที — ดึงทีละทีม
+    const sq=seasonQS();
+    const home=await backend.team(comp, hQ, sq);
+    const away=await backend.team(comp, aQ, sq);
+    $("#homeStatus").innerHTML=(home.games?"✅ ":"⚠️ ")+home.name+` (${home.games} นัด)`;
+    $("#awayStatus").innerHTML=(away.games?"✅ ":"⚠️ ")+away.name+` (${away.games} นัด)`;
+
+    // เติมชื่อทีมเสมอ
+    $("#homeName").value=home.name; $("#awayName").value=away.name;
+
+    // ถ้าทีมใดยังไม่มีข้อมูลแข่งในรายการนี้ → เตือนชัด ไม่ใส่ 0 มั่ว
+    const noData=[home,away].filter(t=>t.games===0).map(t=>t.name);
+    if(noData.length){
+      status.innerHTML=`⚠️ <b>${noData.join(" และ ")}</b> ยังไม่ได้ลงเตะในรายการนี้ จึงไม่มีสถิติ<br>
+        <span style="color:var(--muted)">วิธีแก้: เลือกทีมที่แข่งไปแล้ว · หรือใช้ <b>ยูโร 2024</b>/ลีกสโมสร (ข้อมูลครบทั้งฤดูกาล) · หรือกรอกค่าประตู/ฟอร์มเอง</span>`;
+      return;
+    }
+
+    // เติมค่าเข้าฟอร์ม (ใช้ค่าเฉลี่ยประตูจริงเป็น input ของโมเดล Poisson)
+    $("#hXgFor").value=home.goalsFor; $("#hXgAg").value=home.goalsAg; $("#hForm").value=home.form;
+    $("#aXgFor").value=away.goalsFor; $("#aXgAg").value=away.goalsAg; $("#aForm").value=away.form;
+
+    // ประเมินคุณภาพข้อมูล: นัดน้อย หรือ สองทีมจำนวนนัดต่างกันมาก = ไม่สมดุล
+    const few = Math.min(home.games, away.games);
+    const gap = Math.abs(home.games - away.games);
+    let warn = "";
+    const tip = (comp==="NATIONAL"||comp==="WC"||comp==="EC")
+      ? " — ลองสลับไปโหมด <b>🌏 ทีมชาติทั่วโลก (2023)</b> จะได้ข้อมูลครบ 5 นัดทั้งคู่"
+      : "";
+    if(few === 0){
+      warn = `<br><span style='color:#fb7185;font-weight:700'>⛔ มีทีมไม่มีข้อมูลเลย — ผลทำนายเชื่อไม่ได้${tip}</span>`;
+    }else if(few < 3 || gap >= 3){
+      warn = `<br><span style='color:#fb7185;font-weight:700'>⚠️ ข้อมูลไม่สมดุล: ${home.name} ${home.games} นัด vs ${away.name} ${away.games} นัด</span>`
+           + `<br><span style='color:#fb7185'>ฝั่งที่นัดน้อย (${few} นัด) ค่าเฉลี่ยจะแกว่งมาก → ผลแม่นต่ำ${tip}</span>`;
+    }else if(few < 5){
+      warn = `<br><span style='color:#f7b733'>🔸 ข้อมูล ${few}-${Math.max(home.games,away.games)} นัด พอใช้ได้ แต่ยิ่งครบ 5 นัดยิ่งแม่น</span>`;
+    }
+    status.innerHTML=`✅ ดึงสำเร็จ! ${home.name} (${home.form||'-'}) vs ${away.name} (${away.form||'-'})<br>
+      <span style="color:var(--muted)">ใช้ค่าเฉลี่ยประตูจริงเป็น input · กดปุ่ม "รัน Poisson Simulation" ได้เลย</span>${warn}`;
+  }catch(err){
+    status.innerHTML="❌ ดึงข้อมูลไม่สำเร็จ: "+err.message+
+      "<br><span style='color:var(--muted)'>เช็กว่ารัน node server.js แล้ว · เปิดผ่าน localhost:3000 · ทั้งสองทีมอยู่ลีกเดียวกัน · ชื่อทีมเป็นภาษาอังกฤษ</span>";
+  }
+});
+
+// ----- ลงทะเบียน Service Worker (PWA: ติดตั้งแอป + ออฟไลน์) -----
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=> navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "ai-content-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI Content Intelligence Team — Thai news/trend research, scoring, scripting and fact-check dashboard",
+  "scripts": {
+    "start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "zod": "^4.6.7"
+  }
+}

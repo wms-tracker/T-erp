@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0d1224"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#4ade80" stroke-width="14"/>
+  <text x="256" y="300" font-size="200" font-family="Segoe UI,Arial,sans-serif"
+        font-weight="900" text-anchor="middle" fill="#22d3ee">⚡</text>
+</svg>
