@@ -13,7 +13,7 @@
   import { DEPARTMENTS as WCT_DEPARTMENTS } from "./js/control-tower/data-service.js";
   import { firebaseConfig } from "./js/firebase-config.js";
   import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import {
     collection, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, query, orderBy, limit, runTransaction, serverTimestamp, where
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -870,6 +870,8 @@
           <td style="display:flex;gap:6px;flex-wrap:wrap;">
             <button class="btn btn-outline" onclick="editUser('${u.uid}')">✏️ แก้ไข</button>
             <button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)">${u.active ? 'ระงับสิทธิ์' : 'เปิดใช้งาน'}</button>
+            <button class="btn btn-outline" onclick="resetPassword('${u.email}')" title="ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมล">🔑 รีเซ็ต</button>
+            <button class="btn btn-outline" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteUser('${u.uid}','${u.name||u.email}')">🗑️ ลบ</button>
           </td>
         </tr>
       `).join('');
@@ -945,6 +947,26 @@
       await updateDoc(doc(db, 'users', uid), { active: nextActive });
       await loadUsers();
     } catch (err) { alert('อัปเดตไม่สำเร็จ: ' + err.message); }
+  };
+
+  window.resetPassword = async function(email) {
+    if (!email) { alert('ไม่พบอีเมลผู้ใช้งาน'); return; }
+    if (!confirm(`ส่งลิงก์รีเซ็ตรหัสผ่านไปที่\n${email}\nใช่ไหม?`)) return;
+    try {
+      const secondaryApp = initializeApp(firebaseConfig, `reset-${Date.now()}`);
+      const secondaryAuth = getAuth(secondaryApp);
+      await sendPasswordResetEmail(secondaryAuth, email);
+      await deleteApp(secondaryApp).catch(() => {});
+      alert(`✅ ส่งลิงก์รีเซ็ตรหัสผ่านไปที่ ${email} แล้ว\n(ให้ผู้ใช้ตรวจสอบกล่องจดหมาย)`);
+    } catch (err) { alert('ส่งไม่สำเร็จ: ' + err.message); }
+  };
+
+  window.deleteUser = async function(uid, name) {
+    if (!confirm(`ลบผู้ใช้งาน "${name}" ออกจากระบบ?\n\n⚠️ ข้อมูลใน Firestore จะถูกลบถาวร\n(บัญชี Firebase Auth ยังคงอยู่ — ติดต่อ Admin ถ้าต้องการลบบัญชีด้วย)`)) return;
+    try {
+      await deleteDoc(doc(db, 'users', uid));
+      await loadUsers();
+    } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
   };
 
   // =========================================================
