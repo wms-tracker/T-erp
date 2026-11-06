@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 02 — ป้องกันและลดอุบัติเหตุ</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.6rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.72rem;color:#64748b;margin-top:4px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.red{border-top-color:#dc2626}.kpi.red .num{color:#dc2626}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+/* Filter */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filter-select{padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;background:#fff;cursor:pointer;font-family:'Sarabun',sans-serif}
+/* Risk chips */
+.risk-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.risk-chip{padding:5px 12px;border-radius:16px;border:2px solid transparent;cursor:pointer;font-size:.78rem;font-weight:600;font-family:'Sarabun',sans-serif;transition:all .2s}
+.risk-chip.active{border-color:currentColor}
+/* Card */
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+.card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f1f5f9}
+.card-head h2{font-size:.95rem;font-weight:700;flex:1}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 12px;background:#f8fafc;font-size:.74rem;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.tbl td{padding:8px 12px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#f8fafc}
+/* Badge */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600}
+/* Risk pill */
+.risk-pill{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:700}
+/* Btn */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+/* Panel */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
+.overlay.open{display:block}
+.panel{position:fixed;top:0;right:-100%;width:min(640px,100vw);height:100vh;background:#fff;z-index:1000;overflow-y:auto;transition:right .3s;box-shadow:-4px 0 20px rgba(0,0,0,.12)}
+.panel.open{right:0}
+.panel-head{position:sticky;top:0;background:#fff;padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;z-index:1}
+.panel-head h2{flex:1;font-size:.95rem;font-weight:700}
+.panel-body{padding:20px}
+/* Form */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:4px}
+.form-input,.form-textarea,.form-select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:'Sarabun',sans-serif;background:#fff}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:2px solid #2563eb;border-color:#2563eb}
+.form-textarea{min-height:72px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Risk selector */
+.risk-sel{display:flex;gap:8px}
+.risk-sel-item{flex:1;padding:10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;text-align:center;transition:all .2s;font-family:'Sarabun',sans-serif;font-size:.8rem;font-weight:600}
+/* Stepper */
+.stepper{display:flex;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+.step-btn{flex:1;padding:7px 4px;border:none;background:#f8fafc;cursor:pointer;font-size:.7rem;font-family:'Sarabun',sans-serif;transition:all .2s;text-align:center;border-right:1px solid #e2e8f0}
+.step-btn:last-child{border-right:none}
+.step-btn.active{font-weight:700}
+/* Detail */
+.dl-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem}
+.dl-row:last-child{border-bottom:none}
+.section-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+/* Progress */
+.prog-wrap{background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden;margin-top:4px}
+.prog-bar{height:100%;border-radius:4px;transition:width .5s}
+.empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listNearMiss, createNearMiss, updateNearMiss, getNearMiss,
+  NEAR_MISS_TYPES, RISK_LEVELS_NM, NM_STATUS, DEPARTMENTS, OBS_CATEGORIES
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-prevention', 'Module 02 — ป้องกันและลดอุบัติเหตุ');
+
+const TODAY = new Date().toISOString().split('T')[0];
+const STATUS_FLOW = ['open','assessed','assigned','in_progress','closed'];
+
+let allRecs      = [];
+let filterRisk   = '';
+let filterStatus = '';
+let filterType   = '';
+let editingId    = null;
+
+/* ───── helpers ───── */
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${parseInt(y)+543}`;
+}
+
+function riskPill(r) {
+  const rl = RISK_LEVELS_NM[r] || { label:r||'-', color:'#6b7280', bg:'#f9fafb' };
+  return `<span class="risk-pill" style="background:${rl.bg};color:${rl.color}">${rl.label}</span>`;
+}
+
+function statusBadge(s) {
+  const st = NM_STATUS[s] || { label:s, color:'#6b7280', bg:'#f9fafb' };
+  return `<span class="badge" style="background:${st.bg};color:${st.color}">${st.label}</span>`;
+}
+
+function typeLabel(k) {
+  return NEAR_MISS_TYPES[k]?.labelTh || k || '-';
+}
+
+/* ───── SHELL ───── */
+const deptOpts = (DEPARTMENTS||[]).map(d=>`<option value="${d}">${d}</option>`).join('');
+
+main.innerHTML = `
+<div style="padding:20px">
+  <div id="kpi-row" class="kpi-row"></div>
+
+  <!-- Risk chips -->
+  <div class="risk-chips">
+    <button class="risk-chip active" style="background:#f1f5f9;color:#374151" data-risk="" onclick="window._chRisk('')">ทุกระดับ</button>
+    ${Object.entries(RISK_LEVELS_NM).reverse().map(([k,v])=>
+      `<button class="risk-chip" style="background:${v.bg};color:${v.color}" data-risk="${k}" onclick="window._chRisk('${k}')">${v.label}</button>`
+    ).join('')}
+  </div>
+
+  <div class="filter-bar">
+    <select class="filter-select" id="f-status" onchange="window._filter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(NM_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="f-type" onchange="window._filter()">
+      <option value="">ทุกประเภท</option>
+      ${Object.entries(NEAR_MISS_TYPES).map(([k,v])=>`<option value="${k}">${v.labelTh}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="f-dept" onchange="window._filter()">
+      <option value="">ทุกแผนก</option>${deptOpts}
+    </select>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>🛡 Near Miss & สภาพไม่ปลอดภัย</h2>
+      <button class="btn btn-primary btn-sm" onclick="window._openForm()">➕ รายงานใหม่</button>
+    </div>
+    <div id="tbl-wrap"><div class="spinner">กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="window._closePanel()"></div>
+<div class="panel" id="panelForm">
+  <div class="panel-head">
+    <h2 id="form-title">➕ รายงาน Near Miss / สภาพไม่ปลอดภัย</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelFormBody"></div>
+</div>
+<div class="panel" id="panelDetail">
+  <div class="panel-head">
+    <h2>📋 รายละเอียด</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelDetailBody"></div>
+</div>`;
+
+/* ───── FILTER ───── */
+window._chRisk = (r) => {
+  filterRisk = r;
+  document.querySelectorAll('.risk-chip').forEach(b => b.classList.toggle('active', b.dataset.risk === r));
+  renderTable();
+};
+
+window._filter = () => {
+  filterStatus = document.getElementById('f-status')?.value || '';
+  filterType   = document.getElementById('f-type')?.value   || '';
+  renderTable();
+};
+
+function filtered() {
+  return allRecs.filter(r => {
+    if (filterRisk   && r.riskLevel !== filterRisk)  return false;
+    if (filterStatus && r.status    !== filterStatus) return false;
+    if (filterType   && r.nmType    !== filterType)   return false;
+    return true;
+  });
+}
+
+/* ───── KPI ───── */
+function renderKPI() {
+  const total  = allRecs.length;
+  const high   = allRecs.filter(r => r.riskLevel === 'high').length;
+  const open   = allRecs.filter(r => r.status !== 'closed').length;
+  const closed = allRecs.filter(r => r.status === 'closed').length;
+  const pct    = total ? Math.round(closed/total*100) : 0;
+
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi blue"><div class="num">${total}</div><div class="lbl">รายงานทั้งหมด</div></div>
+    <div class="kpi red"><div class="num">${high}</div><div class="lbl">ความเสี่ยงสูง</div></div>
+    <div class="kpi amber"><div class="num">${open}</div><div class="lbl">รอปิด</div></div>
+    <div class="kpi green"><div class="num">${closed}</div><div class="lbl">ปิดแล้ว</div></div>
+    <div class="kpi purple"><div class="num">${pct}%</div><div class="lbl">%ปิด</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%;background:#7c3aed"></div></div>
+    </div>`;
+}
+
+/* ───── TABLE ───── */
+function renderTable() {
+  const rows = filtered();
+  const wrap = document.getElementById('tbl-wrap');
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">📭 ไม่มีรายการที่ตรงกับเงื่อนไข</div>'; return; }
+
+  wrap.innerHTML = `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr>
+      <th>รหัส</th>
+      <th>เรื่อง</th>
+      <th>ประเภท</th>
+      <th>แผนก</th>
+      <th>วันที่</th>
+      <th>ระดับ</th>
+      <th>สถานะ</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    ${rows.map(r => `<tr>
+      <td style="font-size:.72rem;color:#94a3b8;white-space:nowrap">${r.reportId||'-'}</td>
+      <td style="font-weight:600;max-width:180px">${r.title||r.description?.slice(0,50)||'-'}</td>
+      <td style="font-size:.76rem">${typeLabel(r.nmType)}</td>
+      <td style="font-size:.76rem">${r.department||'-'}</td>
+      <td style="white-space:nowrap;font-size:.78rem">${fmtDate(r.reportDate)}</td>
+      <td>${riskPill(r.riskLevel)}</td>
+      <td>${statusBadge(r.status)}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="window._view('${r.id}')">ดู</button>
+        <button class="btn btn-ghost btn-sm" onclick="window._editPanel('${r.id}')">✏️</button>
+      </td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+/* ───── PANEL ───── */
+function openPanel(id) {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+}
+window._closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
+  editingId = null;
+};
+
+/* ───── FORM ───── */
+function buildForm(r = {}) {
+  const selRisk = r.riskLevel || 'medium';
+  const typeOpts = Object.entries(NEAR_MISS_TYPES).map(([k,v])=>
+    `<option value="${k}"${(r.nmType||'near_miss')===k?' selected':''}>${v.labelTh}</option>`).join('');
+  const catOpts = (OBS_CATEGORIES||[]).map(c=>`<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('');
+  const dOpts   = (DEPARTMENTS||[]).map(d=>`<option value="${d}"${r.department===d?' selected':''}>${d}</option>`).join('');
+  const stOpts  = Object.entries(NM_STATUS).map(([k,v])=>
+    `<option value="${k}"${(r.status||'open')===k?' selected':''}>${v.label}</option>`).join('');
+
+  const riskSelHtml = Object.entries(RISK_LEVELS_NM).map(([k,v])=>
+    `<div class="risk-sel-item ${selRisk===k?'sel':''}"
+      style="background:${selRisk===k?v.bg:'#f8fafc'};border-color:${selRisk===k?v.color:'#e2e8f0'};color:${v.color}"
+      onclick="window._selRisk('${k}')">${v.label}
+    </div>`).join('');
+
+  return `
+  <div class="form-group">
+    <label class="form-label">หัวข้อ / เรื่องที่รายงาน *</label>
+    <input type="text" id="f-title" class="form-input" value="${r.title||''}" placeholder="เช่น Forklift เบรกไม่ทัน เฉียดพนักงาน"/>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ประเภท</label>
+      <select id="f-type2" class="form-select">${typeOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">หมวดหมู่</label>
+      <select id="f-cat" class="form-select"><option value="">-- เลือก --</option>${catOpts}</select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียด</label>
+    <textarea id="f-desc" class="form-textarea" placeholder="อธิบายเหตุการณ์ที่เกิดขึ้น">${r.description||''}</textarea>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">แผนก</label>
+      <select id="f-dept" class="form-select"><option value="">-- เลือก --</option>${dOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานที่เกิดเหตุ</label>
+      <input type="text" id="f-loc" class="form-input" value="${r.location||''}" placeholder="จุดที่เกิดเหตุ"/>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันที่รายงาน *</label>
+      <input type="date" id="f-date" class="form-input" value="${r.reportDate||TODAY}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้รายงาน</label>
+      <input type="text" id="f-reporter" class="form-input" value="${r.reportedBy||''}" placeholder="ชื่อผู้รายงาน"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">ระดับความเสี่ยง *</label>
+    <div class="risk-sel" id="risk-sel">${riskSelHtml}</div>
+    <input type="hidden" id="f-risk" value="${selRisk}"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สาเหตุ</label>
+    <textarea id="f-cause" class="form-textarea" placeholder="สาเหตุที่ทำให้เกิดเหตุการณ์">${r.rootCause||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">แนวทางแก้ไข / ป้องกัน</label>
+    <textarea id="f-action" class="form-textarea" placeholder="มาตรการป้องกันการเกิดซ้ำ">${r.correctiveAction||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">ผู้รับผิดชอบติดตาม</label>
+    <input type="text" id="f-assign" class="form-input" value="${r.assignedTo||''}" placeholder="ชื่อผู้ติดตาม"/>
+  </div>
+  ${editingId?`
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">สถานะ</label>
+      <select id="f-status2" class="form-select">${stOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">กำหนดเสร็จ</label>
+      <input type="date" id="f-due" class="form-input" value="${r.dueDate||''}"/>
+    </div>
+  </div>`:''}
+  <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
+    <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window._save()">💾 บันทึก</button>
+  </div>`;
+}
+
+window._selRisk = (k) => {
+  document.getElementById('f-risk').value = k;
+  document.querySelectorAll('.risk-sel-item').forEach(el => {
+    const kt = el.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    const rl = RISK_LEVELS_NM[kt] || {};
+    const isSel = kt === k;
+    el.classList.toggle('sel', isSel);
+    el.style.background   = isSel ? rl.bg    : '#f8fafc';
+    el.style.borderColor  = isSel ? rl.color : '#e2e8f0';
+  });
+};
+
+window._openForm = () => {
+  editingId = null;
+  document.getElementById('form-title').textContent = '➕ รายงาน Near Miss / สภาพไม่ปลอดภัย';
+  document.getElementById('panelFormBody').innerHTML = buildForm();
+  openPanel('panelForm');
+};
+
+window._editPanel = (id) => {
+  editingId = id;
+  document.getElementById('form-title').textContent = '✏️ แก้ไขรายงาน';
+  const r = allRecs.find(x => x.id === id) || {};
+  document.getElementById('panelFormBody').innerHTML = buildForm(r);
+  openPanel('panelForm');
+};
+
+window._save = async () => {
+  const title = document.getElementById('f-title')?.value?.trim();
+  const date  = document.getElementById('f-date')?.value;
+  if (!title || !date) { alert('กรุณากรอก หัวข้อ และ วันที่รายงาน'); return; }
+
+  const payload = {
+    title,
+    nmType:          document.getElementById('f-type2')?.value    || 'near_miss',
+    category:        document.getElementById('f-cat')?.value      || '',
+    description:     document.getElementById('f-desc')?.value?.trim()   || '',
+    department:      document.getElementById('f-dept')?.value     || '',
+    location:        document.getElementById('f-loc')?.value?.trim()    || '',
+    reportDate:      date,
+    reportedBy:      document.getElementById('f-reporter')?.value?.trim() || '',
+    riskLevel:       document.getElementById('f-risk')?.value     || 'medium',
+    rootCause:       document.getElementById('f-cause')?.value?.trim()  || '',
+    correctiveAction:document.getElementById('f-action')?.value?.trim() || '',
+    assignedTo:      document.getElementById('f-assign')?.value?.trim() || '',
+    kpoDuty:         'duty2',
+    ...(editingId ? {
+      status:  document.getElementById('f-status2')?.value || 'open',
+      dueDate: document.getElementById('f-due')?.value     || '',
+    } : {}),
+  };
+
+  try {
+    if (editingId) await updateNearMiss(editingId, payload);
+    else           await createNearMiss(payload, profile.uid);
+    window._closePanel();
+    await load();
+  } catch(e) { alert('บันทึกไม่ได้: ' + (e?.message||e)); }
+};
+
+/* ───── QUICK STATUS ───── */
+window._quickStatus = async (id, status) => {
+  try {
+    await updateNearMiss(id, { status });
+    await load();
+    window._view(id);
+  } catch(e) { alert('อัปเดตไม่ได้: ' + (e?.message||e)); }
+};
+
+/* ───── DETAIL ───── */
+window._view = (id) => {
+  const r = allRecs.find(x => x.id === id);
+  if (!r) return;
+  const rl  = RISK_LEVELS_NM[r.riskLevel] || { label:'-', color:'#6b7280', bg:'#f9fafb' };
+  const stepIdx = STATUS_FLOW.indexOf(r.status);
+
+  const stepperHtml = STATUS_FLOW.map((s,i) => {
+    const st = NM_STATUS[s] || {};
+    const isActive = i === stepIdx;
+    const isDone   = i < stepIdx;
+    return `<button class="step-btn ${isActive?'active':''}"
+      style="${isActive?`background:${st.bg};color:${st.color}`:isDone?'color:#059669':'color:#94a3b8'}"
+      onclick="window._quickStatus('${r.id}','${s}')">
+      ${isDone?'✓ ':''}${st.label}
+    </button>`;
+  }).join('');
+
+  document.getElementById('panelDetailBody').innerHTML = `
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+    <span style="font-size:1rem;font-weight:700;flex:1">${r.title||'-'}</span>
+    <span class="risk-pill" style="background:${rl.bg};color:${rl.color};padding:3px 10px;font-size:.75rem">${rl.label}</span>
+    ${statusBadge(r.status)}
+  </div>
+
+  <div class="section-title">อัปเดตสถานะ</div>
+  <div class="stepper" style="margin-bottom:4px">${stepperHtml}</div>
+  <div style="font-size:.7rem;color:#94a3b8;margin-bottom:12px">กดปุ่มเพื่ออัปเดตทันที</div>
+
+  <div class="section-title">ข้อมูล</div>
+  <div class="dl-row"><span>รหัส</span><span style="font-size:.78rem;color:#94a3b8">${r.reportId||'-'}</span></div>
+  <div class="dl-row"><span>ประเภท</span><span>${typeLabel(r.nmType)}</span></div>
+  <div class="dl-row"><span>แผนก</span><span>${r.department||'-'}</span></div>
+  <div class="dl-row"><span>สถานที่</span><span>${r.location||'-'}</span></div>
+  <div class="dl-row"><span>วันที่</span><strong>${fmtDate(r.reportDate)}</strong></div>
+  <div class="dl-row"><span>ผู้รายงาน</span><span>${r.reportedBy||'-'}</span></div>
+  <div class="dl-row"><span>ผู้ติดตาม</span><strong>${r.assignedTo||'-'}</strong></div>
+  ${r.dueDate?`<div class="dl-row"><span>กำหนดเสร็จ</span><span>${fmtDate(r.dueDate)}</span></div>`:''}
+
+  ${r.description?`<div class="section-title">รายละเอียด</div>
+  <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6">${r.description}</div>`:''}
+
+  ${r.rootCause?`<div class="section-title">สาเหตุ</div>
+  <div style="background:#fff7ed;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6">${r.rootCause}</div>`:''}
+
+  ${r.correctiveAction?`<div class="section-title">แนวทางแก้ไข / ป้องกัน</div>
+  <div style="background:#f0fdf4;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6">${r.correctiveAction}</div>`:''}
+
+  <div style="margin-top:16px">
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel();window._editPanel('${r.id}')">✏️ แก้ไข</button>
+  </div>`;
+
+  openPanel('panelDetail');
+};
+
+/* ───── LOAD ───── */
+async function load() {
+  try {
+    allRecs = await listNearMiss({ lim: 300 });
+    renderKPI();
+    renderTable();
+  } catch(e) {
+    main.innerHTML = `<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">
+      ⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}
+    </div>`;
+  }
+}
+
+await load();
+</script>
+</body>
+</html>

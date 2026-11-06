@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 08 — ระบบรายงานความไม่ปลอดภัย</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.6rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.72rem;color:#64748b;margin-top:4px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.red{border-top-color:#dc2626}.kpi.red .num{color:#dc2626}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+/* Type chips */
+.type-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.type-chip{padding:6px 14px;border-radius:20px;border:2px solid transparent;cursor:pointer;font-size:.8rem;font-weight:600;font-family:'Sarabun',sans-serif;transition:all .2s}
+.type-chip.active{border-color:currentColor}
+/* Filter */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filter-select{padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;background:#fff;cursor:pointer;font-family:'Sarabun',sans-serif}
+/* Card grid */
+.obs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:16px}
+.obs-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:14px;cursor:pointer;transition:box-shadow .2s;position:relative}
+.obs-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.obs-card-head{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.obs-type-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.obs-title{font-size:.85rem;font-weight:700;flex:1;line-height:1.3}
+.obs-meta{font-size:.72rem;color:#94a3b8;margin-bottom:6px}
+.obs-cat{display:inline-block;background:#f1f5f9;border-radius:4px;padding:1px 7px;font-size:.7rem;color:#475569;margin-right:4px}
+.obs-status-wrap{position:absolute;top:12px;right:12px}
+/* Btn */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+.btn-success{background:#059669;color:#fff}
+/* Panel */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
+.overlay.open{display:block}
+.panel{position:fixed;top:0;right:-100%;width:min(620px,100vw);height:100vh;background:#fff;z-index:1000;overflow-y:auto;transition:right .3s;box-shadow:-4px 0 20px rgba(0,0,0,.12)}
+.panel.open{right:0}
+.panel-head{position:sticky;top:0;background:#fff;padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;z-index:1}
+.panel-head h2{flex:1;font-size:.95rem;font-weight:700}
+.panel-body{padding:20px}
+/* Form */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:4px}
+.form-input,.form-textarea,.form-select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:'Sarabun',sans-serif;background:#fff}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:2px solid #2563eb;border-color:#2563eb}
+.form-textarea{min-height:80px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Type selector in form */
+.type-sel{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.type-sel-item{padding:10px;border:2px solid #e2e8f0;border-radius:8px;cursor:pointer;text-align:center;transition:all .2s}
+.type-sel-item:hover{border-color:#94a3b8}
+.type-sel-item.sel{border-width:2px}
+.type-sel-item .icon{font-size:1.3rem}
+.type-sel-item .label{font-size:.75rem;font-weight:600;margin-top:3px}
+/* Detail */
+.dl-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem}
+.dl-row:last-child{border-bottom:none}
+.section-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+/* Badge */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600}
+/* Empty / spinner */
+.empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+.card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f1f5f9;background:#fff;border-radius:12px 12px 0 0}
+.card-head h2{font-size:.95rem;font-weight:700;flex:1}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listObservations, createObservation, updateObservation, getObservation,
+  OBS_TYPES, OBS_CATEGORIES, OBS_STATUS, DEPARTMENTS
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-report-channel', 'Module 08 — ระบบรายงานความไม่ปลอดภัย');
+
+const TODAY = new Date().toISOString().split('T')[0];
+const canClose = ['safety_officer','kpo','admin'].includes(profile.role);
+
+let allRecs    = [];
+let filterType = '';
+let filterStatus = '';
+let filterDept = '';
+let editingId  = null;
+let formType   = 'unsafe';
+
+/* ───── helpers ───── */
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${parseInt(y)+543}`;
+}
+
+function statusBadge(s) {
+  const st = OBS_STATUS[s] || { label:s, color:'#6b7280', bg:'#f9fafb' };
+  return `<span class="badge" style="background:${st.bg};color:${st.color}">${st.label}</span>`;
+}
+
+/* ───── SHELL ───── */
+main.innerHTML = `
+<div style="padding:20px">
+  <div id="kpi-row" class="kpi-row"></div>
+
+  <!-- Type chips -->
+  <div class="type-chips" id="type-chips">
+    <button class="type-chip active" style="background:#f1f5f9;color:#374151" data-type="" onclick="window._chType('')">ทั้งหมด</button>
+    ${Object.entries(OBS_TYPES).map(([k,v])=>
+      `<button class="type-chip" style="background:${v.bg};color:${v.color}" data-type="${k}" onclick="window._chType('${k}')">${v.label}</button>`
+    ).join('')}
+  </div>
+
+  <div class="filter-bar">
+    <select class="filter-select" id="f-status" onchange="window._filter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(OBS_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="f-dept" onchange="window._filter()">
+      <option value="">ทุกแผนก</option>
+      ${(DEPARTMENTS||[]).map(d=>`<option value="${d}">${d}</option>`).join('')}
+    </select>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>📢 รายงานที่รับมา</h2>
+      <button class="btn btn-primary btn-sm" onclick="window._openForm()">➕ รายงานใหม่</button>
+    </div>
+    <div id="grid-wrap" style="padding:12px"><div class="spinner">กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="window._closePanel()"></div>
+<div class="panel" id="panelForm">
+  <div class="panel-head">
+    <h2 id="form-title">📢 รายงานสภาพ/พฤติกรรม</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelFormBody"></div>
+</div>
+<div class="panel" id="panelDetail">
+  <div class="panel-head">
+    <h2>📋 รายละเอียด</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelDetailBody"></div>
+</div>`;
+
+/* ───── TYPE CHIP ───── */
+window._chType = (t) => {
+  filterType = t;
+  document.querySelectorAll('.type-chip').forEach(b => {
+    const isThis = b.dataset.type === t;
+    b.classList.toggle('active', isThis);
+  });
+  renderGrid();
+};
+
+/* ───── FILTER ───── */
+window._filter = () => {
+  filterStatus = document.getElementById('f-status')?.value || '';
+  filterDept   = document.getElementById('f-dept')?.value   || '';
+  renderGrid();
+};
+
+function filtered() {
+  return allRecs.filter(r => {
+    if (filterType   && r.obsType !== filterType)       return false;
+    if (filterStatus && r.status  !== filterStatus)     return false;
+    if (filterDept   && r.department !== filterDept)    return false;
+    return true;
+  });
+}
+
+/* ───── KPI ───── */
+function renderKPI() {
+  const total   = allRecs.length;
+  const unsafe  = allRecs.filter(r => r.obsType === 'unsafe' || r.obsType === 'condition').length;
+  const open    = allRecs.filter(r => r.status === 'open').length;
+  const closed  = allRecs.filter(r => r.status === 'closed').length;
+  const positive= allRecs.filter(r => r.obsType === 'safe' || r.obsType === 'positive').length;
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi blue"><div class="num">${total}</div><div class="lbl">รายงานทั้งหมด</div></div>
+    <div class="kpi red"><div class="num">${unsafe}</div><div class="lbl">ไม่ปลอดภัย / สภาพไม่ดี</div></div>
+    <div class="kpi amber"><div class="num">${open}</div><div class="lbl">รอดำเนินการ</div></div>
+    <div class="kpi green"><div class="num">${closed}</div><div class="lbl">ดำเนินการแล้ว</div></div>
+    <div class="kpi purple"><div class="num">${positive}</div><div class="lbl">แบบอย่างที่ดี</div></div>`;
+}
+
+/* ───── GRID ───── */
+function renderGrid() {
+  const rows = filtered();
+  const wrap = document.getElementById('grid-wrap');
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">📭 ไม่มีรายการที่ตรงกับเงื่อนไข</div>'; return; }
+
+  wrap.innerHTML = `<div class="obs-grid">
+    ${rows.map(r => {
+      const tp = OBS_TYPES[r.obsType] || { label:r.obsType||'-', color:'#6b7280' };
+      return `<div class="obs-card" onclick="window._view('${r.id}')">
+        <div class="obs-status-wrap">${statusBadge(r.status)}</div>
+        <div class="obs-card-head">
+          <div class="obs-type-dot" style="background:${tp.color}"></div>
+          <div class="obs-title">${r.title||r.description?.slice(0,60)||'-'}</div>
+        </div>
+        <div class="obs-meta">
+          <span class="obs-cat">${tp.label}</span>
+          <span class="obs-cat">${r.category||'ทั่วไป'}</span>
+          ${r.department?`<span class="obs-cat">${r.department}</span>`:''}
+        </div>
+        <div style="font-size:.75rem;color:#94a3b8">${fmtDate(r.observationDate)} · รายงานโดย ${r.reportedBy||'ไม่ระบุ'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+/* ───── PANEL HELPERS ───── */
+function openPanel(id) {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+}
+window._closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
+  editingId = null;
+};
+
+/* ───── FORM ───── */
+function buildForm(r = {}) {
+  const selType = r.obsType || formType || 'unsafe';
+  const catOpts = OBS_CATEGORIES.map(c => `<option value="${c}"${r.category===c?' selected':''}>${c}</option>`).join('');
+  const deptOpts= (DEPARTMENTS||[]).map(d => `<option value="${d}"${r.department===d?' selected':''}>${d}</option>`).join('');
+  const stOpts  = Object.entries(OBS_STATUS).map(([k,v])=>`<option value="${k}"${(r.status||'open')===k?' selected':''}>${v.label}</option>`).join('');
+
+  const typeSelHtml = Object.entries(OBS_TYPES).map(([k,v]) => `
+    <div class="type-sel-item ${selType===k?'sel':''}"
+      style="${selType===k?`background:${v.bg};border-color:${v.color}`:''}"
+      onclick="window._selType('${k}')">
+      <div class="icon">${k==='unsafe'?'⚠️':k==='condition'?'🔧':k==='safe'?'✅':'⭐'}</div>
+      <div class="label" style="color:${v.color}">${v.label}</div>
+    </div>`).join('');
+
+  return `
+  <div class="form-group">
+    <label class="form-label">ประเภท *</label>
+    <div class="type-sel" id="type-sel">${typeSelHtml}</div>
+    <input type="hidden" id="f-obstype" value="${selType}"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หัวข้อ / เรื่องที่รายงาน *</label>
+    <input type="text" id="f-title" class="form-input" value="${r.title||''}" placeholder="เช่น พนักงานไม่สวมหมวกนิรภัย"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียด</label>
+    <textarea id="f-desc" class="form-textarea" placeholder="อธิบายสถานการณ์/จุดที่พบ">${r.description||''}</textarea>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">หมวดหมู่</label>
+      <select id="f-cat" class="form-select"><option value="">-- เลือก --</option>${catOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">แผนก</label>
+      <select id="f-dept" class="form-select"><option value="">-- เลือก --</option>${deptOpts}</select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันที่พบ *</label>
+      <input type="date" id="f-date" class="form-input" value="${r.observationDate||TODAY}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้รายงาน</label>
+      <input type="text" id="f-reporter" class="form-input" value="${r.reportedBy||''}" placeholder="ชื่อหรือ 'ไม่ระบุ'"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สถานที่ / จุดที่พบ</label>
+    <input type="text" id="f-location" class="form-input" value="${r.location||''}" placeholder="เช่น หน้าโกดัง A, Rack Zone 3"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">แนวทางแก้ไข (ถ้ามี)</label>
+    <textarea id="f-corrective" class="form-textarea" placeholder="วิธีแก้ไขที่แนะนำ">${r.correctiveAction||''}</textarea>
+  </div>
+  ${editingId && canClose ? `
+  <div class="form-group">
+    <label class="form-label">สถานะ</label>
+    <select id="f-status2" class="form-select">${stOpts}</select>
+  </div>` : ''}
+  <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
+    <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window._save()">💾 บันทึก</button>
+  </div>`;
+}
+
+window._selType = (k) => {
+  document.getElementById('f-obstype').value = k;
+  document.querySelectorAll('.type-sel-item').forEach(el => {
+    const kt = el.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    const tp = OBS_TYPES[kt] || {};
+    const isSel = kt === k;
+    el.classList.toggle('sel', isSel);
+    el.style.background = isSel ? tp.bg  : '';
+    el.style.borderColor= isSel ? tp.color : '';
+  });
+};
+
+window._openForm = () => {
+  editingId = null;
+  document.getElementById('form-title').textContent = '📢 รายงานสภาพ/พฤติกรรม';
+  document.getElementById('panelFormBody').innerHTML = buildForm();
+  openPanel('panelForm');
+};
+
+window._editFormPanel = async (id) => {
+  editingId = id;
+  document.getElementById('form-title').textContent = '✏️ แก้ไขรายงาน';
+  document.getElementById('panelFormBody').innerHTML = '<div class="spinner">กำลังโหลด...</div>';
+  openPanel('panelForm');
+  const r = allRecs.find(x => x.id === id) || {};
+  document.getElementById('panelFormBody').innerHTML = buildForm(r);
+};
+
+window._save = async () => {
+  const title = document.getElementById('f-title')?.value?.trim();
+  const date  = document.getElementById('f-date')?.value;
+  const type  = document.getElementById('f-obstype')?.value || 'unsafe';
+  if (!title || !date) { alert('กรุณากรอก หัวข้อ และ วันที่พบ'); return; }
+
+  const isPositive = type === 'safe' || type === 'positive';
+  const payload = {
+    obsType:         type,
+    title,
+    description:     document.getElementById('f-desc')?.value?.trim() || '',
+    category:        document.getElementById('f-cat')?.value  || '',
+    department:      document.getElementById('f-dept')?.value || '',
+    observationDate: date,
+    reportedBy:      document.getElementById('f-reporter')?.value?.trim() || 'ไม่ระบุ',
+    location:        document.getElementById('f-location')?.value?.trim() || '',
+    correctiveAction:document.getElementById('f-corrective')?.value?.trim() || '',
+    status:          editingId
+      ? (document.getElementById('f-status2')?.value || 'open')
+      : (isPositive ? 'na' : 'open'),
+    kpoDuty:         'duty8',
+  };
+
+  try {
+    if (editingId) await updateObservation(editingId, payload);
+    else           await createObservation(payload, profile.uid);
+    window._closePanel();
+    await load();
+  } catch(e) { alert('บันทึกไม่ได้: ' + (e?.message||e)); }
+};
+
+/* ───── QUICK CLOSE ───── */
+window._close = async (id) => {
+  if (!canClose) { alert('ไม่มีสิทธิ์ปิดรายงาน'); return; }
+  try {
+    await updateObservation(id, { status: 'closed', closedBy: profile.uid, closedDate: TODAY });
+    await load();
+    if (document.getElementById('panelDetail').classList.contains('open')) window._view(id);
+  } catch(e) { alert('อัปเดตไม่ได้: ' + (e?.message||e)); }
+};
+
+/* ───── DETAIL ───── */
+window._view = (id) => {
+  const r = allRecs.find(x => x.id === id);
+  if (!r) return;
+  const tp = OBS_TYPES[r.obsType] || { label:r.obsType||'-', color:'#6b7280', bg:'#f8fafc' };
+
+  document.getElementById('panelDetailBody').innerHTML = `
+  <div style="background:${tp.bg};border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:1.5rem">${r.obsType==='unsafe'?'⚠️':r.obsType==='condition'?'🔧':r.obsType==='safe'?'✅':'⭐'}</span>
+    <div>
+      <div style="font-size:.8rem;font-weight:700;color:${tp.color}">${tp.label}</div>
+      <div style="font-size:1rem;font-weight:700;color:#1e293b">${r.title||'-'}</div>
+    </div>
+    <div style="margin-left:auto">${statusBadge(r.status)}</div>
+  </div>
+
+  <div class="section-title">ข้อมูล</div>
+  <div class="dl-row"><span>วันที่พบ</span><strong>${fmtDate(r.observationDate)}</strong></div>
+  <div class="dl-row"><span>หมวดหมู่</span><span>${r.category||'-'}</span></div>
+  <div class="dl-row"><span>แผนก</span><span>${r.department||'-'}</span></div>
+  <div class="dl-row"><span>สถานที่</span><span>${r.location||'-'}</span></div>
+  <div class="dl-row"><span>ผู้รายงาน</span><strong>${r.reportedBy||'-'}</strong></div>
+
+  ${r.description?`
+  <div class="section-title">รายละเอียด</div>
+  <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;color:#374151;line-height:1.6">${r.description}</div>`:''}
+
+  ${r.correctiveAction?`
+  <div class="section-title">แนวทางแก้ไข</div>
+  <div style="background:#f0fdf4;border-radius:8px;padding:10px;font-size:.82rem;color:#374151;line-height:1.6">${r.correctiveAction}</div>`:''}
+
+  ${r.closedDate?`<div style="margin-top:10px;font-size:.78rem;color:#059669">✅ ปิดเมื่อ ${fmtDate(r.closedDate)}</div>`:''}
+
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    ${canClose && r.status==='open'?`<button class="btn btn-success btn-sm" onclick="window._close('${r.id}')">✅ ดำเนินการแล้ว</button>`:''}
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel();window._editFormPanel('${r.id}')">✏️ แก้ไข</button>
+  </div>`;
+
+  openPanel('panelDetail');
+};
+
+/* ───── LOAD ───── */
+async function load() {
+  try {
+    allRecs = await listObservations({ lim: 300 });
+    renderKPI();
+    renderGrid();
+  } catch(e) {
+    main.innerHTML = `<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">
+      ⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}
+    </div>`;
+  }
+}
+
+await load();
+</script>
+</body>
+</html>
