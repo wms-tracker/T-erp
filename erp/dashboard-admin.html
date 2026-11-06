@@ -759,50 +759,126 @@
     } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
   };
 
-  // ---------- จัดการผู้ใช้งาน & สิทธิ์ (ใช้งานได้จริง — เฟส 1) ----------
+  // ---------- จัดการผู้ใช้งาน & สิทธิ์ ----------
+  let _allUsers = [];
+
   async function renderUserManagement() {
     main.innerHTML = `
+      <style>
+        .u-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:16px}
+        .u-kpi-box{background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #e2e8f0;text-align:center}
+        .u-kpi-box .n{font-size:1.6rem;font-weight:700;line-height:1}
+        .u-kpi-box .l{font-size:.7rem;color:#64748b;margin-top:3px}
+        .u-filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+        .u-filter-bar input,.u-filter-bar select{padding:7px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;background:#fff}
+        .u-filter-bar input{flex:1;min-width:160px}
+        details.add-user-panel>summary{cursor:pointer;font-size:.95rem;font-weight:700;padding:10px 0;list-style:none;display:flex;align-items:center;gap:6px}
+        details.add-user-panel>summary::before{content:'▶';font-size:.7rem;transition:transform .2s}
+        details.add-user-panel[open]>summary::before{transform:rotate(90deg)}
+        .tbl-wrap{overflow-x:auto}
+      </style>
+
       <div class="card">
-        <h2 style="margin-top:0;font-size:1.05rem;">เพิ่มผู้ใช้งานใหม่</h2>
-        <p style="font-size:0.82rem;color:#888;line-height:1.6;">
-          กรอก <b>อีเมล + รหัสผ่าน</b> ด้านล่างเพื่อให้ระบบสร้างบัญชี login ให้อัตโนมัติ (ไม่ต้องเข้า Firebase Console เอง)<br/>
-          หรือถ้าเคยสร้างบัญชีไว้ใน Firebase Console แล้ว ให้เว้นช่องรหัสผ่านว่างไว้ แล้วกรอก <b>UID</b> แทน
-        </p>
-        <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
-          <div class="field"><label>ชื่อพนักงาน</label><input id="u-name" placeholder="ชื่อ-นามสกุล" /></div>
-          <div class="field"><label>อีเมล</label><input id="u-email" placeholder="name@company.com" /></div>
-          <div class="field"><label>รหัสผ่าน (สร้างบัญชีใหม่)</label><input id="u-password" type="text" placeholder="อย่างน้อย 6 ตัวอักษร" /></div>
-          <div class="field"><label>หรือ UID (บัญชีที่มีอยู่แล้ว)</label><input id="u-uid" placeholder="เช่น aB12cD34..." /></div>
-          <div class="field" style="grid-column:1/-1;"><label>แผนก/สิทธิ์ (Role) — เลือกได้หลายสิทธิ์ (อันแรก = สิทธิ์หลัก)</label>
-            <div id="u-roles" style="display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 0;">
-              ${ROLE_OPTIONS.map(([v,l]) => `<label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="${v}" style="width:15px;height:15px;cursor:pointer;"> ${l}</label>`).join('')}
+        <details class="add-user-panel">
+          <summary>➕ เพิ่มผู้ใช้งานใหม่</summary>
+          <p style="font-size:0.82rem;color:#888;line-height:1.6;margin:8px 0;">
+            กรอก <b>อีเมล + รหัสผ่าน</b> เพื่อสร้างบัญชีใหม่อัตโนมัติ
+            หรือเว้นรหัสผ่านแล้วกรอก <b>UID</b> ถ้ามีบัญชีอยู่แล้ว
+          </p>
+          <div class="grid-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));">
+            <div class="field"><label>ชื่อพนักงาน</label><input id="u-name" placeholder="ชื่อ-นามสกุล" /></div>
+            <div class="field"><label>อีเมล</label><input id="u-email" placeholder="name@company.com" /></div>
+            <div class="field"><label>รหัสผ่าน (ใหม่)</label><input id="u-password" type="text" placeholder="≥ 6 ตัวอักษร" /></div>
+            <div class="field"><label>UID (มีบัญชีอยู่แล้ว)</label><input id="u-uid" placeholder="เช่น aB12cD34..." /></div>
+            <div class="field" style="grid-column:1/-1;"><label>สิทธิ์ — เลือกได้หลายอย่าง (อันแรก = สิทธิ์หลัก)</label>
+              <div id="u-roles" style="display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 0;">
+                ${ROLE_OPTIONS.map(([v,l]) => `<label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="${v}" style="width:15px;height:15px;cursor:pointer;"> ${l}</label>`).join('')}
+              </div>
+            </div>
+            <div class="field"><label>แผนก Control Tower</label>
+              <select id="u-wctdept">
+                <option value="">— ไม่กำหนด —</option>
+                ${WCT_DEPARTMENTS.map(d => `<option value="${d.code}">${d.label}</option>`).join('')}
+              </select>
             </div>
           </div>
-          <div class="field"><label>แผนก Control Tower (เฉพาะ role คลังสินค้า)</label>
-            <select id="u-wctdept">
-              <option value="">— ไม่กำหนด —</option>
-              ${WCT_DEPARTMENTS.map(d => `<option value="${d.code}">${d.label}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <p style="font-size:0.78rem;color:#888;margin-top:-4px;">
-          ⚠️ แผนก Control Tower ใช้กำหนดว่าผู้ใช้คนนี้จะกรอก/แก้ไขข้อมูลของแผนกไหนได้ที่หน้า
-          <a href="control-tower-entry.html" target="_blank">กรอกข้อมูล Control Tower</a> (คลังสินค้าเท่านั้นที่ต้องกำหนด — แอดมินกรอกแทนแผนกใดก็ได้อยู่แล้ว)
-        </p>
-        <button class="btn btn-primary" id="btn-add-user" style="width:auto;">+ เพิ่มผู้ใช้งาน</button>
-        <p class="msg" id="user-msg"></p>
+          <p style="font-size:0.78rem;color:#888;margin-top:-4px;">
+            ⚠️ Control Tower: เฉพาะ role คลังสินค้าเท่านั้น — แอดมินกรอกแทนแผนกใดก็ได้
+          </p>
+          <button class="btn btn-primary" id="btn-add-user" style="width:auto;margin-top:8px;">+ เพิ่มผู้ใช้งาน</button>
+          <p class="msg" id="user-msg"></p>
+        </details>
       </div>
+
       <div class="card">
-        <h2 style="margin-top:0;font-size:1.05rem;">รายชื่อผู้ใช้งานในระบบ</h2>
-        <table>
-          <thead><tr><th>ชื่อ</th><th>อีเมล</th><th>แผนก/สิทธิ์</th><th>แผนก Control Tower</th><th>สถานะ</th><th>การจัดการ</th></tr></thead>
-          <tbody id="user-rows"><tr><td colspan="6" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
-        </table>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <h2 style="margin:0;font-size:1.05rem;">รายชื่อผู้ใช้งานในระบบ</h2>
+          <button class="btn btn-outline" onclick="loadUsers()" style="font-size:.8rem;">🔄 รีเฟรช</button>
+        </div>
+        <div id="u-kpi-wrap" class="u-kpi"></div>
+        <div class="u-filter-bar">
+          <input id="u-search" placeholder="🔍 ค้นหาชื่อ / อีเมล..." oninput="filterUsers()">
+          <select id="u-filter-role" onchange="filterUsers()">
+            <option value="">— สิทธิ์ทั้งหมด —</option>
+            ${ROLE_OPTIONS.map(([v,l]) => `<option value="${v}">${l.split(' (')[0]}</option>`).join('')}
+          </select>
+          <select id="u-filter-status" onchange="filterUsers()">
+            <option value="">— สถานะทั้งหมด —</option>
+            <option value="active">ใช้งานได้</option>
+            <option value="inactive">ระงับ</option>
+          </select>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="cursor:pointer" onclick="sortUsers('name')">ชื่อ ↕</th>
+                <th>อีเมล</th>
+                <th>สิทธิ์</th>
+                <th>CT Dept</th>
+                <th style="cursor:pointer" onclick="sortUsers('createdAt')">วันที่สร้าง ↕</th>
+                <th>สถานะ</th>
+                <th>จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="user-rows"><tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr></tbody>
+          </table>
+        </div>
+        <p id="u-count" style="font-size:.78rem;color:#94a3b8;margin-top:8px;"></p>
       </div>
     `;
     document.getElementById('btn-add-user').addEventListener('click', addUser);
     await loadUsers();
   }
+
+  let _sortKey = 'name', _sortAsc = true;
+  window.sortUsers = function(key) {
+    if (_sortKey === key) _sortAsc = !_sortAsc; else { _sortKey = key; _sortAsc = true; }
+    filterUsers();
+  };
+
+  window.filterUsers = function() {
+    const q = (document.getElementById('u-search')?.value || '').toLowerCase();
+    const role = document.getElementById('u-filter-role')?.value || '';
+    const status = document.getElementById('u-filter-status')?.value || '';
+    let rows = _allUsers.filter(u => {
+      if (q && !((u.name||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))) return false;
+      if (role) {
+        const ur = Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role];
+        if (!ur.includes(role)) return false;
+      }
+      if (status === 'active' && !u.active) return false;
+      if (status === 'inactive' && u.active) return false;
+      return true;
+    });
+    rows.sort((a,b) => {
+      const va = (a[_sortKey]||'').toLowerCase?.() ?? (a[_sortKey]||'');
+      const vb = (b[_sortKey]||'').toLowerCase?.() ?? (b[_sortKey]||'');
+      return _sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+    renderUserRows(rows);
+    document.getElementById('u-count').textContent = `แสดง ${rows.length} / ${_allUsers.length} รายการ`;
+  };
 
   // สร้างบัญชี Firebase Auth ผ่าน secondary app instance แยกต่างหาก เพื่อไม่ให้กระทบ session ของแอดมินที่ login อยู่
   // (createUserWithEmailAndPassword บน auth หลักจะ sign-in เป็นบัญชีใหม่ทันทีและเด้งแอดมินออกจากระบบ)
@@ -853,31 +929,66 @@
     }
   }
 
-  async function loadUsers() {
+  window.loadUsers = async function() {
     const tbody = document.getElementById('user-rows');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">กำลังโหลด...</td></tr>`;
     try {
       const snap = await getDocs(collection(db, 'users'));
-      if (snap.empty) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">ยังไม่มีผู้ใช้งานในระบบ</td></tr>`; return; }
-      const rows = [];
-      snap.forEach(d => rows.push({ uid: d.id, ...d.data() }));
-      tbody.innerHTML = rows.map(u => `
-        <tr>
-          <td>${u.name || '-'}</td>
-          <td>${u.email || '-'}</td>
-          <td>${(Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role]).map(r=>`<span style="display:inline-block;padding:1px 7px;border-radius:5px;font-size:.72rem;font-weight:600;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;margin:1px;">${roleLabel(r)}</span>`).join('')}</td>
-          <td>${u.wctDepartment ? (WCT_DEPARTMENTS.find(d=>d.code===u.wctDepartment)?.label || u.wctDepartment) : '<span style="color:#aaa;">—</span>'}</td>
-          <td>${u.active ? '<span class="badge badge-done">ใช้งานได้</span>' : '<span class="badge badge-cancel">ระงับ</span>'}</td>
-          <td style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-outline" onclick="editUser('${u.uid}')">✏️ แก้ไข</button>
-            <button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)">${u.active ? 'ระงับสิทธิ์' : 'เปิดใช้งาน'}</button>
-            <button class="btn btn-outline" onclick="resetPassword('${u.email}')" title="ส่งลิงก์รีเซ็ตรหัสผ่านไปที่อีเมล">🔑 รีเซ็ต</button>
-            <button class="btn btn-outline" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteUser('${u.uid}','${u.name||u.email}')">🗑️ ลบ</button>
-          </td>
-        </tr>
-      `).join('');
+      _allUsers = [];
+      snap.forEach(d => _allUsers.push({ uid: d.id, ...d.data() }));
+      _allUsers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      renderKPI();
+      filterUsers();
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#d23;">โหลดข้อมูลไม่สำเร็จ: ${err.message}</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#d23;">โหลดไม่สำเร็จ: ${err.message}</td></tr>`;
     }
+  };
+  async function loadUsers() { return window.loadUsers(); }
+
+  function renderKPI() {
+    const wrap = document.getElementById('u-kpi-wrap');
+    if (!wrap) return;
+    const total   = _allUsers.length;
+    const active  = _allUsers.filter(u => u.active).length;
+    const inactive= total - active;
+    const roleCounts = {};
+    _allUsers.forEach(u => {
+      const ur = Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role];
+      ur.forEach(r => { roleCounts[r] = (roleCounts[r]||0) + 1; });
+    });
+    const topRoles = Object.entries(roleCounts).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    wrap.innerHTML = `
+      <div class="u-kpi-box"><div class="n" style="color:#1e293b">${total}</div><div class="l">ผู้ใช้งานทั้งหมด</div></div>
+      <div class="u-kpi-box"><div class="n" style="color:#059669">${active}</div><div class="l">ใช้งานได้</div></div>
+      <div class="u-kpi-box"><div class="n" style="color:#dc2626">${inactive}</div><div class="l">ระงับสิทธิ์</div></div>
+      ${topRoles.map(([r,n])=>`<div class="u-kpi-box"><div class="n" style="color:#2563eb">${n}</div><div class="l">${roleLabel(r)}</div></div>`).join('')}
+    `;
+  }
+
+  function renderUserRows(rows) {
+    const tbody = document.getElementById('user-rows');
+    if (!tbody) return;
+    if (!rows.length) { tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:#999;">ไม่พบรายการที่ตรงกัน</td></tr>`; return; }
+    tbody.innerHTML = rows.map(u => {
+      const roleBadges = (Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role])
+        .map(r=>`<span style="display:inline-block;padding:1px 7px;border-radius:5px;font-size:.72rem;font-weight:600;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;margin:1px;">${roleLabel(r)}</span>`).join('');
+      const created = u.createdAt ? new Date(u.createdAt).toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'2-digit'}) : '—';
+      const nameEsc = (u.name||u.email||'').replace(/'/g,"\\'");
+      return `<tr>
+        <td><b>${u.name||'-'}</b></td>
+        <td style="font-size:.82rem;color:#64748b;">${u.email||'-'}</td>
+        <td>${roleBadges}</td>
+        <td style="font-size:.8rem;">${u.wctDepartment ? (WCT_DEPARTMENTS.find(d=>d.code===u.wctDepartment)?.label||u.wctDepartment) : '<span style="color:#aaa;">—</span>'}</td>
+        <td style="font-size:.8rem;color:#64748b;">${created}</td>
+        <td>${u.active ? '<span class="badge badge-done">ใช้งานได้</span>' : '<span class="badge badge-cancel">ระงับ</span>'}</td>
+        <td style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="editUser('${u.uid}')" title="แก้ไข">✏️</button>
+          <button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)" title="${u.active?'ระงับสิทธิ์':'เปิดใช้งาน'}">${u.active ? '🚫' : '✅'}</button>
+          <button class="btn btn-outline" onclick="resetPassword('${u.email}')" title="ส่งลิงก์รีเซ็ตรหัสผ่าน">🔑</button>
+          <button class="btn btn-outline" style="color:#dc2626;border-color:#fca5a5;" onclick="deleteUser('${u.uid}','${nameEsc}')" title="ลบ">🗑️</button>
+        </td>
+      </tr>`;
+    }).join('');
   }
 
   function roleLabel(role) {
