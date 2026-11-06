@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>แผนงาน คปอ ประจำปี</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:10px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid #059669}
+.kpi .num{font-size:1.5rem;font-weight:700;color:#059669}
+.kpi .lbl{font-size:.75rem;color:#64748b;margin-top:2px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.toolbar select,.toolbar input[type=number]{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;background:#fff}
+.view-toggle{display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:8px}
+.vbtn{padding:5px 12px;border:none;background:none;border-radius:6px;font-size:.82rem;cursor:pointer;color:#6b7280;font-family:inherit}
+.vbtn.active{background:#fff;color:#1e293b;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn{padding:8px 16px;border:none;border-radius:8px;font-size:.85rem;font-family:inherit;cursor:pointer}
+.btn-primary{background:#1e40af;color:#fff}
+.btn-green{background:#059669;color:#fff}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:.73rem;font-weight:600}
+/* Duty chips */
+.duty-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:#dbeafe;color:#1e40af}
+/* Table */
+.tbl-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th{background:#f8fafc;padding:10px 12px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+tr:hover td{background:#f8fafc}
+/* Gantt */
+.gantt-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow-x:auto}
+.gantt-table{border-collapse:collapse;min-width:900px;width:100%}
+.gantt-table th{background:#f1f5f9;padding:8px 10px;font-size:.78rem;color:#475569;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.gantt-table td{padding:7px 10px;font-size:.82rem;border-bottom:1px solid #f8fafc;vertical-align:middle}
+.gantt-table tr:hover td{background:#f8fafc}
+.gantt-cell{text-align:center}
+.gantt-block{display:inline-block;width:26px;height:18px;border-radius:4px}
+.prog-wrap{background:#e2e8f0;border-radius:4px;height:6px;overflow:hidden;margin-top:4px}
+.prog-bar{height:100%;border-radius:4px;background:#059669}
+/* Duty group header */
+.duty-head{padding:8px 12px;background:#dbeafe;font-weight:700;font-size:.82rem;color:#1e40af;border-bottom:1px solid #bfdbfe}
+.gantt-duty-head td{background:#dbeafe!important;font-weight:700;font-size:.82rem;color:#1e40af}
+/* Modal overlay */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:950;overflow-y:auto;padding:20px}
+.modal-overlay.open{display:flex;align-items:flex-start;justify-content:center}
+.modal-box{background:#fff;border-radius:14px;width:min(680px,100%);box-shadow:0 8px 40px rgba(0,0,0,.18);overflow:hidden}
+.modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #e2e8f0;background:linear-gradient(135deg,#064e3b,#065f46)}
+.modal-head h2{font-size:1rem;font-weight:700;color:#fff}
+.modal-body{padding:20px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-row.one{grid-template-columns:1fr}
+.form-row.three{grid-template-columns:1fr 1fr 1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:.8rem;font-weight:600;color:#374151}
+.form-group input,.form-group textarea{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.85rem;font-family:inherit}
+.form-group textarea{resize:vertical;min-height:60px}
+.empty{text-align:center;padding:40px;color:#94a3b8;font-size:.9rem}
+/* Full-screen preview */
+#doc-frame{display:none;position:fixed;inset:0;z-index:9999;background:#fff;overflow:auto}
+#doc-bar{display:flex;gap:8px;padding:10px 16px;background:#1e3a8a;align-items:center;position:sticky;top:0}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole, renderShell } from './js/shell.js';
+import {
+  APLAN_CATEGORIES, APLAN_STATUS, APLAN_MONTHS_TH, KPO_DUTIES,
+  listAnnualPlan,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['warehouse','admin','manager','safety_officer','kpo']);
+const isSafety = ['safety_officer','kpo'].includes(profile.role);
+const main = renderShell(profile, 'damage-plan', 'แผนงาน คปอ ประจำปี');
+
+const THIS_YEAR = new Date().getFullYear() + 543;
+const YEARS = [THIS_YEAR-1, THIS_YEAR, THIS_YEAR+1];
+
+let allRecs = [];
+let curYear = THIS_YEAR;
+let curView = 'list';
+
+function statusColor(s){
+  const m={planned:'#6b7280',in_progress:'#2563eb',completed:'#16a34a',delayed:'#d97706',cancelled:'#dc2626'};
+  return m[s]||'#6b7280';
+}
+function statusBg(s){
+  const m={planned:'#f3f4f6',in_progress:'#dbeafe',completed:'#dcfce7',delayed:'#fef3c7',cancelled:'#fee2e2'};
+  return m[s]||'#f3f4f6';
+}
+function statusLabel(s){ return APLAN_STATUS[s]?.label||s; }
+function dutyOf(r){
+  if(!r.kpoDuty) return null;
+  return KPO_DUTIES.find(d=>d.key===r.kpoDuty)||null;
+}
+
+function kpis(){
+  const recs = allRecs.filter(r=>r.planYear===curYear);
+  const total = recs.length;
+  const done = recs.filter(r=>r.status==='completed').length;
+  const prog = recs.filter(r=>r.status==='in_progress').length;
+  const delay = recs.filter(r=>r.status==='delayed').length;
+  const pct = total?Math.round(done/total*100):0;
+  const budget = recs.reduce((s,r)=>s+(Number(r.budget)||0),0);
+  return `<div class="kpi-row">
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">กิจกรรมทั้งหมด ปี ${curYear}</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${prog}</div><div class="lbl">🔄 กำลังดำเนินการ</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${delay}</div><div class="lbl">⚠️ ล่าช้า</div></div>
+    <div class="kpi" style="border-color:#059669">
+      <div class="num" style="color:#059669">${pct}%</div>
+      <div class="lbl">ความสำเร็จ</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>
+    </div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed;font-size:1.1rem">${budget.toLocaleString()}</div><div class="lbl">งบรวม (บาท)</div></div>
+  </div>`;
+}
+
+/* ─── List view grouped by KPO duty ─── */
+function listView(){
+  const recs = allRecs.filter(r=>r.planYear===curYear);
+  if(!recs.length) return `<div class="empty">📅 ยังไม่มีแผนงานในปี ${curYear}<br><small>${isSafety?'ไปที่เมนู "แผนความปลอดภัยประจำปี" เพื่อเพิ่มแผนงาน':'ติดต่อเจ้าหน้าที่ความปลอดภัยเพื่อเพิ่มแผนงาน'}</small></div>`;
+
+  // group by duty
+  const byDuty = {};
+  KPO_DUTIES.forEach(d=>{ byDuty[d.key]=[]; });
+  byDuty['__other']=[];
+  recs.forEach(r=>{ if(r.kpoDuty&&byDuty[r.kpoDuty]) byDuty[r.kpoDuty].push(r); else byDuty['__other'].push(r); });
+
+  let html = `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>#</th><th>กิจกรรม / โครงการ</th><th>หน้าที่ คปอ</th>
+      <th>เดือนที่วางแผน</th><th style="text-align:right">งบ (฿)</th>
+      <th>ผู้รับผิดชอบ</th><th>สถานะ</th>
+    </tr></thead><tbody>`;
+
+  let rowNum = 0;
+  KPO_DUTIES.forEach(d=>{
+    const items = byDuty[d.key];
+    if(!items.length) return;
+    html += `<tr><td colspan="7" class="duty-head">${d.icon} ข้อ ${d.no}: ${d.label}</td></tr>`;
+    items.forEach(r=>{
+      rowNum++;
+      const months = (r.planMonths||[]).map(m=>APLAN_MONTHS_TH[m-1]).join(' ');
+      html += `<tr>
+        <td style="color:#94a3b8;font-size:.78rem">${rowNum}</td>
+        <td><strong>${r.activityName||'—'}</strong>${r.objective?`<br><small style="color:#64748b">${r.objective}</small>`:''}</td>
+        <td><span class="duty-chip">${d.icon} ข้อ ${d.no}</span></td>
+        <td style="font-size:.78rem;color:#374151">${months||'—'}</td>
+        <td style="text-align:right;font-size:.82rem">${(Number(r.budget)||0).toLocaleString()}</td>
+        <td style="font-size:.8rem">${r.responsible||'—'}</td>
+        <td><span class="badge" style="color:${statusColor(r.status)};background:${statusBg(r.status)}">${statusLabel(r.status)}</span></td>
+      </tr>`;
+    });
+  });
+  if(byDuty['__other'].length){
+    html += `<tr><td colspan="7" style="padding:8px 12px;background:#f1f5f9;font-weight:700;font-size:.82rem;color:#475569">🔖 ไม่ระบุหน้าที่</td></tr>`;
+    byDuty['__other'].forEach(r=>{
+      rowNum++;
+      const months = (r.planMonths||[]).map(m=>APLAN_MONTHS_TH[m-1]).join(' ');
+      html += `<tr>
+        <td style="color:#94a3b8;font-size:.78rem">${rowNum}</td>
+        <td><strong>${r.activityName||'—'}</strong></td>
+        <td><span style="font-size:.73rem;color:#94a3b8">ไม่ระบุ</span></td>
+        <td style="font-size:.78rem">${months||'—'}</td>
+        <td style="text-align:right;font-size:.82rem">${(Number(r.budget)||0).toLocaleString()}</td>
+        <td style="font-size:.8rem">${r.responsible||'—'}</td>
+        <td><span class="badge" style="color:${statusColor(r.status)};background:${statusBg(r.status)}">${statusLabel(r.status)}</span></td>
+      </tr>`;
+    });
+  }
+  html += `</tbody></table></div>`;
+  return html;
+}
+
+/* ─── Gantt view ─── */
+function ganttView(){
+  const recs = allRecs.filter(r=>r.planYear===curYear);
+  if(!recs.length) return `<div class="empty">📅 ยังไม่มีแผนงานในปี ${curYear}</div>`;
+
+  const monthHeads = APLAN_MONTHS_TH.map(m=>`<th class="gantt-cell" style="min-width:34px">${m}</th>`).join('');
+  const byDuty = {};
+  KPO_DUTIES.forEach(d=>{ byDuty[d.key]=[]; });
+  byDuty['__other']=[];
+  recs.forEach(r=>{ if(r.kpoDuty&&byDuty[r.kpoDuty]) byDuty[r.kpoDuty].push(r); else byDuty['__other'].push(r); });
+
+  const statusBlockColor = {planned:'#bfdbfe',in_progress:'#a5b4fc',completed:'#bbf7d0',delayed:'#fde68a',cancelled:'#fca5a5'};
+  let rows = '';
+  KPO_DUTIES.forEach(d=>{
+    const items = byDuty[d.key];
+    if(!items.length) return;
+    rows += `<tr class="gantt-duty-head"><td colspan="${14+12}">${d.icon} ข้อ ${d.no}: ${d.short}</td></tr>`;
+    items.forEach(r=>{
+      const cells = Array.from({length:12},(_,i)=>{
+        const mo = i+1;
+        return `<td class="gantt-cell">${(r.planMonths||[]).includes(mo)?`<div class="gantt-block" style="background:${statusBlockColor[r.status]||'#bfdbfe'}" title="${statusLabel(r.status)}"></div>`:''}</td>`;
+      }).join('');
+      rows += `<tr>
+        <td style="white-space:nowrap;min-width:160px;font-size:.8rem">${r.activityName||'—'}</td>
+        <td style="font-size:.75rem;color:#6b7280;white-space:nowrap">${r.responsible||'—'}</td>
+        ${cells}
+      </tr>`;
+    });
+  });
+  if(byDuty['__other'].length){
+    rows += `<tr class="gantt-duty-head"><td colspan="${14+12}" style="background:#f1f5f9!important;color:#475569">🔖 ไม่ระบุหน้าที่</td></tr>`;
+    byDuty['__other'].forEach(r=>{
+      const cells = Array.from({length:12},(_,i)=>{
+        const mo = i+1;
+        return `<td class="gantt-cell">${(r.planMonths||[]).includes(mo)?`<div class="gantt-block" style="background:${statusBlockColor[r.status]||'#bfdbfe'}"></div>`:''}</td>`;
+      }).join('');
+      rows += `<tr>
+        <td style="white-space:nowrap;min-width:160px;font-size:.8rem">${r.activityName||'—'}</td>
+        <td style="font-size:.75rem;color:#6b7280">${r.responsible||'—'}</td>
+        ${cells}
+      </tr>`;
+    });
+  }
+
+  const legend = Object.entries(APLAN_STATUS).map(([k,v])=>
+    `<span style="display:inline-flex;align-items:center;gap:4px;font-size:.73rem;margin-right:8px">
+      <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${statusBlockColor[k]||'#bfdbfe'}"></span>${v.label}
+    </span>`
+  ).join('');
+
+  return `<div class="gantt-wrap">
+    <div style="padding:10px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <strong style="font-size:.85rem">Gantt Chart แผนงาน คปอ ปี ${curYear}</strong>
+      <span style="margin-left:auto">${legend}</span>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="gantt-table">
+      <thead><tr>
+        <th style="min-width:160px">กิจกรรม</th>
+        <th style="min-width:90px">ผู้รับผิดชอบ</th>
+        ${monthHeads}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>
+  </div>`;
+}
+
+/* ─── Document generator ─── */
+window.__openDocModal = () => {
+  document.getElementById('doc-year').value = curYear;
+  document.getElementById('doc-modal').classList.add('open');
+};
+window.__closeDocModal = () => document.getElementById('doc-modal').classList.remove('open');
+
+window.__generateDoc = () => {
+  const company   = document.getElementById('doc-company').value.trim() || '(สถานประกอบกิจการ)';
+  const address   = document.getElementById('doc-address').value.trim() || '—';
+  const employees = document.getElementById('doc-employees').value || '—';
+  const year      = document.getElementById('doc-year').value || curYear;
+  const meetNo    = document.getElementById('doc-meeting-no').value.trim() || '—';
+  const meetDate  = document.getElementById('doc-meeting-date').value;
+  const chair     = document.getElementById('doc-chair').value.trim() || '—';
+  const secretary = document.getElementById('doc-secretary').value.trim() || '—';
+  const preparer  = document.getElementById('doc-preparer').value.trim() || profile.displayName || profile.email || '—';
+  const membersRaw= document.getElementById('doc-members').value.trim();
+  const members   = membersRaw ? membersRaw.split('\n').filter(l=>l.trim()) : [];
+
+  const monthsTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+  let meetDateTH = '—';
+  if(meetDate){
+    const d = new Date(meetDate);
+    meetDateTH = `${d.getDate()} ${monthsTH[d.getMonth()]} พ.ศ.${d.getFullYear()+543}`;
+  }
+
+  const yr = Number(year);
+  const recs = allRecs.filter(r=>r.planYear===yr);
+  const totalBudget = recs.reduce((s,r)=>s+(Number(r.budget)||0),0);
+
+  const byDuty = {};
+  KPO_DUTIES.forEach(d=>{ byDuty[d.key]=[]; });
+  byDuty['__other']=[];
+  recs.forEach(r=>{ if(r.kpoDuty&&byDuty[r.kpoDuty]) byDuty[r.kpoDuty].push(r); else byDuty['__other'].push(r); });
+
+  const moHeads = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'].map(m=>`<th class="mo">${m}</th>`).join('');
+  let rowNum=0, tableRows='';
+  KPO_DUTIES.forEach(d=>{
+    const items = byDuty[d.key];
+    if(!items.length) return;
+    tableRows += `<tr><td colspan="17" style="background:#dbeafe;font-weight:700;padding:5px 8px;font-size:8.5pt;color:#1e40af">${d.icon} หน้าที่ที่ ${d.no}: ${d.label}</td></tr>`;
+    items.forEach(r=>{
+      rowNum++;
+      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'✓':''}</td>`).join('');
+      tableRows += `<tr><td class="num">${rowNum}</td><td>${r.activityName||'—'}</td><td style="font-size:8pt">${r.objective||'—'}</td>${mos}<td style="text-align:right">${(Number(r.budget)||0).toLocaleString()}</td><td style="font-size:8pt">${r.responsible||'—'}</td><td style="font-size:8pt">${r.notes||'—'}</td></tr>`;
+    });
+  });
+  if(byDuty['__other'].length){
+    tableRows += `<tr><td colspan="17" style="background:#f1f5f9;font-weight:700;padding:5px 8px;font-size:8.5pt;color:#475569">🔖 กิจกรรมอื่นๆ</td></tr>`;
+    byDuty['__other'].forEach(r=>{
+      rowNum++;
+      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'✓':''}</td>`).join('');
+      tableRows += `<tr><td class="num">${rowNum}</td><td>${r.activityName||'—'}</td><td style="font-size:8pt">${r.objective||'—'}</td>${mos}<td style="text-align:right">${(Number(r.budget)||0).toLocaleString()}</td><td style="font-size:8pt">${r.responsible||'—'}</td><td style="font-size:8pt">${r.notes||'—'}</td></tr>`;
+    });
+  }
+  if(!tableRows) tableRows=`<tr><td colspan="17" style="text-align:center;padding:16px;color:#9ca3af">ยังไม่มีแผนงานในปี ${year}</td></tr>`;
+
+  const memberRows = members.map((m,i)=>`<tr><td style="text-align:center;width:30px">${i+1}</td><td>${m}</td></tr>`).join('');
+  const docHtml = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"/><title>แผนงาน คปอ ปี ${year}</title><style>
+@page{size:A4 landscape;margin:12mm}
+body{font-family:'Sarabun',sans-serif;font-size:10pt;color:#000;margin:0;padding:12px}
+h1{font-size:14pt;font-weight:700;text-align:center;margin-bottom:4px}
+h2{font-size:11pt;text-align:center;margin-bottom:12px}
+.meta{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:9.5pt}
+.meta td{padding:3px 8px;vertical-align:top}
+.meta .k{font-weight:700;white-space:nowrap;width:200px}
+.pt{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:16px}
+.pt th,.pt td{border:1px solid #000;padding:3px 5px;vertical-align:middle}
+.pt th{background:#a7f3d0;text-align:center;font-weight:700}
+.mo{text-align:center;width:20px;padding:3px 2px}
+.num{text-align:center;width:24px}
+.mt{border-collapse:collapse;font-size:9pt}
+.mt td,.mt th{border:1px solid #ccc;padding:3px 8px}
+.st{width:100%;border-collapse:collapse;margin-top:20px;font-size:9.5pt}
+.st td{padding:4px 8px;text-align:center;width:33%}
+.sl{border-top:1px solid #000;margin-top:44px;margin-bottom:4px}
+@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<h1>แผนงานด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน</h1>
+<h2>ของคณะกรรมการความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน (คปอ.) ประจำปี พ.ศ. ${year}</h2>
+<table class="meta">
+<tr><td class="k">สถานประกอบกิจการ :</td><td>${company}</td><td class="k">ที่อยู่ :</td><td>${address}</td></tr>
+<tr><td class="k">จำนวนลูกจ้าง :</td><td>${employees} คน</td><td class="k">คปอ ครั้งที่ :</td><td>${meetNo} วันที่ ${meetDateTH}</td></tr>
+<tr><td class="k">งบประมาณรวม :</td><td>${totalBudget.toLocaleString()} บาท</td><td></td><td></td></tr>
+</table>
+<table class="pt"><thead>
+<tr><th rowspan="2" class="num">ที่</th><th rowspan="2" style="min-width:140px">กิจกรรม / โครงการ</th><th rowspan="2" style="min-width:90px">วัตถุประสงค์</th><th colspan="12">เดือนที่ดำเนินการ</th><th rowspan="2" style="min-width:55px">งบ (บาท)</th><th rowspan="2" style="min-width:70px">ผู้รับผิดชอบ</th><th rowspan="2" style="min-width:60px">หมายเหตุ</th></tr>
+<tr>${moHeads}</tr>
+</thead><tbody>${tableRows}</tbody></table>
+${memberRows?`<div style="margin-bottom:14px"><strong style="font-size:9pt">รายชื่อคณะกรรมการ คปอ.</strong><table class="mt"><tr><th>ที่</th><th>ชื่อ-นามสกุล / ตำแหน่ง</th></tr>${memberRows}</table></div>`:''}
+<table class="st"><tr>
+<td><div class="sl"></div>ประธานคณะกรรมการความปลอดภัยฯ<br/>(${chair})</td>
+<td><div class="sl"></div>เลขานุการ คปอ.<br/>(${secretary})</td>
+<td><div class="sl"></div>ผู้จัดทำ<br/>(${preparer})</td>
+</tr></table>
+</body></html>`;
+
+  document.getElementById('doc-modal').classList.remove('open');
+  const frame = document.getElementById('doc-frame');
+  frame.style.display = 'block';
+  frame.innerHTML = `
+    <div id="doc-bar">
+      <span style="color:#fff;font-weight:700">📄 แผนงาน คปอ ปี ${year}</span>
+      <button id="btn-print" style="padding:6px 14px;background:#fff;color:#1e3a8a;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:auto">🖨️ พิมพ์</button>
+      <button onclick="document.getElementById('doc-frame').style.display='none'" style="padding:6px 12px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;cursor:pointer">✕ ปิด</button>
+    </div>
+    <iframe id="doc-iframe" style="width:100%;height:calc(100vh - 52px);border:none"></iframe>`;
+  const iframe = document.getElementById('doc-iframe');
+  const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+  iDoc.open(); iDoc.write(docHtml); iDoc.close();
+  document.getElementById('btn-print').onclick = ()=>iframe.contentWindow.print();
+};
+
+window.setView = v => { curView=v; render(); };
+window.changeYear = y => { curYear=Number(y); render(); };
+
+function render(){
+  const yrOpts = YEARS.map(y=>`<option value="${y}" ${y===curYear?'selected':''}>${y}</option>`).join('');
+  main.innerHTML = `
+  <div style="padding:20px">
+    ${kpis()}
+    <div class="toolbar">
+      <select onchange="window.changeYear(this.value)">${yrOpts}</select>
+      <div class="view-toggle">
+        <button class="vbtn ${curView==='list'?'active':''}" onclick="window.setView('list')">📋 รายการ</button>
+        <button class="vbtn ${curView==='gantt'?'active':''}" onclick="window.setView('gantt')">📊 Gantt</button>
+      </div>
+      <button class="btn btn-green" onclick="window.__openDocModal()">📄 สร้างเอกสารแผนงาน คปอ</button>
+      ${isSafety?`<a class="btn btn-primary" href="safety-annual-plan.html">✏️ จัดการแผนงาน</a>`:''}
+    </div>
+    <div id="content">${curView==='list'?listView():ganttView()}</div>
+  </div>
+
+  <!-- Modal สร้างเอกสาร -->
+  <div class="modal-overlay" id="doc-modal">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2>📄 สร้างเอกสารแผนงาน คปอ ประจำปี</h2>
+        <button class="btn" style="background:rgba(255,255,255,.2);color:#fff;padding:5px 10px" onclick="window.__closeDocModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group"><label>ชื่อสถานประกอบกิจการ *</label><input id="doc-company" placeholder="บริษัท…จำกัด"/></div>
+          <div class="form-group"><label>จำนวนลูกจ้าง (คน)</label><input id="doc-employees" type="number" min="1"/></div>
+        </div>
+        <div class="form-row one">
+          <div class="form-group"><label>ที่อยู่</label><input id="doc-address" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด"/></div>
+        </div>
+        <div class="form-row three">
+          <div class="form-group"><label>ปีแผน (พ.ศ.) *</label><input id="doc-year" type="number" min="2560"/></div>
+          <div class="form-group"><label>ครั้งที่ประชุม คปอ</label><input id="doc-meeting-no" placeholder="เช่น 1/2568"/></div>
+          <div class="form-group"><label>วันที่ประชุมอนุมัติ</label><input id="doc-meeting-date" type="date"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>ประธาน คปอ</label><input id="doc-chair" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+          <div class="form-group"><label>เลขานุการ คปอ</label><input id="doc-secretary" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+        </div>
+        <div class="form-row one">
+          <div class="form-group"><label>ผู้จัดทำ</label><input id="doc-preparer" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+        </div>
+        <div class="form-row one">
+          <div class="form-group"><label>รายชื่อกรรมการ คปอ (ใส่ชื่อทีละบรรทัด)</label>
+            <textarea id="doc-members" rows="4" placeholder="นาย ก. เจ้าหน้าที่ความปลอดภัย&#10;นาย ข. ผู้แทนลูกจ้าง&#10;นาง ค. ตัวแทนฝ่ายบุคคล"></textarea></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0">
+          <button class="btn btn-green" onclick="window.__generateDoc()">🖨️ สร้างเอกสารและพิมพ์</button>
+          <button class="btn" style="background:#f1f5f9;color:#374151" onclick="window.__closeDocModal()">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="doc-frame"></div>`;
+}
+
+allRecs = await listAnnualPlan();
+render();
+</script>
+</body>
+</html>
