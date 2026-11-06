@@ -64,7 +64,8 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   APLAN_CATEGORIES, APLAN_STATUS, APLAN_MONTHS_TH, KPO_DUTIES,
   listAnnualPlan,
@@ -418,7 +419,12 @@ function render(){
   <div id="doc-frame"></div>`;
 }
 
-allRecs = await listAnnualPlan();
+try {
+  allRecs = await listAnnualPlan();
+} catch(e) {
+  console.warn('listAnnualPlan error:', e);
+  allRecs = [];
+}
 render();
 </script>
 </body>
