@@ -770,6 +770,8 @@
               <option value="accounting">บัญชี (accounting)</option>
               <option value="admin">แอดมิน (admin)</option>
               <option value="manager">ผู้บริหาร (manager)</option>
+              <option value="safety_officer">เจ้าหน้าที่ความปลอดภัย (safety_officer)</option>
+              <option value="kpo">คปอ. (kpo)</option>
             </select>
           </div>
           <div class="field"><label>แผนก Control Tower (เฉพาะ role คลังสินค้า)</label>
@@ -858,7 +860,10 @@
           <td>${roleLabel(u.role)}</td>
           <td>${u.wctDepartment ? (WCT_DEPARTMENTS.find(d=>d.code===u.wctDepartment)?.label || u.wctDepartment) : '<span style="color:#aaa;">—</span>'}</td>
           <td>${u.active ? '<span class="badge badge-done">ใช้งานได้</span>' : '<span class="badge badge-cancel">ระงับ</span>'}</td>
-          <td><button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)">${u.active ? 'ระงับสิทธิ์' : 'เปิดใช้งาน'}</button></td>
+          <td style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-outline" onclick="editUser('${u.uid}')">✏️ แก้ไข</button>
+            <button class="btn btn-outline" data-uid="${u.uid}" data-active="${u.active}" onclick="toggleActive(this)">${u.active ? 'ระงับสิทธิ์' : 'เปิดใช้งาน'}</button>
+          </td>
         </tr>
       `).join('');
     } catch (err) {
@@ -867,8 +872,69 @@
   }
 
   function roleLabel(role) {
-    return { sales:'ฝ่ายขาย', warehouse:'คลังสินค้า', accounting:'บัญชี', admin:'แอดมิน', manager:'ผู้บริหาร' }[role] || role;
+    return { sales:'ฝ่ายขาย', warehouse:'คลังสินค้า', accounting:'บัญชี', admin:'แอดมิน', manager:'ผู้บริหาร', safety_officer:'เจ้าหน้าที่ความปลอดภัย', kpo:'คปอ.' }[role] || role;
   }
+
+  const ROLE_OPTIONS = [
+    ['sales','ฝ่ายขาย (sales)'],
+    ['warehouse','คลังสินค้า (warehouse)'],
+    ['accounting','บัญชี (accounting)'],
+    ['admin','แอดมิน (admin)'],
+    ['manager','ผู้บริหาร (manager)'],
+    ['safety_officer','เจ้าหน้าที่ความปลอดภัย (safety_officer)'],
+    ['kpo','คปอ. (kpo)'],
+  ];
+
+  window.editUser = async function(uid) {
+    const snap = await getDoc(doc(db, 'users', uid));
+    if (!snap.exists()) { alert('ไม่พบข้อมูลผู้ใช้งาน'); return; }
+    const u = snap.data();
+    const ov = document.createElement('div');
+    ov.id = 'edit-user-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    ov.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:28px 24px;width:min(500px,95vw);box-shadow:0 8px 40px rgba(0,0,0,.2);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+          <h2 style="margin:0;font-size:1.05rem;">✏️ แก้ไขผู้ใช้งาน</h2>
+          <button onclick="document.getElementById('edit-user-modal').remove()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+        </div>
+        <div class="field"><label>ชื่อพนักงาน</label><input id="eu-name" value="${u.name||''}" /></div>
+        <div class="field" style="margin-top:10px;"><label>อีเมล (แสดงอย่างเดียว)</label><input value="${u.email||''}" disabled style="background:#f8fafc;color:#94a3b8;" /></div>
+        <div class="field" style="margin-top:10px;"><label>แผนก/สิทธิ์ (Role)</label>
+          <select id="eu-role">
+            ${ROLE_OPTIONS.map(([v,l]) => `<option value="${v}"${v===u.role?' selected':''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" style="margin-top:10px;"><label>แผนก Control Tower (เฉพาะคลังสินค้า)</label>
+          <select id="eu-wctdept">
+            <option value="">— ไม่กำหนด —</option>
+            ${WCT_DEPARTMENTS.map(d => `<option value="${d.code}"${d.code===u.wctDepartment?' selected':''}>${d.label}</option>`).join('')}
+          </select>
+        </div>
+        <p id="eu-msg" class="msg" style="margin-top:8px;"></p>
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end;">
+          <button class="btn btn-outline" onclick="document.getElementById('edit-user-modal').remove()">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="saveEditUser('${uid}')">บันทึก</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+  };
+
+  window.saveEditUser = async function(uid) {
+    const name = document.getElementById('eu-name').value.trim();
+    const role = document.getElementById('eu-role').value;
+    const wctDepartment = document.getElementById('eu-wctdept').value || null;
+    const msg = document.getElementById('eu-msg');
+    if (!name) { msg.textContent = 'กรุณากรอกชื่อ'; msg.className = 'msg error'; return; }
+    try {
+      await updateDoc(doc(db, 'users', uid), { name, role, department: roleLabel(role), wctDepartment });
+      document.getElementById('edit-user-modal').remove();
+      await loadUsers();
+    } catch (err) {
+      msg.textContent = 'บันทึกไม่สำเร็จ: ' + err.message;
+      msg.className = 'msg error';
+    }
+  };
 
   // ใช้ window. เพราะ inline onclick ใน template string เรียกผ่าน global scope
   window.toggleActive = async function (btn) {
