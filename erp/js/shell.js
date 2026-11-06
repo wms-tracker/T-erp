@@ -71,9 +71,10 @@ const NAV = {
       { key: 'po',         label: 'ใบสั่งซื้อ (PO)',                  href: 'dashboard-admin.html#po' },
     ]},
     { groupKey: 'damage', icon: '🧱', label: 'รายงาน คปอ', items: [
-      { key: 'damage-dashboard', label: '📊 แดชบอร์ดรายงาน คปอ',  href: 'damage-reports.html' },
-      { key: 'damage-create',    label: '🆕 แจ้งรายงาน คปอ',       href: 'damage-report-form.html' },
-      { key: 'damage-plan',      label: '📅 แผนงาน คปอ ประจำปี',   href: 'damage-plan.html' },
+      { key: 'damage-dashboard', label: '📊 แดชบอร์ดรายงาน คปอ',       href: 'damage-reports.html' },
+      { key: 'damage-create',    label: '🆕 แจ้งรายงาน คปอ',            href: 'damage-report-form.html' },
+      { key: 'damage-plan',      label: '📅 แผนงาน คปอ ประจำปี',        href: 'damage-plan.html' },
+      { key: 'kpo-dashboard',    label: '📊 Dashboard 12 หน้าที่ คปอ',  href: 'safety-kpo-dashboard.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง',      href: 'freight-dashboard.html' },
@@ -137,6 +138,7 @@ const NAV = {
   safety_officer: [
     { groupKey: 'safety-home', icon: '🛡', label: 'ภาพรวม', items: [
       { key: 'safety-dashboard', label: 'ภาพรวมความปลอดภัย', href: 'safety.html' },
+      { key: 'kpo-dashboard',   label: '📊 Dashboard 12 หน้าที่ คปอ', href: 'safety-kpo-dashboard.html' },
     ]},
     { groupKey: 'safety-incident', icon: '⚠️', label: 'อุบัติเหตุ', items: [
       { key: 'incident-list',        label: 'รายการอุบัติเหตุ',             href: 'safety-incident.html' },
@@ -241,6 +243,7 @@ const NAV = {
   kpo: [
     { groupKey: 'safety-home', icon: '🛡', label: 'ภาพรวม', items: [
       { key: 'safety-dashboard',    label: 'ภาพรวมความปลอดภัย',          href: 'safety.html' },
+      { key: 'kpo-dashboard',       label: '📊 Dashboard 12 หน้าที่ คปอ', href: 'safety-kpo-dashboard.html' },
       { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)',href: 'safety-exec-dashboard.html' },
     ]},
     { groupKey: 'safety-committee', icon: '👥', label: 'คปอ.', items: [
@@ -349,6 +352,7 @@ const NAV = {
     { groupKey: 'damage', icon: '🧱', label: 'รายงาน คปอ', items: [
       { key: 'damage-dashboard', label: 'แดชบอร์ดรายงาน คปอ (ดูอย่างเดียว)', href: 'damage-reports.html' },
       { key: 'damage-plan',      label: '📅 แผนงาน คปอ ประจำปี',              href: 'damage-plan.html' },
+      { key: 'kpo-dashboard',    label: '📊 Dashboard 12 หน้าที่ คปอ',        href: 'safety-kpo-dashboard.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง (ดูอย่างเดียว)', href: 'freight-dashboard.html' },
@@ -426,6 +430,7 @@ const PAGE_DEPARTMENT = {
   "dashboard-admin.html":       "admin",
   "dashboard-manager.html":     "manager",
   "damage-plan.html":           "warehouse",
+  "safety-kpo-dashboard.html":  "safety_officer",
   "safety.html":                "safety_officer",
   "safety-incident.html":       "safety_officer",
   "safety-near-miss.html":      "safety_officer",

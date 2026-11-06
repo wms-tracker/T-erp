@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dashboard 12 หน้าที่ คปอ</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.page-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.page-header h1{font-size:1.3rem;font-weight:700}
+.year-select{padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.88rem;background:#fff;cursor:pointer}
+/* Summary KPI row */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+.kpi{background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.8rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.75rem;color:#64748b;margin-top:4px}
+.kpi.green{border-top-color:#059669} .kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}  .kpi.blue .num{color:#2563eb}
+.kpi.amber{border-top-color:#d97706} .kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+.kpi.red{border-top-color:#dc2626}   .kpi.red .num{color:#dc2626}
+/* Overall progress */
+.overall-bar-wrap{background:#e2e8f0;border-radius:6px;height:10px;overflow:hidden;margin:8px 0 4px}
+.overall-bar{height:100%;border-radius:6px;background:linear-gradient(90deg,#059669,#34d399);transition:width .6s}
+/* Duty grid */
+.duty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:28px}
+.duty-card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;transition:box-shadow .2s}
+.duty-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.duty-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.duty-no{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0}
+.duty-title{flex:1;min-width:0}
+.duty-title .short{font-size:.88rem;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.duty-title .icon{font-size:1rem}
+.duty-body{padding:0 16px 14px}
+/* Progress bar in card */
+.prog-label{display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:4px}
+.prog-wrap{background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden;margin-bottom:10px}
+.prog-bar{height:100%;border-radius:4px;transition:width .6s}
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center}
+.stat-cell{background:#f8fafc;border-radius:6px;padding:5px 2px}
+.stat-cell .sv{font-size:.9rem;font-weight:700}
+.stat-cell .sk{font-size:.65rem;color:#94a3b8;line-height:1.2;margin-top:1px}
+.no-data{text-align:center;padding:20px 0;color:#94a3b8;font-size:.82rem}
+/* Chart section */
+.chart-section{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);padding:20px;margin-bottom:20px}
+.chart-title{font-size:.95rem;font-weight:700;margin-bottom:16px;color:#1e293b}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-label{width:170px;font-size:.75rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;text-align:right}
+.bar-track{flex:1;background:#f1f5f9;border-radius:4px;height:18px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:4px;min-width:2px;transition:width .6s;display:flex;align-items:center;justify-content:flex-end;padding-right:5px}
+.bar-pct{font-size:.7rem;font-weight:700;color:#fff;white-space:nowrap}
+.bar-pct-out{font-size:.7rem;color:#94a3b8;width:38px;flex-shrink:0;text-align:right}
+.nd-bar{font-size:.7rem;color:#cbd5e1;padding-left:8px;line-height:18px}
+/* Error */
+.err-box{background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b;margin:20px}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import { KPO_DUTIES, APLAN_STATUS, listAnnualPlan } from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-dashboard', 'Dashboard 12 หน้าที่ คปอ');
+
+const THIS_YEAR = new Date().getFullYear() + 543;
+const YEARS = [THIS_YEAR - 1, THIS_YEAR, THIS_YEAR + 1];
+let curYear = THIS_YEAR;
+let allRecs  = [];
+
+const NOW = new Date();
+const NOW_YEAR  = NOW.getFullYear() + 543;
+const NOW_MONTH = NOW.getMonth() + 1;
+
+function isOverdue(r) {
+  if (r.status === 'completed' || r.status === 'cancelled') return false;
+  const months = r.planMonths || [];
+  if (!months.length) return false;
+  const max = Math.max(...months);
+  return r.planYear < NOW_YEAR || (r.planYear === NOW_YEAR && max < NOW_MONTH);
+}
+
+function dutyStats(key, recs) {
+  const items = recs.filter(r => r.kpoDuty === key);
+  if (!items.length) return null;
+  const total    = items.length;
+  const done     = items.filter(r => r.status === 'completed').length;
+  const inProg   = items.filter(r => r.status === 'in_progress').length;
+  const delayed  = items.filter(r => r.status === 'delayed').length;
+  const overdue  = items.filter(isOverdue).length;
+  const pct      = Math.round(done / total * 100);
+  return { total, done, inProg, delayed, overdue, pct };
+}
+
+function statCell(val, label, color) {
+  return `<div class="stat-cell">
+    <div class="sv" style="color:${color}">${val}</div>
+    <div class="sk">${label}</div>
+  </div>`;
+}
+
+function dutyCard(d, st) {
+  const noData = !st;
+  const pct    = st ? st.pct : 0;
+  const barW   = noData ? 0 : pct;
+  return `<div class="duty-card">
+    <div class="duty-head">
+      <div class="duty-no" style="background:${d.color}">${d.no}</div>
+      <div class="duty-title">
+        <div class="short"><span class="icon">${d.icon}</span> ${d.short}</div>
+      </div>
+      ${!noData ? `<span style="font-size:.85rem;font-weight:700;color:${st.pct>=100?'#059669':st.pct>=50?'#2563eb':'#6b7280'}">${st.pct}%</span>` : ''}
+    </div>
+    <div class="duty-body">
+      ${noData ? `<div class="no-data">📭 ยังไม่มีแผนงาน</div>` : `
+      <div class="prog-label">
+        <span style="font-size:.72rem;color:#94a3b8">ความคืบหน้า</span>
+        <span style="font-size:.72rem;color:#374151">${st.done}/${st.total} งาน</span>
+      </div>
+      <div class="prog-wrap">
+        <div class="prog-bar" style="width:${barW}%;background:${d.color}"></div>
+      </div>
+      <div class="stats-row">
+        ${statCell(st.total,  'ทั้งหมด',  '#374151')}
+        ${statCell(st.done,   'เสร็จ',    '#059669')}
+        ${statCell(st.inProg, 'กำลังทำ',  '#2563eb')}
+        ${statCell(st.delayed,'ล่าช้า',   '#d97706')}
+        ${statCell(st.overdue,'เกินกำหนด','#dc2626')}
+      </div>`}
+    </div>
+  </div>`;
+}
+
+function chartRow(d, st) {
+  if (!st) {
+    return `<div class="bar-row">
+      <div class="bar-label">${d.icon} ข้อ ${d.no} ${d.short}</div>
+      <div class="bar-track"><span class="nd-bar">ยังไม่มีข้อมูล</span></div>
+      <div class="bar-pct-out"></div>
+    </div>`;
+  }
+  const pct = st.pct;
+  return `<div class="bar-row">
+    <div class="bar-label">${d.icon} ข้อ ${d.no} ${d.short}</div>
+    <div class="bar-track">
+      <div class="bar-fill" style="width:${pct}%;background:${d.color}">
+        ${pct >= 20 ? `<span class="bar-pct">${pct}%</span>` : ''}
+      </div>
+    </div>
+    <div class="bar-pct-out">${pct < 20 ? pct+'%' : ''} <span style="font-size:.65rem;color:#94a3b8">(${st.done}/${st.total})</span></div>
+  </div>`;
+}
+
+function render() {
+  const recs = allRecs.filter(r => r.planYear === curYear);
+  const stats = KPO_DUTIES.map(d => ({ duty: d, st: dutyStats(d.key, recs) }));
+
+  const totalAct  = recs.length;
+  const totalDone = recs.filter(r => r.status === 'completed').length;
+  const inProg    = recs.filter(r => r.status === 'in_progress').length;
+  const overdue   = recs.filter(isOverdue).length;
+  const covered   = stats.filter(s => s.st !== null).length;
+  const overallPct = totalAct ? Math.round(totalDone / totalAct * 100) : 0;
+
+  const yrOpts = YEARS.map(y => `<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
+
+  main.innerHTML = `<div style="padding:20px">
+
+    <div class="page-header">
+      <h1>📊 Dashboard 12 หน้าที่ คปอ</h1>
+      <select class="year-select" onchange="window._chYear(this.value)">
+        <option value="" disabled>เลือกปี</option>${yrOpts}
+      </select>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi purple">
+        <div class="num">${covered}<span style="font-size:1rem;color:#94a3b8">/12</span></div>
+        <div class="lbl">หน้าที่ที่มีแผนงาน</div>
+      </div>
+      <div class="kpi blue">
+        <div class="num">${totalAct}</div>
+        <div class="lbl">กิจกรรมทั้งหมด ปี ${curYear}</div>
+      </div>
+      <div class="kpi green">
+        <div class="num">${overallPct}%</div>
+        <div class="lbl">ความสำเร็จภาพรวม</div>
+        <div class="overall-bar-wrap"><div class="overall-bar" style="width:${overallPct}%"></div></div>
+      </div>
+      <div class="kpi green" style="border-top-color:#059669">
+        <div class="num">${totalDone}</div>
+        <div class="lbl">เสร็จสิ้น</div>
+      </div>
+      <div class="kpi amber">
+        <div class="num">${inProg}</div>
+        <div class="lbl">กำลังดำเนินการ</div>
+      </div>
+      <div class="kpi red">
+        <div class="num">${overdue}</div>
+        <div class="lbl">เกินกำหนด</div>
+      </div>
+    </div>
+
+    <div class="duty-grid">
+      ${stats.map(s => dutyCard(s.duty, s.st)).join('')}
+    </div>
+
+    <div class="chart-section">
+      <div class="chart-title">📊 เปรียบเทียบความคืบหน้า 12 หน้าที่ คปอ ปี ${curYear}</div>
+      ${stats.map(s => chartRow(s.duty, s.st)).join('')}
+    </div>
+
+  </div>`;
+}
+
+window._chYear = y => { curYear = Number(y); render(); };
+
+try {
+  allRecs = await listAnnualPlan();
+  render();
+} catch(e) {
+  main.innerHTML = `<div class="err-box">
+    <strong>⚠️ โหลดข้อมูลไม่ได้</strong><br>
+    <code style="font-size:.8rem">${e?.code||''}: ${e?.message||e}</code>
+  </div>`;
+}
+</script>
+</body>
+</html>
