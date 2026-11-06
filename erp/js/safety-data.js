@@ -926,7 +926,7 @@ export async function cancelPermit(id, reason) {
 // ─── Safety Talk / Toolbox Talk ────────────────────────────────────────────
 COL.talks = 'safetyTalks';
 
-export const TALK_TYPES = {
+export const TALK_TYPES_LEGACY = {
   safety_talk:    { label: 'Safety Talk รายวัน',      icon: '🗣' },
   toolbox_talk:   { label: 'Toolbox Talk',            icon: '🔧' },
   safety_briefing:{ label: 'Safety Briefing',         icon: '📋' },
@@ -934,7 +934,7 @@ export const TALK_TYPES = {
   special:        { label: 'พิเศษ (เหตุการณ์/กฎหมายใหม่)', icon: '⚡' },
 };
 
-export const TALK_TOPICS = [
+export const TALK_TOPICS_LEGACY = [
   'อุบัติเหตุและสาเหตุ', 'การใช้ PPE ที่ถูกต้อง', 'ความสะอาดและการจัดเก็บ (5ส)',
   'การเคลื่อนย้ายสินค้าอย่างปลอดภัย', 'การป้องกันอัคคีภัย', 'Near Miss และการรายงาน',
   'Permit to Work', 'การทำงานในที่อับอากาศ', 'ความปลอดภัยไฟฟ้า',
@@ -986,12 +986,6 @@ export const GHS_HAZARDS = [
   { key: 'irritant',       label: 'กระตุ้น/แพ้',        icon: '❗', color: '#d97706' },
   { key: 'env_hazard',     label: 'เป็นอันตรายต่อสิ่งแวดล้อม', icon: '🌊', color: '#0891b2' },
 ];
-
-export const CHEM_STATUS = {
-  active:       { label: 'ใช้งาน',      color: '#16a34a' },
-  discontinued: { label: 'ยกเลิกใช้',   color: '#dc2626' },
-  review:       { label: 'รอทบทวน SDS', color: '#d97706' },
-};
 
 export const CHEM_UNITS = ['kg', 'g', 'L', 'mL', 'ถัง', 'ลัง', 'กระป๋อง'];
 
@@ -1514,7 +1508,7 @@ export const ENV_PARAMETERS = [
   { key: 'other',       label: 'พารามิเตอร์อื่นๆ',       unit: '',      limit: null, limitLabel: '—',             icon: '📊' },
 ];
 
-export const ENV_RESULT = {
+export const ENV_RESULT_LEGACY = {
   pass:    { label: 'ผ่านมาตรฐาน',    color: '#16a34a', bg: '#dcfce7' },
   fail:    { label: 'เกินมาตรฐาน',    color: '#dc2626', bg: '#fee2e2' },
   warning: { label: 'ใกล้เกินมาตรฐาน', color: '#d97706', bg: '#fef3c7' },
