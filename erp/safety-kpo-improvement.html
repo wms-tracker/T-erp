@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 03 — เสนอแนะปรับปรุงสภาพแวดล้อม</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.5rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.7rem;color:#64748b;margin-top:3px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.red{border-top-color:#dc2626}.kpi.red .num{color:#dc2626}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+.card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap}
+.card-head h2{font-size:.95rem;font-weight:700;flex:1}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap}
+.filter-bar select,.filter-bar input{padding:5px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:.8rem;font-family:'Sarabun',sans-serif;background:#fff}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 12px;background:#f8fafc;font-size:.74rem;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.tbl td{padding:8px 12px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#f8fafc}
+.tbl tr.overdue td{background:#fff7f7}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+.btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
+.overlay.open{display:block}
+.panel{position:fixed;top:0;right:-100%;width:min(620px,100vw);height:100vh;background:#fff;z-index:1000;overflow-y:auto;transition:right .3s;box-shadow:-4px 0 20px rgba(0,0,0,.12)}
+.panel.open{right:0}
+.panel-head{position:sticky;top:0;background:#fff;padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;z-index:1}
+.panel-head h2{flex:1;font-size:.95rem;font-weight:700}
+.panel-body{padding:20px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:4px}
+.form-input,.form-textarea,.form-select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:'Sarabun',sans-serif;background:#fff}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:2px solid #2563eb;border-color:#2563eb}
+.form-textarea{min-height:72px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+.cat-pill{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;padding:2px 8px;background:#f0f4ff;color:#2563eb;border-radius:20px}
+.overdue-banner{background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:.85rem;color:#991b1b;display:flex;align-items:center;gap:8px}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listActionPlan, createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
+  SAP_CATEGORIES, SAP_STATUS
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-improvement', 'Module 03 — เสนอแนะปรับปรุงสภาพแวดล้อม');
+
+const TODAY    = new Date().toISOString().slice(0,10);
+const NOW_CE   = new Date().getFullYear();
+const NOW_BE   = NOW_CE + 543;
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${parseInt(y)+543}`;
+}
+function statusBadge(s) {
+  const st = SAP_STATUS[s];
+  if (!st) return `<span class="badge" style="background:#f1f5f9;color:#64748b">${s||'-'}</span>`;
+  return `<span class="badge" style="background:${st.bg};color:${st.color}">${st.label}</span>`;
+}
+function catInfo(k) { return SAP_CATEGORIES.find(c=>c.key===k) || { label:k||'-', icon:'📌' }; }
+function isOverdue(r) {
+  return r.targetDate && r.targetDate < TODAY && r.status !== 'completed' && r.status !== 'cancelled';
+}
+
+let records = [], editId = null;
+let filterCat = '', filterStatus = '', filterYear = String(NOW_CE);
+
+/* ───── SHELL ───── */
+main.innerHTML = `
+<div style="padding:20px">
+  <div id="kpi-row" class="kpi-row"></div>
+  <div id="overdue-banner"></div>
+  <div class="card">
+    <div class="card-head">
+      <h2>🌿 รายการเสนอแนะปรับปรุง</h2>
+      <div class="filter-bar">
+        <select id="f-year" onchange="window._filter()">
+          ${[NOW_CE,NOW_CE-1,NOW_CE-2].map(y=>`<option value="${y}"${filterYear===String(y)?' selected':''}>${y+543}</option>`).join('')}
+          <option value="">ทุกปี</option>
+        </select>
+        <select id="f-cat" onchange="window._filter()">
+          <option value="">ทุกหมวด</option>
+          ${SAP_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('')}
+        </select>
+        <select id="f-status" onchange="window._filter()">
+          <option value="">ทุกสถานะ</option>
+          ${Object.entries(SAP_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="window._openAdd()">➕ เพิ่มรายการ</button>
+    </div>
+    <div id="tbl-wrap"><div class="spinner">กำลังโหลด...</div></div>
+  </div>
+</div>
+<div class="overlay" id="overlay" onclick="window._closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-head">
+    <h2 id="panel-title">เพิ่มรายการ</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>`;
+
+function openPanel(){document.getElementById('overlay').classList.add('open');document.getElementById('panel').classList.add('open');}
+window._closePanel=()=>{document.getElementById('overlay').classList.remove('open');document.getElementById('panel').classList.remove('open');editId=null;};
+
+window._filter = () => {
+  filterYear   = document.getElementById('f-year')?.value   || '';
+  filterCat    = document.getElementById('f-cat')?.value    || '';
+  filterStatus = document.getElementById('f-status')?.value || '';
+  const filtered = records.filter(r =>
+    (!filterYear   || r.year === filterYear || r.year === parseInt(filterYear)) &&
+    (!filterCat    || r.category === filterCat) &&
+    (!filterStatus || r.status   === filterStatus)
+  );
+  renderKPIs(filtered);
+  const overdueCnt = filtered.filter(isOverdue).length;
+  document.getElementById('overdue-banner').innerHTML = overdueCnt
+    ? `<div class="overdue-banner">⚠️ มี <strong>${overdueCnt}</strong> รายการที่เกินกำหนดส่ง กรุณาดำเนินการ!</div>`
+    : '';
+  renderTable(filtered);
+};
+
+function renderKPIs(data) {
+  const total   = data.length;
+  const done    = data.filter(r=>r.status==='completed').length;
+  const inProg  = data.filter(r=>r.status==='in_progress').length;
+  const delayed = data.filter(r=>r.status==='delayed' || isOverdue(r)).length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi blue"><div class="num">${total}</div><div class="lbl">รายการทั้งหมด</div></div>
+    <div class="kpi green"><div class="num">${done}</div><div class="lbl">เสร็จสิ้น</div></div>
+    <div class="kpi amber"><div class="num">${inProg}</div><div class="lbl">กำลังดำเนินการ</div></div>
+    <div class="kpi red"><div class="num">${delayed}</div><div class="lbl">ล่าช้า/เกินกำหนด</div></div>
+    <div class="kpi purple"><div class="num">${pct}%</div><div class="lbl">ความสำเร็จ</div></div>`;
+}
+
+function renderTable(data) {
+  const wrap = document.getElementById('tbl-wrap');
+  if (!data.length) { wrap.innerHTML='<div class="empty">📭 ไม่พบรายการ</div>'; return; }
+  wrap.innerHTML = `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr>
+      <th>หัวข้อ</th>
+      <th>หมวด</th>
+      <th>ผู้รับผิดชอบ</th>
+      <th>กำหนดเสร็จ</th>
+      <th>งบ (บาท)</th>
+      <th>สถานะ</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    ${data.map(r=>{
+      const od = isOverdue(r);
+      const cat = catInfo(r.category);
+      return `<tr class="${od?'overdue':''}">
+        <td><div style="font-weight:600">${r.title||'-'}</div>
+            <div style="font-size:.72rem;color:#64748b">${r.description?.slice(0,60)||''}${(r.description?.length||0)>60?'...':''}</div>
+            ${od?'<span style="font-size:.7rem;color:#dc2626;font-weight:700">⚠️ เกินกำหนด</span>':''}
+        </td>
+        <td><span class="cat-pill">${cat.icon} ${cat.label}</span></td>
+        <td style="font-size:.78rem">${r.assignedTo||'-'}</td>
+        <td style="white-space:nowrap">${fmtDate(r.targetDate)}</td>
+        <td style="text-align:right;font-size:.8rem">${r.budget?(+r.budget).toLocaleString():'-'}</td>
+        <td>${statusBadge(r.status||'planned')}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="window._edit('${r.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="window._del('${r.id}')">🗑</button>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+window._openAdd = () => {
+  editId=null;
+  document.getElementById('panel-title').textContent = '➕ เพิ่มรายการปรับปรุง';
+  document.getElementById('panel-body').innerHTML = buildForm();
+  openPanel();
+};
+window._edit = (id) => {
+  editId=id;
+  const r=records.find(x=>x.id===id)||{};
+  document.getElementById('panel-title').textContent = '✏️ แก้ไขรายการ';
+  document.getElementById('panel-body').innerHTML = buildForm(r);
+  openPanel();
+};
+
+function buildForm(r={}) {
+  const catOpts = SAP_CATEGORIES.map(c=>
+    `<option value="${c.key}"${r.category===c.key?' selected':''}>${c.icon} ${c.label}</option>`).join('');
+  const stOpts  = Object.entries(SAP_STATUS).map(([k,v])=>
+    `<option value="${k}"${(r.status||'planned')===k?' selected':''}>${v.label}</option>`).join('');
+  const yearOpts = [NOW_CE,NOW_CE+1].map(y=>
+    `<option value="${y}"${String(r.year||NOW_CE)===String(y)?' selected':''}>${y+543}</option>`).join('');
+  return `
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ปี *</label>
+      <select id="f-year" class="form-select">${yearOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">หมวด *</label>
+      <select id="f-cat" class="form-select"><option value="">-- เลือก --</option>${catOpts}</select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หัวข้อ *</label>
+    <input type="text" id="f-title" class="form-input" value="${r.title||''}" placeholder="ระบุหัวข้อการปรับปรุง"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียด/ข้อเสนอแนะ</label>
+    <textarea id="f-desc" class="form-textarea">${r.description||''}</textarea>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ผู้รับผิดชอบ</label>
+      <input type="text" id="f-assign" class="form-input" value="${r.assignedTo||''}" placeholder="ชื่อ / แผนก"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานะ</label>
+      <select id="f-status" class="form-select">${stOpts}</select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">กำหนดเสร็จ</label>
+      <input type="date" id="f-target" class="form-input" value="${r.targetDate||''}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันที่เสร็จจริง</label>
+      <input type="date" id="f-actual" class="form-input" value="${r.actualDate||''}"/>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">งบประมาณ (บาท)</label>
+      <input type="number" id="f-budget" class="form-input" value="${r.budget||''}" min="0"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">งบใช้จริง (บาท)</label>
+      <input type="number" id="f-actual-cost" class="form-input" value="${r.actualCost||''}" min="0"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หมายเหตุ / ผลที่ได้</label>
+    <textarea id="f-remark" class="form-textarea">${r.remark||''}</textarea>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window._save()">💾 บันทึก</button>
+  </div>`;
+}
+
+window._save = async () => {
+  const title = document.getElementById('f-title')?.value?.trim();
+  const cat   = document.getElementById('f-cat')?.value;
+  if (!title || !cat) { alert('กรุณากรอก หัวข้อ และ หมวด'); return; }
+  const payload = {
+    year:        parseInt(document.getElementById('f-year')?.value) || NOW_CE,
+    category:    cat,
+    title,
+    description: document.getElementById('f-desc')?.value?.trim()        || '',
+    assignedTo:  document.getElementById('f-assign')?.value?.trim()      || '',
+    status:      document.getElementById('f-status')?.value              || 'planned',
+    targetDate:  document.getElementById('f-target')?.value              || '',
+    actualDate:  document.getElementById('f-actual')?.value              || '',
+    budget:      Number(document.getElementById('f-budget')?.value)      || 0,
+    actualCost:  Number(document.getElementById('f-actual-cost')?.value) || 0,
+    remark:      document.getElementById('f-remark')?.value?.trim()      || '',
+    kpoDuty:     'duty3',
+  };
+  try {
+    if (editId) await updateActionPlanItem(editId, payload);
+    else        await createActionPlanItem(payload, profile.uid);
+    window._closePanel();
+    records = await listActionPlan({ lim:300 });
+    window._filter();
+  } catch(e) { alert('บันทึกไม่ได้: '+(e?.message||e)); }
+};
+
+window._del = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  try { await deleteActionPlanItem(id); records=records.filter(x=>x.id!==id); window._filter(); }
+  catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+/* ───── LOAD ───── */
+try {
+  records = await listActionPlan({ lim:300 });
+  window._filter();
+} catch(e) {
+  main.innerHTML=`<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}</div>`;
+}
+</script>
+</body>
+</html>
