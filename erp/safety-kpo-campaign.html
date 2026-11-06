@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 04 — ส่งเสริมกิจกรรมความปลอดภัย</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid #e2e8f0;padding-bottom:0}
+.tab-btn{padding:10px 18px;border:none;background:none;cursor:pointer;font-size:.9rem;font-family:'Sarabun',sans-serif;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+.tab-btn.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:700}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.5rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.7rem;color:#64748b;margin-top:3px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+.card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f1f5f9}
+.card-head h2{font-size:.95rem;font-weight:700;flex:1}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 12px;background:#f8fafc;font-size:.74rem;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.tbl td{padding:8px 12px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#f8fafc}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+.btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
+.overlay.open{display:block}
+.panel{position:fixed;top:0;right:-100%;width:min(600px,100vw);height:100vh;background:#fff;z-index:1000;overflow-y:auto;transition:right .3s;box-shadow:-4px 0 20px rgba(0,0,0,.12)}
+.panel.open{right:0}
+.panel-head{position:sticky;top:0;background:#fff;padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;z-index:1}
+.panel-head h2{flex:1;font-size:.95rem;font-weight:700}
+.panel-body{padding:20px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:4px}
+.form-input,.form-textarea,.form-select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:'Sarabun',sans-serif;background:#fff}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:2px solid #2563eb;border-color:#2563eb}
+.form-textarea{min-height:68px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listTalks, createTalk, updateTalk, deleteTalk,
+  TALK_TYPES_LEGACY, TALK_TOPICS_LEGACY,
+  listDrills, createDrill, updateDrill, deleteDrill,
+  DRILL_TYPES, DRILL_STATUS, DEPARTMENTS
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-campaign', 'Module 04 — ส่งเสริมกิจกรรมความปลอดภัย');
+
+const TODAY  = new Date().toISOString().slice(0,10);
+const NOW_CE = new Date().getFullYear();
+const deptOpts = (DEPARTMENTS||[]).map(d=>`<option value="${d}">${d}</option>`).join('');
+
+let talks  = [], drills  = [];
+let editId = null, editMode = '';
+
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${parseInt(y)+543}`;
+}
+
+function statusBadge(s) {
+  const st = DRILL_STATUS[s] || { label:s, color:'#6b7280', bg:'#f9fafb' };
+  return `<span class="badge" style="background:${st.bg};color:${st.color}">${st.label}</span>`;
+}
+
+/* ───── SHELL ───── */
+main.innerHTML = `
+<div style="padding:20px">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="window._tab('talk')">🗣 Safety Talk & กิจกรรม</button>
+    <button class="tab-btn"       onclick="window._tab('drill')">🚨 ซ้อมแผนฉุกเฉิน</button>
+  </div>
+  <div id="tab-talk"  class="tab-panel active"><div class="spinner">กำลังโหลด...</div></div>
+  <div id="tab-drill" class="tab-panel"><div class="spinner">กำลังโหลด...</div></div>
+</div>
+<div class="overlay" id="overlay" onclick="window._closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-head">
+    <h2 id="panel-title">เพิ่มรายการ</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>`;
+
+window._tab = (t) => {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active',(i===0?'talk':'drill')===t));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active',p.id===`tab-${t}`));
+  if (t==='drill' && drills.length===0) loadDrills();
+};
+
+function openPanel(){document.getElementById('overlay').classList.add('open');document.getElementById('panel').classList.add('open');}
+window._closePanel=()=>{document.getElementById('overlay').classList.remove('open');document.getElementById('panel').classList.remove('open');editId=null;editMode='';};
+
+/* ══════ TALKS ══════ */
+function renderTalks() {
+  const thisYear = talks.filter(r => r.talkDate?.startsWith(String(NOW_CE)));
+  const total = talks.length;
+  const participants = talks.reduce((s,r)=>s+(r.participants||0),0);
+  const thisYearCount = thisYear.length;
+
+  document.getElementById('tab-talk').innerHTML = `
+  <div class="kpi-row">
+    <div class="kpi blue"><div class="num">${total}</div><div class="lbl">ทั้งหมด</div></div>
+    <div class="kpi green"><div class="num">${thisYearCount}</div><div class="lbl">ปีนี้ (${NOW_CE+543})</div></div>
+    <div class="kpi purple"><div class="num">${participants.toLocaleString()}</div><div class="lbl">ผู้เข้าร่วมรวม (คน)</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <h2>🗣 รายการ Safety Talk / กิจกรรม</h2>
+      <button class="btn btn-primary btn-sm" onclick="window._openTalk()">➕ เพิ่ม</button>
+    </div>
+    ${!talks.length?'<div class="empty">📭 ยังไม่มีรายการ</div>':`
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>วันที่</th><th>ประเภท</th><th>หัวข้อ</th><th>แผนก</th><th style="text-align:center">ผู้เข้าร่วม</th><th></th></tr></thead>
+      <tbody>
+      ${talks.map(r=>`<tr>
+        <td style="white-space:nowrap">${fmtDate(r.talkDate)}</td>
+        <td style="font-size:.76rem">${TALK_TYPES_LEGACY[r.talkType]?.label||r.talkType||'-'}</td>
+        <td style="max-width:200px;font-weight:600">${r.topic||r.title||'-'}</td>
+        <td style="font-size:.76rem">${r.department||'-'}</td>
+        <td style="text-align:center;font-weight:700;color:#7c3aed">${r.participants||'-'}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="window._editTalk('${r.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="window._delTalk('${r.id}')">🗑</button>
+        </td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`}
+  </div>`;
+}
+
+window._openTalk = () => {
+  editId=null; editMode='talk';
+  document.getElementById('panel-title').textContent = '➕ เพิ่ม Safety Talk / กิจกรรม';
+  document.getElementById('panel-body').innerHTML = buildTalkForm();
+  openPanel();
+};
+
+window._editTalk = (id) => {
+  editId=id; editMode='talk';
+  const r = talks.find(x=>x.id===id)||{};
+  document.getElementById('panel-title').textContent = '✏️ แก้ไข Safety Talk';
+  document.getElementById('panel-body').innerHTML = buildTalkForm(r);
+  openPanel();
+};
+
+function buildTalkForm(r={}) {
+  const typeOpts = Object.entries(TALK_TYPES_LEGACY).map(([k,v])=>
+    `<option value="${k}"${(r.talkType||'safety_talk')===k?' selected':''}>${v.label}</option>`).join('');
+  const topicOpts = TALK_TOPICS_LEGACY.map(t=>
+    `<option value="${t}"${r.topic===t?' selected':''}>${t}</option>`).join('');
+  return `
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันที่ *</label>
+      <input type="date" id="f-date" class="form-input" value="${r.talkDate||TODAY}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ประเภท</label>
+      <select id="f-type" class="form-select">${typeOpts}</select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หัวข้อ *</label>
+    <select id="f-topic" class="form-select"><option value="">-- เลือก --</option>${topicOpts}</select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หัวข้อเพิ่มเติม (กรณี "อื่นๆ")</label>
+    <input type="text" id="f-title" class="form-input" value="${r.title||''}" placeholder="ระบุหัวข้อ"/>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">แผนก</label>
+      <select id="f-dept" class="form-select"><option value="">ทุกแผนก</option>${deptOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้เข้าร่วม (คน)</label>
+      <input type="number" id="f-pax" class="form-input" value="${r.participants||''}" min="0"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">วิทยากร / ผู้ดำเนินการ</label>
+    <input type="text" id="f-speaker" class="form-input" value="${r.speaker||''}" placeholder="ชื่อวิทยากร"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สรุปเนื้อหา</label>
+    <textarea id="f-remark" class="form-textarea">${r.remark||''}</textarea>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window._saveTalk()">💾 บันทึก</button>
+  </div>`;
+}
+
+window._saveTalk = async () => {
+  const date  = document.getElementById('f-date')?.value;
+  const topic = document.getElementById('f-topic')?.value || document.getElementById('f-title')?.value?.trim();
+  if (!date || !topic) { alert('กรุณากรอก วันที่ และ หัวข้อ'); return; }
+  const payload = {
+    talkDate:    date,
+    talkType:    document.getElementById('f-type')?.value  || 'safety_talk',
+    topic,
+    title:       document.getElementById('f-title')?.value?.trim() || '',
+    department:  document.getElementById('f-dept')?.value  || '',
+    participants:Number(document.getElementById('f-pax')?.value) || 0,
+    speaker:     document.getElementById('f-speaker')?.value?.trim() || '',
+    remark:      document.getElementById('f-remark')?.value?.trim() || '',
+    kpoDuty:     'duty4',
+  };
+  try {
+    if (editId) await updateTalk(editId, payload);
+    else        await createTalk(payload, profile.uid);
+    window._closePanel();
+    talks = await listTalks({ lim:300 });
+    renderTalks();
+  } catch(e) { alert('บันทึกไม่ได้: '+(e?.message||e)); }
+};
+
+window._delTalk = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  try { await deleteTalk(id); talks=talks.filter(x=>x.id!==id); renderTalks(); }
+  catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+/* ══════ DRILLS ══════ */
+function renderDrills() {
+  const thisYear = drills.filter(r => r.drillDate?.startsWith(String(NOW_CE)));
+  const done = drills.filter(r=>r.status==='completed').length;
+  const participants = drills.filter(r=>r.status==='completed').reduce((s,r)=>s+(r.participants||0),0);
+
+  document.getElementById('tab-drill').innerHTML = `
+  <div class="kpi-row">
+    <div class="kpi blue"><div class="num">${drills.length}</div><div class="lbl">ทั้งหมด</div></div>
+    <div class="kpi green"><div class="num">${thisYear.length}</div><div class="lbl">ปีนี้ (${NOW_CE+543})</div></div>
+    <div class="kpi amber"><div class="num">${done}</div><div class="lbl">เสร็จสิ้น</div></div>
+    <div class="kpi purple"><div class="num">${participants.toLocaleString()}</div><div class="lbl">ผู้เข้าร่วมรวม</div></div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <h2>🚨 รายการซ้อมแผนฉุกเฉิน</h2>
+      <button class="btn btn-primary btn-sm" onclick="window._openDrill()">➕ เพิ่ม</button>
+    </div>
+    ${!drills.length?'<div class="empty">📭 ยังไม่มีรายการ</div>':`
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>วันที่</th><th>ประเภท</th><th>สถานที่</th><th style="text-align:center">ผู้เข้าร่วม</th><th style="text-align:center">เวลา (นาที)</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody>
+      ${drills.map(r=>`<tr>
+        <td style="white-space:nowrap">${fmtDate(r.drillDate)}</td>
+        <td style="font-size:.76rem">${DRILL_TYPES.find(t=>t.key===r.drillType)?.label||r.drillType||'-'}</td>
+        <td style="font-size:.78rem">${r.location||'-'}</td>
+        <td style="text-align:center;font-weight:700;color:#7c3aed">${r.participants||'-'}</td>
+        <td style="text-align:center">${r.duration||'-'}</td>
+        <td>${statusBadge(r.status||'planned')}</td>
+        <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="window._editDrill('${r.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="window._delDrill('${r.id}')">🗑</button>
+        </td>
+      </tr>`).join('')}
+      </tbody>
+    </table></div>`}
+  </div>`;
+}
+
+window._openDrill = () => {
+  editId=null; editMode='drill';
+  document.getElementById('panel-title').textContent = '➕ บันทึกซ้อมแผนฉุกเฉิน';
+  document.getElementById('panel-body').innerHTML = buildDrillForm();
+  openPanel();
+};
+
+window._editDrill = (id) => {
+  editId=id; editMode='drill';
+  const r=drills.find(x=>x.id===id)||{};
+  document.getElementById('panel-title').textContent = '✏️ แก้ไขการซ้อม';
+  document.getElementById('panel-body').innerHTML = buildDrillForm(r);
+  openPanel();
+};
+
+function buildDrillForm(r={}) {
+  const typeOpts = DRILL_TYPES.map(t=>`<option value="${t.key}"${r.drillType===t.key?' selected':''}>${t.label}</option>`).join('');
+  const stOpts   = Object.entries(DRILL_STATUS).map(([k,v])=>`<option value="${k}"${(r.status||'planned')===k?' selected':''}>${v.label}</option>`).join('');
+  return `
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">วันที่ซ้อม *</label>
+      <input type="date" id="f-date" class="form-input" value="${r.drillDate||TODAY}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ประเภท *</label>
+      <select id="f-type" class="form-select"><option value="">-- เลือก --</option>${typeOpts}</select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">สถานที่</label>
+      <input type="text" id="f-loc" class="form-input" value="${r.location||''}" placeholder="สถานที่ซ้อม"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">สถานะ</label>
+      <select id="f-status" class="form-select">${stOpts}</select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ผู้เข้าร่วม (คน)</label>
+      <input type="number" id="f-pax" class="form-input" value="${r.participants||''}" min="0"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">เวลาที่ใช้ (นาที)</label>
+      <input type="number" id="f-dur" class="form-input" value="${r.duration||''}" min="0"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">ผู้ประสานงาน</label>
+    <input type="text" id="f-coord" class="form-input" value="${r.coordinator||''}" placeholder="ชื่อผู้ประสาน"/>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สรุปผลการซ้อม / ข้อสังเกต</label>
+    <textarea id="f-remark" class="form-textarea">${r.remark||''}</textarea>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end">
+    <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window._saveDrill()">💾 บันทึก</button>
+  </div>`;
+}
+
+window._saveDrill = async () => {
+  const date = document.getElementById('f-date')?.value;
+  const type = document.getElementById('f-type')?.value;
+  if (!date || !type) { alert('กรุณากรอก วันที่ และ ประเภท'); return; }
+  const payload = {
+    drillDate:   date,
+    drillType:   type,
+    location:    document.getElementById('f-loc')?.value?.trim()   || '',
+    status:      document.getElementById('f-status')?.value        || 'planned',
+    participants:Number(document.getElementById('f-pax')?.value)   || 0,
+    duration:    Number(document.getElementById('f-dur')?.value)   || 0,
+    coordinator: document.getElementById('f-coord')?.value?.trim() || '',
+    remark:      document.getElementById('f-remark')?.value?.trim()|| '',
+    kpoDuty:     'duty4',
+  };
+  try {
+    if (editId) await updateDrill(editId, payload);
+    else        await createDrill(payload, profile.uid);
+    window._closePanel();
+    drills = await listDrills({ lim:200 });
+    renderDrills();
+  } catch(e) { alert('บันทึกไม่ได้: '+(e?.message||e)); }
+};
+
+window._delDrill = async (id) => {
+  if (!confirm('ลบรายการนี้?')) return;
+  try { await deleteDrill(id); drills=drills.filter(x=>x.id!==id); renderDrills(); }
+  catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+/* ───── LOAD ───── */
+async function loadDrills() {
+  try { drills = await listDrills({ lim:200 }); renderDrills(); }
+  catch(e) { document.getElementById('tab-drill').innerHTML=`<div style="color:#991b1b;padding:20px">โหลดไม่ได้: ${e?.message||e}</div>`; }
+}
+
+try {
+  talks = await listTalks({ lim:300 });
+  renderTalks();
+} catch(e) {
+  main.innerHTML=`<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}</div>`;
+}
+</script>
+</body>
+</html>
