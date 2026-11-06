@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
@@ -47,17 +47,6 @@ label.lbl{font-size:0.8rem;font-weight:600;color:#374151;display:block;margin-to
 </style>
 </head>
 <body>
-<div id="app-shell"></div>
-<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
-<div class="panel" id="panel">
-  <div class="panel-header">
-    <span id="panel-title">โครงการใหม่</span>
-    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
-  </div>
-  <div class="panel-body" id="panel-body"></div>
-  <div class="panel-footer" id="panel-footer"></div>
-</div>
-
 <script type="module">
 import { requireRole, getProfile } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
@@ -70,6 +59,17 @@ import {
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-project', 'โครงการปรับปรุงความปลอดภัย');
+main.insertAdjacentHTML('afterbegin', `
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">โครงการใหม่</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+`);
 
 const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
