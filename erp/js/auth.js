@@ -52,7 +52,14 @@ export function logout() { return signOut(auth); }
 // ---------- ดึงโปรไฟล์ + สิทธิ์ผู้ใช้จาก Firestore ----------
 export async function getUserProfile(uid) {
   const snap = await getDoc(doc(db, "users", uid));
-  return snap.exists() ? { uid, ...snap.data() } : null;
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  // normalize: รองรับทั้ง role (string เก่า) และ roles (array ใหม่)
+  const roles = Array.isArray(data.roles) && data.roles.length
+    ? data.roles
+    : [data.role].filter(Boolean);
+  const role = roles[0] || data.role; // primary role สำหรับ nav + backward compat
+  return { uid, ...data, role, roles };
 }
 
 // ---------- ตัวช่วย "การ์ดหน้า" สำหรับทุกหน้า dashboard ----------
@@ -70,8 +77,10 @@ export function requireRole(allowedRoles) {
         window.location.href = "login.html?msg=ยังไม่ได้รับสิทธิ์";
         return reject("not-authorized");
       }
-      if (allowedRoles && !allowedRoles.includes(profile.role) && profile.role !== "admin") {
-        // ไม่มีสิทธิ์เข้าหน้านี้ -> เด้งกลับหน้า dashboard ของตัวเอง
+      const hasRole = !allowedRoles
+        || profile.roles.includes("admin")
+        || profile.roles.some(r => allowedRoles.includes(r));
+      if (!hasRole) {
         window.location.href = ROLE_HOME[profile.role] || "login.html";
         return reject("wrong-role");
       }

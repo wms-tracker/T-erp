@@ -763,16 +763,10 @@
           <div class="field"><label>อีเมล</label><input id="u-email" placeholder="name@company.com" /></div>
           <div class="field"><label>รหัสผ่าน (สร้างบัญชีใหม่)</label><input id="u-password" type="text" placeholder="อย่างน้อย 6 ตัวอักษร" /></div>
           <div class="field"><label>หรือ UID (บัญชีที่มีอยู่แล้ว)</label><input id="u-uid" placeholder="เช่น aB12cD34..." /></div>
-          <div class="field"><label>แผนก/สิทธิ์ (Role)</label>
-            <select id="u-role">
-              <option value="sales">ฝ่ายขาย (sales)</option>
-              <option value="warehouse">คลังสินค้า (warehouse)</option>
-              <option value="accounting">บัญชี (accounting)</option>
-              <option value="admin">แอดมิน (admin)</option>
-              <option value="manager">ผู้บริหาร (manager)</option>
-              <option value="safety_officer">เจ้าหน้าที่ความปลอดภัย (safety_officer)</option>
-              <option value="kpo">คปอ. (kpo)</option>
-            </select>
+          <div class="field" style="grid-column:1/-1;"><label>แผนก/สิทธิ์ (Role) — เลือกได้หลายสิทธิ์ (อันแรก = สิทธิ์หลัก)</label>
+            <div id="u-roles" style="display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 0;">
+              ${ROLE_OPTIONS.map(([v,l]) => `<label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="${v}" style="width:15px;height:15px;cursor:pointer;"> ${l}</label>`).join('')}
+            </div>
           </div>
           <div class="field"><label>แผนก Control Tower (เฉพาะ role คลังสินค้า)</label>
             <select id="u-wctdept">
@@ -820,24 +814,27 @@
     const name = document.getElementById('u-name').value.trim();
     const email = document.getElementById('u-email').value.trim();
     const password = document.getElementById('u-password').value;
-    const role = document.getElementById('u-role').value;
+    const roles = [...document.querySelectorAll('#u-roles input:checked')].map(c => c.value);
     const wctDepartment = document.getElementById('u-wctdept').value || null;
     const msg = document.getElementById('user-msg');
     msg.className = 'msg';
     if (!name || !email) { msg.textContent = 'กรุณากรอกชื่อและอีเมลให้ครบ'; msg.classList.add('error'); return; }
+    if (!roles.length) { msg.textContent = 'กรุณาเลือกสิทธิ์อย่างน้อย 1 อย่าง'; msg.classList.add('error'); return; }
     if (!uid && !password) { msg.textContent = 'กรุณากรอกรหัสผ่าน (เพื่อสร้างบัญชีใหม่) หรือกรอก UID (ถ้ามีบัญชีอยู่แล้ว)'; msg.classList.add('error'); return; }
     if (password && password.length < 6) { msg.textContent = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'; msg.classList.add('error'); return; }
+    const role = roles[0];
     try {
       if (!uid && password) {
         msg.textContent = 'กำลังสร้างบัญชี...'; msg.className = 'msg';
         uid = await createAuthUser(email, password);
       }
       await setDoc(doc(db, 'users', uid), {
-        name, email, role, department: roleLabel(role), wctDepartment, active: true, createdAt: new Date().toISOString()
+        name, email, role, roles, department: roleLabel(role), wctDepartment, active: true, createdAt: new Date().toISOString()
       });
-      msg.textContent = `เพิ่มผู้ใช้งาน ${name} (${role}) สำเร็จแล้ว${password ? ' — login ด้วยอีเมล/รหัสผ่านที่ตั้งไว้ได้เลย' : ''}`;
+      msg.textContent = `เพิ่มผู้ใช้งาน ${name} (${roles.join(', ')}) สำเร็จแล้ว${password ? ' — login ด้วยอีเมล/รหัสผ่านที่ตั้งไว้ได้เลย' : ''}`;
       msg.classList.add('ok');
       ['u-uid','u-name','u-email','u-password'].forEach(id => document.getElementById(id).value = '');
+      document.querySelectorAll('#u-roles input').forEach(c => c.checked = false);
       document.getElementById('u-wctdept').value = '';
       await loadUsers();
     } catch (err) {
@@ -857,7 +854,7 @@
         <tr>
           <td>${u.name || '-'}</td>
           <td>${u.email || '-'}</td>
-          <td>${roleLabel(u.role)}</td>
+          <td>${(Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role]).map(r=>`<span style="display:inline-block;padding:1px 7px;border-radius:5px;font-size:.72rem;font-weight:600;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;margin:1px;">${roleLabel(r)}</span>`).join('')}</td>
           <td>${u.wctDepartment ? (WCT_DEPARTMENTS.find(d=>d.code===u.wctDepartment)?.label || u.wctDepartment) : '<span style="color:#aaa;">—</span>'}</td>
           <td>${u.active ? '<span class="badge badge-done">ใช้งานได้</span>' : '<span class="badge badge-cancel">ระงับ</span>'}</td>
           <td style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -889,21 +886,23 @@
     const snap = await getDoc(doc(db, 'users', uid));
     if (!snap.exists()) { alert('ไม่พบข้อมูลผู้ใช้งาน'); return; }
     const u = snap.data();
+    const curRoles = Array.isArray(u.roles) && u.roles.length ? u.roles : [u.role].filter(Boolean);
     const ov = document.createElement('div');
     ov.id = 'edit-user-modal';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:9999;';
     ov.innerHTML = `
-      <div style="background:#fff;border-radius:14px;padding:28px 24px;width:min(500px,95vw);box-shadow:0 8px 40px rgba(0,0,0,.2);">
+      <div style="background:#fff;border-radius:14px;padding:28px 24px;width:min(520px,95vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,.2);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
           <h2 style="margin:0;font-size:1.05rem;">✏️ แก้ไขผู้ใช้งาน</h2>
           <button onclick="document.getElementById('edit-user-modal').remove()" style="border:none;background:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
         </div>
         <div class="field"><label>ชื่อพนักงาน</label><input id="eu-name" value="${u.name||''}" /></div>
         <div class="field" style="margin-top:10px;"><label>อีเมล (แสดงอย่างเดียว)</label><input value="${u.email||''}" disabled style="background:#f8fafc;color:#94a3b8;" /></div>
-        <div class="field" style="margin-top:10px;"><label>แผนก/สิทธิ์ (Role)</label>
-          <select id="eu-role">
-            ${ROLE_OPTIONS.map(([v,l]) => `<option value="${v}"${v===u.role?' selected':''}>${l}</option>`).join('')}
-          </select>
+        <div class="field" style="margin-top:10px;">
+          <label>แผนก/สิทธิ์ — เลือกได้หลายสิทธิ์ (อันแรกที่ติ๊ก = สิทธิ์หลัก)</label>
+          <div id="eu-roles" style="display:flex;flex-wrap:wrap;gap:8px 16px;padding:8px 0;">
+            ${ROLE_OPTIONS.map(([v,l]) => `<label style="display:flex;align-items:center;gap:5px;font-size:.85rem;cursor:pointer;"><input type="checkbox" value="${v}"${curRoles.includes(v)?' checked':''} style="width:15px;height:15px;cursor:pointer;"> ${l}</label>`).join('')}
+          </div>
         </div>
         <div class="field" style="margin-top:10px;"><label>แผนก Control Tower (เฉพาะคลังสินค้า)</label>
           <select id="eu-wctdept">
@@ -922,12 +921,14 @@
 
   window.saveEditUser = async function(uid) {
     const name = document.getElementById('eu-name').value.trim();
-    const role = document.getElementById('eu-role').value;
+    const roles = [...document.querySelectorAll('#eu-roles input:checked')].map(c => c.value);
     const wctDepartment = document.getElementById('eu-wctdept').value || null;
     const msg = document.getElementById('eu-msg');
     if (!name) { msg.textContent = 'กรุณากรอกชื่อ'; msg.className = 'msg error'; return; }
+    if (!roles.length) { msg.textContent = 'กรุณาเลือกสิทธิ์อย่างน้อย 1 อย่าง'; msg.className = 'msg error'; return; }
+    const role = roles[0];
     try {
-      await updateDoc(doc(db, 'users', uid), { name, role, department: roleLabel(role), wctDepartment });
+      await updateDoc(doc(db, 'users', uid), { name, role, roles, department: roleLabel(role), wctDepartment });
       document.getElementById('edit-user-modal').remove();
       await loadUsers();
     } catch (err) {
