@@ -94,6 +94,7 @@ export const COL = {
   safetyEvent:      "safetySafetyEvents",
   envMeasure:       "safetyEnvMeasure",
   compensation:     "safetyCompensation",
+  statutory:        "safetyStatutoryEq",
 };
 
 // ────────────────────────────────────────────
@@ -4845,4 +4846,43 @@ export async function updateCompensation(id, data) {
 }
 export async function deleteCompensation(id) {
   await deleteDoc(doc(db, COL.compensation, id));
+}
+
+// ── Phase 89: Statutory Machinery & Equipment Register (ทะเบียนเครื่องจักรตาม กม.) ──
+export const STATUTORY_EQ_TYPES = {
+  boiler:           { label: 'หม้อไอน้ำ',               icon: '🔥', law: 'กฎกระทรวงหม้อไอน้ำฯ' },
+  pressure_vessel:  { label: 'ภาชนะรับแรงดัน',          icon: '⚙️', law: 'กฎกระทรวงภาชนะรับแรงดันฯ' },
+  crane:            { label: 'ปั้นจั่น (Crane)',          icon: '🏗️', law: 'กฎกระทรวงปั้นจั่นฯ' },
+  lift:             { label: 'ลิฟต์',                    icon: '🛗', law: 'กฎกระทรวงลิฟต์ฯ' },
+  compressor:       { label: 'เครื่องอัดอากาศ',          icon: '💨', law: 'กฎกระทรวงภาชนะรับแรงดันฯ' },
+  electrical_hv:    { label: 'ระบบไฟฟ้าแรงสูง',         icon: '⚡', law: 'กฎกระทรวงไฟฟ้าฯ' },
+  forklift:         { label: 'รถยกอุตสาหกรรม',           icon: '🚜', law: 'กฎกระทรวงรถยกฯ' },
+  fire_protection:  { label: 'ระบบดับเพลิงอัตโนมัติ',   icon: '🚒', law: 'กฎหมายป้องกันอัคคีภัยฯ' },
+  ladder_scaffold:  { label: 'นั่งร้าน/บันไดมาตรฐาน',   icon: '🪜', law: 'กฎกระทรวงที่สูงฯ' },
+  other:            { label: 'อื่นๆ',                    icon: '🔧', law: '' },
+};
+export const STATUTORY_EQ_STATUS = {
+  active:   { label: 'ใช้งาน/ผ่านตรวจ',   color: '#16a34a', bg: '#dcfce7' },
+  expiring: { label: 'ใกล้หมดอายุ (<90 วัน)', color: '#d97706', bg: '#fffbeb' },
+  expired:  { label: 'หมดอายุ',            color: '#dc2626', bg: '#fee2e2' },
+  decom:    { label: 'ปลดระวาง',           color: '#6b7280', bg: '#f3f4f6' },
+  pending:  { label: 'รอตรวจสอบ',          color: '#2563eb', bg: '#eff6ff' },
+};
+
+export async function listStatutoryEq() {
+  const s = await getDocs(query(collection(db, COL.statutory), orderBy('inspectionDue','asc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getStatutoryEq(id) {
+  const d = await getDoc(doc(db, COL.statutory, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createStatutoryEq(data, createdBy) {
+  return addDoc(collection(db, COL.statutory), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateStatutoryEq(id, data) {
+  await updateDoc(doc(db, COL.statutory, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteStatutoryEq(id) {
+  await deleteDoc(doc(db, COL.statutory, id));
 }
