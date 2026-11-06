@@ -20,6 +20,16 @@
 
   const profile = await requireRole(['admin']);
 
+  const ROLE_OPTIONS = [
+    ['sales','ฝ่ายขาย (sales)'],
+    ['warehouse','คลังสินค้า (warehouse)'],
+    ['accounting','บัญชี (accounting)'],
+    ['admin','แอดมิน (admin)'],
+    ['manager','ผู้บริหาร (manager)'],
+    ['safety_officer','เจ้าหน้าที่ความปลอดภัย (safety_officer)'],
+    ['kpo','คปอ. (kpo)'],
+  ];
+
   const SECTIONS = {
     orders:    { title: '📋 ออเดอร์ทั้งหมด',          desc: 'ดูและติดตามสถานะออเดอร์ของทุกฝ่ายขาย ประสานงานกับคลังสินค้า', phase: 'เฟส 1 — ใช้งานได้แล้วด้านล่าง 👇' },
     documents: { title: '📑 เอกสารขาย/ขนส่ง',         desc: 'จัดทำและจัดเก็บเอกสารประกอบการขายและการขนส่ง (ใบส่งของ/ใบกำกับสินค้า, ใบปะหน้าพัสดุ, ใบสรุปแพ็คสินค้า) พร้อมพิมพ์และบันทึกประวัติ', phase: 'เฟส 2 — ใช้งานได้แล้ว 👇' },
@@ -871,16 +881,6 @@
   function roleLabel(role) {
     return { sales:'ฝ่ายขาย', warehouse:'คลังสินค้า', accounting:'บัญชี', admin:'แอดมิน', manager:'ผู้บริหาร', safety_officer:'เจ้าหน้าที่ความปลอดภัย', kpo:'คปอ.' }[role] || role;
   }
-
-  const ROLE_OPTIONS = [
-    ['sales','ฝ่ายขาย (sales)'],
-    ['warehouse','คลังสินค้า (warehouse)'],
-    ['accounting','บัญชี (accounting)'],
-    ['admin','แอดมิน (admin)'],
-    ['manager','ผู้บริหาร (manager)'],
-    ['safety_officer','เจ้าหน้าที่ความปลอดภัย (safety_officer)'],
-    ['kpo','คปอ. (kpo)'],
-  ];
 
   window.editUser = async function(uid) {
     const snap = await getDoc(doc(db, 'users', uid));
