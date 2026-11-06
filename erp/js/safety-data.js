@@ -93,6 +93,7 @@ export const COL = {
   bbsObs:           "safetyBBSObservations",
   safetyEvent:      "safetySafetyEvents",
   envMeasure:       "safetyEnvMeasure",
+  compensation:     "safetyCompensation",
 };
 
 // ────────────────────────────────────────────
@@ -4803,4 +4804,45 @@ export async function updateContextIssue(id, data) {
 }
 export async function deleteContextIssue(id) {
   await deleteDoc(doc(db, COL.contextIssue, id));
+}
+
+// ── Phase 88: Workers' Compensation Fund (กองทุนเงินทดแทน) ──
+export const COMPENSATION_CLAIM_STATUS = {
+  draft:     { label: 'แบบร่าง',           color: '#6b7280', bg: '#f3f4f6' },
+  submitted: { label: 'ยื่นคำร้องแล้ว',   color: '#2563eb', bg: '#eff6ff' },
+  approved:  { label: 'อนุมัติแล้ว',       color: '#16a34a', bg: '#dcfce7' },
+  partial:   { label: 'อนุมัติบางส่วน',   color: '#d97706', bg: '#fffbeb' },
+  rejected:  { label: 'ปฏิเสธ',            color: '#dc2626', bg: '#fee2e2' },
+  paid:      { label: 'จ่ายแล้ว',          color: '#0891b2', bg: '#ecfeff' },
+};
+export const COMPENSATION_BENEFIT_TYPE = {
+  medical:        { label: 'ค่ารักษาพยาบาล' },
+  disability_temp:{ label: 'ทุพพลภาพชั่วคราว' },
+  disability_perm:{ label: 'ทุพพลภาพถาวร' },
+  death:          { label: 'เสียชีวิต' },
+  lost_days:      { label: 'ชดเชยหยุดงาน' },
+  rehabilitation: { label: 'ฟื้นฟูสมรรถภาพ' },
+};
+export const COMPENSATION_CAUSE_TYPE = {
+  work_accident:       { label: 'อุบัติเหตุจากการทำงาน' },
+  occupational_disease:{ label: 'โรคจากการทำงาน' },
+  commute_accident:    { label: 'อุบัติเหตุระหว่างเดินทาง' },
+};
+
+export async function listCompensations() {
+  const s = await getDocs(query(collection(db, COL.compensation), orderBy('injuryDate','desc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getCompensation(id) {
+  const d = await getDoc(doc(db, COL.compensation, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createCompensation(data, createdBy) {
+  return addDoc(collection(db, COL.compensation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateCompensation(id, data) {
+  await updateDoc(doc(db, COL.compensation, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteCompensation(id) {
+  await deleteDoc(doc(db, COL.compensation, id));
 }

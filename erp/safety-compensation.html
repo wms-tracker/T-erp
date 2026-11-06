@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>กองทุนเงินทดแทน — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  COMPENSATION_CLAIM_STATUS, COMPENSATION_BENEFIT_TYPE, COMPENSATION_CAUSE_TYPE,
+  listCompensations, getCompensation, createCompensation, updateCompensation, deleteCompensation,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main    = renderShell(profile, 'safety-compensation', 'กองทุนเงินทดแทน');
+
+main.insertAdjacentHTML('afterbegin', `
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">เพิ่มคำร้อง</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+  <div class="panel-footer" id="panel-footer"></div>
+</div>
+`);
+
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+const thb   = n => n ? Number(n).toLocaleString('th-TH',{minimumFractionDigits:2}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+const bYear = y => y ? parseInt(y) + 543 : '—';
+
+let records = [], filterStatus = '', filterYear = '';
+
+function getStatus(k) { return COMPENSATION_CLAIM_STATUS[k] || {label:k,color:'#555',bg:'#eee'}; }
+function getBenefit(k) { return COMPENSATION_BENEFIT_TYPE[k]?.label || k; }
+function getCause(k) { return COMPENSATION_CAUSE_TYPE[k]?.label || k; }
+
+function kpiBar() {
+  const total  = records.length;
+  const pending= records.filter(r=>r.status==='submitted'||r.status==='draft').length;
+  const approved= records.filter(r=>r.status==='approved'||r.status==='partial'||r.status==='paid').length;
+  const totalClaimed = records.reduce((s,r)=>(s+(parseFloat(r.claimedAmount)||0)),0);
+  const totalApproved= records.reduce((s,r)=>(s+(parseFloat(r.approvedAmount)||0)),0);
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div><div style="font-size:0.78rem;color:#6b7280;">คำร้องทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${pending}</div><div style="font-size:0.78rem;color:#6b7280;">รอดำเนินการ</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${approved}</div><div style="font-size:0.78rem;color:#6b7280;">อนุมัติแล้ว</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.1rem;font-weight:800;color:#1a237e;">${thb(totalApproved)}</div><div style="font-size:0.78rem;color:#6b7280;">อนุมัติรวม (บาท)</div></div>
+  </div>`;
+}
+
+function yearOptions() {
+  const years = [...new Set(records.map(r=>(r.injuryDate||'').slice(0,4)).filter(Boolean))].sort().reverse();
+  return years.map(y=>`<option value="${y}" ${y===filterYear?'selected':''}>${parseInt(y)+543}</option>`).join('');
+}
+
+function renderPage() {
+  let rows = records;
+  if(filterStatus) rows = rows.filter(r=>r.status===filterStatus);
+  if(filterYear)   rows = rows.filter(r=>(r.injuryDate||'').startsWith(filterYear));
+
+  main.querySelector('#main-list').innerHTML = rows.length===0
+    ? `<div style="text-align:center;color:#999;padding:40px 0;">ไม่พบข้อมูล</div>`
+    : rows.map(r => {
+        const st = getStatus(r.status||'draft');
+        return `<tr onclick="window.__editRecord('${r.id}')" style="cursor:pointer;">
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;">
+            <div style="font-weight:600;">${r.employeeName||'—'}</div>
+            <div style="font-size:0.78rem;color:#888;">${r.employeeId||''} · ${r.department||''}</div>
+          </td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.85rem;">${fmt(r.injuryDate)}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;">${getCause(r.causeType)}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;">${getBenefit(r.benefitType)}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;text-align:right;">${thb(r.claimedAmount)}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;text-align:right;">${thb(r.approvedAmount)}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;">
+            <span class="badge" style="color:${st.color};background:${st.bg}">${st.label}</span>
+          </td>
+        </tr>`;
+      }).join('');
+}
+
+function formHTML(r) {
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ชื่อ-สกุลลูกจ้าง *</label>
+        <input id="f-name" class="form-control" value="${r?.employeeName||''}"/></div>
+      <div class="form-group"><label class="form-label">รหัสพนักงาน</label>
+        <input id="f-empid" class="form-control" value="${r?.employeeId||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">แผนก</label>
+        <input id="f-dept" class="form-control" value="${r?.department||''}"/></div>
+      <div class="form-group"><label class="form-label">วันที่เกิดเหตุ *</label>
+        <input id="f-injury-date" class="form-control" type="date" value="${r?.injuryDate||today()}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ประเภทการเกิดเหตุ</label>
+        <select id="f-cause" class="form-control">
+          ${Object.entries(COMPENSATION_CAUSE_TYPE).map(([k,v])=>`<option value="${k}" ${(r?.causeType||'work_accident')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select></div>
+      <div class="form-group"><label class="form-label">ประเภทเงินทดแทน</label>
+        <select id="f-benefit" class="form-control">
+          ${Object.entries(COMPENSATION_BENEFIT_TYPE).map(([k,v])=>`<option value="${k}" ${(r?.benefitType||'medical')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="form-group"><label class="form-label">สาเหตุ / รายละเอียดการบาดเจ็บ</label>
+      <textarea id="f-desc" class="form-control" rows="2">${r?.description||''}</textarea></div>
+    <div style="border-top:1px solid #eef0f7;margin:14px 0;padding-top:14px;">
+      <div style="font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;margin-bottom:10px;">ข้อมูลคำร้องกองทุน</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group"><label class="form-label">วันที่ยื่นคำร้อง</label>
+          <input id="f-filing-date" class="form-control" type="date" value="${r?.filingDate||''}"/></div>
+        <div class="form-group"><label class="form-label">เลขที่คำร้อง</label>
+          <input id="f-claim-no" class="form-control" value="${r?.claimNo||''}" placeholder="เช่น WC-2567-001"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group"><label class="form-label">จำนวนเงินที่ขอ (บาท)</label>
+          <input id="f-claimed" class="form-control" type="number" min="0" step="0.01" value="${r?.claimedAmount||''}"/></div>
+        <div class="form-group"><label class="form-label">จำนวนเงินที่อนุมัติ (บาท)</label>
+          <input id="f-approved" class="form-control" type="number" min="0" step="0.01" value="${r?.approvedAmount||''}"/></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group"><label class="form-label">วันที่จ่ายเงิน</label>
+          <input id="f-pay-date" class="form-control" type="date" value="${r?.paymentDate||''}"/></div>
+        <div class="form-group"><label class="form-label">สถานะ</label>
+          <select id="f-status" class="form-control">
+            ${Object.entries(COMPENSATION_CLAIM_STATUS).map(([k,v])=>`<option value="${k}" ${(r?.status||'draft')===k?'selected':''}>${v.label}</option>`).join('')}
+          </select></div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">หน่วยงานที่รับคำร้อง</label>
+      <input id="f-sso" class="form-control" value="${r?.ssoOffice||''}" placeholder="เช่น สำนักงานประกันสังคมจังหวัด..."/></div>
+    <div class="form-group"><label class="form-label">หมายเหตุ</label>
+      <textarea id="f-remarks" class="form-control" rows="2">${r?.remarks||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      ${r?.id?`<button class="btn btn-danger" style="padding:9px 14px;" onclick="window.__deleteRecord('${r.id}')">🗑 ลบ</button>`:''}
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'เพิ่มคำร้องกองทุนเงินทดแทน';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  document.getElementById('panel-footer').innerHTML = '';
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r = await getCompensation(id);
+  if(!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขคำร้อง';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  document.getElementById('panel-footer').innerHTML = '';
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบคำร้องนี้?')) return;
+  await deleteCompensation(id);
+  window.__closePanel();
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg = document.getElementById('panel-msg');
+  const name = document.getElementById('f-name').value.trim();
+  const injDate = document.getElementById('f-injury-date').value;
+  if(!name||!injDate){ msg.textContent='* กรุณาระบุชื่อลูกจ้างและวันที่เกิดเหตุ'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data = {
+    employeeName: name,
+    employeeId:   document.getElementById('f-empid').value.trim(),
+    department:   document.getElementById('f-dept').value.trim(),
+    injuryDate:   injDate,
+    causeType:    document.getElementById('f-cause').value,
+    benefitType:  document.getElementById('f-benefit').value,
+    description:  document.getElementById('f-desc').value.trim(),
+    filingDate:   document.getElementById('f-filing-date').value||null,
+    claimNo:      document.getElementById('f-claim-no').value.trim(),
+    claimedAmount:parseFloat(document.getElementById('f-claimed').value)||null,
+    approvedAmount:parseFloat(document.getElementById('f-approved').value)||null,
+    paymentDate:  document.getElementById('f-pay-date').value||null,
+    status:       document.getElementById('f-status').value,
+    ssoOffice:    document.getElementById('f-sso').value.trim(),
+    remarks:      document.getElementById('f-remarks').value.trim(),
+  };
+  try {
+    const id = document.getElementById('f-id').value;
+    if(id) await updateCompensation(id,data); else await createCompensation(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__setFilter = (key,val) => {
+  if(key==='status') filterStatus=val;
+  if(key==='year')   filterYear=val;
+  renderPage();
+};
+
+main.innerHTML += `
+  <style>
+    .panel{position:fixed;right:0;top:0;bottom:0;width:560px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+    .panel.open{transform:none;}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,.35);z-index:199;}
+    .overlay.open{display:block;}
+    .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#1a237e,#283593);color:#fff;position:sticky;top:0;z-index:10;}
+    .panel-body{padding:16px 20px 32px;}
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+    .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;}
+    .form-control:focus{outline:none;border-color:#1a73e8;}
+    @media(max-width:600px){.panel{width:100%;}}
+  </style>
+  ${kpiBar()}
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <b>ทะเบียนคำร้องกองทุนเงินทดแทน</b>
+      <button class="btn btn-primary" onclick="window.__openPanel()">+ เพิ่มคำร้อง</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <select class="form-control" style="width:auto;min-width:150px;padding:7px 11px;" onchange="window.__setFilter('status',this.value)">
+        <option value="">ทุกสถานะ</option>
+        ${Object.entries(COMPENSATION_CLAIM_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <select class="form-control" style="width:auto;min-width:120px;padding:7px 11px;" onchange="window.__setFilter('year',this.value)">
+        <option value="">ทุกปี</option>
+        <span id="year-opts"></span>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <thead>
+          <tr style="background:#f0f2f8;">
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">ลูกจ้าง</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">วันที่เกิดเหตุ</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">ประเภทเหตุ</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">ประเภทเงิน</th>
+            <th style="padding:10px 14px;text-align:right;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">ขอ (บาท)</th>
+            <th style="padding:10px 14px;text-align:right;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">อนุมัติ (บาท)</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">สถานะ</th>
+          </tr>
+        </thead>
+        <tbody id="main-list"></tbody>
+      </table>
+    </div>
+  </div>`;
+
+async function loadAll() {
+  records = await listCompensations();
+  renderPage();
+}
+loadAll();
+</script>
+</body>
+</html>
