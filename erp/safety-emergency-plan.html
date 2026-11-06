@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -108,6 +108,19 @@
   </style>
 </head>
 <body>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  EMERGENCY_TYPES, PLAN_STATUS,
+  listEmergencyPlans, getEmergencyPlan,
+  createEmergencyPlan, updateEmergencyPlan, deleteEmergencyPlan,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(_profile, 'safety-emergency-plan', 'แผนรับมือฉุกเฉิน');
+main.insertAdjacentHTML('afterbegin', `
 <!-- Overlay + slide panel -->
 <div class="panel-overlay" id="panelOverlay" onclick="window.__ep_closePanel()"></div>
 <div class="side-panel" id="sidePanel">
@@ -121,18 +134,7 @@
 
 <!-- FAB -->
 <button class="fab no-print" title="เพิ่มแผนฉุกเฉิน" onclick="window.__ep_openNew()">＋</button>
-
-<script type="module">
-import { requireRole } from './js/auth.js';
-import { renderShell }  from './js/shell.js';
-import {
-  EMERGENCY_TYPES, PLAN_STATUS,
-  listEmergencyPlans, getEmergencyPlan,
-  createEmergencyPlan, updateEmergencyPlan, deleteEmergencyPlan,
-} from './js/safety-data.js';
-
-const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-emergency-plan', 'แผนรับมือฉุกเฉิน');
+`);
 
 let _plans = [];
 let _filterType = 'all';
@@ -471,8 +473,6 @@ window.__ep_delete = async id => {
 };
 
 /* ── inject + initial load ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
 main.insertAdjacentHTML('beforeend', `
   <div style="padding:1rem 1.5rem 4rem">
     <!-- Filter bar -->

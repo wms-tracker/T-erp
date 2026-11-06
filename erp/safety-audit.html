@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -105,17 +105,6 @@
   </style>
 </head>
 <body>
-<div class="panel-overlay" id="panelOverlay" onclick="window.__aud_closePanel()"></div>
-<div class="side-panel" id="sidePanel">
-  <div class="panel-header">
-    <h3 id="panelTitle">การตรวจสอบ</h3>
-    <button class="btn-icon" onclick="window.__aud_closePanel()">✕</button>
-  </div>
-  <div class="panel-body" id="panelBody"></div>
-  <div class="panel-footer" id="panelFooter"></div>
-</div>
-
-<button class="fab no-print" title="สร้าง Audit" onclick="window.__aud_openNew()">＋</button>
 
 <script type="module">
 import { requireRole } from './js/auth.js';
@@ -127,7 +116,20 @@ import {
 } from './js/safety-data.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-audit', 'ตรวจสอบภายใน (Audit)');
+const main = renderShell(_profile, 'safety-audit', 'ตรวจสอบภายใน (Audit)');
+main.insertAdjacentHTML('afterbegin', `
+<div class="panel-overlay" id="panelOverlay" onclick="window.__aud_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">การตรวจสอบ</h3>
+    <button class="btn-icon" onclick="window.__aud_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="สร้าง Audit" onclick="window.__aud_openNew()">＋</button>
+`);
 
 let _allAudits   = [];
 let _allFindings = [];
@@ -527,8 +529,6 @@ window.__aud_deleteFinding = async (fid, auditId) => {
 };
 
 /* ── inject ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
 main.insertAdjacentHTML('beforeend', `
   <div style="padding:1rem 1.5rem">
     <div class="top-bar">

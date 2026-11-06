@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -73,7 +73,7 @@ import {
 } from './js/safety-data.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-reports', 'รายงานความปลอดภัย');
+const main = renderShell(_profile, 'safety-reports', 'รายงานความปลอดภัย');
 
 const MONTHS_TH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
                    'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
@@ -581,8 +581,7 @@ function buildReport({ label, s, e, kpis, incidents, nearMiss, capas, inspection
 }
 
 /* ── inject into page ── */
-const target = document.querySelector('main') || document.querySelector('.page-content')
-            || document.querySelector('#content') || document.body;
+const target = document.getElementById('main-content');
 target.insertAdjacentHTML('beforeend', buildPicker());
 </script>
 </body>

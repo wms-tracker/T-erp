@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -63,19 +63,6 @@
   </style>
 </head>
 <body>
-<div class="modal-overlay" id="editModal">
-  <div class="modal-box">
-    <div class="modal-head">
-      <h3>⚙️ ตั้งเป้าหมาย KPI ประจำปี <span id="editYear"></span></h3>
-      <button class="btn-icon" onclick="window.__kpi_closeEdit()">✕</button>
-    </div>
-    <div id="editRows"></div>
-    <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem">
-      <button class="btn" onclick="window.__kpi_closeEdit()">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="window.__kpi_saveTargets()">💾 บันทึกเป้าหมาย</button>
-    </div>
-  </div>
-</div>
 
 <script type="module">
 import { requireRole } from './js/auth.js';
@@ -89,7 +76,22 @@ import {
 } from './js/safety-data.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-kpi', 'เป้าหมาย KPI ความปลอดภัย');
+const main = renderShell(_profile, 'safety-kpi', 'เป้าหมาย KPI ความปลอดภัย');
+main.insertAdjacentHTML('afterbegin', `
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>⚙️ ตั้งเป้าหมาย KPI ประจำปี <span id="editYear"></span></h3>
+      <button class="btn-icon" onclick="window.__kpi_closeEdit()">✕</button>
+    </div>
+    <div id="editRows"></div>
+    <div style="display:flex;gap:.6rem;justify-content:flex-end;margin-top:1rem">
+      <button class="btn" onclick="window.__kpi_closeEdit()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__kpi_saveTargets()">💾 บันทึกเป้าหมาย</button>
+    </div>
+  </div>
+</div>
+`);
 
 const now = new Date();
 let _year    = now.getFullYear();
@@ -331,8 +333,6 @@ async function loadYear() {
 }
 
 /* ── inject & load ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
 main.insertAdjacentHTML('beforeend',
   `<div style="padding:1rem 1.5rem 3rem" id="kpiMain">
      <p style="color:#94a3b8;font-style:italic">กำลังโหลดข้อมูล...</p>

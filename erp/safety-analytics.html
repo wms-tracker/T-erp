@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -99,7 +99,7 @@ import { getDocs, query, collection, orderBy, limit, where } from 'https://www.g
 import { db } from './js/auth.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-analytics', 'สถิติและวิเคราะห์ความปลอดภัย');
+const main = renderShell(_profile, 'safety-analytics', 'สถิติและวิเคราะห์ความปลอดภัย');
 
 const MONTHS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const ASSUMED_WORKERS = 200; // hours_per_worker_per_year / working hours base for rate calc
@@ -143,8 +143,7 @@ function monthBuckets(records, dateField) {
 
 /* ── render ── */
 async function render() {
-  const main = document.querySelector('main') || document.querySelector('.page-content')
-             || document.querySelector('#content') || document.body;
+  const mc = document.getElementById('main-content');
 
   main.insertAdjacentHTML('beforeend', `
     <div id="analyticsRoot" style="padding:1rem 1.5rem">

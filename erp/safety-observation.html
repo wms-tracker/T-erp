@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -71,6 +71,18 @@
   </style>
 </head>
 <body>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  listObservations, getObservation, createObservation, updateObservation, deleteObservation,
+  OBS_TYPES, OBS_CATEGORIES, OBS_STATUS, DEPARTMENTS
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(_profile, 'safety-observation', 'Safety Observation (BBS)');
+main.insertAdjacentHTML('afterbegin', `
 <button id="fabBtn" onclick="window.__obs_openForm()" title="บันทึก Observation">＋</button>
 
 <div class="panel-overlay" id="overlay" onclick="window.__obs_close()"></div>
@@ -82,17 +94,7 @@
   <div class="panel-body" id="panelBody"></div>
   <div class="panel-foot" id="panelFoot"></div>
 </div>
-
-<script type="module">
-import { requireRole } from './js/auth.js';
-import { renderShell }  from './js/shell.js';
-import {
-  listObservations, getObservation, createObservation, updateObservation, deleteObservation,
-  OBS_TYPES, OBS_CATEGORIES, OBS_STATUS, DEPARTMENTS
-} from './js/safety-data.js';
-
-const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-observation', 'Safety Observation (BBS)');
+`);
 
 /* ── state ── */
 let _rows    = [];
@@ -408,8 +410,6 @@ window.__obs_reload = async () => {
 };
 
 /* ── inject page ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
 main.insertAdjacentHTML('beforeend', `
   <div style="padding:1rem 1.5rem 5rem" id="obsMain">
     <p style="color:#94a3b8;font-style:italic">กำลังโหลด...</p>

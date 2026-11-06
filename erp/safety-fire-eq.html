@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -100,6 +100,18 @@
   </style>
 </head>
 <body>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell }  from './js/shell.js';
+import {
+  FIRE_EQ_TYPES, FIRE_EQ_STATUS, FIRE_INSP_RESULT,
+  listFireEq, getFireEq, createFireEq, updateFireEq, deleteFireEq,
+} from './js/safety-data.js';
+
+const _profile = await requireRole(['safety_officer','kpo']);
+const main = renderShell(_profile, 'safety-fire-eq', 'อุปกรณ์ดับเพลิง');
+main.insertAdjacentHTML('afterbegin', `
 <div class="panel-overlay" id="panelOverlay" onclick="window.__feq_closePanel()"></div>
 <div class="side-panel" id="sidePanel">
   <div class="panel-header">
@@ -111,17 +123,7 @@
 </div>
 
 <button class="fab no-print" title="เพิ่มอุปกรณ์" onclick="window.__feq_openNew()">＋</button>
-
-<script type="module">
-import { requireRole } from './js/auth.js';
-import { renderShell }  from './js/shell.js';
-import {
-  FIRE_EQ_TYPES, FIRE_EQ_STATUS, FIRE_INSP_RESULT,
-  listFireEq, getFireEq, createFireEq, updateFireEq, deleteFireEq,
-} from './js/safety-data.js';
-
-const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-fire-eq', 'อุปกรณ์ดับเพลิง');
+`);
 
 let _all    = [];
 let _fType  = 'all';
@@ -435,8 +437,6 @@ window.__feq_delete = async id => {
 };
 
 /* ── inject ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
 main.insertAdjacentHTML('beforeend', `
   <div style="padding:1rem 1.5rem">
     <div class="top-bar">

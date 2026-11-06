@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
   <meta charset="UTF-8">
@@ -117,17 +117,6 @@
   </style>
 </head>
 <body>
-<div class="panel-overlay" id="panelOverlay" onclick="window.__sap_closePanel()"></div>
-<div class="side-panel" id="sidePanel">
-  <div class="panel-header">
-    <h3 id="panelTitle">กิจกรรม</h3>
-    <button class="btn-icon" onclick="window.__sap_closePanel()">✕</button>
-  </div>
-  <div class="panel-body" id="panelBody"></div>
-  <div class="panel-footer" id="panelFooter"></div>
-</div>
-
-<button class="fab no-print" title="เพิ่มกิจกรรม" onclick="window.__sap_openNew()">＋</button>
 
 <script type="module">
 import { requireRole } from './js/auth.js';
@@ -139,7 +128,20 @@ import {
 } from './js/safety-data.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
-renderShell(_profile, 'safety-action-plan', 'แผนปฏิบัติการความปลอดภัย');
+const main = renderShell(_profile, 'safety-action-plan', 'แผนปฏิบัติการความปลอดภัย');
+main.insertAdjacentHTML('afterbegin', `
+<div class="panel-overlay" id="panelOverlay" onclick="window.__sap_closePanel()"></div>
+<div class="side-panel" id="sidePanel">
+  <div class="panel-header">
+    <h3 id="panelTitle">กิจกรรม</h3>
+    <button class="btn-icon" onclick="window.__sap_closePanel()">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-footer" id="panelFooter"></div>
+</div>
+
+<button class="fab no-print" title="เพิ่มกิจกรรม" onclick="window.__sap_openNew()">＋</button>
+`);
 
 const now = new Date();
 let _year    = now.getFullYear();
@@ -484,8 +486,6 @@ window.__sap_delete = async id => {
 };
 
 /* ── inject ── */
-const main = document.querySelector('main') || document.querySelector('.page-content')
-          || document.querySelector('#content') || document.body;
 main.insertAdjacentHTML('beforeend', `
   <div style="padding:1rem 1.5rem">
     <!-- Year + actions -->

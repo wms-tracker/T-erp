@@ -139,6 +139,7 @@ function formHTML(r) {
     <div class="form-group" style="margin-top:14px;"><label class="form-label">สรุป / ข้อสังเกตทั่วไป</label>
       <textarea id="f-summary" class="form-control" rows="2">${r?.summary||''}</textarea></div>
     <div style="display:flex;gap:10px;margin-top:18px;">
+      ${r?.id ? `<button class="btn btn-danger" style="padding:9px 14px;" onclick="window.__deleteRecord('${r.id}')">🗑 ลบ</button>` : ''}
       <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
       <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
     </div>`;
@@ -196,6 +197,12 @@ window.__viewRecord = async id => {
   document.getElementById('panel-body').innerHTML=formHTML(r);
   document.getElementById('walk-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบ Safety Walk นี้?')) return;
+  await deleteSafetyWalk(id);
+  window.__closePanel();
+  await loadAll();
 };
 window.__saveRecord = async () => {
   const msg=document.getElementById('panel-msg');
