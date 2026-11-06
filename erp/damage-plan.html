@@ -421,9 +421,16 @@ function render(){
 
 try {
   allRecs = await listAnnualPlan();
+  console.log('listAnnualPlan ok, records:', allRecs.length, allRecs.map(r=>r.planYear));
 } catch(e) {
-  console.warn('listAnnualPlan error:', e);
+  console.error('listAnnualPlan FAILED:', e?.code, e?.message, e);
   allRecs = [];
+  main.innerHTML = `<div style="padding:20px"><div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">
+    <strong>⚠️ โหลดข้อมูลไม่ได้</strong><br>
+    <code style="font-size:.8rem">${e?.code||''}: ${e?.message||e}</code><br><br>
+    ถ้าเห็น <strong>permission-denied</strong> → ต้องแก้ Firestore Security Rules ให้ role นี้อ่านได้
+  </div></div>`;
+  return;
 }
 render();
 </script>
