@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ทะเบียนรายงานต่อราชการ — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  GOV_REPORT_TYPES, GOV_REPORT_STATUS,
+  listGovReports, getGovReport, createGovReport, updateGovReport, deleteGovReport,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main    = renderShell(profile, 'safety-gov-report', 'ทะเบียนรายงาน/ใบอนุญาตต่อราชการ');
+
+main.insertAdjacentHTML('afterbegin', `
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">เพิ่มรายงาน</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+`);
+
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+const thisYear = new Date().getFullYear();
+
+let records = [], filterStatus = '', filterYear = '';
+
+function computeStatus(r) {
+  if(r.status && r.status !== 'draft') return r.status;
+  if(!r.dueDate) return r.status||'draft';
+  const days = Math.ceil((new Date(r.dueDate) - new Date()) / 86400000);
+  if(days < 0 && r.status === 'draft') return 'overdue';
+  return r.status || 'draft';
+}
+
+function getType(k) { return GOV_REPORT_TYPES[k] || {label:k,agency:'',due:''};  }
+function getStatusInfo(k) { return GOV_REPORT_STATUS[k] || {label:k,color:'#555',bg:'#eee'}; }
+
+function daysTag(dueDate, status) {
+  if(!dueDate || status === 'accepted') return '';
+  const days = Math.ceil((new Date(dueDate) - new Date()) / 86400000);
+  if(days < 0) return `<div style="color:#dc2626;font-size:0.74rem;font-weight:700;">เกินกำหนด ${Math.abs(days)} วัน</div>`;
+  if(days <= 30) return `<div style="color:#d97706;font-size:0.74rem;font-weight:700;">อีก ${days} วัน</div>`;
+  if(days <= 90) return `<div style="color:#2563eb;font-size:0.74rem;">อีก ${days} วัน</div>`;
+  return '';
+}
+
+function kpiBar() {
+  const total    = records.length;
+  const overdue  = records.filter(r=>computeStatus(r)==='overdue').length;
+  const pending  = records.filter(r=>['draft','correction_needed'].includes(computeStatus(r))).length;
+  const done     = records.filter(r=>['accepted','submitted'].includes(computeStatus(r))).length;
+  const urgent   = records.filter(r=>{
+    if(!r.dueDate || computeStatus(r)==='accepted') return false;
+    return Math.ceil((new Date(r.dueDate)-new Date())/86400000) <= 30;
+  }).length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div><div style="font-size:0.78rem;color:#6b7280;">รายการทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${done}</div><div style="font-size:0.78rem;color:#6b7280;">ยื่น/รับแล้ว</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${urgent}</div><div style="font-size:0.78rem;color:#6b7280;">ใกล้ถึงกำหนด ≤30 วัน</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${overdue}</div><div style="font-size:0.78rem;color:#6b7280;">เกินกำหนด</div></div>
+  </div>`;
+}
+
+function yearOptions() {
+  const years = [...new Set(records.map(r=>String(r.reportingYear||'')).filter(Boolean))].sort().reverse();
+  return years.map(y=>`<option value="${y}" ${y===filterYear?'selected':''}>${parseInt(y)+543}</option>`).join('');
+}
+
+function renderPage() {
+  let rows = records;
+  if(filterStatus) rows = rows.filter(r=>computeStatus(r)===filterStatus);
+  if(filterYear)   rows = rows.filter(r=>String(r.reportingYear||'')===filterYear);
+
+  const yearSel = document.getElementById('year-filter');
+  if(yearSel) yearSel.innerHTML = `<option value="">ทุกปี</option>${yearOptions()}`;
+
+  document.getElementById('main-list').innerHTML = rows.length===0
+    ? `<div style="text-align:center;color:#999;padding:40px 0;">ไม่พบข้อมูล</div>`
+    : rows.map(r=>{
+        const st  = getStatusInfo(computeStatus(r));
+        const typ = getType(r.reportType);
+        return `<tr onclick="window.__editRecord('${r.id}')" style="cursor:pointer;">
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;">
+            <div style="font-weight:600;">${typ.label}</div>
+            <div style="font-size:0.76rem;color:#888;">${typ.agency||r.agencyName||''}</div>
+          </td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;">${r.reportingYear?parseInt(r.reportingYear)+543:''}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;">
+            ${fmt(r.dueDate)}
+            ${daysTag(r.dueDate, computeStatus(r))}
+          </td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.82rem;">${fmt(r.submittedDate)}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;font-size:0.8rem;color:#555;">${r.refNo||'—'}</td>
+          <td style="padding:11px 14px;border-bottom:1px solid #f0f2f8;">
+            <span class="badge" style="color:${st.color};background:${st.bg}">${st.label}</span>
+          </td>
+        </tr>`;
+      }).join('');
+}
+
+function formHTML(r) {
+  const typ = r?.reportType ? getType(r.reportType) : null;
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ประเภทรายงาน *</label>
+        <select id="f-type" class="form-control" onchange="window.__onTypeChange(this)">
+          ${Object.entries(GOV_REPORT_TYPES).map(([k,v])=>`<option value="${k}" ${(r?.reportType||'annual_injury')===k?'selected':''}>${v.label}</option>`).join('')}
+        </select></div>
+      <div class="form-group"><label class="form-label">ปีรายงาน (ค.ศ.)</label>
+        <input id="f-year" class="form-control" type="number" min="2020" value="${r?.reportingYear||thisYear}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">หน่วยงานที่ยื่น</label>
+      <input id="f-agency" class="form-control" value="${r?.agencyName||typ?.agency||''}" placeholder="กรมสวัสดิการฯ, กรมโรงงานฯ..."/></div>
+    <div class="form-group"><label class="form-label">กำหนดส่ง (Due date) *</label>
+      <input id="f-due" class="form-control" type="date" value="${r?.dueDate||''}"/>
+      ${typ?.due?`<div style="font-size:0.76rem;color:#888;margin-top:3px;">📌 ${typ.due}</div>`:''}</div>
+    <div style="border-top:1px solid #eef0f7;margin:14px 0;padding-top:14px;">
+      <div style="font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;margin-bottom:10px;">การยื่น</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group"><label class="form-label">วันที่ยื่น</label>
+          <input id="f-submitted" class="form-control" type="date" value="${r?.submittedDate||''}"/></div>
+        <div class="form-group"><label class="form-label">ช่องทางการยื่น</label>
+          <select id="f-channel" class="form-control">
+            ${['online','paper','email','in_person'].map(c=>`<option value="${c}" ${(r?.channel||'online')===c?'selected':''}>${{online:'ออนไลน์',paper:'เอกสาร',email:'อีเมล',in_person:'ยื่นด้วยตนเอง'}[c]}</option>`).join('')}
+          </select></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group"><label class="form-label">เลขที่อ้างอิง/ใบรับ</label>
+          <input id="f-refno" class="form-control" value="${r?.refNo||''}" placeholder="เลขที่ใบรับ/เลขอ้างอิง"/></div>
+        <div class="form-group"><label class="form-label">สถานะ</label>
+          <select id="f-status" class="form-control">
+            ${Object.entries(GOV_REPORT_STATUS).map(([k,v])=>`<option value="${k}" ${(r?.status||'draft')===k?'selected':''}>${v.label}</option>`).join('')}
+          </select></div>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">ผู้รับผิดชอบ</label>
+      <input id="f-owner" class="form-control" value="${r?.owner||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">หมายเหตุ</label>
+      <textarea id="f-remarks" class="form-control" rows="2">${r?.remarks||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      ${r?.id?`<button class="btn btn-danger" style="padding:9px 14px;" onclick="window.__deleteRecord('${r.id}')">🗑 ลบ</button>`:''}
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+window.__onTypeChange = sel => {
+  const typ = getType(sel.value);
+  const ag  = document.getElementById('f-agency');
+  if(ag && !ag.value) ag.value = typ.agency||'';
+  const hint = sel.closest('.panel-body')?.querySelector('#due-hint');
+  if(hint) hint.textContent = typ.due ? `📌 ${typ.due}` : '';
+};
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'เพิ่มรายงาน/ใบอนุญาต';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r = await getGovReport(id);
+  if(!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขรายงาน';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบรายการนี้?')) return;
+  await deleteGovReport(id);
+  window.__closePanel();
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg = document.getElementById('panel-msg');
+  const dueDate = document.getElementById('f-due').value;
+  if(!dueDate){ msg.textContent='* กรุณาระบุกำหนดส่ง'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data = {
+    reportType:    document.getElementById('f-type').value,
+    reportingYear: parseInt(document.getElementById('f-year').value)||thisYear,
+    agencyName:    document.getElementById('f-agency').value.trim(),
+    dueDate,
+    submittedDate: document.getElementById('f-submitted').value||null,
+    channel:       document.getElementById('f-channel').value,
+    refNo:         document.getElementById('f-refno').value.trim(),
+    status:        document.getElementById('f-status').value,
+    owner:         document.getElementById('f-owner').value.trim(),
+    remarks:       document.getElementById('f-remarks').value.trim(),
+  };
+  try {
+    const id = document.getElementById('f-id').value;
+    if(id) await updateGovReport(id,data); else await createGovReport(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__setFilter = (key,val) => {
+  if(key==='status') filterStatus=val;
+  if(key==='year')   filterYear=val;
+  renderPage();
+};
+
+main.innerHTML += `
+  <style>
+    .panel{position:fixed;right:0;top:0;bottom:0;width:540px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+    .panel.open{transform:none;}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,.35);z-index:199;}
+    .overlay.open{display:block;}
+    .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#1a237e,#283593);color:#fff;position:sticky;top:0;z-index:10;}
+    .panel-body{padding:16px 20px 32px;}
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+    .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;}
+    .form-control:focus{outline:none;border-color:#1a73e8;}
+    @media(max-width:600px){.panel{width:100%;}}
+  </style>
+  <div id="kpi-bar"></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <b>ทะเบียนรายงาน/ใบอนุญาตที่ต้องยื่นต่อราชการ</b>
+      <button class="btn btn-primary" onclick="window.__openPanel()">+ เพิ่มรายการ</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <select class="form-control" style="width:auto;min-width:140px;padding:7px 11px;" onchange="window.__setFilter('status',this.value)">
+        <option value="">ทุกสถานะ</option>
+        ${Object.entries(GOV_REPORT_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+      <select id="year-filter" class="form-control" style="width:auto;min-width:110px;padding:7px 11px;" onchange="window.__setFilter('year',this.value)">
+        <option value="">ทุกปี</option>
+      </select>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <thead>
+          <tr style="background:#f0f2f8;">
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">ประเภทรายงาน</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">ปี พ.ศ.</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">กำหนดส่ง</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">วันที่ยื่น</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">เลขที่อ้างอิง</th>
+            <th style="padding:10px 14px;text-align:left;font-size:0.78rem;color:#374151;border-bottom:2px solid #e0e3f0;">สถานะ</th>
+          </tr>
+        </thead>
+        <tbody id="main-list"></tbody>
+      </table>
+    </div>
+  </div>`;
+
+async function loadAll() {
+  records = await listGovReports();
+  document.getElementById('kpi-bar').innerHTML = kpiBar();
+  renderPage();
+}
+loadAll();
+</script>
+</body>
+</html>

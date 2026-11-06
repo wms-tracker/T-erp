@@ -261,6 +261,7 @@ const NAV = {
       { key: 'safety-recognition',   label: 'รางวัลความปลอดภัย',          href: 'safety-recognition.html' },
       { key: 'safety-compensation',  label: 'กองทุนเงินทดแทน',            href: 'safety-compensation.html' },
       { key: 'safety-statutory',     label: 'ทะเบียนเครื่องจักรตาม กม.',  href: 'safety-statutory.html' },
+      { key: 'safety-gov-report',    label: 'ทะเบียนรายงานต่อราชการ',     href: 'safety-gov-report.html' },
       { key: 'safety-action-plan',   label: 'แผนปฏิบัติการประจำปี',       href: 'safety-action-plan.html' },
       { key: 'legal-compliance',     label: 'กฎหมายความปลอดภัย',         href: 'safety-legal.html' },
       { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)',href: 'safety-exec-dashboard.html' },
@@ -374,6 +375,7 @@ const NAV = {
       { key: 'safety-recognition',label: 'รางวัลความปลอดภัย',             href: 'safety-recognition.html' },
       { key: 'safety-compensation',label: 'กองทุนเงินทดแทน',              href: 'safety-compensation.html' },
       { key: 'safety-statutory',   label: 'ทะเบียนเครื่องจักรตาม กม.',   href: 'safety-statutory.html' },
+      { key: 'safety-gov-report',  label: 'ทะเบียนรายงานต่อราชการ',      href: 'safety-gov-report.html' },
     ]},
   ],
   manager: [
@@ -549,6 +551,7 @@ const PAGE_DEPARTMENT = {
   "safety-recognition.html":    "safety_officer",
   "safety-compensation.html":   "safety_officer",
   "safety-statutory.html":      "safety_officer",
+  "safety-gov-report.html":     "safety_officer",
   "safety-ergo.html":           "safety_officer",
   "safety-alert.html":          "safety_officer",
   "safety-noise.html":          "safety_officer",

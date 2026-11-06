@@ -95,6 +95,7 @@ export const COL = {
   envMeasure:       "safetyEnvMeasure",
   compensation:     "safetyCompensation",
   statutory:        "safetyStatutoryEq",
+  govReport:        "safetyGovReports",
 };
 
 // ────────────────────────────────────────────
@@ -4885,4 +4886,43 @@ export async function updateStatutoryEq(id, data) {
 }
 export async function deleteStatutoryEq(id) {
   await deleteDoc(doc(db, COL.statutory, id));
+}
+
+// ── Phase 90: Government Safety Report Register (ทะเบียนรายงานต่อราชการ) ──
+export const GOV_REPORT_TYPES = {
+  annual_injury:    { label: 'รายงานอุบัติเหตุประจำปี',         agency: 'กรมสวัสดิการและคุ้มครองแรงงาน', due: 'ภายใน ก.พ. ของปีถัดไป' },
+  compensation:     { label: 'รายงานกองทุนเงินทดแทน',           agency: 'สำนักงานประกันสังคม',           due: 'ประจำปี' },
+  chemical_mfr:     { label: 'รายงานการมีไว้/ใช้สารเคมีอันตราย', agency: 'กรมโรงงานอุตสาหกรรม',          due: 'ภายใน ก.พ. ของปีถัดไป' },
+  env_report:       { label: 'รายงานผลกระทบสิ่งแวดล้อม (EIA)',   agency: 'สำนักงาน สผ.',                   due: 'ตามเงื่อนไข EIA' },
+  noise_report:     { label: 'รายงานการตรวจวัดเสียง',            agency: 'กรมสวัสดิการและคุ้มครองแรงงาน', due: 'ประจำปี' },
+  health_exam:      { label: 'รายงานผลตรวจสุขภาพพนักงาน',       agency: 'กรมสวัสดิการและคุ้มครองแรงงาน', due: 'ภายใน 30 วันหลังตรวจ' },
+  committee_report: { label: 'รายงาน คปอ. ประจำปี',              agency: 'กรมสวัสดิการและคุ้มครองแรงงาน', due: 'ภายใน ม.ค. ของปีถัดไป' },
+  factory_license:  { label: 'ต่ออายุใบอนุญาตโรงงาน',           agency: 'กรมโรงงานอุตสาหกรรม',          due: 'ก่อนหมดอายุ 60 วัน' },
+  env_permit:       { label: 'ต่ออายุใบอนุญาตสิ่งแวดล้อม',      agency: 'อบจ./กรมโรงงานอุตสาหกรรม',     due: 'ก่อนหมดอายุ 90 วัน' },
+  other:            { label: 'รายงาน/ใบอนุญาตอื่นๆ',             agency: '',                               due: '' },
+};
+export const GOV_REPORT_STATUS = {
+  draft:              { label: 'กำลังเตรียม',  color: '#6b7280', bg: '#f3f4f6' },
+  submitted:          { label: 'ยื่นแล้ว',      color: '#2563eb', bg: '#eff6ff' },
+  accepted:           { label: 'รับแล้ว/ผ่าน', color: '#16a34a', bg: '#dcfce7' },
+  correction_needed:  { label: 'ต้องแก้ไข',    color: '#d97706', bg: '#fffbeb' },
+  overdue:            { label: 'เกินกำหนด',    color: '#dc2626', bg: '#fee2e2' },
+};
+
+export async function listGovReports() {
+  const s = await getDocs(query(collection(db, COL.govReport), orderBy('dueDate','asc'), limit(300)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getGovReport(id) {
+  const d = await getDoc(doc(db, COL.govReport, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createGovReport(data, createdBy) {
+  return addDoc(collection(db, COL.govReport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateGovReport(id, data) {
+  await updateDoc(doc(db, COL.govReport, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteGovReport(id) {
+  await deleteDoc(doc(db, COL.govReport, id));
 }
