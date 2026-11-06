@@ -997,32 +997,6 @@ export const DEFAULT_CHEMICALS = [
   { chemicalName:'แบตเตอรี่กรด', chemicalNameEn:'Lead-Acid Battery', casNumber:'Various', ghsHazards:['corrosive','toxic'], storageLocation:'ห้องชาร์จแบตเตอรี่', unit:'ลูก', maxQuantity:20, status:'active' },
 ];
 
-export async function listChemicals({ status, lim = 200 } = {}) {
-  const constraints = [orderBy('chemicalName','asc'), limit(lim)];
-  if (status) constraints.unshift(where('status','==',status));
-  const snap = await getDocs(query(collection(db, COL.chemicals), ...constraints));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-export async function getChemical(id) {
-  const snap = await getDoc(doc(db, COL.chemicals, id));
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
-}
-
-export async function createChemical(data, createdBy) {
-  return await addDoc(collection(db, COL.chemicals), {
-    ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-  });
-}
-
-export async function updateChemical(id, data) {
-  await updateDoc(doc(db, COL.chemicals, id), { ...data, updatedAt: serverTimestamp() });
-}
-
-export async function deleteChemical(id) {
-  await deleteDoc(doc(db, COL.chemicals, id));
-}
-
 // ─── Accident Investigation ────────────────────────────────────────────────
 COL.investigations = 'safetyInvestigations';
 
