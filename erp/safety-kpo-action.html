@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Module 09 — ติดตามผลดำเนินงาน</title>
+<link rel="stylesheet" href="css/erp.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:4px solid #e2e8f0;text-align:center}
+.kpi .num{font-size:1.6rem;font-weight:700;line-height:1}
+.kpi .lbl{font-size:.72rem;color:#64748b;margin-top:4px}
+.kpi.green{border-top-color:#059669}.kpi.green .num{color:#059669}
+.kpi.blue{border-top-color:#2563eb}.kpi.blue .num{color:#2563eb}
+.kpi.red{border-top-color:#dc2626}.kpi.red .num{color:#dc2626}
+.kpi.amber{border-top-color:#d97706}.kpi.amber .num{color:#d97706}
+.kpi.purple{border-top-color:#7c3aed}.kpi.purple .num{color:#7c3aed}
+/* Overdue banner */
+.overdue-banner{background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.overdue-banner strong{color:#991b1b;font-size:.88rem;flex:1}
+/* Filter */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.filter-select{padding:7px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.82rem;background:#fff;cursor:pointer;font-family:'Sarabun',sans-serif}
+.filter-toggle{padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.8rem;background:#fff;cursor:pointer;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.filter-toggle.on{background:#fee2e2;border-color:#fca5a5;color:#dc2626}
+/* Card */
+.card{background:#fff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);overflow:hidden;margin-bottom:16px}
+.card-head{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #f1f5f9}
+.card-head h2{font-size:.95rem;font-weight:700;flex:1}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{padding:8px 12px;background:#f8fafc;font-size:.74rem;color:#64748b;text-align:left;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+.tbl td{padding:8px 12px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:#f8fafc}
+.tbl tr.overdue-row td{background:#fff5f5}
+/* Badge */
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600}
+/* Priority dot */
+.prio{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;vertical-align:middle}
+/* Btn */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border:none;border-radius:8px;cursor:pointer;font-size:.82rem;font-family:'Sarabun',sans-serif;font-weight:600;transition:all .2s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.btn-ghost{background:transparent;border:1px solid #d1d5db;color:#374151}.btn-ghost:hover{background:#f9fafb}
+.btn-danger{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5}
+/* Panel */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:999}
+.overlay.open{display:block}
+.panel{position:fixed;top:0;right:-100%;width:min(640px,100vw);height:100vh;background:#fff;z-index:1000;overflow-y:auto;transition:right .3s;box-shadow:-4px 0 20px rgba(0,0,0,.12)}
+.panel.open{right:0}
+.panel-head{position:sticky;top:0;background:#fff;padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;z-index:1}
+.panel-head h2{flex:1;font-size:.95rem;font-weight:700}
+.panel-body{padding:20px}
+/* Form */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:#374151;margin-bottom:4px}
+.form-input,.form-textarea,.form-select{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;font-family:'Sarabun',sans-serif;background:#fff}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:2px solid #2563eb;border-color:#2563eb}
+.form-textarea{min-height:72px;resize:vertical}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+/* Status stepper */
+.stepper{display:flex;gap:0;margin-bottom:4px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+.step-btn{flex:1;padding:7px 4px;border:none;background:#f8fafc;cursor:pointer;font-size:.7rem;font-family:'Sarabun',sans-serif;transition:all .2s;text-align:center;border-right:1px solid #e2e8f0}
+.step-btn:last-child{border-right:none}
+.step-btn.active{font-weight:700}
+/* Detail */
+.dl-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem}
+.dl-row:last-child{border-bottom:none}
+.section-title{font-size:.78rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px}
+.timeline{border-left:2px solid #e2e8f0;padding-left:12px;margin-left:8px}
+.timeline-item{position:relative;padding:4px 0 10px}
+.timeline-item::before{content:'';position:absolute;left:-17px;top:7px;width:10px;height:10px;border-radius:50%;background:#e2e8f0;border:2px solid #fff}
+.timeline-item.done::before{background:#059669}
+/* Progress bar */
+.prog-wrap{background:#f1f5f9;border-radius:4px;height:6px;overflow:hidden;margin-top:4px}
+.prog-bar{height:100%;border-radius:4px;background:#059669;transition:width .5s}
+/* Empty / spinner */
+.empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
+.spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+</style>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  listCapaRecords, createCapa, updateCapa,
+  CAPA_STATUS, DEPARTMENTS
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main = renderShell(profile, 'kpo-action', 'Module 09 — ติดตามผลดำเนินงาน');
+
+const TODAY = new Date().toISOString().split('T')[0];
+const NOW_BE = new Date().getFullYear() + 543;
+
+let allRecs   = [];
+let filterStatus  = '';
+let filterDept    = '';
+let onlyOverdue   = false;
+let editingId     = null;
+
+const CAPA_TYPES = [
+  { key:'corrective',  label:'Corrective Action (แก้ไข)' },
+  { key:'preventive',  label:'Preventive Action (ป้องกัน)' },
+  { key:'improvement', label:'Improvement (ปรับปรุง)' },
+];
+
+const SOURCES = [
+  { key:'incident',    label:'จากอุบัติเหตุ' },
+  { key:'inspection',  label:'จากการตรวจสำรวจ' },
+  { key:'audit',       label:'จากการตรวจสอบ' },
+  { key:'near_miss',   label:'จาก Near Miss' },
+  { key:'observation', label:'จากการสังเกต' },
+  { key:'meeting',     label:'จากการประชุม คปอ.' },
+  { key:'other',       label:'อื่นๆ' },
+];
+
+const PRIORITIES = [
+  { key:'high',   label:'สูง',   color:'#dc2626' },
+  { key:'medium', label:'กลาง',  color:'#d97706' },
+  { key:'low',    label:'ต่ำ',   color:'#059669' },
+];
+
+const STATUS_FLOW = ['open','assigned','in_progress','pending_verification','closed'];
+
+/* ───── helpers ───── */
+function fmtDate(iso) {
+  if (!iso) return '-';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${parseInt(y)+543}`;
+}
+
+function isOverdue(r) {
+  return r.dueDate && r.dueDate < TODAY && r.status !== 'closed';
+}
+
+function statusBadge(r) {
+  const over = isOverdue(r);
+  if (over) return `<span class="badge" style="background:#fee2e2;color:#991b1b">⏰ เกินกำหนด</span>`;
+  const st = CAPA_STATUS[r.status] || { label: r.status, color:'#6b7280' };
+  return `<span class="badge" style="background:${st.color}18;color:${st.color}">${st.label}</span>`;
+}
+
+function prioBadge(p) {
+  const pr = PRIORITIES.find(x => x.key === p) || { label: p||'-', color:'#6b7280' };
+  return `<span class="prio" style="background:${pr.color}"></span>${pr.label}`;
+}
+
+function sourceLabel(k) {
+  return SOURCES.find(s => s.key === k)?.label || k || '-';
+}
+
+function typeLabel(k) {
+  return CAPA_TYPES.find(t => t.key === k)?.label || k || '-';
+}
+
+function closePct(recs) {
+  if (!recs.length) return 0;
+  return Math.round(recs.filter(r => r.status === 'closed').length / recs.length * 100);
+}
+
+/* ───── SHELL ───── */
+const deptOpts = (DEPARTMENTS||[]).map(d=>`<option value="${d}">${d}</option>`).join('');
+
+main.innerHTML = `
+<div style="padding:20px">
+  <div id="kpi-row" class="kpi-row"></div>
+  <div id="overdue-banner"></div>
+
+  <div class="filter-bar">
+    <select class="filter-select" id="f-status" onchange="window._filter()">
+      <option value="">ทุกสถานะ</option>
+      ${Object.entries(CAPA_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="f-dept" onchange="window._filter()">
+      <option value="">ทุกแผนก</option>${deptOpts}
+    </select>
+    <button class="filter-toggle" id="btn-overdue" onclick="window._toggleOverdue()">⏰ เกินกำหนดเท่านั้น</button>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>📋 รายการติดตามผล</h2>
+      <button class="btn btn-primary btn-sm" onclick="window._openForm()">➕ เพิ่มรายการ</button>
+    </div>
+    <div id="tbl-wrap"><div class="spinner">กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="window._closePanel()"></div>
+<div class="panel" id="panelForm">
+  <div class="panel-head">
+    <h2 id="form-title">➕ เพิ่มรายการติดตาม</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelFormBody"></div>
+</div>
+<div class="panel" id="panelDetail">
+  <div class="panel-head">
+    <h2>📌 รายละเอียด</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelDetailBody"></div>
+</div>`;
+
+/* ───── FILTER ───── */
+window._filter = () => {
+  filterStatus = document.getElementById('f-status')?.value || '';
+  filterDept   = document.getElementById('f-dept')?.value   || '';
+  renderAll();
+};
+
+window._toggleOverdue = () => {
+  onlyOverdue = !onlyOverdue;
+  document.getElementById('btn-overdue')?.classList.toggle('on', onlyOverdue);
+  renderAll();
+};
+
+function filtered() {
+  return allRecs.filter(r => {
+    if (filterStatus && r.status !== filterStatus) return false;
+    if (filterDept   && r.department !== filterDept)  return false;
+    if (onlyOverdue  && !isOverdue(r))                return false;
+    return true;
+  });
+}
+
+/* ───── KPI ───── */
+function renderKPI() {
+  const total    = allRecs.length;
+  const open     = allRecs.filter(r => ['open','assigned','in_progress','pending_verification'].includes(r.status)).length;
+  const overdue  = allRecs.filter(isOverdue).length;
+  const closed   = allRecs.filter(r => r.status === 'closed').length;
+  const pct      = closePct(allRecs);
+
+  document.getElementById('kpi-row').innerHTML = `
+    <div class="kpi blue"><div class="num">${total}</div><div class="lbl">รายการทั้งหมด</div></div>
+    <div class="kpi amber"><div class="num">${open}</div><div class="lbl">กำลังดำเนินการ</div></div>
+    <div class="kpi red"><div class="num">${overdue}</div><div class="lbl">เกินกำหนด</div></div>
+    <div class="kpi green"><div class="num">${closed}</div><div class="lbl">ปิดแล้ว</div></div>
+    <div class="kpi purple"><div class="num">${pct}%</div><div class="lbl">%ปิด</div>
+      <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%;background:#7c3aed"></div></div>
+    </div>`;
+}
+
+function renderOverdueBanner() {
+  const over = allRecs.filter(isOverdue);
+  const wrap = document.getElementById('overdue-banner');
+  if (!over.length) { wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<div class="overdue-banner">
+    <strong>⚠️ มีรายการเกินกำหนด ${over.length} รายการ — กรุณาดำเนินการ</strong>
+    <button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5" onclick="window._toggleOverdue()">ดูเฉพาะรายการเกิน</button>
+  </div>`;
+}
+
+/* ───── TABLE ───── */
+function renderTable() {
+  const rows = filtered();
+  const wrap = document.getElementById('tbl-wrap');
+  if (!rows.length) { wrap.innerHTML = '<div class="empty">📭 ไม่มีรายการที่ตรงกับเงื่อนไข</div>'; return; }
+
+  wrap.innerHTML = `<div style="overflow-x:auto"><table class="tbl">
+    <thead><tr>
+      <th>หัวข้อ</th>
+      <th>แหล่งที่มา</th>
+      <th>แผนก</th>
+      <th>ผู้รับผิดชอบ</th>
+      <th>กำหนดเสร็จ</th>
+      <th>ระดับ</th>
+      <th>สถานะ</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    ${rows.map(r => `<tr class="${isOverdue(r)?'overdue-row':''}">
+      <td style="max-width:200px;font-weight:600">${r.title||r.action||'-'}</td>
+      <td style="font-size:.76rem">${sourceLabel(r.source)}</td>
+      <td style="font-size:.76rem">${r.department||'-'}</td>
+      <td style="font-size:.78rem">${r.assignedTo||'-'}</td>
+      <td style="white-space:nowrap;${isOverdue(r)?'color:#dc2626;font-weight:700':''}">${fmtDate(r.dueDate)}</td>
+      <td style="font-size:.78rem">${prioBadge(r.priority)}</td>
+      <td>${statusBadge(r)}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="window._view('${r.id}')">ดู</button>
+        <button class="btn btn-ghost btn-sm" onclick="window._editForm('${r.id}')">✏️</button>
+      </td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function renderAll() {
+  renderKPI();
+  renderOverdueBanner();
+  renderTable();
+}
+
+/* ───── PANEL HELPERS ───── */
+function openPanel(id) {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+}
+window._closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
+  editingId = null;
+};
+
+/* ───── FORM ───── */
+function buildForm(r = {}) {
+  const typeOpts = CAPA_TYPES.map(t=>`<option value="${t.key}"${r.capaType===t.key?' selected':''}>${t.label}</option>`).join('');
+  const srcOpts  = SOURCES.map(s=>`<option value="${s.key}"${r.source===s.key?' selected':''}>${s.label}</option>`).join('');
+  const prioOpts = PRIORITIES.map(p=>`<option value="${p.key}"${(r.priority||'medium')===p.key?' selected':''}>${p.label}</option>`).join('');
+  const stOpts   = Object.entries(CAPA_STATUS).map(([k,v])=>`<option value="${k}"${(r.status||'open')===k?' selected':''}>${v.label}</option>`).join('');
+  const dOpts    = (DEPARTMENTS||[]).map(d=>`<option value="${d}"${r.department===d?' selected':''}>${d}</option>`).join('');
+
+  return `
+  <div class="form-group">
+    <label class="form-label">หัวข้อ / รายการดำเนินการ *</label>
+    <input type="text" id="f-title" class="form-input" value="${r.title||''}" placeholder="เช่น ติดตั้งป้ายเตือนบริเวณ Forklift Lane"/>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">ประเภท</label>
+      <select id="f-type" class="form-select"><option value="">-- เลือก --</option>${typeOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">แหล่งที่มา</label>
+      <select id="f-src" class="form-select"><option value="">-- เลือก --</option>${srcOpts}</select>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">รายละเอียด / แนวทางดำเนินการ</label>
+    <textarea id="f-action" class="form-textarea" placeholder="อธิบายการดำเนินการที่ต้องทำ">${r.action||''}</textarea>
+  </div>
+  <div class="form-group">
+    <label class="form-label">สาเหตุ / ที่มา</label>
+    <input type="text" id="f-cause" class="form-input" value="${r.rootCause||''}" placeholder="สาเหตุของปัญหา"/>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">แผนก</label>
+      <select id="f-dept" class="form-select"><option value="">-- เลือก --</option>${dOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ผู้รับผิดชอบ *</label>
+      <input type="text" id="f-assign" class="form-input" value="${r.assignedTo||''}" placeholder="ชื่อผู้รับผิดชอบ"/>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">กำหนดเสร็จ *</label>
+      <input type="date" id="f-due" class="form-input" value="${r.dueDate||''}"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">ระดับความสำคัญ</label>
+      <select id="f-prio" class="form-select">${prioOpts}</select>
+    </div>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">สถานะ</label>
+      <select id="f-status2" class="form-select">${stOpts}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">วันที่ปิด (ถ้าปิดแล้ว)</label>
+      <input type="date" id="f-closed" class="form-input" value="${r.closedDate||''}"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="form-label">หมายเหตุ</label>
+    <textarea id="f-remark" class="form-textarea">${r.remark||''}</textarea>
+  </div>
+  <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
+    ${editingId?`<button class="btn btn-danger btn-sm" onclick="window._confirmDel()">🗑 ลบ</button><div style="flex:1"></div>`:''}
+    <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="window._save()">💾 บันทึก</button>
+  </div>`;
+}
+
+window._openForm = () => {
+  editingId = null;
+  document.getElementById('form-title').textContent = '➕ เพิ่มรายการติดตาม';
+  document.getElementById('panelFormBody').innerHTML = buildForm();
+  openPanel('panelForm');
+};
+
+window._editForm = async (id) => {
+  editingId = id;
+  document.getElementById('form-title').textContent = '✏️ แก้ไขรายการ';
+  document.getElementById('panelFormBody').innerHTML = '<div class="spinner">กำลังโหลด...</div>';
+  openPanel('panelForm');
+  const r = allRecs.find(x => x.id === id) || {};
+  document.getElementById('panelFormBody').innerHTML = buildForm(r);
+};
+
+window._save = async () => {
+  const title  = document.getElementById('f-title')?.value?.trim();
+  const assign = document.getElementById('f-assign')?.value?.trim();
+  const due    = document.getElementById('f-due')?.value;
+  if (!title || !due) { alert('กรุณากรอก หัวข้อ และ กำหนดเสร็จ'); return; }
+
+  const status = document.getElementById('f-status2')?.value || 'open';
+  const payload = {
+    title,
+    capaType:   document.getElementById('f-type')?.value   || '',
+    source:     document.getElementById('f-src')?.value    || '',
+    action:     document.getElementById('f-action')?.value?.trim() || '',
+    rootCause:  document.getElementById('f-cause')?.value?.trim()  || '',
+    department: document.getElementById('f-dept')?.value   || '',
+    assignedTo: assign || '',
+    dueDate:    due,
+    priority:   document.getElementById('f-prio')?.value   || 'medium',
+    status,
+    closedDate: status === 'closed' ? (document.getElementById('f-closed')?.value || TODAY) : '',
+    remark:     document.getElementById('f-remark')?.value?.trim() || '',
+    kpoDuty:    'duty9',
+  };
+
+  try {
+    if (editingId) {
+      await updateCapa(editingId, payload);
+    } else {
+      await createCapa(payload, profile.uid);
+    }
+    window._closePanel();
+    await load();
+  } catch(e) { alert('บันทึกไม่ได้: ' + (e?.message||e)); }
+};
+
+window._confirmDel = () => {
+  if (!editingId || !confirm('ลบรายการนี้?')) return;
+  // No deleteCapaRecord function, just close for now
+  alert('กรุณาเปลี่ยนสถานะเป็น "ปิดแล้ว" แทนการลบ');
+};
+
+/* ───── DETAIL PANEL ───── */
+window._view = (id) => {
+  const r = allRecs.find(x => x.id === id);
+  if (!r) return;
+
+  const stepIdx = STATUS_FLOW.indexOf(r.status);
+  const stepperHtml = STATUS_FLOW.map((s, i) => {
+    const st = CAPA_STATUS[s] || {};
+    const isActive = i === stepIdx;
+    const isDone   = i < stepIdx;
+    return `<button class="step-btn ${isActive?'active':''}"
+      style="${isActive?`background:${st.color}18;color:${st.color}`:isDone?'color:#059669':'color:#94a3b8'}"
+      onclick="window._quickStatus('${r.id}','${s}')" title="${st.label}">
+      ${isDone?'✓ ':''}${st.label}
+    </button>`;
+  }).join('');
+
+  const prio = PRIORITIES.find(p => p.key === r.priority) || { label:'-', color:'#6b7280' };
+  const over = isOverdue(r);
+
+  document.getElementById('panelDetailBody').innerHTML = `
+  <div style="margin-bottom:14px">
+    <div style="font-size:1rem;font-weight:700;margin-bottom:6px">${r.title||'-'}</div>
+    ${statusBadge(r)}
+    ${over?`<div style="margin-top:6px;font-size:.78rem;color:#dc2626;font-weight:600">⏰ เกินกำหนด ${Math.ceil((new Date()-new Date(r.dueDate))/86400000)} วัน</div>`:''}
+  </div>
+
+  <div class="section-title">อัปเดตสถานะ</div>
+  <div class="stepper">${stepperHtml}</div>
+  <div style="font-size:.7rem;color:#94a3b8;margin-bottom:12px">กดปุ่มสถานะเพื่ออัปเดตทันที</div>
+
+  <div class="section-title">ข้อมูล</div>
+  <div class="dl-row"><span>ประเภท</span><span>${typeLabel(r.capaType)}</span></div>
+  <div class="dl-row"><span>แหล่งที่มา</span><span>${sourceLabel(r.source)}</span></div>
+  <div class="dl-row"><span>แผนก</span><span>${r.department||'-'}</span></div>
+  <div class="dl-row"><span>ผู้รับผิดชอบ</span><strong>${r.assignedTo||'-'}</strong></div>
+  <div class="dl-row"><span>กำหนดเสร็จ</span><span style="${over?'color:#dc2626;font-weight:700':''}">${fmtDate(r.dueDate)}</span></div>
+  <div class="dl-row"><span>ระดับ</span><span style="color:${prio.color};font-weight:700">${prio.label}</span></div>
+  ${r.closedDate?`<div class="dl-row"><span>วันที่ปิด</span><span style="color:#059669">${fmtDate(r.closedDate)}</span></div>`:''}
+
+  ${r.rootCause?`
+  <div class="section-title">สาเหตุ</div>
+  <div style="background:#fff7ed;border-radius:8px;padding:10px;font-size:.82rem;color:#374151">${r.rootCause}</div>`:''}
+
+  ${r.action?`
+  <div class="section-title">แนวทางดำเนินการ</div>
+  <div style="background:#f0fdf4;border-radius:8px;padding:10px;font-size:.82rem;color:#374151">${r.action}</div>`:''}
+
+  ${r.remark?`
+  <div class="section-title">หมายเหตุ</div>
+  <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;color:#374151">${r.remark}</div>`:''}
+
+  <div style="margin-top:16px;display:flex;gap:8px">
+    <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._editForm('${r.id}')">✏️ แก้ไข</button>
+    ${r.status!=='closed'?`<button class="btn btn-primary btn-sm" onclick="window._quickStatus('${r.id}','closed')">✅ ปิดรายการ</button>`:''}
+  </div>`;
+
+  openPanel('panelDetail');
+};
+
+/* ───── QUICK STATUS ───── */
+window._quickStatus = async (id, status) => {
+  const payload = { status };
+  if (status === 'closed') payload.closedDate = TODAY;
+  try {
+    await updateCapa(id, payload);
+    await load();
+    if (document.getElementById('panelDetail').classList.contains('open')) {
+      window._view(id);
+    }
+  } catch(e) { alert('อัปเดตไม่ได้: ' + (e?.message||e)); }
+};
+
+/* ───── LOAD ───── */
+async function load() {
+  try {
+    allRecs = await listCapaRecords({ lim: 300 });
+    renderAll();
+  } catch(e) {
+    main.innerHTML = `<div style="margin:20px;background:#fee2e2;border:1px solid #fca5a5;border-radius:10px;padding:20px;color:#991b1b">
+      ⚠️ โหลดข้อมูลไม่ได้: ${e?.message||e}
+    </div>`;
+  }
+}
+
+await load();
+</script>
+</body>
+</html>

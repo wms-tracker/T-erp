@@ -77,6 +77,7 @@ const NAV = {
       { key: 'kpo-dashboard',    label: '📊 Dashboard 12 หน้าที่ คปอ',  href: 'safety-kpo-dashboard.html' },
       { key: 'kpo-inspection',   label: '🔍 Module 06 สำรวจ & สถิติ',    href: 'safety-kpo-inspection.html' },
       { key: 'kpo-training',    label: '📚 Module 07 แผนฝึกอบรม',        href: 'safety-kpo-training.html' },
+      { key: 'kpo-action',      label: '📌 Module 09 ติดตามผลดำเนินงาน', href: 'safety-kpo-action.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง',      href: 'freight-dashboard.html' },
@@ -143,6 +144,7 @@ const NAV = {
       { key: 'kpo-dashboard',   label: '📊 Dashboard 12 หน้าที่ คปอ', href: 'safety-kpo-dashboard.html' },
       { key: 'kpo-inspection',  label: '🔍 Module 06 สำรวจ & สถิติ',   href: 'safety-kpo-inspection.html' },
       { key: 'kpo-training',   label: '📚 Module 07 แผนฝึกอบรม',       href: 'safety-kpo-training.html' },
+      { key: 'kpo-action',    label: '📌 Module 09 ติดตามผลดำเนินงาน',href: 'safety-kpo-action.html' },
     ]},
     { groupKey: 'safety-incident', icon: '⚠️', label: 'อุบัติเหตุ', items: [
       { key: 'incident-list',        label: 'รายการอุบัติเหตุ',             href: 'safety-incident.html' },
@@ -249,8 +251,9 @@ const NAV = {
       { key: 'safety-dashboard',    label: 'ภาพรวมความปลอดภัย',          href: 'safety.html' },
       { key: 'kpo-dashboard',       label: '📊 Dashboard 12 หน้าที่ คปอ', href: 'safety-kpo-dashboard.html' },
       { key: 'kpo-inspection',      label: '🔍 Module 06 สำรวจ & สถิติ',   href: 'safety-kpo-inspection.html' },
-      { key: 'kpo-training',        label: '📚 Module 07 แผนฝึกอบรม',       href: 'safety-kpo-training.html' },
-      { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)',href: 'safety-exec-dashboard.html' },
+      { key: 'kpo-training',        label: '📚 Module 07 แผนฝึกอบรม',        href: 'safety-kpo-training.html' },
+      { key: 'kpo-action',          label: '📌 Module 09 ติดตามผลดำเนินงาน',  href: 'safety-kpo-action.html' },
+      { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)', href: 'safety-exec-dashboard.html' },
     ]},
     { groupKey: 'safety-committee', icon: '👥', label: 'คปอ.', items: [
       { key: 'committee',           label: 'กรรมการ คปอ.',               href: 'safety-committee.html' },
@@ -361,6 +364,7 @@ const NAV = {
       { key: 'kpo-dashboard',    label: '📊 Dashboard 12 หน้าที่ คปอ',        href: 'safety-kpo-dashboard.html' },
       { key: 'kpo-inspection',   label: '🔍 Module 06 สำรวจ & สถิติ',          href: 'safety-kpo-inspection.html' },
       { key: 'kpo-training',    label: '📚 Module 07 แผนฝึกอบรม',              href: 'safety-kpo-training.html' },
+      { key: 'kpo-action',      label: '📌 Module 09 ติดตามผลดำเนินงาน',      href: 'safety-kpo-action.html' },
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง (ดูอย่างเดียว)', href: 'freight-dashboard.html' },
@@ -441,6 +445,7 @@ const PAGE_DEPARTMENT = {
   "safety-kpo-dashboard.html":   "safety_officer",
   "safety-kpo-inspection.html": "safety_officer",
   "safety-kpo-training.html":  "safety_officer",
+  "safety-kpo-action.html":    "safety_officer",
   "safety.html":                "safety_officer",
   "safety-incident.html":       "safety_officer",
   "safety-near-miss.html":      "safety_officer",
