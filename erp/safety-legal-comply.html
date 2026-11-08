@@ -205,7 +205,7 @@ function renderForm(rec) {
       <div class="form-group"><label>ประเมินครั้งถัดไป</label>
         <input id="f-nextEvalDate" type="date" value="${rec?.nextEvalDate||''}"/></div>
       <div class="form-group"><label>ผู้ประเมิน</label>
-        <input id="f-evaluator" value="${rec?.evaluator||profile.name||''}" placeholder="ชื่อ-ตำแหน่ง"/></div>
+        <input id="f-evaluator" value="${rec?.evaluator||profile.displayName||''}" placeholder="ชื่อ-ตำแหน่ง"/></div>
     </div>
     <div class="form-row one">
       <div class="form-group"><label>หมายเหตุ</label>

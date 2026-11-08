@@ -4,8 +4,32 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>แจ้งเตือนความปลอดภัย — KPO Safety</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+  .badge{display:inline-block;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600}
+  .card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:14px 16px;margin-bottom:10px}
+  .kpi-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px}
+  .kpi-card{background:#fff;border-radius:10px;padding:12px 14px;box-shadow:0 1px 4px rgba(0,0,0,.07);text-align:center}
+  .btn{padding:8px 18px;border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:0.85rem;transition:opacity .15s}
+  .btn:hover{opacity:.85}
+  .btn-primary{background:#1a237e;color:#fff}
+  .btn-success{background:#16a34a;color:#fff}
+  .btn-danger{background:#dc2626;color:#fff}
+  .btn-ghost{background:#f3f4f6;color:#374151}
+  .panel{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,.13);z-index:1000;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease}
+  .panel.open{transform:none}
+  .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,.35);z-index:999}
+  .panel-overlay.open{display:block}
+  .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10}
+  .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px}
+  .panel-close:hover{background:#f0f2f8}
+  .panel-body{padding:16px 20px 32px}
+  .form-group{margin-bottom:13px}
+  .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px}
+  .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;box-sizing:border-box}
+  .form-control:focus{outline:none;border-color:#1a73e8}
+  .alert-card{border-radius:14px;padding:16px;margin-bottom:12px;border-left:4px solid #e0e3f0}
+  </style>
 </head>
 <body>
 <script type="module">
@@ -48,21 +72,6 @@ function kpiBar() {
 function renderPage() {
   const rows=filtered();
   main.innerHTML = `
-    <style>
-      .panel{position:fixed;right:0;top:0;bottom:0;width:480px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,0.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
-      .panel.open{transform:none;}
-      .panel-overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,0.35);z-index:199;}
-      .panel-overlay.open{display:block;}
-      .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:10;}
-      .panel-close{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;padding:4px 8px;border-radius:6px;}
-      .panel-close:hover{background:#f0f2f8;}
-      .panel-body{padding:16px 20px 32px;}
-      .form-group{margin-bottom:13px;}
-      .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
-      .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;}
-      .form-control:focus{outline:none;border-color:#1a73e8;}
-      .alert-card{border-radius:14px;padding:16px;margin-bottom:12px;border-left:4px solid #e0e3f0;}
-    </style>
     ${kpiBar()}
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
@@ -136,11 +145,11 @@ function formHTML(r) {
     <div class="form-group"><label class="form-label">วัน/เวลาที่แจ้ง</label><input id="f-datetime" class="form-control" type="datetime-local" value="${r?.alertDateTime||today()}"/></div>
     <div class="form-group"><label class="form-label">รายละเอียด / ข้อความแจ้ง</label><textarea id="f-msg" class="form-control" rows="4">${r?.message||''}</textarea></div>
     <div class="form-group"><label class="form-label">พื้นที่/กลุ่มที่แจ้ง</label><input id="f-target" class="form-control" value="${r?.targetGroup||''}"/></div>
-    <div class="form-group"><label class="form-label">ผู้ออกประกาศ</label><input id="f-by" class="form-control" value="${r?.issuedBy||profile.name||''}"/></div>
+    <div class="form-group"><label class="form-label">ผู้ออกประกาศ</label><input id="f-by" class="form-control" value="${r?.issuedBy||profile.displayName||''}"/></div>
     <div class="form-group"><label class="form-label">มาตรการ / การดำเนินการที่ต้องทำ</label><textarea id="f-action" class="form-control" rows="3">${r?.requiredActions||''}</textarea></div>
     <div style="display:flex;gap:10px;margin-top:18px;">
       <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">📢 เผยแพร่</button>
-      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
     </div>`;
 }
 
@@ -165,7 +174,7 @@ window.__editRecord = async id => {
 };
 window.__resolveRecord = async id => {
   if(!confirm('ยืนยันว่าแก้ไข/ดำเนินการแล้ว?')) return;
-  await updateAlert(id,{ status:'resolved', resolvedAt:new Date().toISOString(), resolvedBy:profile.name||profile.uid });
+  await updateAlert(id,{ status:'resolved', resolvedAt:new Date().toISOString(), resolvedBy:profile.displayName||profile.uid });
   await loadAll();
 };
 window.__saveRecord = async () => {
