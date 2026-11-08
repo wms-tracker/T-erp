@@ -58,17 +58,6 @@ import {
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-passport', 'Safety Passport รายบุคคล');
-main.insertAdjacentHTML('afterbegin', `
-<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
-<div class="panel" id="panel">
-  <div class="panel-header">
-    <span id="panel-title">Safety Passport</span>
-    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
-  </div>
-  <div class="panel-body" id="panel-body"></div>
-  <div class="panel-footer" id="panel-footer"></div>
-</div>
-`);
 
 const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '-';
@@ -129,7 +118,16 @@ async function render() {
       ${Object.entries(PASSPORT_STATUS).map(([k,v])=>`<option value="${k}" ${statusFilter===k?'selected':''}>${v.label}</option>`).join('')}
     </select>
   </div>
-  <div id="list-wrap">${renderList(applyFilter(records, q, statusFilter, deptFilter))}</div>`;
+  <div id="list-wrap">${renderList(applyFilter(records, q, statusFilter, deptFilter))}</div>
+  <div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <span id="panel-title">Safety Passport</span>
+      <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-footer" id="panel-footer"></div>
+  </div>`;
 }
 
 function applyFilter(list, q, status, dept) {
