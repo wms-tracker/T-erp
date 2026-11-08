@@ -98,6 +98,7 @@ import {
   MACHINE_TYPES, MACHINE_CHECK_RESULT, MACHINE_STATUS, MACHINE_CHECK_ITEMS_DEFAULT,
   listMachineChecks, createMachineCheck, updateMachineCheck, deleteMachineCheck
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'machine-check', 'ตรวจสอบก่อนใช้งานเครื่องจักรและอุปกรณ์');

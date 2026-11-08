@@ -70,6 +70,7 @@ import {
   LESSON_SOURCES, LESSON_STATUS, LESSON_SEVERITY,
   listLessons, getLesson, createLesson, updateLesson, deleteLesson,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-lessons', 'บทเรียนที่ได้รับ (Lessons Learned)');

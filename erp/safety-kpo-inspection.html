@@ -102,6 +102,7 @@ import {
   computeSafetyKPIs, monthlyTrend, listIncidents, incidentsByDept,
   INCIDENT_TYPES, DEPARTMENTS
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-inspection', 'Module 06 — สำรวจความปลอดภัย & สถิติ');

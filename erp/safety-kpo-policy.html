@@ -59,6 +59,7 @@ import {
   listActionPlan, createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
   SAP_STATUS
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-policy', 'Module 01 — นโยบายความปลอดภัย');

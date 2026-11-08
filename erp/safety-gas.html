@@ -55,6 +55,7 @@ import {
   COL, GAS_TYPES, CYLINDER_STATUS, CYLINDER_SIZES,
   listGasCylinder, getGasCylinder, createGasCylinder, updateGasCylinder, deleteGasCylinder
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-gas', 'ทะเบียนถังแก๊สและแก๊สอัดแรงดัน');

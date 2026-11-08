@@ -86,6 +86,7 @@ import {
   listTrainings, getTraining, createTraining, updateTraining, deleteTraining,
   TRAINING_STATUS, TRAINING_TYPES, DEPARTMENTS
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-training', 'Module 07 — แผนฝึกอบรมความปลอดภัย');

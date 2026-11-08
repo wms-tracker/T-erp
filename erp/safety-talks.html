@@ -89,6 +89,7 @@ import {
   TALK_TYPES, TALK_TOPICS, TALK_STATUS, TALK_DEPARTMENTS,
   listSafetyTalks, createSafetyTalk, updateSafetyTalk, deleteSafetyTalk
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-talks', 'Safety Talk / Tool Box Talk');

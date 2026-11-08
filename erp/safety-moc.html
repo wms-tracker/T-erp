@@ -57,6 +57,7 @@ import {
   MOC_TYPES, MOC_STATUS, MOC_RISK_LEVELS, MOC_REVIEW_AREAS,
   listMoC, getMoC, createMoC, updateMoC, deleteMoC
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-moc', 'จัดการการเปลี่ยนแปลง (MoC)');

@@ -109,6 +109,7 @@ import {
   BBS_CATEGORIES, BBS_ZONES, BBS_STATUS,
   listBBSObs, createBBSObs, updateBBSObs, deleteBBSObs
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'bbs-observation', 'BBS — Behavior-Based Safety Observation');

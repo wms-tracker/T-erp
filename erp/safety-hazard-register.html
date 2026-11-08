@@ -78,6 +78,7 @@ import {
   HAZARD_SEVERITY, HAZARD_LIKELIHOOD,
   listHazards, getHazard, createHazard, updateHazard, deleteHazard,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-hazard-register', 'ทะเบียนอันตราย (§6.1.2)');

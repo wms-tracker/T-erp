@@ -79,6 +79,7 @@ import {
   listObservations, getObservation, createObservation, updateObservation, deleteObservation,
   OBS_TYPES, OBS_CATEGORIES, OBS_STATUS, DEPARTMENTS
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(_profile, 'safety-observation', 'Safety Observation (BBS)');

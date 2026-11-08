@@ -84,6 +84,7 @@ import {
   listNearMiss, createNearMiss, updateNearMiss, getNearMiss,
   NEAR_MISS_TYPES, RISK_LEVELS_NM, NM_STATUS, DEPARTMENTS, OBS_CATEGORIES
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-prevention', 'Module 02 — ป้องกันและลดอุบัติเหตุ');

@@ -72,6 +72,7 @@ import {
   OBJ_CATEGORIES, OBJ_STATUS, OBJ_PRIORITY, OBJ_MEASURE_UNITS,
   listObjectives, getObjective, createObjective, updateObjective, deleteObjective,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-objectives', 'วัตถุประสงค์และเป้าหมายด้านความปลอดภัย (§6.2)');

@@ -39,6 +39,7 @@ import {
   ALERT_TYPES, ALERT_URGENCY, ALERT_STATUS,
   listAlerts, getAlert, createAlert, updateAlert, deleteAlert,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-alert', 'แจ้งเตือนความปลอดภัยด่วน');
@@ -129,6 +130,7 @@ function formHTML(r) {
   return `
     <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
     <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r?.attachments||[])}'/>
     <div class="form-group"><label class="form-label">หัวข้อประกาศ *</label><input id="f-title" class="form-control" value="${r?.title||''}"/></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div class="form-group"><label class="form-label">ประเภท *</label>
@@ -194,6 +196,7 @@ window.__saveRecord = async () => {
     status:'active',
   };
   try {
+    if(window.__commitAttach)data.attachments=await window.__commitAttach();
     const id=document.getElementById('f-id').value;
     if(id) await updateAlert(id,data); else await createAlert(data,profile.uid);
     window.__closePanel(); await loadAll();

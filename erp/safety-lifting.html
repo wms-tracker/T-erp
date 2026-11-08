@@ -58,6 +58,7 @@ import {
   LIFTING_TYPES, LIFTING_INSPECT_STATUS, LIFTING_CHECKLIST,
   listLiftingEq, getLiftingEq, createLiftingEq, updateLiftingEq, deleteLiftingEq
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-lifting', 'ตรวจสอบอุปกรณ์ยก (Lifting Equipment)');

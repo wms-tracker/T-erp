@@ -74,6 +74,7 @@ import {
   listTalks, listLegalRegisters, listObservations,
   listDrills, listContractors,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(_profile, 'safety-kpi', 'เป้าหมาย KPI ความปลอดภัย');

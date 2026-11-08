@@ -112,6 +112,7 @@ import {
   listHealthRecords, getHealthRecord,
   createHealthRecord, updateHealthRecord, deleteHealthRecord,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(_profile, 'safety-health', 'ตรวจสุขภาพอาชีวอนามัย');

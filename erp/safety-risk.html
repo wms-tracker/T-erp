@@ -15,6 +15,7 @@ import {
   listRiskAssessments, getRiskAssessment, createRiskAssessment, updateRiskAssessment,
   getRiskLevel, RISK_LIKELIHOOD, RISK_SEVERITY, RISK_CONTROLS, DEPARTMENTS,
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 let _profile, _rows = [], _panelOpen = false, _detail = null, _editId = null;
 // each assessment: title, department, assessDate, assessedBy, reviewer, status, hazards[]

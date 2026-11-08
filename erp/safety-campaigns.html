@@ -84,6 +84,7 @@ import {
   CAMPAIGN_TOPICS, CAMPAIGN_ACTIVITIES, CAMPAIGN_STATUS, CAMPAIGN_TARGET,
   listCampaigns, getCampaign, createCampaign, updateCampaign, deleteCampaign,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-campaigns', 'แคมเปญรณรงค์ความปลอดภัย (§7.3)');

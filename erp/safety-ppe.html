@@ -16,6 +16,7 @@ import {
   listPPEIssuance, getPPERecord,
   createPPERecord, updatePPERecord, deletePPERecord,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-ppe', 'จ่าย PPE — การจัดการ PPE');
@@ -375,6 +376,7 @@ window.__saveRecord = async () => {
   };
 
   try {
+    if(window.__commitAttach)data.attachments=await window.__commitAttach();
     const id = document.getElementById('f-id').value;
     if (id) {
       await updatePPERecord(id, data);

@@ -58,6 +58,7 @@ import {
   listTrainingMatrix, getTrainingMatrix, createTrainingMatrix,
   updateTrainingMatrixDoc, deleteTrainingMatrix
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'training-matrix', 'Training Matrix / Compliance');

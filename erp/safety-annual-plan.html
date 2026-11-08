@@ -114,6 +114,7 @@ import {
   APLAN_CATEGORIES, APLAN_STATUS, APLAN_QUARTERS, APLAN_MONTHS_TH, KPO_DUTIES,
   listAnnualPlan, getAnnualPlan, createAnnualPlan, updateAnnualPlan, deleteAnnualPlan,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-annual-plan', 'แผนความปลอดภัยประจำปี');

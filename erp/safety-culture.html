@@ -62,6 +62,7 @@ import {
   calcSurveyCatAvg, calcSurveyOverall,
   listCultureSurvey, getCultureSurvey, createCultureSurvey, deleteCultureSurvey
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-culture', 'แบบสำรวจวัฒนธรรมความปลอดภัย');

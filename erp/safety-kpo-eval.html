@@ -52,6 +52,7 @@ import {
   listActionPlan, createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
   KPO_DUTIES
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-eval', 'Module 11 — ประเมินผลดำเนินงาน');

@@ -76,6 +76,7 @@ import {
   OPC_PROCESS_TYPES, OPC_CONTROL_TYPES, OPC_VERIFY_FREQ, OPC_STATUS,
   listOpControls, getOpControl, createOpControl, updateOpControl, deleteOpControl,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-op-controls', 'ทะเบียนการควบคุมการปฏิบัติงาน (§8.1)');

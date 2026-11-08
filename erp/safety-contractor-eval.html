@@ -85,6 +85,7 @@ import {
   listContractorEval, getContractorEval,
   createContractorEval, updateContractorEval, deleteContractorEval,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 import { collection, query, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const profile = await requireRole(['safety_officer','kpo']);

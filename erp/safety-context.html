@@ -67,6 +67,7 @@ import {
   CTX_CLASSIFICATION, CTX_IMPACT, CTX_MONITOR_FREQ,
   listContextIssues, getContextIssue, createContextIssue, updateContextIssue, deleteContextIssue,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-context', 'บริบทและประเด็นองค์กร (§4.1)');

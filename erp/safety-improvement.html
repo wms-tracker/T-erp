@@ -71,6 +71,7 @@ import {
   IMPV_SOURCES, IMPV_CATEGORIES, IMPV_PRIORITY, IMPV_STATUS,
   listImprovement, getImprovement, createImprovement, updateImprovement, deleteImprovement,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-improvement', 'การปรับปรุงอย่างต่อเนื่อง');

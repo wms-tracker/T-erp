@@ -84,6 +84,7 @@ import {
   listObservations, createObservation, updateObservation, getObservation,
   OBS_TYPES, OBS_CATEGORIES, OBS_STATUS, DEPARTMENTS
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-report-channel', 'Module 08 — ระบบรายงานความไม่ปลอดภัย');

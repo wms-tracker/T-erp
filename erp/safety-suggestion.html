@@ -16,6 +16,7 @@ import {
   listSuggestions, getSuggestion,
   createSuggestion, updateSuggestion, deleteSuggestion,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-suggestion', 'กล่องรับข้อเสนอแนะความปลอดภัย');
@@ -192,6 +193,7 @@ function formHTML(r) {
   return `
     <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
     <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r?.attachments||[])}'/>
 
     <div class="section-title">ผู้ส่งข้อเสนอแนะ</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -388,7 +390,8 @@ window.__saveRecord = async () => {
   if (!desc)        { msg.textContent = '* กรุณาระบุรายละเอียดข้อเสนอแนะ'; msg.className = 'msg error'; return; }
   msg.textContent = 'กำลังบันทึก…'; msg.className = 'msg';
 
-  const id = document.getElementById('f-id').value;
+  if(window.__commitAttach)data.attachments=await window.__commitAttach();
+    const id = document.getElementById('f-id').value;
   const data = {
     suggesterName:    document.getElementById('f-name').value.trim(),
     department:       document.getElementById('f-dept').value.trim(),

@@ -119,6 +119,7 @@ import {
   listEnvMonitor, getEnvMonitorRecord,
   createEnvMonitorRecord, updateEnvMonitorRecord, deleteEnvMonitorRecord,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(_profile, 'safety-env', 'ตรวจวัดสภาพแวดล้อมการทำงาน');

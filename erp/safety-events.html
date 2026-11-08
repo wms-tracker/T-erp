@@ -93,6 +93,7 @@ import {
   EVENT_TYPES, EVENT_OCCASION, EVENT_STATUS,
   listSafetyEvents, createSafetyEvent, updateSafetyEvent, deleteSafetyEvent
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-events', 'กิจกรรมความปลอดภัย / Safety Events');

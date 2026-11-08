@@ -55,6 +55,7 @@ import {
   calcScoreGrade, calcTotalScore,
   listScoreCard, getScoreCard, upsertScoreCard, deleteScoreCard
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-scorecard', 'บัตรคะแนนความปลอดภัย');

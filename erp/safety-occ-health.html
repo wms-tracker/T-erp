@@ -75,6 +75,7 @@ import {
   listOccHealth, getOccHealth, createOccHealth, updateOccHealth, deleteOccHealth,
   COL,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-occ-health', 'เฝ้าระวังโรคอาชีวอนามัย');

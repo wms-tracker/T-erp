@@ -15,6 +15,7 @@ import {
   ERGO_TASK_TYPES, ERGO_RISK_LEVELS, ERGO_BODY_PARTS,
   listErgonomics, getErgonomic, createErgonomic, updateErgonomic, deleteErgonomic,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-ergo', 'ประเมินการยศาสตร์ (Ergonomics)');
@@ -97,6 +98,7 @@ function formHTML(r) {
   return `
     <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
     <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r?.attachments||[])}'/>
     <div class="form-group"><label class="form-label">ตำแหน่งงาน / งานที่ประเมิน *</label><input id="f-job" class="form-control" value="${r?.jobTitle||''}"/></div>
     <div class="form-group"><label class="form-label">พื้นที่ทำงาน</label><input id="f-area" class="form-control" value="${r?.workArea||''}"/></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -170,6 +172,7 @@ window.__saveRecord = async () => {
     controlMeasures:document.getElementById('f-control').value.trim(),
   };
   try {
+    if(window.__commitAttach)data.attachments=await window.__commitAttach();
     const id=document.getElementById('f-id').value;
     if(id) await updateErgonomic(id,data); else await createErgonomic(data,profile.uid);
     window.__closePanel(); await loadAll();

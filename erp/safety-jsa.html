@@ -109,6 +109,7 @@ import {
   JSA_STATUS, JSA_RISK, JSA_WORK_TYPES,
   listJSA, getJSA, createJSA, updateJSA, deleteJSA,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const _profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(_profile, 'safety-jsa', 'Job Safety Analysis (JSA)');

@@ -49,6 +49,7 @@ import {
   DAILY_SHIFTS, DAILY_STATUS, DAILY_ACTIVITIES, DAILY_WEATHER,
   listDailyReport, getDailyReport, createDailyReport, updateDailyReport, deleteDailyReport
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-daily', 'รายงานความปลอดภัยประจำวัน');

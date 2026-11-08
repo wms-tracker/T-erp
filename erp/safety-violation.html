@@ -16,6 +16,7 @@ import {
   listViolations, getViolation,
   createViolation, updateViolation, deleteViolation,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-violation', 'บันทึกการฝ่าฝืนกฎความปลอดภัย');
@@ -194,6 +195,7 @@ function formHTML(r) {
   return `
     <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
     <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r?.attachments||[])}'/>
 
     <div class="section-title">ข้อมูลผู้ฝ่าฝืน</div>
     <div class="form-group">
@@ -368,6 +370,7 @@ window.__saveRecord = async () => {
   };
 
   try {
+    if(window.__commitAttach)data.attachments=await window.__commitAttach();
     const id = document.getElementById('f-id').value;
     if (id) await updateViolation(id, data);
     else    await createViolation(data, profile.uid);

@@ -47,6 +47,7 @@ import {
   LUX_AREA_TYPES, LUX_STATUS, classifyLux,
   listLuxMonitor, getLuxMonitor, createLuxMonitor, updateLuxMonitor, deleteLuxMonitor
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-lux', 'เธ•เธฃเธงเธเธงเธฑเธ”เนเธชเธเธชเธงเนเธฒเธ (Lux)');

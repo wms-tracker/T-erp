@@ -51,6 +51,7 @@ import {
   PTW_TYPES, PTW_STATUS, PTW_RISK_LEVELS,
   listPTW, getPTW, createPTW, updatePTW, deletePTW
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-ptw', 'ใบอนุญาตทำงาน (PTW)');

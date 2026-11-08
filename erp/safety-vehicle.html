@@ -57,6 +57,7 @@ import {
   COL, VEHICLE_TYPES, VEHICLE_CHECK_STATUS, VEHICLE_CHECKLIST,
   listVehicleCheck, getVehicleCheck, createVehicleCheck, updateVehicleCheck, deleteVehicleCheck
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-vehicle', 'ตรวจสอบรถยก/ยานพาหนะ');

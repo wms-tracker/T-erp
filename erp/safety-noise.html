@@ -47,6 +47,7 @@ import {
   NOISE_AREA_TYPES, NOISE_STATUS, NOISE_MEASURE_TYPES, classifyNoise,
   listNoiseMonitor, getNoiseMonitor, createNoiseMonitor, updateNoiseMonitor, deleteNoiseMonitor
 } from "./js/safety-data.js";
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-noise', 'ตรวจวัดเสียง/สั่นสะเทือน');

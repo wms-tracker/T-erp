@@ -15,6 +15,7 @@ import {
   LOTO_ENERGY_TYPES, LOTO_STATUS,
   listLOTO, getLOTO, createLOTO, updateLOTO, deleteLOTO,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-loto', 'Lockout / Tagout (LOTO)');
@@ -98,6 +99,7 @@ function formHTML(r) {
   return `
     <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
     <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r?.attachments||[])}'/>
     <div class="form-group"><label class="form-label">เครื่องจักร / จุดทำงาน *</label><input id="f-eq" class="form-control" value="${r?.equipment||''}"/></div>
     <div class="form-group"><label class="form-label">สถานที่</label><input id="f-loc" class="form-control" value="${r?.location||''}"/></div>
     <div class="form-group"><label class="form-label">ประเภทพลังงานที่ Lock</label>
@@ -156,7 +158,8 @@ window.__saveRecord = async () => {
   const by=document.getElementById('f-by').value.trim();
   if(!eq||!by){ msg.textContent='* กรุณาระบุเครื่องจักรและผู้ Lock'; msg.className='msg error'; return; }
   msg.textContent='กำลังบันทึก…'; msg.className='msg';
-  const id=document.getElementById('f-id').value;
+  if(window.__commitAttach)data.attachments=await window.__commitAttach();
+    const id=document.getElementById('f-id').value;
   const data={
     equipment:eq, location:document.getElementById('f-loc').value.trim(),
     energyTypes:[...selectedEnergies], lockDateTime:locktime,

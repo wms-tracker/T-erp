@@ -73,6 +73,7 @@ import {
   COMM_AUDIENCES, COMM_METHODS, COMM_FREQ, COMM_STATUS,
   listCommPlan, getCommPlan, createCommPlan, updateCommPlan, deleteCommPlan,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-comm-plan', 'แผนการสื่อสารด้านความปลอดภัย');

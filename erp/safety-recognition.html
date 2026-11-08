@@ -15,6 +15,7 @@ import {
   RECOGNITION_TYPES, RECOGNITION_PERIOD,
   listRecognition, getRecognition, createRecognition, updateRecognition, deleteRecognition,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-recognition', 'รางวัลความปลอดภัย');
@@ -115,6 +116,7 @@ function formHTML(r) {
   return `
     <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
     <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r?.attachments||[])}'/>
     <div class="form-group"><label class="form-label">ประเภทรางวัล *</label>
       <select id="f-type" class="form-control">
         <option value="">— เลือก —</option>
@@ -174,6 +176,7 @@ window.__saveRecord = async () => {
     prize:document.getElementById('f-prize').value.trim(),
   };
   try {
+    if(window.__commitAttach)data.attachments=await window.__commitAttach();
     const id=document.getElementById('f-id').value;
     if(id) await updateRecognition(id,data); else await createRecognition(data,profile.uid);
     window.__closePanel(); await loadAll();

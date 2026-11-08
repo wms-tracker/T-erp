@@ -84,6 +84,7 @@ import {
   MGMT_REVIEW_INPUTS, MGMT_REVIEW_OUTPUTS, MGMT_REVIEW_STATUS,
   listMgmtReview, getMgmtReview, createMgmtReview, updateMgmtReview, deleteMgmtReview,
 } from './js/safety-data.js';
+import './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main = renderShell(profile, 'safety-mgmt-review', 'การทบทวนของฝ่ายบริหาร (ISO 45001)');
