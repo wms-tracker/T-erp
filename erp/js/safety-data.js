@@ -190,6 +190,10 @@ export async function updateIncident(id, data) {
   await updateDoc(doc(db, COL.incidents, id), { ...data, updatedAt: serverTimestamp() });
 }
 
+export async function deleteIncident(id) {
+  await deleteDoc(doc(db, COL.incidents, id));
+}
+
 // ────────────────────────────────────────────
 // KPI calculations
 // ────────────────────────────────────────────
