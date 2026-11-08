@@ -52,17 +52,6 @@ import {
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-daily', 'รายงานความปลอดภัยประจำวัน');
-main.insertAdjacentHTML('afterbegin', `
-<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
-<div class="panel" id="panel">
-  <div class="panel-header">
-    <span id="panel-title">รายงานประจำวัน</span>
-    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
-  </div>
-  <div class="panel-body" id="panel-body"></div>
-  <div class="panel-footer" id="panel-footer"></div>
-</div>
-`);
 
 const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const fmtDate = s => s ? new Date(s).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric',weekday:'long'}) : '-';
@@ -109,7 +98,16 @@ async function render() {
       ${Object.entries(DAILY_STATUS).map(([k,v])=>`<option value="${k}" ${flt===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
   </div>
-  <div id="list-wrap">${renderList(applyFilter(records.filter(r=>r.reportDate!==TODAY),flt))}</div>`;
+  <div id="list-wrap">${renderList(applyFilter(records.filter(r=>r.reportDate!==TODAY),flt))}</div>
+  <div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <span id="panel-title">รายงานประจำวัน</span>
+      <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-footer" id="panel-footer"></div>
+  </div>`;
 }
 
 function applyFilter(list, status) {

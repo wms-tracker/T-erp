@@ -58,17 +58,6 @@ import {
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-scorecard', 'บัตรคะแนนความปลอดภัย');
-main.insertAdjacentHTML('afterbegin', `
-<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
-<div class="panel" id="panel">
-  <div class="panel-header">
-    <span id="panel-title">บันทึกคะแนนแผนก</span>
-    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
-  </div>
-  <div class="panel-body" id="panel-body"></div>
-  <div class="panel-footer" id="panel-footer"></div>
-</div>
-`);
 
 const esc  = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const THIS_YEAR = new Date().getFullYear();
@@ -136,7 +125,16 @@ async function render() {
   ${renderRanking(ranked)}
 
   <div class="section-title">📈 Trend รายเดือน ปี ${selYear}</div>
-  ${renderTrend()}`;
+  ${renderTrend()}
+  <div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <span id="panel-title">บันทึกคะแนนแผนก</span>
+      <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-footer" id="panel-footer"></div>
+  </div>`;
 }
 
 function renderRanking(ranked) {
