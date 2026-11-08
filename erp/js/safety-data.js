@@ -96,6 +96,7 @@ export const COL = {
   compensation:     "safetyCompensation",
   statutory:        "safetyStatutoryEq",
   govReport:        "safetyGovReports",
+  aidStation:       "safetyAidStations",
 };
 
 // ────────────────────────────────────────────
@@ -4925,4 +4926,47 @@ export async function updateGovReport(id, data) {
 }
 export async function deleteGovReport(id) {
   await deleteDoc(doc(db, COL.govReport, id));
+}
+
+// ── Phase 91: First Aid Station & Medicine Cabinet Register (ทะเบียนสถานีปฐมพยาบาล) ──
+export const AID_STATION_TYPE = {
+  basic_kit:   { label: 'ชุดปฐมพยาบาลพื้นฐาน', icon: '🩹' },
+  advanced_kit:{ label: 'ชุดปฐมพยาบาลขั้นสูง', icon: '🏥' },
+  medicine_cab:{ label: 'ตู้ยาสามัญประจำบ้าน',  icon: '💊' },
+  aed_station: { label: 'สถานีเครื่อง AED',      icon: '⚡' },
+  stretcher:   { label: 'สถานีเปลนอน',           icon: '🛏' },
+  eyewash:     { label: 'ที่ล้างตา (Eyewash)',    icon: '👁' },
+  shower:      { label: 'ฝักบัวฉุกเฉิน (Safety Shower)', icon: '🚿' },
+};
+export const AID_STATION_STATUS = {
+  good:         { label: 'พร้อมใช้งาน',   color: '#16a34a', bg: '#dcfce7' },
+  needs_restock:{ label: 'ต้องเติมของ',   color: '#d97706', bg: '#fffbeb' },
+  expired_items:{ label: 'มีของหมดอายุ',  color: '#dc2626', bg: '#fee2e2' },
+  damaged:      { label: 'ชำรุด',          color: '#7c3aed', bg: '#f5f3ff' },
+};
+export const AID_STATION_DEFAULT_ITEMS = [
+  'พลาสเตอร์ปิดแผล (ชนิดต่างๆ)', 'ผ้าพันแผลสะอาด 2 นิ้ว', 'ผ้าพันแผลสะอาด 4 นิ้ว',
+  'ผ้าก๊อซสะอาด', 'สำลีก้อน', 'เทปพันแผล', 'กรรไกรตัดพันธบัตร',
+  'แอลกอฮอล์ 70%', 'เบตาดีน', 'น้ำเกลือล้างแผล',
+  'ยาแก้ปวด (พาราเซตามอล)', 'ยาลดกรด', 'ยาแก้แพ้',
+  'ถุงมือยาง', 'หน้ากากช่วยหายใจ CPR', 'ไม้เฝือกชั่วคราว',
+  'ถุงน้ำแข็ง (Cold Pack)', 'ผ้าสามเหลี่ยม', 'ปากคีบ',
+];
+
+export async function listAidStations() {
+  const s = await getDocs(query(collection(db, COL.aidStation), orderBy('stationName','asc'), limit(200)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+export async function getAidStation(id) {
+  const d = await getDoc(doc(db, COL.aidStation, id));
+  return d.exists() ? { id: d.id, ...d.data() } : null;
+}
+export async function createAidStation(data, createdBy) {
+  return addDoc(collection(db, COL.aidStation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+}
+export async function updateAidStation(id, data) {
+  await updateDoc(doc(db, COL.aidStation, id), { ...data, updatedAt: serverTimestamp() });
+}
+export async function deleteAidStation(id) {
+  await deleteDoc(doc(db, COL.aidStation, id));
 }

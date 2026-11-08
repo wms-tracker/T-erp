@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ทะเบียนสถานีปฐมพยาบาล — KPO Safety</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+import {
+  AID_STATION_TYPE, AID_STATION_STATUS, AID_STATION_DEFAULT_ITEMS,
+  listAidStations, getAidStation, createAidStation, updateAidStation, deleteAidStation,
+} from './js/safety-data.js';
+
+const profile = await requireRole(['safety_officer','kpo','admin','manager']);
+const main    = renderShell(profile, 'safety-aid-station', 'ทะเบียนสถานีปฐมพยาบาล');
+
+main.insertAdjacentHTML('afterbegin', `
+<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <span id="panel-title">เพิ่มสถานี</span>
+    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+  </div>
+  <div class="panel-body" id="panel-body"></div>
+</div>
+`);
+
+const fmt   = d => d ? new Date(d).toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+const today = () => new Date().toISOString().slice(0,10);
+
+let records = [], filterType = '', filterStatus = '';
+let editItems = [];
+
+function getType(k)   { return AID_STATION_TYPE[k]   || {label:k,icon:'🩹'}; }
+function getStatus(k) { return AID_STATION_STATUS[k] || {label:k,color:'#555',bg:'#eee'}; }
+
+function computeStatus(r) {
+  if(r.status === 'damaged') return 'damaged';
+  const items = r.items || [];
+  const hasExpired = items.some(i => i.expiryDate && new Date(i.expiryDate) < new Date());
+  if(hasExpired) return 'expired_items';
+  const lowStock  = items.some(i => (i.qty || 0) < (i.minQty || 1));
+  if(lowStock) return 'needs_restock';
+  return 'good';
+}
+
+function daysUntilInsp(date) {
+  if(!date) return '';
+  const d = Math.ceil((new Date(date) - new Date()) / 86400000);
+  if(d < 0)  return `<span style="color:#dc2626;font-size:0.74rem;font-weight:700;">ตรวจเกิน ${Math.abs(d)} วัน</span>`;
+  if(d <= 14) return `<span style="color:#d97706;font-size:0.74rem;font-weight:700;">ตรวจอีก ${d} วัน</span>`;
+  return '';
+}
+
+function kpiBar() {
+  const total  = records.length;
+  const good   = records.filter(r=>computeStatus(r)==='good').length;
+  const restock= records.filter(r=>computeStatus(r)==='needs_restock').length;
+  const expired= records.filter(r=>computeStatus(r)==='expired_items').length;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:16px;">
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#1a73e8;">${total}</div><div style="font-size:0.78rem;color:#6b7280;">สถานีทั้งหมด</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#16a34a;">${good}</div><div style="font-size:0.78rem;color:#6b7280;">พร้อมใช้งาน</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#d97706;">${restock}</div><div style="font-size:0.78rem;color:#6b7280;">ต้องเติมของ</div></div>
+    <div class="card" style="padding:14px 16px;"><div style="font-size:1.6rem;font-weight:800;color:#dc2626;">${expired}</div><div style="font-size:0.78rem;color:#6b7280;">มีของหมดอายุ</div></div>
+  </div>`;
+}
+
+function renderPage() {
+  let rows = records;
+  if(filterType)   rows = rows.filter(r=>r.stationType===filterType);
+  if(filterStatus) rows = rows.filter(r=>computeStatus(r)===filterStatus);
+
+  document.getElementById('main-list').innerHTML = rows.length===0
+    ? `<div style="text-align:center;color:#999;padding:40px 0;">ไม่พบข้อมูล</div>`
+    : rows.map(r=>{
+        const st  = getStatus(computeStatus(r));
+        const typ = getType(r.stationType);
+        const expItems = (r.items||[]).filter(i=>i.expiryDate && new Date(i.expiryDate)<new Date()).length;
+        return `<div class="station-card" onclick="window.__editRecord('${r.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+            <div>
+              <div style="font-weight:700;font-size:0.95rem;">${typ.icon} ${r.stationName||'—'}</div>
+              <div style="font-size:0.8rem;color:#666;margin-top:2px;">📍 ${r.location||'—'} · ผู้ดูแล: ${r.responsible||'—'}</div>
+              <div style="font-size:0.78rem;color:#888;margin-top:2px;">${typ.label}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <span class="badge" style="color:${st.color};background:${st.bg}">${st.label}</span>
+              ${expItems>0?`<div style="font-size:0.74rem;color:#dc2626;margin-top:4px;">${expItems} รายการหมดอายุ</div>`:''}
+            </div>
+          </div>
+          <div style="margin-top:8px;display:flex;align-items:center;gap:12px;font-size:0.78rem;color:#888;">
+            <span>ตรวจล่าสุด: ${fmt(r.lastInspection)}</span>
+            <span>ตรวจครั้งถัดไป: ${fmt(r.nextInspection)}</span>
+            ${daysUntilInsp(r.nextInspection)}
+          </div>
+          <div style="margin-top:6px;font-size:0.76rem;color:#6b7280;">${(r.items||[]).length} รายการ</div>
+        </div>`;
+      }).join('');
+}
+
+function itemRowHTML(item, idx) {
+  const isExpired = item.expiryDate && new Date(item.expiryDate) < new Date();
+  return `<tr id="irow-${idx}" style="${isExpired?'background:#fff5f5;':''}">
+    <td style="padding:5px 6px;"><input class="form-control" style="font-size:0.8rem;" value="${item.name||''}" onchange="window.__updateItem(${idx},'name',this.value)" placeholder="ชื่อรายการ"/></td>
+    <td style="padding:5px 6px;width:70px;"><input class="form-control" style="font-size:0.8rem;text-align:center;" type="number" min="0" value="${item.qty||0}" onchange="window.__updateItem(${idx},'qty',+this.value)"/></td>
+    <td style="padding:5px 6px;width:60px;"><input class="form-control" style="font-size:0.8rem;text-align:center;" type="number" min="0" value="${item.minQty||1}" onchange="window.__updateItem(${idx},'minQty',+this.value)"/></td>
+    <td style="padding:5px 6px;width:130px;"><input class="form-control" style="font-size:0.8rem;" type="date" value="${item.expiryDate||''}" onchange="window.__updateItem(${idx},'expiryDate',this.value)"/></td>
+    <td style="padding:5px 6px;width:36px;text-align:center;"><button style="background:none;border:none;color:#c00;cursor:pointer;font-size:0.95rem;" onclick="window.__removeItem(${idx})">✕</button></td>
+  </tr>`;
+}
+
+function formHTML(r) {
+  editItems = (r?.items||[]).map(i=>({...i}));
+  return `
+    <div id="panel-msg" class="msg" style="margin-bottom:8px;"></div>
+    <input type="hidden" id="f-id" value="${r?.id||''}"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ชื่อสถานี *</label>
+        <input id="f-name" class="form-control" value="${r?.stationName||''}" placeholder="เช่น ตู้ยา แผนก A"/></div>
+      <div class="form-group"><label class="form-label">ประเภท</label>
+        <select id="f-type" class="form-control">
+          ${Object.entries(AID_STATION_TYPE).map(([k,v])=>`<option value="${k}" ${(r?.stationType||'basic_kit')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
+        </select></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">สถานที่ตั้ง</label>
+        <input id="f-loc" class="form-control" value="${r?.location||''}" placeholder="แผนก/ห้อง/จุดที่ตั้ง"/></div>
+      <div class="form-group"><label class="form-label">ผู้ดูแลรับผิดชอบ</label>
+        <input id="f-resp" class="form-control" value="${r?.responsible||''}"/></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group"><label class="form-label">ตรวจครั้งล่าสุด</label>
+        <input id="f-last" class="form-control" type="date" value="${r?.lastInspection||''}"/></div>
+      <div class="form-group"><label class="form-label">กำหนดตรวจครั้งถัดไป</label>
+        <input id="f-next" class="form-control" type="date" value="${r?.nextInspection||''}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">สถานะ</label>
+      <select id="f-status" class="form-control">
+        ${Object.entries(AID_STATION_STATUS).map(([k,v])=>`<option value="${k}" ${(r?.status||'good')===k?'selected':''}>${v.label}</option>`).join('')}
+      </select></div>
+    <div style="border-top:1px solid #eef0f7;margin:14px 0 10px;padding-top:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:0.8rem;font-weight:700;color:#1a237e;text-transform:uppercase;">รายการวัสดุ/ยา</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline" style="font-size:0.76rem;padding:4px 10px;" onclick="window.__loadDefaults()">โหลดรายการมาตรฐาน</button>
+          <button class="btn btn-outline" style="font-size:0.76rem;padding:4px 10px;" onclick="window.__addItem()">+ เพิ่ม</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+          <thead><tr style="background:#f0f2f8;">
+            <th style="padding:6px 6px;text-align:left;">รายการ</th>
+            <th style="padding:6px 6px;text-align:center;width:70px;">จำนวน</th>
+            <th style="padding:6px 6px;text-align:center;width:60px;">ขั้นต่ำ</th>
+            <th style="padding:6px 6px;text-align:center;width:130px;">วันหมดอายุ</th>
+            <th style="width:36px;"></th>
+          </tr></thead>
+          <tbody id="item-table"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="form-group"><label class="form-label">หมายเหตุ</label>
+      <textarea id="f-remarks" class="form-control" rows="2">${r?.remarks||''}</textarea></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      ${r?.id?`<button class="btn btn-danger" style="padding:9px 14px;" onclick="window.__deleteRecord('${r.id}')">🗑 ลบ</button>`:''}
+      <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
+      <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
+    </div>`;
+}
+
+function refreshItemTable() {
+  document.getElementById('item-table').innerHTML = editItems.map((item,i)=>itemRowHTML(item,i)).join('');
+}
+
+window.__addItem = () => {
+  editItems.push({name:'',qty:1,minQty:1,expiryDate:''});
+  refreshItemTable();
+};
+window.__removeItem = i => { editItems.splice(i,1); refreshItemTable(); };
+window.__updateItem = (i,k,v) => { if(editItems[i]) editItems[i][k]=v; };
+window.__loadDefaults = () => {
+  const existing = new Set(editItems.map(i=>i.name));
+  AID_STATION_DEFAULT_ITEMS.forEach(name=>{ if(!existing.has(name)) editItems.push({name,qty:1,minQty:1,expiryDate:''}); });
+  refreshItemTable();
+};
+
+window.__openPanel = () => {
+  document.getElementById('panel-title').textContent = 'เพิ่มสถานีปฐมพยาบาล';
+  document.getElementById('panel-body').innerHTML = formHTML(null);
+  refreshItemTable();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+window.__closePanel = () => {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('panel').classList.remove('open');
+};
+window.__editRecord = async id => {
+  const r = await getAidStation(id);
+  if(!r) return;
+  document.getElementById('panel-title').textContent = 'แก้ไขสถานีปฐมพยาบาล';
+  document.getElementById('panel-body').innerHTML = formHTML(r);
+  refreshItemTable();
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('panel').classList.add('open');
+};
+window.__deleteRecord = async id => {
+  if(!confirm('ลบสถานีนี้?')) return;
+  await deleteAidStation(id);
+  window.__closePanel();
+  await loadAll();
+};
+window.__saveRecord = async () => {
+  const msg = document.getElementById('panel-msg');
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ msg.textContent='* กรุณาระบุชื่อสถานี'; msg.className='msg error'; return; }
+  msg.textContent='กำลังบันทึก…'; msg.className='msg';
+  const data = {
+    stationName:    name,
+    stationType:    document.getElementById('f-type').value,
+    location:       document.getElementById('f-loc').value.trim(),
+    responsible:    document.getElementById('f-resp').value.trim(),
+    lastInspection: document.getElementById('f-last').value||null,
+    nextInspection: document.getElementById('f-next').value||null,
+    status:         document.getElementById('f-status').value,
+    items:          editItems.filter(i=>i.name),
+    remarks:        document.getElementById('f-remarks').value.trim(),
+  };
+  try {
+    const id = document.getElementById('f-id').value;
+    if(id) await updateAidStation(id,data); else await createAidStation(data,profile.uid);
+    window.__closePanel(); await loadAll();
+  } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
+};
+window.__setFilter = (key,val) => {
+  if(key==='type')   filterType=val;
+  if(key==='status') filterStatus=val;
+  renderPage();
+};
+
+main.innerHTML += `
+  <style>
+    .panel{position:fixed;right:0;top:0;bottom:0;width:600px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(15,25,60,.13);z-index:200;overflow-y:auto;transform:translateX(100%);transition:transform .22s ease;}
+    .panel.open{transform:none;}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(15,20,40,.35);z-index:199;}
+    .overlay.open{display:block;}
+    .panel-header{padding:18px 20px 12px;border-bottom:1px solid #e8eaf6;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;position:sticky;top:0;z-index:10;}
+    .panel-body{padding:16px 20px 32px;}
+    .form-group{margin-bottom:12px;}
+    .form-label{display:block;font-size:0.82rem;font-weight:600;color:#333;margin-bottom:5px;}
+    .form-control{width:100%;padding:9px 11px;border:1.5px solid #d1d5e8;border-radius:8px;font-size:0.88rem;font-family:inherit;box-sizing:border-box;}
+    .form-control:focus{outline:none;border-color:#1a73e8;}
+    .station-card{background:#fff;border:1.5px solid #e0e3f0;border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;transition:box-shadow .15s;}
+    .station-card:hover{box-shadow:0 4px 14px rgba(20,30,80,.1);}
+    @media(max-width:600px){.panel{width:100%;}}
+  </style>
+  <div id="kpi-bar"></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+      <b>ทะเบียนสถานีปฐมพยาบาล / ตู้ยา / AED</b>
+      <button class="btn btn-primary" onclick="window.__openPanel()">+ เพิ่มสถานี</button>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <select class="form-control" style="width:auto;min-width:160px;padding:7px 11px;" onchange="window.__setFilter('type',this.value)">
+        <option value="">ทุกประเภท</option>
+        ${Object.entries(AID_STATION_TYPE).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('')}
+      </select>
+      <select class="form-control" style="width:auto;min-width:150px;padding:7px 11px;" onchange="window.__setFilter('status',this.value)">
+        <option value="">ทุกสถานะ</option>
+        ${Object.entries(AID_STATION_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('')}
+      </select>
+    </div>
+    <div id="main-list"></div>
+  </div>`;
+
+async function loadAll() {
+  records = await listAidStations();
+  document.getElementById('kpi-bar').innerHTML = kpiBar();
+  renderPage();
+}
+loadAll();
+</script>
+</body>
+</html>
