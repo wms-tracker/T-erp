@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>วัตถุประสงค์และเป้าหมายด้านความปลอดภัย</title>
+<title>เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเนเนเธฅเธฐเน€เธเนเธฒเธซเธกเธฒเธขเธ”เนเธฒเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -66,20 +66,21 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   OBJ_CATEGORIES, OBJ_STATUS, OBJ_PRIORITY, OBJ_MEASURE_UNITS,
   listObjectives, getObjective, createObjective, updateObjective, deleteObjective,
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-objectives', 'วัตถุประสงค์และเป้าหมายด้านความปลอดภัย (§6.2)');
+const main = renderShell(profile, 'safety-objectives', 'เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเนเนเธฅเธฐเน€เธเนเธฒเธซเธกเธฒเธขเธ”เนเธฒเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข (ยง6.2)');
 
 let allRecs  = [];
 let editId   = null;
 let viewMode = 'card';
 
-function getCategory(key) { return OBJ_CATEGORIES.find(c=>c.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+function getCategory(key) { return OBJ_CATEGORIES.find(c=>c.key===key)||{icon:'๐“',label:key||'โ€”',color:'#6b7280',bg:'#f3f4f6'}; }
 
 function calcProgress(rec) {
   const base    = parseFloat(rec.baseline)||0;
@@ -101,7 +102,7 @@ function progressColor(pct, status) {
   return '#dc2626';
 }
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const total     = recs.length;
   const completed = recs.filter(r=>r.status==='completed').length;
@@ -110,18 +111,18 @@ function renderKPI(recs) {
   const behind    = recs.filter(r=>r.status==='behind').length;
   const avgPct    = total ? Math.round(recs.reduce((s,r)=>s+calcProgress(r),0)/total) : 0;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">เป้าหมายทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${completed}</div><div class="lbl">🏆 บรรลุเป้า</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${on_track}</div><div class="lbl">✅ เป็นไปตามแผน</div></div>
-    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${at_risk}</div><div class="lbl">⚠️ มีความเสี่ยง</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${behind}</div><div class="lbl">🔴 ล่าช้า</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${avgPct}%</div><div class="lbl">ความคืบหน้าเฉลี่ย</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เน€เธเนเธฒเธซเธกเธฒเธขเธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${completed}</div><div class="lbl">๐ เธเธฃเธฃเธฅเธธเน€เธเนเธฒ</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${on_track}</div><div class="lbl">โ… เน€เธเนเธเนเธเธ•เธฒเธกเนเธเธ</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${at_risk}</div><div class="lbl">โ ๏ธ เธกเธตเธเธงเธฒเธกเน€เธชเธตเนเธขเธ</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${behind}</div><div class="lbl">๐”ด เธฅเนเธฒเธเนเธฒ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${avgPct}%</div><div class="lbl">เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒเน€เธเธฅเธตเนเธข</div></div>
   </div>`;
 }
 
-// ── Card view ──
+// โ”€โ”€ Card view โ”€โ”€
 function renderCards(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon" style="font-size:3rem">🎯</div><p style="margin-top:12px">ยังไม่มีเป้าหมาย</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon" style="font-size:3rem">๐ฏ</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเน€เธเนเธฒเธซเธกเธฒเธข</p></div>`;
   return `<div class="card-grid">${recs.map(r => {
     const cat  = getCategory(r.category);
     const sts  = OBJ_STATUS[r.status]||OBJ_STATUS.planning;
@@ -131,39 +132,39 @@ function renderCards(recs) {
     const unit = OBJ_MEASURE_UNITS.find(u=>u.key===r.measureUnit);
     return `<div class="obj-card" style="border-top-color:${cat.color}">
       <div class="card-head">
-        <div class="card-title">${cat.icon} ${r.title||'—'}</div>
+        <div class="card-title">${cat.icon} ${r.title||'โ€”'}</div>
         <span class="badge" style="color:${sts.color};background:${sts.bg};white-space:nowrap">${sts.icon} ${sts.label}</span>
       </div>
       <div class="card-meta">
         <span style="background:${cat.bg};color:${cat.color};padding:2px 8px;border-radius:999px;font-size:.74rem">${cat.label}</span>
-        <span class="badge" style="color:${pri.color};background:${pri.bg}">ความสำคัญ: ${pri.label}</span>
+        <span class="badge" style="color:${pri.color};background:${pri.bg}">เธเธงเธฒเธกเธชเธณเธเธฑเธ: ${pri.label}</span>
       </div>
       <div class="card-progress">
         <div class="progress-label">
-          <span>ความคืบหน้า</span>
+          <span>เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒ</span>
           <span style="font-weight:700;color:${pc}">${pct}%</span>
         </div>
         <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%;background:${pc}"></div></div>
         <div style="display:flex;gap:12px;margin-top:5px;font-size:.76rem;color:#6b7280">
           <span>Baseline: <strong>${r.baseline||0} ${unit?.label||r.measureUnit||''}</strong></span>
-          <span>เป้า: <strong>${r.target||0} ${unit?.label||r.measureUnit||''}</strong></span>
-          <span>ปัจจุบัน: <strong style="color:${pc}">${r.current||0} ${unit?.label||r.measureUnit||''}</strong></span>
+          <span>เน€เธเนเธฒ: <strong>${r.target||0} ${unit?.label||r.measureUnit||''}</strong></span>
+          <span>เธเธฑเธเธเธธเธเธฑเธ: <strong style="color:${pc}">${r.current||0} ${unit?.label||r.measureUnit||''}</strong></span>
         </div>
       </div>
-      ${r.responsible?`<div style="font-size:.78rem;color:#475569;margin-bottom:6px">👤 ${r.responsible}</div>`:''}
-      ${r.dueDate?`<div style="font-size:.78rem;color:#475569">📅 กำหนด: ${r.dueDate}</div>`:''}
+      ${r.responsible?`<div style="font-size:.78rem;color:#475569;margin-bottom:6px">๐‘ค ${r.responsible}</div>`:''}
+      ${r.dueDate?`<div style="font-size:.78rem;color:#475569">๐“… เธเธณเธซเธเธ”: ${r.dueDate}</div>`:''}
       <div class="card-actions">
-        <button class="btn btn-sm btn-ghost" onclick="window.__editObj('${r.id}')">✏️ แก้ไข</button>
-        <button class="btn btn-sm btn-ghost" onclick="window.__updateProgress('${r.id}')">📊 อัปเดต</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteObj('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editObj('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__updateProgress('${r.id}')">๐“ เธญเธฑเธเน€เธ”เธ•</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteObj('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </div>
     </div>`;
   }).join('')}</div>`;
 }
 
-// ── Table view ──
+// โ”€โ”€ Table view โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🎯</div><p style="margin-top:12px">ยังไม่มีเป้าหมาย</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐ฏ</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเน€เธเนเธฒเธซเธกเธฒเธข</p></div>`;
   const rows = recs.map(r => {
     const cat = getCategory(r.category);
     const sts = OBJ_STATUS[r.status]||OBJ_STATUS.planning;
@@ -172,7 +173,7 @@ function renderTable(recs) {
     const pc  = progressColor(pct, r.status);
     return `<tr>
       <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.label}</span></td>
-      <td><strong>${r.title||'—'}</strong></td>
+      <td><strong>${r.title||'โ€”'}</strong></td>
       <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
       <td><span class="badge" style="color:${pri.color};background:${pri.bg}">${pri.label}</span></td>
       <td style="min-width:120px">
@@ -182,21 +183,21 @@ function renderTable(recs) {
         </div>
       </td>
       <td style="font-size:.82rem">${r.current||0} / ${r.target||0}</td>
-      <td style="font-size:.82rem">${r.responsible||'—'}</td>
-      <td style="font-size:.82rem">${r.dueDate||'—'}</td>
+      <td style="font-size:.82rem">${r.responsible||'โ€”'}</td>
+      <td style="font-size:.82rem">${r.dueDate||'โ€”'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editObj('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteObj('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editObj('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteObj('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table><thead><tr>
-    <th>หมวด</th><th>เป้าหมาย</th><th>สถานะ</th><th>ความสำคัญ</th>
-    <th>ความคืบหน้า</th><th>ค่า (ปัจจุบัน/เป้า)</th><th>ผู้รับผิดชอบ</th><th>กำหนดเสร็จ</th><th>จัดการ</th>
+    <th>เธซเธกเธงเธ”</th><th>เน€เธเนเธฒเธซเธกเธฒเธข</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธเธงเธฒเธกเธชเธณเธเธฑเธ</th>
+    <th>เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒ</th><th>เธเนเธฒ (เธเธฑเธเธเธธเธเธฑเธ/เน€เธเนเธฒ)</th><th>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เธเธณเธซเธเธ”เน€เธชเธฃเนเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const catOpts = OBJ_CATEGORIES.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
   const stsOpts = Object.entries(OBJ_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'planning')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
@@ -204,58 +205,58 @@ function renderForm(rec) {
   const unitOpts = OBJ_MEASURE_UNITS.map(u=>`<option value="${u.key}" ${rec?.measureUnit===u.key?'selected':''}>${u.label}</option>`).join('');
   return `<form id="obj-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>หมวดหมู่ *</label><select id="f-category">${catOpts}</select></div>
-      <div class="form-group"><label>ความสำคัญ</label><select id="f-priority">${priOpts}</select></div>
+      <div class="form-group"><label>เธซเธกเธงเธ”เธซเธกเธนเน *</label><select id="f-category">${catOpts}</select></div>
+      <div class="form-group"><label>เธเธงเธฒเธกเธชเธณเธเธฑเธ</label><select id="f-priority">${priOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ชื่อวัตถุประสงค์ / เป้าหมาย *</label>
-        <input id="f-title" value="${rec?.title||''}" placeholder="เช่น ลดอัตราอุบัติเหตุ LTI เป็น 0 ครั้ง"/></div>
+      <div class="form-group"><label>เธเธทเนเธญเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน / เน€เธเนเธฒเธซเธกเธฒเธข *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="เน€เธเนเธ เธฅเธ”เธญเธฑเธ•เธฃเธฒเธญเธธเธเธฑเธ•เธดเน€เธซเธ•เธธ LTI เน€เธเนเธ 0 เธเธฃเธฑเนเธ"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>รายละเอียด / วิธีวัดผล</label>
-        <textarea id="f-description" rows="3" placeholder="อธิบายเป้าหมาย วิธีวัด และเกณฑ์ความสำเร็จ">${rec?.description||''}</textarea></div>
+      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ” / เธงเธดเธเธตเธงเธฑเธ”เธเธฅ</label>
+        <textarea id="f-description" rows="3" placeholder="เธญเธเธดเธเธฒเธขเน€เธเนเธฒเธซเธกเธฒเธข เธงเธดเธเธตเธงเธฑเธ” เนเธฅเธฐเน€เธเธ“เธ‘เนเธเธงเธฒเธกเธชเธณเน€เธฃเนเธ">${rec?.description||''}</textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>หน่วยวัด</label><select id="f-measureUnit">${unitOpts}</select></div>
-      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+      <div class="form-group"><label>เธซเธเนเธงเธขเธงเธฑเธ”</label><select id="f-measureUnit">${unitOpts}</select></div>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label><select id="f-status">${stsOpts}</select></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>ค่าเริ่มต้น (Baseline)</label>
+      <div class="form-group"><label>เธเนเธฒเน€เธฃเธดเนเธกเธ•เนเธ (Baseline)</label>
         <input id="f-baseline" type="number" step="any" value="${rec?.baseline||''}" placeholder="0"/>
-        <span class="form-hint">ค่าปัจจุบันก่อนเริ่มดำเนินการ</span></div>
-      <div class="form-group"><label>เป้าหมาย (Target)</label>
+        <span class="form-hint">เธเนเธฒเธเธฑเธเธเธธเธเธฑเธเธเนเธญเธเน€เธฃเธดเนเธกเธ”เธณเน€เธเธดเธเธเธฒเธฃ</span></div>
+      <div class="form-group"><label>เน€เธเนเธฒเธซเธกเธฒเธข (Target)</label>
         <input id="f-target" type="number" step="any" value="${rec?.target||''}" placeholder="100"/></div>
-      <div class="form-group"><label>ค่าปัจจุบัน</label>
+      <div class="form-group"><label>เธเนเธฒเธเธฑเธเธเธธเธเธฑเธ</label>
         <input id="f-current" type="number" step="any" value="${rec?.current||''}" placeholder="0"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>ผู้รับผิดชอบ</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
-      <div class="form-group"><label>วันที่กำหนดเสร็จ</label>
+      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธเธณเธซเธเธ”เน€เธชเธฃเนเธ</label>
         <input id="f-dueDate" type="date" value="${rec?.dueDate||''}"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>วันที่ทบทวนความคืบหน้า</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธเธเธงเธฒเธกเธเธทเธเธซเธเนเธฒ</label>
         <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
-      <div class="form-group"><label>งบประมาณที่ต้องการ (บาท)</label>
+      <div class="form-group"><label>เธเธเธเธฃเธฐเธกเธฒเธ“เธ—เธตเนเธ•เนเธญเธเธเธฒเธฃ (เธเธฒเธ—)</label>
         <input id="f-budget" type="number" value="${rec?.budget||''}" placeholder="0"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>แผนการดำเนินงาน / กิจกรรมหลัก</label>
-        <textarea id="f-actionPlan" rows="3" placeholder="ระบุกิจกรรมหลักที่ต้องทำเพื่อบรรลุเป้าหมาย">${rec?.actionPlan||''}</textarea></div>
+      <div class="form-group"><label>เนเธเธเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธ / เธเธดเธเธเธฃเธฃเธกเธซเธฅเธฑเธ</label>
+        <textarea id="f-actionPlan" rows="3" placeholder="เธฃเธฐเธเธธเธเธดเธเธเธฃเธฃเธกเธซเธฅเธฑเธเธ—เธตเนเธ•เนเธญเธเธ—เธณเน€เธเธทเนเธญเธเธฃเธฃเธฅเธธเน€เธเนเธฒเธซเธกเธฒเธข">${rec?.actionPlan||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveObj()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveObj()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
 
-// ── Progress update panel ──
+// โ”€โ”€ Progress update panel โ”€โ”€
 function renderProgressForm(rec) {
   const sts = OBJ_STATUS[rec.status]||OBJ_STATUS.planning;
   const pct = calcProgress(rec);
@@ -269,27 +270,27 @@ function renderProgressForm(rec) {
       <strong style="color:${pc}">${pct}%</strong>
     </div>
     <div style="font-size:.78rem;color:#6b7280;margin-top:4px">
-      Baseline: ${rec.baseline||0} → เป้า: ${rec.target||0} ${unit?.label||''} · ปัจจุบัน: <strong>${rec.current||0}</strong>
+      Baseline: ${rec.baseline||0} โ’ เน€เธเนเธฒ: ${rec.target||0} ${unit?.label||''} ยท เธเธฑเธเธเธธเธเธฑเธ: <strong>${rec.current||0}</strong>
     </div>
   </div>
   <form id="prog-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>ค่าปัจจุบัน *</label>
+      <div class="form-group"><label>เธเนเธฒเธเธฑเธเธเธธเธเธฑเธ *</label>
         <input id="p-current" type="number" step="any" value="${rec.current||''}" placeholder="0"/></div>
-      <div class="form-group"><label>สถานะใหม่</label><select id="p-status">${stsOpts}</select></div>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธฐเนเธซเธกเน</label><select id="p-status">${stsOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุการอัปเดต</label>
-        <textarea id="p-progressNote" rows="2" placeholder="สิ่งที่ดำเนินการแล้ว / อุปสรรค">${rec.progressNote||''}</textarea></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธเธเธฒเธฃเธญเธฑเธเน€เธ”เธ•</label>
+        <textarea id="p-progressNote" rows="2" placeholder="เธชเธดเนเธเธ—เธตเนเธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธฅเนเธง / เธญเธธเธเธชเธฃเธฃเธ">${rec.progressNote||''}</textarea></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveProgress('${rec.id}')">📊 บันทึกความคืบหน้า</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveProgress('${rec.id}')">๐“ เธเธฑเธเธ—เธถเธเธเธงเธฒเธกเธเธทเธเธซเธเนเธฒ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -301,18 +302,18 @@ function openPanel(html, title) {
   document.getElementById('panel').classList.add('open');
 }
 
-window.__newObj  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มวัตถุประสงค์'); };
+window.__newObj  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน'); };
 window.__editObj = async id => {
   editId = id;
   const r = await getObjective(id);
-  openPanel(renderForm(r), '✏️ แก้ไขวัตถุประสงค์');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน');
 };
 window.__updateProgress = async id => {
   const r = await getObjective(id);
-  openPanel(renderProgressForm(r), '📊 อัปเดตความคืบหน้า');
+  openPanel(renderProgressForm(r), '๐“ เธญเธฑเธเน€เธ”เธ•เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒ');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveObj = async () => {
   const data = {
     category:    document.getElementById('f-category').value,
@@ -331,13 +332,13 @@ window.__saveObj = async () => {
     actionPlan:  document.getElementById('f-actionPlan').value.trim(),
     notes:       document.getElementById('f-notes').value.trim(),
   };
-  if (!data.title) { alert('กรุณากรอกชื่อวัตถุประสงค์'); return; }
+  if (!data.title) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน'); return; }
   try {
     if (editId) await updateObjective(editId, data);
     else        await createObjective(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
 window.__saveProgress = async id => {
@@ -351,18 +352,18 @@ window.__saveProgress = async id => {
     await updateObjective(id, data);
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deleteObj = async (id, title) => {
-  if (!confirm(`ลบวัตถุประสงค์ "${title}"?`)) return;
+  if (!confirm(`เธฅเธเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน "${title}"?`)) return;
   await deleteObjective(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const cat = document.getElementById('filter-cat')?.value||'';
@@ -391,27 +392,27 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const catOpts = `<option value="">-- ทุกหมวด --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const catOpts = `<option value="">-- เธ—เธธเธเธซเธกเธงเธ” --</option>` +
   OBJ_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
-const stsOpts = `<option value="">-- ทุกสถานะ --</option>` +
+const stsOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
   Object.entries(OBJ_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
-const priOpts = `<option value="">-- ทุกระดับ --</option>` +
+const priOpts = `<option value="">-- เธ—เธธเธเธฃเธฐเธ”เธฑเธ --</option>` +
   Object.entries(OBJ_PRIORITY).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาวัตถุประสงค์…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเนโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-cat"      onchange="applyFilter()">${catOpts}</select>
       <select id="filter-status"   onchange="applyFilter()">${stsOpts}</select>
       <select id="filter-priority" onchange="applyFilter()">${priOpts}</select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="card"  onclick="window.__switchView('card')">🎯 การ์ด</button>
-        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
+        <button class="view-btn active" data-view="card"  onclick="window.__switchView('card')">๐ฏ เธเธฒเธฃเนเธ”</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newObj()">+ เพิ่มเป้าหมาย</button>
+      <button class="btn btn-primary" onclick="window.__newObj()">+ เน€เธเธดเนเธกเน€เธเนเธฒเธซเธกเธฒเธข</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -419,8 +420,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">วัตถุประสงค์และเป้าหมาย</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเนเนเธฅเธฐเน€เธเนเธฒเธซเธกเธฒเธข</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -430,3 +431,4 @@ await loadData();
 </script>
 </body>
 </html>
+

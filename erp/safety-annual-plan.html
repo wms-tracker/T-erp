@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>แผนความปลอดภัยประจำปี</title>
+<title>เนเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธขเธเธฃเธฐเธเธณเธเธต</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#059669;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -72,7 +72,7 @@ tr:hover td{background:#f8fafc}
 .empty-state{text-align:center;padding:60px 20px;color:#9ca3af}
 .empty-state .icon{font-size:3rem;margin-bottom:12px}
 .cat-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600}
-/* คปอ Modal */
+/* เธเธเธญ Modal */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:950;overflow-y:auto;padding:20px}
 .modal-overlay.open{display:flex;align-items:flex-start;justify-content:center}
 .modal-box{background:#fff;border-radius:14px;width:min(760px,100%);box-shadow:0 8px 40px rgba(0,0,0,.18);overflow:hidden}
@@ -108,16 +108,17 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   APLAN_CATEGORIES, APLAN_STATUS, APLAN_QUARTERS, APLAN_MONTHS_TH, KPO_DUTIES,
   listAnnualPlan, getAnnualPlan, createAnnualPlan, updateAnnualPlan, deleteAnnualPlan,
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-annual-plan', 'แผนความปลอดภัยประจำปี');
+const main = renderShell(profile, 'safety-annual-plan', 'เนเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธขเธเธฃเธฐเธเธณเธเธต');
 
-const THIS_YEAR = new Date().getFullYear() + 543; // พ.ศ.
+const THIS_YEAR = new Date().getFullYear() + 543; // เธ.เธจ.
 const YEARS = [THIS_YEAR, THIS_YEAR-1, THIS_YEAR+1];
 
 let allRecs  = [];
@@ -125,7 +126,7 @@ let editId   = null;
 let viewMode = 'list'; // 'list' | 'gantt'
 let selYear  = THIS_YEAR;
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const total = recs.length;
   const done  = recs.filter(r=>r.status==='completed').length;
@@ -136,59 +137,59 @@ function renderKPI(recs) {
   const totalBudget = recs.reduce((s,r)=>s+(r.budget||0),0);
   const usedBudget  = recs.filter(r=>r.status==='completed').reduce((s,r)=>s+(r.budget||0),0);
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">กิจกรรมทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${prog}</div><div class="lbl">🔄 กำลังดำเนินการ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${delay}</div><div class="lbl">⚠️ ล่าช้า</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${cancel}</div><div class="lbl">❌ ยกเลิก</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธเธดเธเธเธฃเธฃเธกเธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">โ… เน€เธชเธฃเนเธเธชเธดเนเธ</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${prog}</div><div class="lbl">๐” เธเธณเธฅเธฑเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${delay}</div><div class="lbl">โ ๏ธ เธฅเนเธฒเธเนเธฒ</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${cancel}</div><div class="lbl">โ เธขเธเน€เธฅเธดเธ</div></div>
     <div class="kpi" style="border-color:#059669">
       <div class="num" style="color:#059669">${pct}%</div>
-      <div class="lbl">ความสำเร็จ</div>
+      <div class="lbl">เธเธงเธฒเธกเธชเธณเน€เธฃเนเธ</div>
       <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>
     </div>
     <div class="kpi" style="border-color:#7c3aed">
       <div class="num" style="color:#7c3aed;font-size:1rem">${totalBudget.toLocaleString()}</div>
-      <div class="lbl">งบรวม (บาท)</div>
+      <div class="lbl">เธเธเธฃเธงเธก (เธเธฒเธ—)</div>
     </div>
   </div>`;
 }
 
-// ── List Table ──
+// โ”€โ”€ List Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">📅</div><p>ยังไม่มีแผนงาน</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐“…</div><p>เธขเธฑเธเนเธกเนเธกเธตเนเธเธเธเธฒเธ</p></div>`;
   const rows = recs.map(r => {
-    const cat = APLAN_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:r.category||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const cat = APLAN_CATEGORIES.find(c=>c.key===r.category)||{icon:'๐”–',label:r.category||'โ€”',color:'#6b7280',bg:'#f3f4f6'};
     const st  = APLAN_STATUS[r.status]||APLAN_STATUS.planned;
     const months = (r.planMonths||[]).map(m=>APLAN_MONTHS_TH[m-1]).join(', ');
     return `<tr>
-      <td><strong>${r.activityName||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.responsible||'—'}</span></td>
+      <td><strong>${r.activityName||'โ€”'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.responsible||'โ€”'}</span></td>
       <td><span class="cat-chip" style="color:${cat.color};background:${cat.bg}">${cat.icon} ${cat.label}</span></td>
-      <td style="font-size:.8rem">${months||'—'}</td>
+      <td style="font-size:.8rem">${months||'โ€”'}</td>
       <td style="text-align:right;font-size:.82rem">${(r.budget||0).toLocaleString()}</td>
       <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.label}</span></td>
-      <td style="font-size:.82rem;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.notes||'—'}</td>
+      <td style="font-size:.82rem;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.notes||'โ€”'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editPlan('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deletePlan('${r.id}','${(r.activityName||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editPlan('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deletePlan('${r.id}','${(r.activityName||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>กิจกรรม / ผู้รับผิดชอบ</th><th>หมวดหมู่</th><th>เดือนที่วางแผน</th>
-      <th style="text-align:right">งบประมาณ (฿)</th><th>สถานะ</th><th>หมายเหตุ</th><th>จัดการ</th>
+      <th>เธเธดเธเธเธฃเธฃเธก / เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เธซเธกเธงเธ”เธซเธกเธนเน</th><th>เน€เธ”เธทเธญเธเธ—เธตเนเธงเธฒเธเนเธเธ</th>
+      <th style="text-align:right">เธเธเธเธฃเธฐเธกเธฒเธ“ (เธฟ)</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธซเธกเธฒเธขเน€เธซเธ•เธธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// ── Gantt View ──
+// โ”€โ”€ Gantt View โ”€โ”€
 function renderGantt(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">📅</div><p>ยังไม่มีแผนงาน</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐“…</div><p>เธขเธฑเธเนเธกเนเธกเธตเนเธเธเธเธฒเธ</p></div>`;
   // group by quarter
   const monthHeads = APLAN_MONTHS_TH.map((m,i)=>`<th class="gantt-cell gantt-month-head" style="min-width:38px">${m}</th>`).join('');
   const rows = recs.map(r => {
-    const cat = APLAN_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:'',color:'#6b7280',bg:'#f3f4f6'};
+    const cat = APLAN_CATEGORIES.find(c=>c.key===r.category)||{icon:'๐”–',label:'',color:'#6b7280',bg:'#f3f4f6'};
     const st  = r.status||'planned';
     const cells = Array.from({length:12},(_,i)=>{
       const mo = i+1;
@@ -197,8 +198,8 @@ function renderGantt(recs) {
       return `<td class="gantt-cell"><div class="gantt-block ${st}" title="${APLAN_STATUS[st]?.label||st}"></div></td>`;
     }).join('');
     return `<tr>
-      <td style="min-width:200px;white-space:nowrap"><span style="color:${cat.color}">${cat.icon}</span> ${r.activityName||'—'}</td>
-      <td style="white-space:nowrap;font-size:.78rem;color:#6b7280">${r.responsible||'—'}</td>
+      <td style="min-width:200px;white-space:nowrap"><span style="color:${cat.color}">${cat.icon}</span> ${r.activityName||'โ€”'}</td>
+      <td style="white-space:nowrap;font-size:.78rem;color:#6b7280">${r.responsible||'โ€”'}</td>
       ${cells}
     </tr>`;
   }).join('');
@@ -211,13 +212,13 @@ function renderGantt(recs) {
   ).join('');
   return `<div class="gantt-wrap">
     <div style="padding:10px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <strong style="font-size:.85rem">Gantt Chart ปี ${selYear}</strong>
+      <strong style="font-size:.85rem">Gantt Chart เธเธต ${selYear}</strong>
       <span style="margin-left:auto">${legend}</span>
     </div>
     <div style="overflow-x:auto">
     <table class="gantt-table">
       <thead><tr>
-        <th style="min-width:200px">กิจกรรม</th><th style="min-width:100px">ผู้รับผิดชอบ</th>
+        <th style="min-width:200px">เธเธดเธเธเธฃเธฃเธก</th><th style="min-width:100px">เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th>
         ${monthHeads}
       </tr></thead>
       <tbody>${rows}</tbody>
@@ -226,7 +227,7 @@ function renderGantt(recs) {
   </div>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const catOpts = APLAN_CATEGORIES.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
   const stOpts  = Object.entries(APLAN_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'planned')===k?'selected':''}>${v.label}</option>`).join('');
@@ -240,62 +241,62 @@ function renderForm(rec) {
       ${m}
     </label>`;
   }).join('');
-  const dutyOpts = `<option value="">-- ไม่ระบุ --</option>` +
-    KPO_DUTIES.map(d=>`<option value="${d.key}" ${rec?.kpoDuty===d.key?'selected':''}>${d.icon} ข้อ ${d.no}: ${d.short}</option>`).join('');
+  const dutyOpts = `<option value="">-- เนเธกเนเธฃเธฐเธเธธ --</option>` +
+    KPO_DUTIES.map(d=>`<option value="${d.key}" ${rec?.kpoDuty===d.key?'selected':''}>${d.icon} เธเนเธญ ${d.no}: ${d.short}</option>`).join('');
   return `<form id="plan-form" onsubmit="return false">
     <div class="form-row one">
-      <div class="form-group"><label>ชื่อกิจกรรม / โครงการ *</label>
-        <input id="f-activityName" value="${rec?.activityName||''}" placeholder="เช่น ฝึกอบรมการดับเพลิงขั้นต้น" required/></div>
+      <div class="form-group"><label>เธเธทเนเธญเธเธดเธเธเธฃเธฃเธก / เนเธเธฃเธเธเธฒเธฃ *</label>
+        <input id="f-activityName" value="${rec?.activityName||''}" placeholder="เน€เธเนเธ เธเธถเธเธญเธเธฃเธกเธเธฒเธฃเธ”เธฑเธเน€เธเธฅเธดเธเธเธฑเนเธเธ•เนเธ" required/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>หน้าที่ คปอ. (12 หน้าที่)</label>
+      <div class="form-group"><label>เธซเธเนเธฒเธ—เธตเน เธเธเธญ. (12 เธซเธเนเธฒเธ—เธตเน)</label>
         <select id="f-kpoDuty">${dutyOpts}</select></div>
-      <div class="form-group"><label>หมวดหมู่กิจกรรม</label>
+      <div class="form-group"><label>เธซเธกเธงเธ”เธซเธกเธนเนเธเธดเธเธเธฃเธฃเธก</label>
         <select id="f-category">${catOpts}</select></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>ปีแผน (พ.ศ.)</label>
+      <div class="form-group"><label>เธเธตเนเธเธ (เธ.เธจ.)</label>
         <select id="f-planYear">${yrOpts}</select></div>
-      <div class="form-group"><label>สถานะ</label>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label>
         <select id="f-status">${stOpts}</select></div>
-      <div class="form-group"><label>&nbsp;</label><div style="font-size:.75rem;color:#6b7280;padding-top:8px">เชื่อมกับหน้าที่ตามกฎหมาย</div></div>
+      <div class="form-group"><label>&nbsp;</label><div style="font-size:.75rem;color:#6b7280;padding-top:8px">เน€เธเธทเนเธญเธกเธเธฑเธเธซเธเนเธฒเธ—เธตเนเธ•เธฒเธกเธเธเธซเธกเธฒเธข</div></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>ผู้รับผิดชอบ</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
-      <div class="form-group"><label>งบประมาณ (บาท)</label>
+      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
+      <div class="form-group"><label>เธเธเธเธฃเธฐเธกเธฒเธ“ (เธเธฒเธ—)</label>
         <input id="f-budget" type="number" min="0" value="${rec?.budget||0}"/></div>
     </div>
     <div class="form-group" style="margin-bottom:14px">
-      <label>เดือนที่วางแผนดำเนินการ (เลือกได้หลายเดือน)</label>
+      <label>เน€เธ”เธทเธญเธเธ—เธตเนเธงเธฒเธเนเธเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ (เน€เธฅเธทเธญเธเนเธ”เนเธซเธฅเธฒเธขเน€เธ”เธทเธญเธ)</label>
       <div class="month-checks" id="month-checks-wrap">${monthChecks}</div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>วัตถุประสงค์ / เหตุผล</label>
-        <textarea id="f-objective" rows="2" placeholder="วัตถุประสงค์ของกิจกรรมนี้">${rec?.objective||''}</textarea></div>
+      <div class="form-group"><label>เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน / เน€เธซเธ•เธธเธเธฅ</label>
+        <textarea id="f-objective" rows="2" placeholder="เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเนเธเธญเธเธเธดเธเธเธฃเธฃเธกเธเธตเน">${rec?.objective||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>วิธีดำเนินการ / รายละเอียด</label>
-        <textarea id="f-detail" rows="2" placeholder="วิธีการดำเนินงาน">${rec?.detail||''}</textarea></div>
+      <div class="form-group"><label>เธงเธดเธเธตเธ”เธณเน€เธเธดเธเธเธฒเธฃ / เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”</label>
+        <textarea id="f-detail" rows="2" placeholder="เธงเธดเธเธตเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธ">${rec?.detail||''}</textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>วันที่เริ่มจริง</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเน€เธฃเธดเนเธกเธเธฃเธดเธ</label>
         <input id="f-actualStart" type="date" value="${rec?.actualStart||''}"/></div>
-      <div class="form-group"><label>วันที่เสร็จจริง</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเน€เธชเธฃเนเธเธเธฃเธดเธ</label>
         <input id="f-actualEnd" type="date" value="${rec?.actualEnd||''}"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ / ผลที่ได้รับ"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธ / เธเธฅเธ—เธตเนเนเธ”เนเธฃเธฑเธ"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__savePlan()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__savePlan()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
 
-// ── Month toggle ──
+// โ”€โ”€ Month toggle โ”€โ”€
 let selectedMonths = [];
 window.__toggleMonth = (mo, checked) => {
   if (checked) { if (!selectedMonths.includes(mo)) selectedMonths.push(mo); }
@@ -304,7 +305,7 @@ window.__toggleMonth = (mo, checked) => {
   if (lbl) lbl.classList.toggle('checked', checked);
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -319,16 +320,16 @@ function openPanel(html, title) {
 window.__newPlan = () => {
   editId = null;
   selectedMonths = [];
-  openPanel(renderForm(null), '+ เพิ่มแผนงาน');
+  openPanel(renderForm(null), '+ เน€เธเธดเนเธกเนเธเธเธเธฒเธ');
 };
 window.__editPlan = async id => {
   editId = id;
   const r = await getAnnualPlan(id);
   selectedMonths = [...(r.planMonths||[])];
-  openPanel(renderForm(r), '✏️ แก้ไขแผนงาน');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเนเธเธเธเธฒเธ');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__savePlan = async () => {
   const data = {
     activityName: document.getElementById('f-activityName').value.trim(),
@@ -345,24 +346,24 @@ window.__savePlan = async () => {
     actualEnd:    document.getElementById('f-actualEnd').value,
     notes:        document.getElementById('f-notes').value.trim(),
   };
-  if (!data.activityName) { alert('กรุณากรอกชื่อกิจกรรม'); return; }
+  if (!data.activityName) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธเธดเธเธเธฃเธฃเธก'); return; }
   try {
     if (editId) await updateAnnualPlan(editId, data);
     else        await createAnnualPlan(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deletePlan = async (id, name) => {
-  if (!confirm(`ลบแผนงาน "${name}"?`)) return;
+  if (!confirm(`เธฅเธเนเธเธเธเธฒเธ "${name}"?`)) return;
   await deleteAnnualPlan(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter + render ──
+// โ”€โ”€ Filter + render โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const cat = document.getElementById('filter-cat')?.value||'';
@@ -395,7 +396,7 @@ async function loadData() {
   applyFilter();
 }
 
-// ── คปอ Annual Plan Document ──
+// โ”€โ”€ เธเธเธญ Annual Plan Document โ”€โ”€
 window.__openKPOPlan = () => {
   const yr = document.getElementById('filter-year')?.value;
   const kpoYr = document.getElementById('kpo-year');
@@ -407,29 +408,29 @@ window.__closeKPOModal = () => {
 };
 
 window.__generateKPODoc = () => {
-  const company   = document.getElementById('kpo-company').value.trim() || '(ชื่อสถานประกอบกิจการ)';
-  const address   = document.getElementById('kpo-address').value.trim() || '—';
-  const employees = document.getElementById('kpo-employees').value || '—';
+  const company   = document.getElementById('kpo-company').value.trim() || '(เธเธทเนเธญเธชเธ–เธฒเธเธเธฃเธฐเธเธญเธเธเธดเธเธเธฒเธฃ)';
+  const address   = document.getElementById('kpo-address').value.trim() || 'โ€”';
+  const employees = document.getElementById('kpo-employees').value || 'โ€”';
   const year      = document.getElementById('kpo-year').value || THIS_YEAR;
-  const meetNo    = document.getElementById('kpo-meeting-no').value.trim() || '—';
+  const meetNo    = document.getElementById('kpo-meeting-no').value.trim() || 'โ€”';
   const meetDate  = document.getElementById('kpo-meeting-date').value;
-  const chair     = document.getElementById('kpo-chair').value.trim() || '—';
-  const secretary = document.getElementById('kpo-secretary').value.trim() || '—';
-  const preparer  = document.getElementById('kpo-preparer').value.trim() || '—';
+  const chair     = document.getElementById('kpo-chair').value.trim() || 'โ€”';
+  const secretary = document.getElementById('kpo-secretary').value.trim() || 'โ€”';
+  const preparer  = document.getElementById('kpo-preparer').value.trim() || 'โ€”';
   const membersRaw= document.getElementById('kpo-members').value.trim();
   const members   = membersRaw ? membersRaw.split('\n').filter(l=>l.trim()) : [];
 
-  const monthsTH = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-  let meetDateTH = '—';
+  const monthsTH = ['เธกเธเธฃเธฒเธเธก','เธเธธเธกเธ เธฒเธเธฑเธเธเน','เธกเธตเธเธฒเธเธก','เน€เธกเธฉเธฒเธขเธ','เธเธคเธฉเธ เธฒเธเธก','เธกเธดเธ–เธธเธเธฒเธขเธ','เธเธฃเธเธเธฒเธเธก','เธชเธดเธเธซเธฒเธเธก','เธเธฑเธเธขเธฒเธขเธ','เธ•เธธเธฅเธฒเธเธก','เธเธคเธจเธเธดเธเธฒเธขเธ','เธเธฑเธเธงเธฒเธเธก'];
+  let meetDateTH = 'โ€”';
   if (meetDate) {
     const d = new Date(meetDate);
-    meetDateTH = `${d.getDate()} ${monthsTH[d.getMonth()]} พ.ศ.${d.getFullYear()+543}`;
+    meetDateTH = `${d.getDate()} ${monthsTH[d.getMonth()]} เธ.เธจ.${d.getFullYear()+543}`;
   }
 
   const yr = Number(year);
   const recs = allRecs.filter(r => (r.planYear===yr) || (!r.planYear && yr===THIS_YEAR));
 
-  // กลุ่มตาม 12 หน้าที่ คปอ ก่อน จากนั้นส่วนที่ไม่ระบุหน้าที่ใช้ category
+  // เธเธฅเธธเนเธกเธ•เธฒเธก 12 เธซเธเนเธฒเธ—เธตเน เธเธเธญ เธเนเธญเธ เธเธฒเธเธเธฑเนเธเธชเนเธงเธเธ—เธตเนเนเธกเนเธฃเธฐเธเธธเธซเธเนเธฒเธ—เธตเนเนเธเน category
   const byDuty = {};
   KPO_DUTIES.forEach(d => { byDuty[d.key] = []; });
   byDuty['__other'] = [];
@@ -438,50 +439,50 @@ window.__generateKPODoc = () => {
     else byDuty['__other'].push(r);
   });
 
-  const moHeads = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'].map(m=>`<th class="mo">${m}</th>`).join('');
+  const moHeads = ['เธก.เธ.','เธ.เธ.','เธกเธต.เธ.','เน€เธก.เธข.','เธ.เธ.','เธกเธด.เธข.','เธ.เธ.','เธช.เธ.','เธ.เธข.','เธ•.เธ.','เธ.เธข.','เธ.เธ.'].map(m=>`<th class="mo">${m}</th>`).join('');
   let rowNum = 0, tableRows = '';
   KPO_DUTIES.forEach(d => {
     const items = byDuty[d.key]||[];
     if (!items.length) return;
-    tableRows += `<tr><td colspan="17" style="background:#dbeafe;font-weight:700;padding:5px 8px;font-size:8.5pt;color:#1e40af">${d.icon} หน้าที่ที่ ${d.no}: ${d.label}</td></tr>`;
+    tableRows += `<tr><td colspan="17" style="background:#dbeafe;font-weight:700;padding:5px 8px;font-size:8.5pt;color:#1e40af">${d.icon} เธซเธเนเธฒเธ—เธตเนเธ—เธตเน ${d.no}: ${d.label}</td></tr>`;
     items.forEach(r => {
       rowNum++;
-      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'✓':''}</td>`).join('');
+      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'โ“':''}</td>`).join('');
       tableRows += `<tr>
         <td class="num">${rowNum}</td>
-        <td>${r.activityName||'—'}</td>
-        <td style="font-size:8pt">${r.objective||'—'}</td>
+        <td>${r.activityName||'โ€”'}</td>
+        <td style="font-size:8pt">${r.objective||'โ€”'}</td>
         ${mos}
         <td style="text-align:right;white-space:nowrap">${(r.budget||0).toLocaleString()}</td>
-        <td style="font-size:8pt">${r.responsible||'—'}</td>
-        <td style="font-size:8pt">${r.notes||'—'}</td>
+        <td style="font-size:8pt">${r.responsible||'โ€”'}</td>
+        <td style="font-size:8pt">${r.notes||'โ€”'}</td>
       </tr>`;
     });
   });
   if (byDuty['__other'].length) {
-    tableRows += `<tr><td colspan="17" style="background:#f1f5f9;font-weight:700;padding:5px 8px;font-size:8.5pt;color:#475569">🔖 กิจกรรมอื่นๆ / ไม่ระบุหน้าที่</td></tr>`;
+    tableRows += `<tr><td colspan="17" style="background:#f1f5f9;font-weight:700;padding:5px 8px;font-size:8.5pt;color:#475569">๐”– เธเธดเธเธเธฃเธฃเธกเธญเธทเนเธเน / เนเธกเนเธฃเธฐเธเธธเธซเธเนเธฒเธ—เธตเน</td></tr>`;
     byDuty['__other'].forEach(r => {
       rowNum++;
-      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'✓':''}</td>`).join('');
+      const mos = Array.from({length:12},(_,i)=>`<td class="mo">${(r.planMonths||[]).includes(i+1)?'โ“':''}</td>`).join('');
       tableRows += `<tr>
         <td class="num">${rowNum}</td>
-        <td>${r.activityName||'—'}</td>
-        <td style="font-size:8pt">${r.objective||'—'}</td>
+        <td>${r.activityName||'โ€”'}</td>
+        <td style="font-size:8pt">${r.objective||'โ€”'}</td>
         ${mos}
         <td style="text-align:right;white-space:nowrap">${(r.budget||0).toLocaleString()}</td>
-        <td style="font-size:8pt">${r.responsible||'—'}</td>
-        <td style="font-size:8pt">${r.notes||'—'}</td>
+        <td style="font-size:8pt">${r.responsible||'โ€”'}</td>
+        <td style="font-size:8pt">${r.notes||'โ€”'}</td>
       </tr>`;
     });
   }
-  if (!tableRows) tableRows = `<tr><td colspan="17" style="text-align:center;padding:16px;color:#9ca3af">ไม่มีแผนงานในปีนี้ — กรุณาเพิ่มแผนงานและระบุหน้าที่ คปอ ก่อนสร้างเอกสาร</td></tr>`;
+  if (!tableRows) tableRows = `<tr><td colspan="17" style="text-align:center;padding:16px;color:#9ca3af">เนเธกเนเธกเธตเนเธเธเธเธฒเธเนเธเธเธตเธเธตเน โ€” เธเธฃเธธเธ“เธฒเน€เธเธดเนเธกเนเธเธเธเธฒเธเนเธฅเธฐเธฃเธฐเธเธธเธซเธเนเธฒเธ—เธตเน เธเธเธญ เธเนเธญเธเธชเธฃเนเธฒเธเน€เธญเธเธชเธฒเธฃ</td></tr>`;
 
   const memberRows = members.map((m,i)=>`<tr><td style="text-align:center;width:40px">${i+1}</td><td>${m}</td></tr>`).join('');
 
   const totalBudget = recs.reduce((s,r)=>s+(Number(r.budget)||0),0);
 
   const docHtml = `<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"/>
-<title>แผนงาน คปอ ปี ${year}</title>
+<title>เนเธเธเธเธฒเธ เธเธเธญ เธเธต ${year}</title>
 <style>
 @page{size:A4 landscape;margin:12mm}
 body{font-family:'Sarabun',sans-serif;font-size:10pt;color:#000;margin:0;padding:12px}
@@ -504,43 +505,43 @@ h2{font-size:11pt;text-align:center;margin-bottom:12px}
 @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.no-print{display:none!important}}
 </style></head><body>
 <div class="no-print" style="display:flex;gap:8px;padding:8px;background:#f1f5f9;margin-bottom:12px;position:sticky;top:0">
-  <button onclick="window.print()" style="padding:6px 16px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">🖨️ พิมพ์เอกสาร</button>
-  <button onclick="window.close()" style="padding:6px 16px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px">✕ ปิด</button>
-  <span style="font-size:12px;color:#6b7280;align-self:center">กด Ctrl+P หรือคลิกปุ่มพิมพ์ — เลือกกระดาษ A4 แนวนอน</span>
+  <button onclick="window.print()" style="padding:6px 16px;background:#1e40af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">๐–จ๏ธ เธเธดเธกเธเนเน€เธญเธเธชเธฒเธฃ</button>
+  <button onclick="window.close()" style="padding:6px 16px;background:#f1f5f9;color:#374151;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:14px">โ• เธเธดเธ”</button>
+  <span style="font-size:12px;color:#6b7280;align-self:center">เธเธ” Ctrl+P เธซเธฃเธทเธญเธเธฅเธดเธเธเธธเนเธกเธเธดเธกเธเน โ€” เน€เธฅเธทเธญเธเธเธฃเธฐเธ”เธฒเธฉ A4 เนเธเธงเธเธญเธ</span>
 </div>
-<h1>แผนงานด้านความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน</h1>
-<h2>ของคณะกรรมการความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน (คปอ.) ประจำปี พ.ศ. ${year}</h2>
+<h1>เนเธเธเธเธฒเธเธ”เนเธฒเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข เธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข เนเธฅเธฐเธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธกเนเธเธเธฒเธฃเธ—เธณเธเธฒเธ</h1>
+<h2>เธเธญเธเธเธ“เธฐเธเธฃเธฃเธกเธเธฒเธฃเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข เธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข เนเธฅเธฐเธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธกเนเธเธเธฒเธฃเธ—เธณเธเธฒเธ (เธเธเธญ.) เธเธฃเธฐเธเธณเธเธต เธ.เธจ. ${year}</h2>
 <table class="meta">
-<tr><td class="k">สถานประกอบกิจการ :</td><td>${company}</td><td class="k">ที่อยู่ :</td><td>${address}</td></tr>
-<tr><td class="k">จำนวนลูกจ้าง :</td><td>${employees} คน</td><td class="k">ครั้งที่ประชุม คปอ :</td><td>${meetNo} &nbsp;วันที่ ${meetDateTH}</td></tr>
-<tr><td class="k">งบประมาณรวม :</td><td>${totalBudget.toLocaleString()} บาท</td><td></td><td></td></tr>
+<tr><td class="k">เธชเธ–เธฒเธเธเธฃเธฐเธเธญเธเธเธดเธเธเธฒเธฃ :</td><td>${company}</td><td class="k">เธ—เธตเนเธญเธขเธนเน :</td><td>${address}</td></tr>
+<tr><td class="k">เธเธณเธเธงเธเธฅเธนเธเธเนเธฒเธ :</td><td>${employees} เธเธ</td><td class="k">เธเธฃเธฑเนเธเธ—เธตเนเธเธฃเธฐเธเธธเธก เธเธเธญ :</td><td>${meetNo} &nbsp;เธงเธฑเธเธ—เธตเน ${meetDateTH}</td></tr>
+<tr><td class="k">เธเธเธเธฃเธฐเธกเธฒเธ“เธฃเธงเธก :</td><td>${totalBudget.toLocaleString()} เธเธฒเธ—</td><td></td><td></td></tr>
 </table>
 <table class="pt">
 <thead>
 <tr>
-<th rowspan="2" class="num">ที่</th>
-<th rowspan="2" style="min-width:140px">กิจกรรม / โครงการ</th>
-<th rowspan="2" style="min-width:90px">วัตถุประสงค์</th>
-<th colspan="12">เดือนที่ดำเนินการ</th>
-<th rowspan="2" style="min-width:55px">งบประมาณ (บาท)</th>
-<th rowspan="2" style="min-width:70px">ผู้รับผิดชอบ</th>
-<th rowspan="2" style="min-width:70px">หมายเหตุ</th>
+<th rowspan="2" class="num">เธ—เธตเน</th>
+<th rowspan="2" style="min-width:140px">เธเธดเธเธเธฃเธฃเธก / เนเธเธฃเธเธเธฒเธฃ</th>
+<th rowspan="2" style="min-width:90px">เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน</th>
+<th colspan="12">เน€เธ”เธทเธญเธเธ—เธตเนเธ”เธณเน€เธเธดเธเธเธฒเธฃ</th>
+<th rowspan="2" style="min-width:55px">เธเธเธเธฃเธฐเธกเธฒเธ“ (เธเธฒเธ—)</th>
+<th rowspan="2" style="min-width:70px">เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th>
+<th rowspan="2" style="min-width:70px">เธซเธกเธฒเธขเน€เธซเธ•เธธ</th>
 </tr>
 <tr>${moHeads}</tr>
 </thead>
 <tbody>${tableRows}</tbody>
 </table>
-${memberRows ? `<div style="margin-bottom:16px"><strong style="font-size:9pt">รายชื่อคณะกรรมการความปลอดภัย อาชีวอนามัย และสภาพแวดล้อมในการทำงาน (คปอ.)</strong><table class="mt"><tr><th>ที่</th><th>ชื่อ-นามสกุล / ตำแหน่ง</th></tr>${memberRows}</table></div>` : ''}
+${memberRows ? `<div style="margin-bottom:16px"><strong style="font-size:9pt">เธฃเธฒเธขเธเธทเนเธญเธเธ“เธฐเธเธฃเธฃเธกเธเธฒเธฃเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข เธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข เนเธฅเธฐเธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธกเนเธเธเธฒเธฃเธ—เธณเธเธฒเธ (เธเธเธญ.)</strong><table class="mt"><tr><th>เธ—เธตเน</th><th>เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ / เธ•เธณเนเธซเธเนเธ</th></tr>${memberRows}</table></div>` : ''}
 <table class="st">
 <tr>
-<td><div class="sl"></div>ประธานคณะกรรมการความปลอดภัยฯ<br/>(${chair})</td>
-<td><div class="sl"></div>เลขานุการ คปอ.<br/>(${secretary})</td>
-<td><div class="sl"></div>ผู้จัดทำ<br/>(${preparer})</td>
+<td><div class="sl"></div>เธเธฃเธฐเธเธฒเธเธเธ“เธฐเธเธฃเธฃเธกเธเธฒเธฃเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธขเธฏ<br/>(${chair})</td>
+<td><div class="sl"></div>เน€เธฅเธเธฒเธเธธเธเธฒเธฃ เธเธเธญ.<br/>(${secretary})</td>
+<td><div class="sl"></div>เธเธนเนเธเธฑเธ”เธ—เธณ<br/>(${preparer})</td>
 </tr>
 </table>
 </body></html>`;
 
-  // แสดง preview inline ใน modal แทน popup (แก้ปัญหา browser block)
+  // เนเธชเธ”เธ preview inline เนเธ modal เนเธ—เธ popup (เนเธเนเธเธฑเธเธซเธฒ browser block)
   document.getElementById('kpo-modal').classList.remove('open');
   let frame = document.getElementById('kpo-print-frame');
   if (!frame) {
@@ -552,9 +553,9 @@ ${memberRows ? `<div style="margin-bottom:16px"><strong style="font-size:9pt">�
   frame.style.display = 'block';
   frame.innerHTML = `
     <div id="kpo-bar" style="display:flex;gap:8px;padding:10px 16px;background:#1e3a8a;align-items:center">
-      <span style="color:#fff;font-weight:700;font-size:.95rem">📄 แผนงาน คปอ ปี ${year}</span>
-      <button id="kpo-print-btn" style="padding:6px 16px;background:#fff;color:#1e3a8a;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:auto">🖨️ พิมพ์</button>
-      <button id="kpo-close-btn" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;cursor:pointer">✕ ปิด</button>
+      <span style="color:#fff;font-weight:700;font-size:.95rem">๐“ เนเธเธเธเธฒเธ เธเธเธญ เธเธต ${year}</span>
+      <button id="kpo-print-btn" style="padding:6px 16px;background:#fff;color:#1e3a8a;border:none;border-radius:6px;cursor:pointer;font-weight:700;margin-left:auto">๐–จ๏ธ เธเธดเธกเธเน</button>
+      <button id="kpo-close-btn" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;cursor:pointer">โ• เธเธดเธ”</button>
     </div>
     <iframe id="kpo-iframe" style="width:100%;height:calc(100vh - 52px);border:none"></iframe>`;
   document.getElementById('kpo-close-btn').onclick = () => { frame.style.display='none'; };
@@ -565,28 +566,28 @@ ${memberRows ? `<div style="margin-bottom:16px"><strong style="font-size:9pt">�
   document.getElementById('kpo-print-btn').onclick = () => iframe.contentWindow.print();
 };
 
-// ── Build UI ──
-const catOpts = `<option value="">-- ทุกหมวด --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const catOpts = `<option value="">-- เธ—เธธเธเธซเธกเธงเธ” --</option>` +
   APLAN_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
-const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+const stOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
   Object.entries(APLAN_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
-const yrOpts = `<option value="">-- ทุกปี --</option>` +
+const yrOpts = `<option value="">-- เธ—เธธเธเธเธต --</option>` +
   YEARS.map(y=>`<option value="${y}" ${y===THIS_YEAR?'selected':''}>${y}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหากิจกรรม…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธเธดเธเธเธฃเธฃเธกโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-year"   onchange="applyFilter()">${yrOpts}</select>
       <select id="filter-cat"    onchange="applyFilter()">${catOpts}</select>
       <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="list" onclick="window.__switchView('list')">📋 รายการ</button>
-        <button class="view-btn" data-view="gantt" onclick="window.__switchView('gantt')">📊 Gantt</button>
+        <button class="view-btn active" data-view="list" onclick="window.__switchView('list')">๐“ เธฃเธฒเธขเธเธฒเธฃ</button>
+        <button class="view-btn" data-view="gantt" onclick="window.__switchView('gantt')">๐“ Gantt</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newPlan()">+ เพิ่มแผนงาน</button>
-      <button class="btn btn-green" onclick="window.__openKPOPlan()">📄 แผนงาน คปอ</button>
+      <button class="btn btn-primary" onclick="window.__newPlan()">+ เน€เธเธดเนเธกเนเธเธเธเธฒเธ</button>
+      <button class="btn btn-green" onclick="window.__openKPOPlan()">๐“ เนเธเธเธเธฒเธ เธเธเธญ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -594,55 +595,55 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">แผนความปลอดภัยประจำปี</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เนเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธขเธเธฃเธฐเธเธณเธเธต</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
 
-  <!-- Modal คปอ Annual Plan -->
+  <!-- Modal เธเธเธญ Annual Plan -->
   <div class="modal-overlay" id="kpo-modal">
     <div class="modal-box">
       <div class="modal-head">
-        <h2>📄 สร้างแผนงาน คปอ ประจำปี</h2>
-        <button class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none" onclick="window.__closeKPOModal()">✕ ปิด</button>
+        <h2>๐“ เธชเธฃเนเธฒเธเนเธเธเธเธฒเธ เธเธเธญ เธเธฃเธฐเธเธณเธเธต</h2>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none" onclick="window.__closeKPOModal()">โ• เธเธดเธ”</button>
       </div>
       <div class="modal-body">
         <div class="form-row">
-          <div class="form-group"><label>ชื่อสถานประกอบกิจการ *</label>
-            <input id="kpo-company" placeholder="บริษัท…จำกัด"/></div>
-          <div class="form-group"><label>จำนวนลูกจ้าง (คน)</label>
-            <input id="kpo-employees" type="number" min="1" placeholder="จำนวนลูกจ้าง"/></div>
+          <div class="form-group"><label>เธเธทเนเธญเธชเธ–เธฒเธเธเธฃเธฐเธเธญเธเธเธดเธเธเธฒเธฃ *</label>
+            <input id="kpo-company" placeholder="เธเธฃเธดเธฉเธฑเธ—โ€ฆเธเธณเธเธฑเธ”"/></div>
+          <div class="form-group"><label>เธเธณเธเธงเธเธฅเธนเธเธเนเธฒเธ (เธเธ)</label>
+            <input id="kpo-employees" type="number" min="1" placeholder="เธเธณเธเธงเธเธฅเธนเธเธเนเธฒเธ"/></div>
         </div>
         <div class="form-row one">
-          <div class="form-group"><label>ที่อยู่สถานประกอบกิจการ</label>
-            <input id="kpo-address" placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด"/></div>
+          <div class="form-group"><label>เธ—เธตเนเธญเธขเธนเนเธชเธ–เธฒเธเธเธฃเธฐเธเธญเธเธเธดเธเธเธฒเธฃ</label>
+            <input id="kpo-address" placeholder="เน€เธฅเธเธ—เธตเน เธ–เธเธ เธ•เธณเธเธฅ เธญเธณเน€เธ เธญ เธเธฑเธเธซเธงเธฑเธ”"/></div>
         </div>
         <div class="form-row three">
-          <div class="form-group"><label>ปีแผน (พ.ศ.) *</label>
+          <div class="form-group"><label>เธเธตเนเธเธ (เธ.เธจ.) *</label>
             <input id="kpo-year" type="number" min="2560"/></div>
-          <div class="form-group"><label>ครั้งที่ประชุม คปอ</label>
-            <input id="kpo-meeting-no" placeholder="เช่น 1/2568"/></div>
-          <div class="form-group"><label>วันที่ประชุมอนุมัติ</label>
+          <div class="form-group"><label>เธเธฃเธฑเนเธเธ—เธตเนเธเธฃเธฐเธเธธเธก เธเธเธญ</label>
+            <input id="kpo-meeting-no" placeholder="เน€เธเนเธ 1/2568"/></div>
+          <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธเธฃเธฐเธเธธเธกเธญเธเธธเธกเธฑเธ•เธด</label>
             <input id="kpo-meeting-date" type="date"/></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>ประธาน คปอ</label>
-            <input id="kpo-chair" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
-          <div class="form-group"><label>เลขานุการ คปอ</label>
-            <input id="kpo-secretary" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+          <div class="form-group"><label>เธเธฃเธฐเธเธฒเธ เธเธเธญ</label>
+            <input id="kpo-chair" placeholder="เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ / เธ•เธณเนเธซเธเนเธ"/></div>
+          <div class="form-group"><label>เน€เธฅเธเธฒเธเธธเธเธฒเธฃ เธเธเธญ</label>
+            <input id="kpo-secretary" placeholder="เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ / เธ•เธณเนเธซเธเนเธ"/></div>
         </div>
         <div class="form-row one">
-          <div class="form-group"><label>ผู้จัดทำ</label>
-            <input id="kpo-preparer" placeholder="ชื่อ-นามสกุล / ตำแหน่ง"/></div>
+          <div class="form-group"><label>เธเธนเนเธเธฑเธ”เธ—เธณ</label>
+            <input id="kpo-preparer" placeholder="เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ / เธ•เธณเนเธซเธเนเธ"/></div>
         </div>
         <div class="form-row one">
-          <div class="form-group"><label>รายชื่อกรรมการ คปอ (ใส่ชื่อทีละบรรทัด)</label>
-            <textarea id="kpo-members" rows="4" placeholder="นาย ก. เจ้าหน้าที่ความปลอดภัย&#10;นาย ข. ผู้แทนลูกจ้าง&#10;นาง ค. ตัวแทนฝ่ายบุคคล"></textarea></div>
+          <div class="form-group"><label>เธฃเธฒเธขเธเธทเนเธญเธเธฃเธฃเธกเธเธฒเธฃ เธเธเธญ (เนเธชเนเธเธทเนเธญเธ—เธตเธฅเธฐเธเธฃเธฃเธ—เธฑเธ”)</label>
+            <textarea id="kpo-members" rows="4" placeholder="เธเธฒเธข เธ. เน€เธเนเธฒเธซเธเนเธฒเธ—เธตเนเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข&#10;เธเธฒเธข เธ. เธเธนเนเนเธ—เธเธฅเธนเธเธเนเธฒเธ&#10;เธเธฒเธ เธ. เธ•เธฑเธงเนเธ—เธเธเนเธฒเธขเธเธธเธเธเธฅ"></textarea></div>
         </div>
         <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-          <button type="button" class="btn btn-print" onclick="window.__generateKPODoc()">🖨️ สร้างเอกสารและพิมพ์</button>
-          <button type="button" class="btn btn-ghost" onclick="window.__closeKPOModal()">ยกเลิก</button>
+          <button type="button" class="btn btn-print" onclick="window.__generateKPODoc()">๐–จ๏ธ เธชเธฃเนเธฒเธเน€เธญเธเธชเธฒเธฃเนเธฅเธฐเธเธดเธกเธเน</button>
+          <button type="button" class="btn btn-ghost" onclick="window.__closeKPOModal()">เธขเธเน€เธฅเธดเธ</button>
         </div>
       </div>
     </div>
@@ -653,3 +654,4 @@ await loadData();
 </script>
 </body>
 </html>
+

@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>แคมเปญรณรงค์ความปลอดภัย</title>
+<title>เนเธเธกเน€เธเธเธฃเธ“เธฃเธเธเนเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -78,22 +78,23 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   CAMPAIGN_TOPICS, CAMPAIGN_ACTIVITIES, CAMPAIGN_STATUS, CAMPAIGN_TARGET,
   listCampaigns, getCampaign, createCampaign, updateCampaign, deleteCampaign,
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-campaigns', 'แคมเปญรณรงค์ความปลอดภัย (§7.3)');
+const main = renderShell(profile, 'safety-campaigns', 'เนเธเธกเน€เธเธเธฃเธ“เธฃเธเธเนเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข (ยง7.3)');
 
 let allRecs  = [];
 let editId   = null;
 let viewMode = 'card';
 
-function getTopic(key) { return CAMPAIGN_TOPICS.find(t=>t.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
-function getTarget(key){ return CAMPAIGN_TARGET.find(t=>t.key===key)||{label:key||'—'}; }
-function getAct(key)   { return CAMPAIGN_ACTIVITIES.find(a=>a.key===key)||{icon:'📌',label:key||'—'}; }
+function getTopic(key) { return CAMPAIGN_TOPICS.find(t=>t.key===key)||{icon:'๐“',label:key||'โ€”',color:'#6b7280',bg:'#f3f4f6'}; }
+function getTarget(key){ return CAMPAIGN_TARGET.find(t=>t.key===key)||{label:key||'โ€”'}; }
+function getAct(key)   { return CAMPAIGN_ACTIVITIES.find(a=>a.key===key)||{icon:'๐“',label:key||'โ€”'}; }
 
 function dateProgress(r) {
   if (!r.startDate || !r.endDate) return 0;
@@ -105,7 +106,7 @@ function dateProgress(r) {
   return Math.round(((now - start) / (end - start)) * 100);
 }
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const total     = recs.length;
   const active    = recs.filter(r=>r.status==='active').length;
@@ -114,18 +115,18 @@ function renderKPI(recs) {
   const totalReach = recs.reduce((s,r)=>s+(parseInt(r.reachCount)||0), 0);
   const topicCnt  = [...new Set(recs.map(r=>r.topic))].length;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">แคมเปญทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${active}</div><div class="lbl">🔄 กำลังดำเนินการ</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${completed}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${planned}</div><div class="lbl">📋 วางแผนแล้ว</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${totalReach.toLocaleString()}</div><div class="lbl">👥 ผู้เข้าร่วมรวม</div></div>
-    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${topicCnt}</div><div class="lbl">หัวข้อรณรงค์</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เนเธเธกเน€เธเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${active}</div><div class="lbl">๐” เธเธณเธฅเธฑเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${completed}</div><div class="lbl">โ… เน€เธชเธฃเนเธเธชเธดเนเธ</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${planned}</div><div class="lbl">๐“ เธงเธฒเธเนเธเธเนเธฅเนเธง</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${totalReach.toLocaleString()}</div><div class="lbl">๐‘ฅ เธเธนเนเน€เธเนเธฒเธฃเนเธงเธกเธฃเธงเธก</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${topicCnt}</div><div class="lbl">เธซเธฑเธงเธเนเธญเธฃเธ“เธฃเธเธเน</div></div>
   </div>`;
 }
 
-// ── Card view ──
+// โ”€โ”€ Card view โ”€โ”€
 function renderCards(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🎯</div><p style="margin-top:12px">ยังไม่มีแคมเปญ</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐ฏ</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเนเธเธกเน€เธเธ</p></div>`;
   return `<div class="card-grid">${recs.map(r => {
     const tp  = getTopic(r.topic);
     const sts = CAMPAIGN_STATUS[r.status]||CAMPAIGN_STATUS.planned;
@@ -138,33 +139,33 @@ function renderCards(recs) {
           <span style="font-size:1.6rem">${tp.icon}</span>
           <span class="badge" style="color:${sts.color};background:rgba(255,255,255,.9)">${sts.icon} ${sts.label}</span>
         </div>
-        <div class="cmp-banner-title">${r.name||'—'}</div>
-        <div class="cmp-banner-sub">${tp.label} · ${tgt.label}</div>
+        <div class="cmp-banner-title">${r.name||'โ€”'}</div>
+        <div class="cmp-banner-sub">${tp.label} ยท ${tgt.label}</div>
       </div>
       <div class="cmp-body">
         <div class="cmp-dates">
-          ${r.startDate?`<span>📅 ${r.startDate}</span>`:''}
-          ${r.endDate?`<span>→ ${r.endDate}</span>`:''}
-          ${r.reachCount?`<span>👥 ${parseInt(r.reachCount).toLocaleString()} คน</span>`:''}
+          ${r.startDate?`<span>๐“… ${r.startDate}</span>`:''}
+          ${r.endDate?`<span>โ’ ${r.endDate}</span>`:''}
+          ${r.reachCount?`<span>๐‘ฅ ${parseInt(r.reachCount).toLocaleString()} เธเธ</span>`:''}
         </div>
         ${(r.activities||[]).length?`<div class="cmp-activities">${acts}</div>`:''}
         ${r.status==='active'?`
-          <div style="font-size:.76rem;color:#6b7280;margin-bottom:2px">ความคืบหน้าตามเวลา</div>
+          <div style="font-size:.76rem;color:#6b7280;margin-bottom:2px">เธเธงเธฒเธกเธเธทเธเธซเธเนเธฒเธ•เธฒเธกเน€เธงเธฅเธฒ</div>
           <div class="progress-wrap"><div class="progress-bar" style="width:${pct}%;background:${tp.color}"></div></div>
           <div style="font-size:.74rem;color:${tp.color};font-weight:700">${pct}%</div>`:''}
-        ${r.effectScore?`<div style="font-size:.8rem;color:#6b7280;margin-top:6px">📊 ผลประเมิน: <strong>${r.effectScore}/10</strong></div>`:''}
+        ${r.effectScore?`<div style="font-size:.8rem;color:#6b7280;margin-top:6px">๐“ เธเธฅเธเธฃเธฐเน€เธกเธดเธ: <strong>${r.effectScore}/10</strong></div>`:''}
         <div style="display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9">
-          <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">✏️ แก้ไข</button>
-          <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">ลบ</button>
+          <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
         </div>
       </div>
     </div>`;
   }).join('')}</div>`;
 }
 
-// ── Timeline view ──
+// โ”€โ”€ Timeline view โ”€โ”€
 function renderTimeline(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">📅</div><p style="margin-top:12px">ยังไม่มีแคมเปญ</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐“…</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเนเธเธกเน€เธเธ</p></div>`;
   const sorted = [...recs].sort((a,b)=>(b.startDate||'').localeCompare(a.startDate||''));
   return `<div class="timeline">${sorted.map(r => {
     const tp  = getTopic(r.topic);
@@ -174,58 +175,58 @@ function renderTimeline(recs) {
       <div class="tl-content">
         <div class="tl-head">
           <div>
-            <div class="tl-title">${tp.icon} ${r.name||'—'}</div>
-            <div style="font-size:.76rem;color:#6b7280">${tp.label} · ${r.startDate||''}${r.endDate?' → '+r.endDate:''}</div>
+            <div class="tl-title">${tp.icon} ${r.name||'โ€”'}</div>
+            <div style="font-size:.76rem;color:#6b7280">${tp.label} ยท ${r.startDate||''}${r.endDate?' โ’ '+r.endDate:''}</div>
           </div>
           <span class="badge" style="color:${sts.color};background:${sts.bg};white-space:nowrap">${sts.icon} ${sts.label}</span>
         </div>
-        ${r.description?`<div style="font-size:.8rem;color:#475569;margin-bottom:6px">${r.description.substring(0,100)}${r.description.length>100?'…':''}</div>`:''}
+        ${r.description?`<div style="font-size:.8rem;color:#475569;margin-bottom:6px">${r.description.substring(0,100)}${r.description.length>100?'โ€ฆ':''}</div>`:''}
         <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:.76rem;color:#6b7280">
-          ${r.reachCount?`<span>👥 ${parseInt(r.reachCount).toLocaleString()} คน</span>`:''}
-          ${r.responsible?`<span>👤 ${r.responsible}</span>`:''}
-          ${r.budget?`<span>💰 ${parseInt(r.budget).toLocaleString()} บาท</span>`:''}
-          ${r.effectScore?`<span>📊 ผล: ${r.effectScore}/10</span>`:''}
+          ${r.reachCount?`<span>๐‘ฅ ${parseInt(r.reachCount).toLocaleString()} เธเธ</span>`:''}
+          ${r.responsible?`<span>๐‘ค ${r.responsible}</span>`:''}
+          ${r.budget?`<span>๐’ฐ ${parseInt(r.budget).toLocaleString()} เธเธฒเธ—</span>`:''}
+          ${r.effectScore?`<span>๐“ เธเธฅ: ${r.effectScore}/10</span>`:''}
         </div>
         <div style="display:flex;gap:6px;margin-top:8px">
-          <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">แก้ไข</button>
-          <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">ลบ</button>
+          <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">เนเธเนเนเธ</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
         </div>
       </div>
     </div>`;
   }).join('')}</div>`;
 }
 
-// ── Table view ──
+// โ”€โ”€ Table view โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">📋</div><p style="margin-top:12px">ยังไม่มีแคมเปญ</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐“</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเนเธเธกเน€เธเธ</p></div>`;
   const rows = recs.map(r => {
     const tp  = getTopic(r.topic);
     const sts = CAMPAIGN_STATUS[r.status]||CAMPAIGN_STATUS.planned;
     const tgt = getTarget(r.targetAudience);
     return `<tr>
       <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:${tp.bg};color:${tp.color}">${tp.icon} ${tp.label}</span></td>
-      <td><strong>${r.name||'—'}</strong></td>
+      <td><strong>${r.name||'โ€”'}</strong></td>
       <td style="font-size:.82rem">${tgt.label}</td>
-      <td style="font-size:.82rem">${r.startDate||'—'}</td>
-      <td style="font-size:.82rem">${r.endDate||'—'}</td>
-      <td style="font-size:.82rem">${r.reachCount?parseInt(r.reachCount).toLocaleString()+'คน':'—'}</td>
+      <td style="font-size:.82rem">${r.startDate||'โ€”'}</td>
+      <td style="font-size:.82rem">${r.endDate||'โ€”'}</td>
+      <td style="font-size:.82rem">${r.reachCount?parseInt(r.reachCount).toLocaleString()+'เธเธ':'โ€”'}</td>
       <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
-      <td style="font-size:.82rem">${r.effectScore?r.effectScore+'/10':'—'}</td>
-      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td style="font-size:.82rem">${r.effectScore?r.effectScore+'/10':'โ€”'}</td>
+      <td style="font-size:.82rem">${r.responsible||'โ€”'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editCmp('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteCmp('${r.id}','${(r.name||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table><thead><tr>
-    <th>หัวข้อ</th><th>ชื่อแคมเปญ</th><th>กลุ่มเป้าหมาย</th>
-    <th>เริ่ม</th><th>สิ้นสุด</th><th>ผู้เข้าร่วม</th>
-    <th>สถานะ</th><th>ผลประเมิน</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th>
+    <th>เธซเธฑเธงเธเนเธญ</th><th>เธเธทเนเธญเนเธเธกเน€เธเธ</th><th>เธเธฅเธธเนเธกเน€เธเนเธฒเธซเธกเธฒเธข</th>
+    <th>เน€เธฃเธดเนเธก</th><th>เธชเธดเนเธเธชเธธเธ”</th><th>เธเธนเนเน€เธเนเธฒเธฃเนเธงเธก</th>
+    <th>เธชเธ–เธฒเธเธฐ</th><th>เธเธฅเธเธฃเธฐเน€เธกเธดเธ</th><th>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const topicOpts = CAMPAIGN_TOPICS.map(t=>`<option value="${t.key}" ${rec?.topic===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
   const stsOpts   = Object.entries(CAMPAIGN_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'planned')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
@@ -238,53 +239,53 @@ function renderForm(rec) {
   }).join('');
   return `<form id="cmp-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>หัวข้อ / ประเด็นรณรงค์ *</label><select id="f-topic">${topicOpts}</select></div>
-      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+      <div class="form-group"><label>เธซเธฑเธงเธเนเธญ / เธเธฃเธฐเน€เธ”เนเธเธฃเธ“เธฃเธเธเน *</label><select id="f-topic">${topicOpts}</select></div>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label><select id="f-status">${stsOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ชื่อแคมเปญ *</label>
-        <input id="f-name" value="${rec?.name||''}" placeholder="เช่น เดือนรณรงค์ความปลอดภัย 2568, Zero Accident Campaign Q1"/></div>
+      <div class="form-group"><label>เธเธทเนเธญเนเธเธกเน€เธเธ *</label>
+        <input id="f-name" value="${rec?.name||''}" placeholder="เน€เธเนเธ เน€เธ”เธทเธญเธเธฃเธ“เธฃเธเธเนเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข 2568, Zero Accident Campaign Q1"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>วัตถุประสงค์ / เป้าหมายของแคมเปญ</label>
-        <textarea id="f-description" rows="2" placeholder="สิ่งที่ต้องการให้พนักงานรู้ เข้าใจ หรือปฏิบัติหลังจากแคมเปญนี้">${rec?.description||''}</textarea></div>
+      <div class="form-group"><label>เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน / เน€เธเนเธฒเธซเธกเธฒเธขเธเธญเธเนเธเธกเน€เธเธ</label>
+        <textarea id="f-description" rows="2" placeholder="เธชเธดเนเธเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเนเธซเนเธเธเธฑเธเธเธฒเธเธฃเธนเน เน€เธเนเธฒเนเธ เธซเธฃเธทเธญเธเธเธดเธเธฑเธ•เธดเธซเธฅเธฑเธเธเธฒเธเนเธเธกเน€เธเธเธเธตเน">${rec?.description||''}</textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>กลุ่มเป้าหมาย</label><select id="f-targetAudience">${tgtOpts}</select></div>
-      <div class="form-group"><label>ผู้รับผิดชอบ</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+      <div class="form-group"><label>เธเธฅเธธเนเธกเน€เธเนเธฒเธซเธกเธฒเธข</label><select id="f-targetAudience">${tgtOpts}</select></div>
+      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>วันที่เริ่ม</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเน€เธฃเธดเนเธก</label>
         <input id="f-startDate" type="date" value="${rec?.startDate||''}"/></div>
-      <div class="form-group"><label>วันที่สิ้นสุด</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธชเธดเนเธเธชเธธเธ”</label>
         <input id="f-endDate" type="date" value="${rec?.endDate||''}"/></div>
     </div>
-    <div class="section-head">กิจกรรมที่ใช้ (เลือกได้หลายข้อ)</div>
+    <div class="section-head">เธเธดเธเธเธฃเธฃเธกเธ—เธตเนเนเธเน (เน€เธฅเธทเธญเธเนเธ”เนเธซเธฅเธฒเธขเธเนเธญ)</div>
     <div class="act-grid">${actBoxes}</div>
     <div class="form-row one">
-      <div class="form-group"><label>รายละเอียดกิจกรรม</label>
-        <textarea id="f-actDetail" rows="3" placeholder="อธิบายกิจกรรมที่จัดหรือวางแผนจะจัด">${rec?.actDetail||''}</textarea></div>
+      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธดเธเธเธฃเธฃเธก</label>
+        <textarea id="f-actDetail" rows="3" placeholder="เธญเธเธดเธเธฒเธขเธเธดเธเธเธฃเธฃเธกเธ—เธตเนเธเธฑเธ”เธซเธฃเธทเธญเธงเธฒเธเนเธเธเธเธฐเธเธฑเธ”">${rec?.actDetail||''}</textarea></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>จำนวนผู้เข้าร่วม (คน)</label>
+      <div class="form-group"><label>เธเธณเธเธงเธเธเธนเนเน€เธเนเธฒเธฃเนเธงเธก (เธเธ)</label>
         <input id="f-reachCount" type="number" value="${rec?.reachCount||''}" placeholder="0"/></div>
-      <div class="form-group"><label>งบประมาณ (บาท)</label>
+      <div class="form-group"><label>เธเธเธเธฃเธฐเธกเธฒเธ“ (เธเธฒเธ—)</label>
         <input id="f-budget" type="number" value="${rec?.budget||''}" placeholder="0"/></div>
-      <div class="form-group"><label>คะแนนประสิทธิผล (1-10)</label>
-        <input id="f-effectScore" type="number" min="1" max="10" value="${rec?.effectScore||''}" placeholder="หลังแคมเปญเสร็จ"/></div>
+      <div class="form-group"><label>เธเธฐเนเธเธเธเธฃเธฐเธชเธดเธ—เธเธดเธเธฅ (1-10)</label>
+        <input id="f-effectScore" type="number" min="1" max="10" value="${rec?.effectScore||''}" placeholder="เธซเธฅเธฑเธเนเธเธกเน€เธเธเน€เธชเธฃเนเธ"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ผลการประเมินความตระหนัก / feedback</label>
-        <textarea id="f-effectNote" rows="2" placeholder="สรุปผลการประเมินหรือ feedback จากผู้เข้าร่วม">${rec?.effectNote||''}</textarea></div>
+      <div class="form-group"><label>เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธเธงเธฒเธกเธ•เธฃเธฐเธซเธเธฑเธ / feedback</label>
+        <textarea id="f-effectNote" rows="2" placeholder="เธชเธฃเธธเธเธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธซเธฃเธทเธญ feedback เธเธฒเธเธเธนเนเน€เธเนเธฒเธฃเนเธงเธก">${rec?.effectNote||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveCmp()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveCmp()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
@@ -297,7 +298,7 @@ window.__toggleAct = key => {
   box.classList.toggle('checked', cb.checked);
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -308,14 +309,14 @@ function openPanel(html, title) {
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 }
-window.__newCmp  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มแคมเปญ'); };
+window.__newCmp  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเนเธเธกเน€เธเธ'); };
 window.__editCmp = async id => {
   editId = id;
   const r = await getCampaign(id);
-  openPanel(renderForm(r), '✏️ แก้ไขแคมเปญ');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเนเธเธกเน€เธเธ');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveCmp = async () => {
   const activities = CAMPAIGN_ACTIVITIES
     .map(a => document.getElementById(`act-${a.key}`)?.checked ? a.key : null)
@@ -337,24 +338,24 @@ window.__saveCmp = async () => {
     effectNote:      document.getElementById('f-effectNote').value.trim(),
     notes:           document.getElementById('f-notes').value.trim(),
   };
-  if (!data.name) { alert('กรุณากรอกชื่อแคมเปญ'); return; }
+  if (!data.name) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเนเธเธกเน€เธเธ'); return; }
   try {
     if (editId) await updateCampaign(editId, data);
     else        await createCampaign(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deleteCmp = async (id, name) => {
-  if (!confirm(`ลบแคมเปญ "${name}"?`)) return;
+  if (!confirm(`เธฅเธเนเธเธกเน€เธเธ "${name}"?`)) return;
   await deleteCampaign(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const tp  = document.getElementById('filter-topic')?.value||'';
@@ -386,25 +387,25 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const topicOpts = `<option value="">-- ทุกหัวข้อ --</option>` + CAMPAIGN_TOPICS.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
-const stsOpts   = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(CAMPAIGN_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
-const tgtOpts   = `<option value="">-- ทุกกลุ่ม --</option>` + CAMPAIGN_TARGET.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
+// โ”€โ”€ Build UI โ”€โ”€
+const topicOpts = `<option value="">-- เธ—เธธเธเธซเธฑเธงเธเนเธญ --</option>` + CAMPAIGN_TOPICS.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const stsOpts   = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` + Object.entries(CAMPAIGN_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+const tgtOpts   = `<option value="">-- เธ—เธธเธเธเธฅเธธเนเธก --</option>` + CAMPAIGN_TARGET.map(t=>`<option value="${t.key}">${t.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาแคมเปญ…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเนเธเธกเน€เธเธโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-topic"  onchange="applyFilter()">${topicOpts}</select>
       <select id="filter-status" onchange="applyFilter()">${stsOpts}</select>
       <select id="filter-target" onchange="applyFilter()">${tgtOpts}</select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="card"     onclick="window.__switchView('card')">🎯 การ์ด</button>
-        <button class="view-btn"        data-view="timeline" onclick="window.__switchView('timeline')">📅 ไทม์ไลน์</button>
-        <button class="view-btn"        data-view="table"    onclick="window.__switchView('table')">📋 ตาราง</button>
+        <button class="view-btn active" data-view="card"     onclick="window.__switchView('card')">๐ฏ เธเธฒเธฃเนเธ”</button>
+        <button class="view-btn"        data-view="timeline" onclick="window.__switchView('timeline')">๐“… เนเธ—เธกเนเนเธฅเธเน</button>
+        <button class="view-btn"        data-view="table"    onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newCmp()">+ เพิ่มแคมเปญ</button>
+      <button class="btn btn-primary" onclick="window.__newCmp()">+ เน€เธเธดเนเธกเนเธเธกเน€เธเธ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -412,8 +413,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">แคมเปญรณรงค์</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เนเธเธกเน€เธเธเธฃเธ“เธฃเธเธเน</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -423,3 +424,4 @@ await loadData();
 </script>
 </body>
 </html>
+

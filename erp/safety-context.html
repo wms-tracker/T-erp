@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>บริบทและประเด็นองค์กร</title>
+<title>เธเธฃเธดเธเธ—เนเธฅเธฐเธเธฃเธฐเน€เธ”เนเธเธญเธเธเนเธเธฃ</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -60,7 +60,8 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   CTX_TYPES, CTX_CATEGORIES_INTERNAL, CTX_CATEGORIES_EXTERNAL,
   CTX_CLASSIFICATION, CTX_IMPACT, CTX_MONITOR_FREQ,
@@ -68,7 +69,7 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-context', 'บริบทและประเด็นองค์กร (§4.1)');
+const main = renderShell(profile, 'safety-context', 'เธเธฃเธดเธเธ—เนเธฅเธฐเธเธฃเธฐเน€เธ”เนเธเธญเธเธเนเธเธฃ (ยง4.1)');
 
 let allRecs  = [];
 let editId   = null;
@@ -76,9 +77,9 @@ let viewMode = 'swot';
 
 const ALL_CATS = [...CTX_CATEGORIES_INTERNAL, ...CTX_CATEGORIES_EXTERNAL];
 
-function getCategory(key) { return ALL_CATS.find(c=>c.key===key)||{icon:'📌',label:key||'—'}; }
+function getCategory(key) { return ALL_CATS.find(c=>c.key===key)||{icon:'๐“',label:key||'โ€”'}; }
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const internal = recs.filter(r=>r.issueType==='internal').length;
   const external = recs.filter(r=>r.issueType==='external').length;
@@ -88,18 +89,18 @@ function renderKPI(recs) {
   const threat   = recs.filter(r=>r.classification==='threat').length;
   const highImp  = recs.filter(r=>r.impact==='high').length;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">ประเด็นทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${internal}</div><div class="lbl">🏭 ภายใน</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${external}</div><div class="lbl">🌐 ภายนอก</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${strength + opp}</div><div class="lbl">💪 จุดแข็ง+โอกาส</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${weakness + threat}</div><div class="lbl">⚡ จุดอ่อน+ภัย</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${highImp}</div><div class="lbl">🔴 ผลกระทบสูง</div></div>
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">เธเธฃเธฐเน€เธ”เนเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${internal}</div><div class="lbl">๐ญ เธ เธฒเธขเนเธ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${external}</div><div class="lbl">๐ เธ เธฒเธขเธเธญเธ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${strength + opp}</div><div class="lbl">๐’ช เธเธธเธ”เนเธเนเธ+เนเธญเธเธฒเธช</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${weakness + threat}</div><div class="lbl">โก เธเธธเธ”เธญเนเธญเธ+เธ เธฑเธข</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${highImp}</div><div class="lbl">๐”ด เธเธฅเธเธฃเธฐเธ—เธเธชเธนเธ</div></div>
   </div>`;
 }
 
-// ── SWOT Matrix ──
+// โ”€โ”€ SWOT Matrix โ”€โ”€
 function renderSWOT(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">🗺️</div><p>ยังไม่มีประเด็น</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐—บ๏ธ</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเธฃเธฐเน€เธ”เนเธ</p></div>`;
   const groups = { strength:[], weakness:[], opportunity:[], threat:[] };
   recs.forEach(r => { if (groups[r.classification]) groups[r.classification].push(r); });
 
@@ -110,11 +111,11 @@ function renderSWOT(recs) {
       ? items.map(r => {
           const imp = CTX_IMPACT[r.impact]||CTX_IMPACT.medium;
           return `<div class="swot-item" style="background:${cfg.bg};border-left-color:${imp.color}" onclick="window.__editCtx('${r.id}')">
-            <div style="font-weight:600;font-size:.83rem">${r.title||'—'}</div>
-            <div style="font-size:.74rem;color:#6b7280;margin-top:2px">${getCategory(r.category).icon} ${getCategory(r.category).label} · ผลกระทบ ${imp.label}</div>
+            <div style="font-weight:600;font-size:.83rem">${r.title||'โ€”'}</div>
+            <div style="font-size:.74rem;color:#6b7280;margin-top:2px">${getCategory(r.category).icon} ${getCategory(r.category).label} ยท เธเธฅเธเธฃเธฐเธ—เธ ${imp.label}</div>
           </div>`;
         }).join('')
-      : `<div style="font-size:.8rem;color:#9ca3af;text-align:center;padding:12px">ไม่มีประเด็น</div>`;
+      : `<div style="font-size:.8rem;color:#9ca3af;text-align:center;padding:12px">เนเธกเนเธกเธตเธเธฃเธฐเน€เธ”เนเธ</div>`;
     return `<div class="swot-cell">
       <h3 style="color:${cfg.color}">${cfg.icon} ${cfg.label} <span style="font-size:.74rem;font-weight:400;color:#9ca3af">(${items.length})</span></h3>
       ${cards}
@@ -127,9 +128,9 @@ function renderSWOT(recs) {
   </div>`;
 }
 
-// ── Table ──
+// โ”€โ”€ Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">🗺️</div><p>ยังไม่มีประเด็น</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐—บ๏ธ</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเธฃเธฐเน€เธ”เนเธ</p></div>`;
   const rows = recs.map(r => {
     const tp  = CTX_TYPES[r.issueType]||CTX_TYPES.internal;
     const cls = CTX_CLASSIFICATION[r.classification]||CTX_CLASSIFICATION.strength;
@@ -138,28 +139,28 @@ function renderTable(recs) {
     const cat = getCategory(r.category);
     return `<tr>
       <td><span class="type-chip" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
-      <td><strong>${r.title||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${cat.icon} ${cat.label}</span></td>
-      <td style="max-width:180px;font-size:.8rem">${(r.description||'').substring(0,80)}${(r.description||'').length>80?'…':''}</td>
+      <td><strong>${r.title||'โ€”'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${cat.icon} ${cat.label}</span></td>
+      <td style="max-width:180px;font-size:.8rem">${(r.description||'').substring(0,80)}${(r.description||'').length>80?'โ€ฆ':''}</td>
       <td><span class="badge" style="color:${cls.color};background:${cls.bg}">${cls.icon} ${cls.label}</span></td>
       <td><span class="badge" style="color:${imp.color};background:${imp.bg}">${imp.label}</span></td>
-      <td style="font-size:.82rem">${frq?.label||r.monitorFreq||'—'}</td>
-      <td style="font-size:.82rem">${r.reviewDate||'—'}</td>
+      <td style="font-size:.82rem">${frq?.label||r.monitorFreq||'โ€”'}</td>
+      <td style="font-size:.82rem">${r.reviewDate||'โ€”'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editCtx('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteCtx('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editCtx('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteCtx('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>ประเภท</th><th>ประเด็น / หมวด</th><th>รายละเอียด</th>
-      <th>การจำแนก</th><th>ผลกระทบ</th><th>ความถี่ติดตาม</th><th>วันทบทวน</th><th>จัดการ</th>
+      <th>เธเธฃเธฐเน€เธ เธ—</th><th>เธเธฃเธฐเน€เธ”เนเธ / เธซเธกเธงเธ”</th><th>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”</th>
+      <th>เธเธฒเธฃเธเธณเนเธเธ</th><th>เธเธฅเธเธฃเธฐเธ—เธ</th><th>เธเธงเธฒเธกเธ–เธตเนเธ•เธดเธ”เธ•เธฒเธก</th><th>เธงเธฑเธเธ—เธเธ—เธงเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const typeOpts = Object.entries(CTX_TYPES).map(([k,v])=>
     `<option value="${k}" ${rec?.issueType===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
@@ -176,52 +177,52 @@ function renderForm(rec) {
 
   return `<form id="ctx-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>ประเภท *</label>
+      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ— *</label>
         <select id="f-issueType" onchange="window.__onTypeChange()">${typeOpts}</select></div>
-      <div class="form-group"><label>หมวดหมู่ *</label>
+      <div class="form-group"><label>เธซเธกเธงเธ”เธซเธกเธนเน *</label>
         <select id="f-category">
-          <optgroup label="ภายใน" id="int-opts">${intCats}</optgroup>
-          <optgroup label="ภายนอก" id="ext-opts">${extCats}</optgroup>
+          <optgroup label="เธ เธฒเธขเนเธ" id="int-opts">${intCats}</optgroup>
+          <optgroup label="เธ เธฒเธขเธเธญเธ" id="ext-opts">${extCats}</optgroup>
         </select>
       </div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ชื่อประเด็น *</label>
-        <input id="f-title" value="${rec?.title||''}" placeholder="ชื่อบริบท / ประเด็นที่วิเคราะห์"/></div>
+      <div class="form-group"><label>เธเธทเนเธญเธเธฃเธฐเน€เธ”เนเธ *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="เธเธทเนเธญเธเธฃเธดเธเธ— / เธเธฃเธฐเน€เธ”เนเธเธ—เธตเนเธงเธดเน€เธเธฃเธฒเธฐเธซเน"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>รายละเอียด / คำอธิบาย</label>
-        <textarea id="f-description" rows="3" placeholder="อธิบายบริบทหรือประเด็นนี้">${rec?.description||''}</textarea></div>
+      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ” / เธเธณเธญเธเธดเธเธฒเธข</label>
+        <textarea id="f-description" rows="3" placeholder="เธญเธเธดเธเธฒเธขเธเธฃเธดเธเธ—เธซเธฃเธทเธญเธเธฃเธฐเน€เธ”เนเธเธเธตเน">${rec?.description||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ผลกระทบต่อระบบบริหารความปลอดภัย</label>
-        <textarea id="f-impact_desc" rows="2" placeholder="วิธีที่ประเด็นนี้กระทบต่อเป้าหมายความปลอดภัย">${rec?.impact_desc||''}</textarea></div>
+      <div class="form-group"><label>เธเธฅเธเธฃเธฐเธ—เธเธ•เนเธญเธฃเธฐเธเธเธเธฃเธดเธซเธฒเธฃเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</label>
+        <textarea id="f-impact_desc" rows="2" placeholder="เธงเธดเธเธตเธ—เธตเนเธเธฃเธฐเน€เธ”เนเธเธเธตเนเธเธฃเธฐเธ—เธเธ•เนเธญเน€เธเนเธฒเธซเธกเธฒเธขเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข">${rec?.impact_desc||''}</textarea></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>การจำแนก</label>
+      <div class="form-group"><label>เธเธฒเธฃเธเธณเนเธเธ</label>
         <select id="f-classification">${clsOpts}</select></div>
-      <div class="form-group"><label>ระดับผลกระทบ</label>
+      <div class="form-group"><label>เธฃเธฐเธ”เธฑเธเธเธฅเธเธฃเธฐเธ—เธ</label>
         <select id="f-impact">${impOpts}</select></div>
-      <div class="form-group"><label>ความถี่ติดตาม</label>
+      <div class="form-group"><label>เธเธงเธฒเธกเธ–เธตเนเธ•เธดเธ”เธ•เธฒเธก</label>
         <select id="f-monitorFreq">${freqOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>แนวทางรับมือ / การตอบสนอง</label>
-        <textarea id="f-response" rows="2" placeholder="แนวทางที่องค์กรจะจัดการกับประเด็นนี้">${rec?.response||''}</textarea></div>
+      <div class="form-group"><label>เนเธเธงเธ—เธฒเธเธฃเธฑเธเธกเธทเธญ / เธเธฒเธฃเธ•เธญเธเธชเธเธญเธ</label>
+        <textarea id="f-response" rows="2" placeholder="เนเธเธงเธ—เธฒเธเธ—เธตเนเธญเธเธเนเธเธฃเธเธฐเธเธฑเธ”เธเธฒเธฃเธเธฑเธเธเธฃเธฐเน€เธ”เนเธเธเธตเน">${rec?.response||''}</textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>ผู้รับผิดชอบติดตาม</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / ตำแหน่ง"/></div>
-      <div class="form-group"><label>วันที่ทบทวนครั้งถัดไป</label>
+      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธเธ•เธดเธ”เธ•เธฒเธก</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เธ•เธณเนเธซเธเนเธ"/></div>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
         <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธ"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveCtx()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveCtx()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
@@ -237,7 +238,7 @@ window.__onTypeChange = () => {
   if (extG) extG.style.fontWeight = t==='external' ? '700' : '400';
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -250,14 +251,14 @@ function openPanel(html, title) {
   window.__onTypeChange();
 }
 
-window.__newCtx  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มประเด็น'); };
+window.__newCtx  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธเธฃเธฐเน€เธ”เนเธ'); };
 window.__editCtx = async id => {
   editId = id;
   const r = await getContextIssue(id);
-  openPanel(renderForm(r), '✏️ แก้ไขประเด็น');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธเธฃเธฐเน€เธ”เนเธ');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveCtx = async () => {
   const data = {
     issueType:      document.getElementById('f-issueType').value,
@@ -273,24 +274,24 @@ window.__saveCtx = async () => {
     reviewDate:     document.getElementById('f-reviewDate').value,
     notes:          document.getElementById('f-notes').value.trim(),
   };
-  if (!data.title) { alert('กรุณากรอกชื่อประเด็น'); return; }
+  if (!data.title) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธเธฃเธฐเน€เธ”เนเธ'); return; }
   try {
     if (editId) await updateContextIssue(editId, data);
     else        await createContextIssue(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deleteCtx = async (id, title) => {
-  if (!confirm(`ลบประเด็น "${title}"?`)) return;
+  if (!confirm(`เธฅเธเธเธฃเธฐเน€เธ”เนเธ "${title}"?`)) return;
   await deleteContextIssue(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const tp  = document.getElementById('filter-type')?.value||'';
@@ -319,27 +320,27 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const typeOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ— --</option>` +
   Object.entries(CTX_TYPES).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
-const clsOpts = `<option value="">-- ทุกการจำแนก --</option>` +
+const clsOpts = `<option value="">-- เธ—เธธเธเธเธฒเธฃเธเธณเนเธเธ --</option>` +
   Object.entries(CTX_CLASSIFICATION).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
-const impOpts = `<option value="">-- ทุกระดับ --</option>` +
+const impOpts = `<option value="">-- เธ—เธธเธเธฃเธฐเธ”เธฑเธ --</option>` +
   Object.entries(CTX_IMPACT).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาประเด็น…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธเธฃเธฐเน€เธ”เนเธโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
       <select id="filter-cls"    onchange="applyFilter()">${clsOpts}</select>
       <select id="filter-impact" onchange="applyFilter()">${impOpts}</select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="swot"  onclick="window.__switchView('swot')">🗺️ SWOT</button>
-        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
+        <button class="view-btn active" data-view="swot"  onclick="window.__switchView('swot')">๐—บ๏ธ SWOT</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newCtx()">+ เพิ่มประเด็น</button>
+      <button class="btn btn-primary" onclick="window.__newCtx()">+ เน€เธเธดเนเธกเธเธฃเธฐเน€เธ”เนเธ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -347,8 +348,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">บริบทและประเด็น</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เธเธฃเธดเธเธ—เนเธฅเธฐเธเธฃเธฐเน€เธ”เนเธ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -358,3 +359,4 @@ await loadData();
 </script>
 </body>
 </html>
+

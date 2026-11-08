@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ประเมินการปฏิบัติตามกฎหมาย</title>
+<title>เธเธฃเธฐเน€เธกเธดเธเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธกเธเธเธซเธกเธฒเธข</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#0d9488;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -72,7 +72,8 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   LEGAL_COMP_STATUS, LEGAL_COMP_CATEGORIES,
   listLegalCompliance, getLegalCompliance,
@@ -80,13 +81,13 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-legal-comply', 'ประเมินการปฏิบัติตามกฎหมาย (ISO 45001 §9.1.2)');
+const main = renderShell(profile, 'safety-legal-comply', 'เธเธฃเธฐเน€เธกเธดเธเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธกเธเธเธซเธกเธฒเธข (ISO 45001 ยง9.1.2)');
 
 let allRecs   = [];
 let editId    = null;
 let selStatus = '';
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const applicable = recs.filter(r=>r.complianceStatus!=='not_apply');
   const compliant  = recs.filter(r=>r.complianceStatus==='compliant').length;
@@ -100,59 +101,59 @@ function renderKPI(recs) {
     ? `<div class="comply-seg" style="width:${(n/total*100).toFixed(1)}%;background:${color}">${n > total*0.07 ? label+' '+n : ''}</div>`
     : '';
   const bar = `<div class="comply-bar">
-    ${seg(compliant,'#16a34a','✅')}
-    ${seg(partial,'#d97706','⚠️')}
-    ${seg(nonComply,'#dc2626','❌')}
-    ${seg(notApply,'#d1d5db','—')}
+    ${seg(compliant,'#16a34a','โ…')}
+    ${seg(partial,'#d97706','โ ๏ธ')}
+    ${seg(nonComply,'#dc2626','โ')}
+    ${seg(notApply,'#d1d5db','โ€”')}
   </div>`;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">กฎหมาย/ข้อกำหนด</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${compliant}</div><div class="lbl">✅ ครบถ้วน</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${partial}</div><div class="lbl">⚠️ บางส่วน</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${nonComply}</div><div class="lbl">❌ ยังไม่ปฏิบัติ</div></div>
-    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${notApply}</div><div class="lbl">— ไม่เกี่ยวข้อง</div></div>
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">เธเธเธซเธกเธฒเธข/เธเนเธญเธเธณเธซเธเธ”</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${compliant}</div><div class="lbl">โ… เธเธฃเธเธ–เนเธงเธ</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${partial}</div><div class="lbl">โ ๏ธ เธเธฒเธเธชเนเธงเธ</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${nonComply}</div><div class="lbl">โ เธขเธฑเธเนเธกเนเธเธเธดเธเธฑเธ•เธด</div></div>
+    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${notApply}</div><div class="lbl">โ€” เนเธกเนเน€เธเธตเนเธขเธงเธเนเธญเธ</div></div>
     <div class="kpi" style="border-color:#0d9488">
       <div class="num" style="color:#0d9488">${pct}%</div>
-      <div class="lbl">อัตราปฏิบัติตาม</div>
+      <div class="lbl">เธญเธฑเธ•เธฃเธฒเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธก</div>
       <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>
     </div>
   </div>${bar}`;
 }
 
-// ── Table ──
+// โ”€โ”€ Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">⚖️</div><p>ยังไม่มีข้อมูลการประเมิน</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">โ–๏ธ</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ</p></div>`;
   const rows = recs.map(r => {
     const st  = LEGAL_COMP_STATUS[r.complianceStatus]||LEGAL_COMP_STATUS.non_comply;
-    const cat = LEGAL_COMP_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:r.category||'—'};
+    const cat = LEGAL_COMP_CATEGORIES.find(c=>c.key===r.category)||{icon:'๐”–',label:r.category||'โ€”'};
     const overdue = r.nextEvalDate && new Date(r.nextEvalDate) < new Date();
     return `<tr>
       <td>
-        <strong>${r.lawName||'—'}</strong>
-        <div style="font-size:.74rem;color:#6b7280">${r.lawNumber||''} ${r.lawYear?'ปี '+r.lawYear:''}</div>
+        <strong>${r.lawName||'โ€”'}</strong>
+        <div style="font-size:.74rem;color:#6b7280">${r.lawNumber||''} ${r.lawYear?'เธเธต '+r.lawYear:''}</div>
       </td>
       <td style="font-size:.8rem">${cat.icon} ${cat.label}</td>
       <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
-      <td style="font-size:.8rem;max-width:160px">${r.requirementSummary||'—'}</td>
-      <td style="font-size:.8rem">${r.evalDate||'—'}</td>
-      <td style="font-size:.8rem${overdue?';color:#dc2626;font-weight:600':''}">${r.nextEvalDate||'—'}${overdue?' ⚠️':''}</td>
+      <td style="font-size:.8rem;max-width:160px">${r.requirementSummary||'โ€”'}</td>
+      <td style="font-size:.8rem">${r.evalDate||'โ€”'}</td>
+      <td style="font-size:.8rem${overdue?';color:#dc2626;font-weight:600':''}">${r.nextEvalDate||'โ€”'}${overdue?' โ ๏ธ':''}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__viewLC('${r.id}')">ดู</button>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editLC('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteLC('${r.id}','${(r.lawName||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__viewLC('${r.id}')">เธ”เธน</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editLC('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteLC('${r.id}','${(r.lawName||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>ชื่อกฎหมาย / ข้อกำหนด</th><th>หมวดหมู่</th><th>สถานะ</th>
-      <th>ข้อกำหนดสำคัญ</th><th>วันที่ประเมิน</th><th>ประเมินครั้งถัดไป</th><th>จัดการ</th>
+      <th>เธเธทเนเธญเธเธเธซเธกเธฒเธข / เธเนเธญเธเธณเธซเธเธ”</th><th>เธซเธกเธงเธ”เธซเธกเธนเน</th><th>เธชเธ–เธฒเธเธฐ</th>
+      <th>เธเนเธญเธเธณเธซเธเธ”เธชเธณเธเธฑเธ</th><th>เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ</th><th>เธเธฃเธฐเน€เธกเธดเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const catOpts = LEGAL_COMP_CATEGORIES.map(c=>
     `<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`
@@ -165,96 +166,96 @@ function renderForm(rec) {
   ).join('');
   return `<form id="lc-form" onsubmit="return false">
     <div class="form-row one">
-      <div class="form-group"><label>ชื่อกฎหมาย / ข้อกำหนด *</label>
-        <input id="f-lawName" value="${rec?.lawName||''}" placeholder="เช่น พ.ร.บ.ความปลอดภัยอาชีวอนามัย พ.ศ. 2554" required/></div>
+      <div class="form-group"><label>เธเธทเนเธญเธเธเธซเธกเธฒเธข / เธเนเธญเธเธณเธซเธเธ” *</label>
+        <input id="f-lawName" value="${rec?.lawName||''}" placeholder="เน€เธเนเธ เธ.เธฃ.เธ.เธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธขเธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข เธ.เธจ. 2554" required/></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>หมายเลขกฎหมาย / มาตรา</label>
-        <input id="f-lawNumber" value="${rec?.lawNumber||''}" placeholder="มาตรา / ข้อที่"/></div>
-      <div class="form-group"><label>ปีที่ประกาศใช้</label>
-        <input id="f-lawYear" value="${rec?.lawYear||''}" placeholder="พ.ศ."/></div>
-      <div class="form-group"><label>หมวดหมู่</label>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธฅเธเธเธเธซเธกเธฒเธข / เธกเธฒเธ•เธฃเธฒ</label>
+        <input id="f-lawNumber" value="${rec?.lawNumber||''}" placeholder="เธกเธฒเธ•เธฃเธฒ / เธเนเธญเธ—เธตเน"/></div>
+      <div class="form-group"><label>เธเธตเธ—เธตเนเธเธฃเธฐเธเธฒเธจเนเธเน</label>
+        <input id="f-lawYear" value="${rec?.lawYear||''}" placeholder="เธ.เธจ."/></div>
+      <div class="form-group"><label>เธซเธกเธงเธ”เธซเธกเธนเน</label>
         <select id="f-category">${catOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>สรุปข้อกำหนดสำคัญ</label>
-        <textarea id="f-requirementSummary" rows="2" placeholder="ข้อกำหนดหลักที่ต้องปฏิบัติตาม">${rec?.requirementSummary||''}</textarea></div>
+      <div class="form-group"><label>เธชเธฃเธธเธเธเนเธญเธเธณเธซเธเธ”เธชเธณเธเธฑเธ</label>
+        <textarea id="f-requirementSummary" rows="2" placeholder="เธเนเธญเธเธณเธซเธเธ”เธซเธฅเธฑเธเธ—เธตเนเธ•เนเธญเธเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธก">${rec?.requirementSummary||''}</textarea></div>
     </div>
 
     <div class="form-group" style="margin-bottom:14px">
-      <label>สถานะการปฏิบัติตาม *</label>
+      <label>เธชเธ–เธฒเธเธฐเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธก *</label>
       <div class="status-selector" id="status-selector">${statusBtns}</div>
       <input type="hidden" id="f-complianceStatus" value="${curStatus}"/>
     </div>
 
     <div class="form-row one">
-      <div class="form-group"><label>หลักฐานการปฏิบัติตาม / วิธีการตรวจสอบ</label>
-        <textarea id="f-evidence" rows="3" placeholder="ระบุหลักฐาน เช่น ใบอนุญาต, บันทึกการตรวจ, ผลการทดสอบ...">${rec?.evidence||''}</textarea></div>
+      <div class="form-group"><label>เธซเธฅเธฑเธเธเธฒเธเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธก / เธงเธดเธเธตเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ</label>
+        <textarea id="f-evidence" rows="3" placeholder="เธฃเธฐเธเธธเธซเธฅเธฑเธเธเธฒเธ เน€เธเนเธ เนเธเธญเธเธธเธเธฒเธ•, เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฃเธงเธ, เธเธฅเธเธฒเธฃเธ—เธ”เธชเธญเธ...">${rec?.evidence||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ช่องว่าง / ข้อบกพร่องที่พบ</label>
-        <textarea id="f-gaps" rows="2" placeholder="ระบุช่องว่างหรือข้อบกพร่องที่ยังไม่ครบถ้วน">${rec?.gaps||''}</textarea></div>
+      <div class="form-group"><label>เธเนเธญเธเธงเนเธฒเธ / เธเนเธญเธเธเธเธฃเนเธญเธเธ—เธตเนเธเธ</label>
+        <textarea id="f-gaps" rows="2" placeholder="เธฃเธฐเธเธธเธเนเธญเธเธงเนเธฒเธเธซเธฃเธทเธญเธเนเธญเธเธเธเธฃเนเธญเธเธ—เธตเนเธขเธฑเธเนเธกเนเธเธฃเธเธ–เนเธงเธ">${rec?.gaps||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>มาตรการแก้ไข / แผนดำเนินการ</label>
-        <textarea id="f-corrective" rows="2" placeholder="มาตรการหรือแผนเพื่อปิดช่องว่าง">${rec?.corrective||''}</textarea></div>
+      <div class="form-group"><label>เธกเธฒเธ•เธฃเธเธฒเธฃเนเธเนเนเธ / เนเธเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ</label>
+        <textarea id="f-corrective" rows="2" placeholder="เธกเธฒเธ•เธฃเธเธฒเธฃเธซเธฃเธทเธญเนเธเธเน€เธเธทเนเธญเธเธดเธ”เธเนเธญเธเธงเนเธฒเธ">${rec?.corrective||''}</textarea></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>วันที่ประเมิน *</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ *</label>
         <input id="f-evalDate" type="date" value="${rec?.evalDate||''}" required/></div>
-      <div class="form-group"><label>ประเมินครั้งถัดไป</label>
+      <div class="form-group"><label>เธเธฃเธฐเน€เธกเธดเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
         <input id="f-nextEvalDate" type="date" value="${rec?.nextEvalDate||''}"/></div>
-      <div class="form-group"><label>ผู้ประเมิน</label>
-        <input id="f-evaluator" value="${rec?.evaluator||profile.displayName||''}" placeholder="ชื่อ-ตำแหน่ง"/></div>
+      <div class="form-group"><label>เธเธนเนเธเธฃเธฐเน€เธกเธดเธ</label>
+        <input id="f-evaluator" value="${rec?.evaluator||profile.displayName||''}" placeholder="เธเธทเนเธญ-เธ•เธณเนเธซเธเนเธ"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveLC()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveLC()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
 
-// ── Detail ──
+// โ”€โ”€ Detail โ”€โ”€
 function renderDetail(r) {
   const st  = LEGAL_COMP_STATUS[r.complianceStatus]||LEGAL_COMP_STATUS.non_comply;
-  const cat = LEGAL_COMP_CATEGORIES.find(c=>c.key===r.category)||{icon:'🔖',label:r.category||'—'};
+  const cat = LEGAL_COMP_CATEGORIES.find(c=>c.key===r.category)||{icon:'๐”–',label:r.category||'โ€”'};
   const overdue = r.nextEvalDate && new Date(r.nextEvalDate) < new Date();
   return `<div style="padding:20px">
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div>
-        <div style="font-size:1.1rem;font-weight:800">${r.lawName||'—'}</div>
-        <div style="color:#6b7280;font-size:.82rem">${cat.icon} ${cat.label} ${r.lawNumber?'&nbsp;•&nbsp; '+r.lawNumber:''} ${r.lawYear?'ปี '+r.lawYear:''}</div>
+        <div style="font-size:1.1rem;font-weight:800">${r.lawName||'โ€”'}</div>
+        <div style="color:#6b7280;font-size:.82rem">${cat.icon} ${cat.label} ${r.lawNumber?'&nbsp;โ€ข&nbsp; '+r.lawNumber:''} ${r.lawYear?'เธเธต '+r.lawYear:''}</div>
       </div>
       <span class="badge" style="color:${st.color};background:${st.bg};font-size:.85rem;margin-left:auto">${st.icon} ${st.label}</span>
     </div>
 
-    ${r.requirementSummary?`<div class="detail-section"><h3>ข้อกำหนดสำคัญ</h3><p style="font-size:.85rem;line-height:1.7">${r.requirementSummary}</p></div>`:''}
+    ${r.requirementSummary?`<div class="detail-section"><h3>เธเนเธญเธเธณเธซเธเธ”เธชเธณเธเธฑเธ</h3><p style="font-size:.85rem;line-height:1.7">${r.requirementSummary}</p></div>`:''}
 
     <div class="detail-section">
-      <h3>ผลการประเมิน</h3>
-      <div class="detail-row"><span class="dk">วันที่ประเมิน</span><span class="dv">${r.evalDate||'—'}</span></div>
-      <div class="detail-row"><span class="dk">ผู้ประเมิน</span><span class="dv">${r.evaluator||'—'}</span></div>
-      <div class="detail-row"><span class="dk">ประเมินครั้งถัดไป</span>
-        <span class="dv" style="${overdue?'color:#dc2626;font-weight:700':''}">${r.nextEvalDate||'—'}${overdue?' ⚠️ เกินกำหนด':''}</span></div>
+      <h3>เธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ</h3>
+      <div class="detail-row"><span class="dk">เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ</span><span class="dv">${r.evalDate||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เธเธนเนเธเธฃเธฐเน€เธกเธดเธ</span><span class="dv">${r.evaluator||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เธเธฃเธฐเน€เธกเธดเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</span>
+        <span class="dv" style="${overdue?'color:#dc2626;font-weight:700':''}">${r.nextEvalDate||'โ€”'}${overdue?' โ ๏ธ เน€เธเธดเธเธเธณเธซเธเธ”':''}</span></div>
     </div>
 
-    ${r.evidence?`<div class="detail-section"><h3>✅ หลักฐาน / วิธีตรวจสอบ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.evidence}</p></div>`:''}
-    ${r.gaps?`<div class="detail-section" style="border-left:3px solid #d97706"><h3 style="color:#d97706">⚠️ ช่องว่าง / ข้อบกพร่อง</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.gaps}</p></div>`:''}
-    ${r.corrective?`<div class="detail-section" style="border-left:3px solid #2563eb"><h3 style="color:#2563eb">📌 มาตรการแก้ไข / แผนดำเนินการ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.corrective}</p></div>`:''}
-    ${r.notes?`<div class="detail-section"><h3>หมายเหตุ</h3><p style="font-size:.85rem">${r.notes}</p></div>`:''}
+    ${r.evidence?`<div class="detail-section"><h3>โ… เธซเธฅเธฑเธเธเธฒเธ / เธงเธดเธเธตเธ•เธฃเธงเธเธชเธญเธ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.evidence}</p></div>`:''}
+    ${r.gaps?`<div class="detail-section" style="border-left:3px solid #d97706"><h3 style="color:#d97706">โ ๏ธ เธเนเธญเธเธงเนเธฒเธ / เธเนเธญเธเธเธเธฃเนเธญเธ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.gaps}</p></div>`:''}
+    ${r.corrective?`<div class="detail-section" style="border-left:3px solid #2563eb"><h3 style="color:#2563eb">๐“ เธกเธฒเธ•เธฃเธเธฒเธฃเนเธเนเนเธ / เนเธเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.corrective}</p></div>`:''}
+    ${r.notes?`<div class="detail-section"><h3>เธซเธกเธฒเธขเน€เธซเธ•เธธ</h3><p style="font-size:.85rem">${r.notes}</p></div>`:''}
 
     <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button class="btn btn-ghost btn-sm" onclick="window.__editLC('${r.id}')">✏️ แก้ไข</button>
-      <button class="btn btn-danger btn-sm" onclick="window.__deleteLC('${r.id}','${(r.lawName||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.__editLC('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteLC('${r.id}','${(r.lawName||'').replace(/'/g,"\\'")}')">๐—‘๏ธ เธฅเธ</button>
     </div>
   </div>`;
 }
 
-// ── Status selector ──
+// โ”€โ”€ Status selector โ”€โ”€
 window.__selStatus = key => {
   selStatus = key;
   document.getElementById('f-complianceStatus').value = key;
@@ -268,7 +269,7 @@ window.__selStatus = key => {
   });
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -280,25 +281,25 @@ function openPanel(html, title) {
   document.getElementById('panel').classList.add('open');
 }
 
-window.__newLC = () => { editId = null; selStatus = ''; openPanel(renderForm(null), '+ เพิ่มการประเมินกฎหมาย'); };
+window.__newLC = () => { editId = null; selStatus = ''; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธเธเธซเธกเธฒเธข'); };
 window.__editLC = async id => {
   editId = id;
   const r = await getLegalCompliance(id);
   selStatus = r.complianceStatus||'';
-  openPanel(renderForm(r), '✏️ แก้ไขการประเมิน');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ');
 };
 window.__viewLC = async id => {
   const r = await getLegalCompliance(id);
-  document.getElementById('panel-title').textContent = '⚖️ รายละเอียดการประเมิน';
+  document.getElementById('panel-title').textContent = 'โ–๏ธ เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ';
   document.getElementById('panel-content').innerHTML = renderDetail(r);
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveLC = async () => {
   const st = document.getElementById('f-complianceStatus').value;
-  if (!st) { alert('กรุณาเลือกสถานะการปฏิบัติตาม'); return; }
+  if (!st) { alert('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธชเธ–เธฒเธเธฐเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธก'); return; }
   const data = {
     lawName:             document.getElementById('f-lawName').value.trim(),
     lawNumber:           document.getElementById('f-lawNumber').value.trim(),
@@ -314,23 +315,23 @@ window.__saveLC = async () => {
     evaluator:           document.getElementById('f-evaluator').value.trim(),
     notes:               document.getElementById('f-notes').value.trim(),
   };
-  if (!data.lawName || !data.evalDate) { alert('กรุณากรอกชื่อกฎหมายและวันที่ประเมิน'); return; }
+  if (!data.lawName || !data.evalDate) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธเธเธซเธกเธฒเธขเนเธฅเธฐเธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ'); return; }
   try {
     if (editId) await updateLegalCompliance(editId, data);
     else        await createLegalCompliance(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
 window.__deleteLC = async (id, name) => {
-  if (!confirm(`ลบ "${name}" ออกจากระบบ?`)) return;
+  if (!confirm(`เธฅเธ "${name}" เธญเธญเธเธเธฒเธเธฃเธฐเธเธ?`)) return;
   await deleteLegalCompliance(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const st  = document.getElementById('filter-status')?.value||'';
@@ -350,20 +351,20 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const stOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
   Object.entries(LEGAL_COMP_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
-const catOpts = `<option value="">-- ทุกหมวด --</option>` +
+const catOpts = `<option value="">-- เธ—เธธเธเธซเธกเธงเธ” --</option>` +
   LEGAL_COMP_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหากฎหมาย…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธเธเธซเธกเธฒเธขโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
       <select id="filter-cat"    onchange="applyFilter()">${catOpts}</select>
-      <button class="btn btn-primary" onclick="window.__newLC()">+ เพิ่มการประเมิน</button>
+      <button class="btn btn-primary" onclick="window.__newLC()">+ เน€เธเธดเนเธกเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ</button>
     </div>
     <div id="table-wrap"></div>
   </div>
@@ -371,8 +372,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">ประเมินการปฏิบัติตามกฎหมาย</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เธเธฃเธฐเน€เธกเธดเธเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธกเธเธเธซเธกเธฒเธข</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -382,3 +383,4 @@ await loadData();
 </script>
 </body>
 </html>
+

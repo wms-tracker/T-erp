@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>เฝ้าระวังโรคอาชีวอนามัย</title>
+<title>เน€เธเนเธฒเธฃเธฐเธงเธฑเธเนเธฃเธเธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#0891b2;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -68,7 +68,8 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   OCCH_HAZARD_TYPES, OCCH_EXAM_TYPE, OCCH_RESULT_STATUS,
   listOccHealth, getOccHealth, createOccHealth, updateOccHealth, deleteOccHealth,
@@ -76,14 +77,14 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-occ-health', 'เฝ้าระวังโรคอาชีวอนามัย');
+const main = renderShell(profile, 'safety-occ-health', 'เน€เธเนเธฒเธฃเธฐเธงเธฑเธเนเธฃเธเธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข');
 
-const DEPARTMENTS = ['ผลิต','คลังสินค้า','ซ่อมบำรุง','QC/QA','Shipping','ธุรการ','วิศวกรรม','ความปลอดภัย','ผู้รับเหมา'];
+const DEPARTMENTS = ['เธเธฅเธดเธ•','เธเธฅเธฑเธเธชเธดเธเธเนเธฒ','เธเนเธญเธกเธเธณเธฃเธธเธ','QC/QA','Shipping','เธเธธเธฃเธเธฒเธฃ','เธงเธดเธจเธงเธเธฃเธฃเธก','เธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข','เธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ'];
 
 let allRecs = [];
 let editId  = null;
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const totalExam   = recs.reduce((s,r)=>(s+(r.totalExamined||0)),0);
   const totalAbnorm = recs.reduce((s,r)=>(s+(r.watchlistCount||0)+(r.restrictedCount||0)+(r.referredCount||0)),0);
@@ -91,129 +92,129 @@ function renderKPI(recs) {
   const totalRestrict = recs.reduce((s,r)=>(s+(r.restrictedCount||0)),0);
   const abnormPct   = totalExam ? ((totalAbnorm/totalExam)*100).toFixed(1) : 0;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">รายการตรวจ</div></div>
-    <div class="kpi" style="border-color:#0891b2"><div class="num" style="color:#0891b2">${totalExam.toLocaleString()}</div><div class="lbl">พนักงานที่ตรวจ</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${totalExam-totalAbnorm >= 0 ? (totalExam-totalAbnorm).toLocaleString():0}</div><div class="lbl">✅ ปกติ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${(recs.reduce((s,r)=>(s+(r.watchlistCount||0)),0)).toLocaleString()}</div><div class="lbl">🟡 เฝ้าระวัง</div></div>
-    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${totalRestrict.toLocaleString()}</div><div class="lbl">🔶 จำกัดงาน</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${totalRefer.toLocaleString()}</div><div class="lbl">🔴 ส่งต่อ</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${abnormPct}%</div><div class="lbl">อัตราผิดปกติ</div></div>
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">เธฃเธฒเธขเธเธฒเธฃเธ•เธฃเธงเธ</div></div>
+    <div class="kpi" style="border-color:#0891b2"><div class="num" style="color:#0891b2">${totalExam.toLocaleString()}</div><div class="lbl">เธเธเธฑเธเธเธฒเธเธ—เธตเนเธ•เธฃเธงเธ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${totalExam-totalAbnorm >= 0 ? (totalExam-totalAbnorm).toLocaleString():0}</div><div class="lbl">โ… เธเธเธ•เธด</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${(recs.reduce((s,r)=>(s+(r.watchlistCount||0)),0)).toLocaleString()}</div><div class="lbl">๐ก เน€เธเนเธฒเธฃเธฐเธงเธฑเธ</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${totalRestrict.toLocaleString()}</div><div class="lbl">๐”ถ เธเธณเธเธฑเธ”เธเธฒเธ</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${totalRefer.toLocaleString()}</div><div class="lbl">๐”ด เธชเนเธเธ•เนเธญ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${abnormPct}%</div><div class="lbl">เธญเธฑเธ•เธฃเธฒเธเธดเธ”เธเธเธ•เธด</div></div>
   </div>`;
 }
 
-// ── Table ──
+// โ”€โ”€ Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">🩺</div><p>ยังไม่มีข้อมูลการเฝ้าระวัง</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐ฉบ</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธเธฒเธฃเน€เธเนเธฒเธฃเธฐเธงเธฑเธ</p></div>`;
   const rows = recs.map(r => {
-    const hz = OCCH_HAZARD_TYPES.find(h=>h.key===r.hazardType) || { icon:'🔬', label:r.hazardType||'—', color:'#6b7280', bg:'#f3f4f6' };
-    const et = OCCH_EXAM_TYPE.find(e=>e.key===r.examType) || { label:r.examType||'—' };
+    const hz = OCCH_HAZARD_TYPES.find(h=>h.key===r.hazardType) || { icon:'๐”ฌ', label:r.hazardType||'โ€”', color:'#6b7280', bg:'#f3f4f6' };
+    const et = OCCH_EXAM_TYPE.find(e=>e.key===r.examType) || { label:r.examType||'โ€”' };
     const total = r.totalExamined||0;
     const normal = total-(r.watchlistCount||0)-(r.restrictedCount||0)-(r.referredCount||0);
     const abnormPct = total ? (((total-normal)/total)*100).toFixed(0) : 0;
     return `<tr>
-      <td><strong>${r.programName||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.department||'—'} &nbsp;•&nbsp; ${et.label}</span></td>
+      <td><strong>${r.programName||'โ€”'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.department||'โ€”'} &nbsp;โ€ข&nbsp; ${et.label}</span></td>
       <td><span class="hazard-chip" style="color:${hz.color};background:${hz.bg}">${hz.icon} ${hz.label}</span></td>
-      <td>${r.examDate||'—'}</td>
+      <td>${r.examDate||'โ€”'}</td>
       <td style="text-align:center;font-weight:700">${total.toLocaleString()}</td>
       <td>
         <div class="result-mini">
-          ${normal>0?`<span class="result-pill" style="color:#16a34a;background:#dcfce7">✅ ${normal}</span>`:''}
-          ${(r.watchlistCount||0)>0?`<span class="result-pill" style="color:#d97706;background:#fef3c7">🟡 ${r.watchlistCount}</span>`:''}
-          ${(r.restrictedCount||0)>0?`<span class="result-pill" style="color:#ea580c;background:#fff7ed">🔶 ${r.restrictedCount}</span>`:''}
-          ${(r.referredCount||0)>0?`<span class="result-pill" style="color:#dc2626;background:#fee2e2">🔴 ${r.referredCount}</span>`:''}
+          ${normal>0?`<span class="result-pill" style="color:#16a34a;background:#dcfce7">โ… ${normal}</span>`:''}
+          ${(r.watchlistCount||0)>0?`<span class="result-pill" style="color:#d97706;background:#fef3c7">๐ก ${r.watchlistCount}</span>`:''}
+          ${(r.restrictedCount||0)>0?`<span class="result-pill" style="color:#ea580c;background:#fff7ed">๐”ถ ${r.restrictedCount}</span>`:''}
+          ${(r.referredCount||0)>0?`<span class="result-pill" style="color:#dc2626;background:#fee2e2">๐”ด ${r.referredCount}</span>`:''}
         </div>
       </td>
       <td style="text-align:center">${abnormPct}%</td>
-      <td>${r.nextExamDate||'—'}</td>
+      <td>${r.nextExamDate||'โ€”'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__viewOcc('${r.id}')">ดู</button>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editOcc('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteOcc('${r.id}','${(r.programName||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__viewOcc('${r.id}')">เธ”เธน</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editOcc('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteOcc('${r.id}','${(r.programName||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>โปรแกรม / แผนก</th><th>ประเภทความเสี่ยง</th><th>วันที่ตรวจ</th>
-      <th style="text-align:center">ตรวจ(คน)</th><th>ผลการตรวจ</th>
-      <th style="text-align:center">ผิดปกติ%</th><th>ตรวจครั้งถัดไป</th><th>จัดการ</th>
+      <th>เนเธเธฃเนเธเธฃเธก / เนเธเธเธ</th><th>เธเธฃเธฐเน€เธ เธ—เธเธงเธฒเธกเน€เธชเธตเนเธขเธ</th><th>เธงเธฑเธเธ—เธตเนเธ•เธฃเธงเธ</th>
+      <th style="text-align:center">เธ•เธฃเธงเธ(เธเธ)</th><th>เธเธฅเธเธฒเธฃเธ•เธฃเธงเธ</th>
+      <th style="text-align:center">เธเธดเธ”เธเธเธ•เธด%</th><th>เธ•เธฃเธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const hzOpts = OCCH_HAZARD_TYPES.map(h=>`<option value="${h.key}" ${rec?.hazardType===h.key?'selected':''}>${h.icon} ${h.label}</option>`).join('');
   const etOpts = OCCH_EXAM_TYPE.map(e=>`<option value="${e.key}" ${rec?.examType===e.key?'selected':''}>${e.label}</option>`).join('');
-  const deptOpts = `<option value="">-- เลือกแผนก --</option>` + DEPARTMENTS.map(d=>`<option value="${d}" ${rec?.department===d?'selected':''}>${d}</option>`).join('');
+  const deptOpts = `<option value="">-- เน€เธฅเธทเธญเธเนเธเธเธ --</option>` + DEPARTMENTS.map(d=>`<option value="${d}" ${rec?.department===d?'selected':''}>${d}</option>`).join('');
   const total = rec?.totalExamined||0;
   return `<form id="occ-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>ชื่อโปรแกรม *</label>
-        <input id="f-programName" value="${rec?.programName||''}" placeholder="เช่น เฝ้าระวังการสูญเสียการได้ยิน" required/></div>
-      <div class="form-group"><label>แผนก</label>
+      <div class="form-group"><label>เธเธทเนเธญเนเธเธฃเนเธเธฃเธก *</label>
+        <input id="f-programName" value="${rec?.programName||''}" placeholder="เน€เธเนเธ เน€เธเนเธฒเธฃเธฐเธงเธฑเธเธเธฒเธฃเธชเธนเธเน€เธชเธตเธขเธเธฒเธฃเนเธ”เนเธขเธดเธ" required/></div>
+      <div class="form-group"><label>เนเธเธเธ</label>
         <select id="f-department">${deptOpts}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>ประเภทความเสี่ยง *</label>
+      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ—เธเธงเธฒเธกเน€เธชเธตเนเธขเธ *</label>
         <select id="f-hazardType">${hzOpts}</select></div>
-      <div class="form-group"><label>ประเภทการตรวจ</label>
+      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ—เธเธฒเธฃเธ•เธฃเธงเธ</label>
         <select id="f-examType">${etOpts}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>วันที่ตรวจ *</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ•เธฃเธงเธ *</label>
         <input id="f-examDate" type="date" value="${rec?.examDate||''}" required/></div>
-      <div class="form-group"><label>วันที่ตรวจครั้งถัดไป</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ•เธฃเธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
         <input id="f-nextExamDate" type="date" value="${rec?.nextExamDate||''}"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>สถานที่ตรวจ / หน่วยงานตรวจ</label>
-        <input id="f-examProvider" value="${rec?.examProvider||''}" placeholder="โรงพยาบาล / คลินิกอาชีวอนามัย"/></div>
-      <div class="form-group"><label>แพทย์ / ผู้รับผิดชอบ</label>
-        <input id="f-physician" value="${rec?.physician||''}" placeholder="ชื่อแพทย์"/></div>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธ—เธตเนเธ•เธฃเธงเธ / เธซเธเนเธงเธขเธเธฒเธเธ•เธฃเธงเธ</label>
+        <input id="f-examProvider" value="${rec?.examProvider||''}" placeholder="เนเธฃเธเธเธขเธฒเธเธฒเธฅ / เธเธฅเธดเธเธดเธเธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข"/></div>
+      <div class="form-group"><label>เนเธเธ—เธขเน / เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
+        <input id="f-physician" value="${rec?.physician||''}" placeholder="เธเธทเนเธญเนเธเธ—เธขเน"/></div>
     </div>
 
-    <div class="section-title">ผลการตรวจสุขภาพ (จำนวนพนักงาน)</div>
+    <div class="section-title">เธเธฅเธเธฒเธฃเธ•เธฃเธงเธเธชเธธเธเธ เธฒเธ (เธเธณเธเธงเธเธเธเธฑเธเธเธฒเธ)</div>
     <div class="form-row four">
-      <div class="form-group"><label>✅ ปกติ</label>
+      <div class="form-group"><label>โ… เธเธเธ•เธด</label>
         <input id="f-normalCount" type="number" min="0" value="${rec?.normalCount||0}" oninput="window.__calcTotal()"/></div>
-      <div class="form-group"><label>🟡 เฝ้าระวัง</label>
+      <div class="form-group"><label>๐ก เน€เธเนเธฒเธฃเธฐเธงเธฑเธ</label>
         <input id="f-watchlistCount" type="number" min="0" value="${rec?.watchlistCount||0}" oninput="window.__calcTotal()"/></div>
-      <div class="form-group"><label>🔶 จำกัดงาน</label>
+      <div class="form-group"><label>๐”ถ เธเธณเธเธฑเธ”เธเธฒเธ</label>
         <input id="f-restrictedCount" type="number" min="0" value="${rec?.restrictedCount||0}" oninput="window.__calcTotal()"/></div>
-      <div class="form-group"><label>🔴 ส่งต่อแพทย์</label>
+      <div class="form-group"><label>๐”ด เธชเนเธเธ•เนเธญเนเธเธ—เธขเน</label>
         <input id="f-referredCount" type="number" min="0" value="${rec?.referredCount||0}" oninput="window.__calcTotal()"/></div>
     </div>
     <div style="background:#f0fdfa;border:1px solid #a5f3fc;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.85rem;display:flex;gap:16px;align-items:center">
-      <span>รวมตรวจทั้งหมด: <strong id="total-display">${total}</strong> คน</span>
+      <span>เธฃเธงเธกเธ•เธฃเธงเธเธ—เธฑเนเธเธซเธกเธ”: <strong id="total-display">${total}</strong> เธเธ</span>
       <span id="abnorm-display" style="color:#d97706"></span>
     </div>
 
     <div class="form-row one">
-      <div class="form-group"><label>ข้อมูลความเสี่ยงที่ตรวจพบ</label>
-        <textarea id="f-findings" rows="3" placeholder="สรุปข้อมูลความเสี่ยงสำคัญที่ตรวจพบ เช่น ค่าเฉลี่ยการได้ยินลดลง...">${rec?.findings||''}</textarea></div>
+      <div class="form-group"><label>เธเนเธญเธกเธนเธฅเธเธงเธฒเธกเน€เธชเธตเนเธขเธเธ—เธตเนเธ•เธฃเธงเธเธเธ</label>
+        <textarea id="f-findings" rows="3" placeholder="เธชเธฃเธธเธเธเนเธญเธกเธนเธฅเธเธงเธฒเธกเน€เธชเธตเนเธขเธเธชเธณเธเธฑเธเธ—เธตเนเธ•เธฃเธงเธเธเธ เน€เธเนเธ เธเนเธฒเน€เธเธฅเธตเนเธขเธเธฒเธฃเนเธ”เนเธขเธดเธเธฅเธ”เธฅเธ...">${rec?.findings||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>มาตรการ / การติดตาม</label>
-        <textarea id="f-actions" rows="3" placeholder="มาตรการดำเนินการ เช่น จัดให้ใส่ที่ครอบหู, ส่งตรวจซ้ำ 3 เดือน...">${rec?.actions||''}</textarea></div>
+      <div class="form-group"><label>เธกเธฒเธ•เธฃเธเธฒเธฃ / เธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธก</label>
+        <textarea id="f-actions" rows="3" placeholder="เธกเธฒเธ•เธฃเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธฃ เน€เธเนเธ เธเธฑเธ”เนเธซเนเนเธชเนเธ—เธตเนเธเธฃเธญเธเธซเธน, เธชเนเธเธ•เธฃเธงเธเธเนเธณ 3 เน€เธ”เธทเธญเธ...">${rec?.actions||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
     </div>
 
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveOcc()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveOcc()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
 
-// ── Detail ──
+// โ”€โ”€ Detail โ”€โ”€
 function renderDetail(r) {
-  const hz = OCCH_HAZARD_TYPES.find(h=>h.key===r.hazardType)||{icon:'🔬',label:r.hazardType||'—',color:'#6b7280',bg:'#f3f4f6'};
-  const et = OCCH_EXAM_TYPE.find(e=>e.key===r.examType)||{label:r.examType||'—'};
+  const hz = OCCH_HAZARD_TYPES.find(h=>h.key===r.hazardType)||{icon:'๐”ฌ',label:r.hazardType||'โ€”',color:'#6b7280',bg:'#f3f4f6'};
+  const et = OCCH_EXAM_TYPE.find(e=>e.key===r.examType)||{label:r.examType||'โ€”'};
   const total  = r.totalExamined||0;
   const normal = r.normalCount||(total-(r.watchlistCount||0)-(r.restrictedCount||0)-(r.referredCount||0));
   const abnorm = total - normal;
@@ -222,45 +223,45 @@ function renderDetail(r) {
   return `<div style="padding:20px">
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div>
-        <div style="font-size:1.15rem;font-weight:800">${r.programName||'—'}</div>
-        <div style="color:#6b7280;font-size:.82rem">${r.department||'—'} &nbsp;•&nbsp; ${et.label} &nbsp;•&nbsp; ${r.examDate||'—'}</div>
+        <div style="font-size:1.15rem;font-weight:800">${r.programName||'โ€”'}</div>
+        <div style="color:#6b7280;font-size:.82rem">${r.department||'โ€”'} &nbsp;โ€ข&nbsp; ${et.label} &nbsp;โ€ข&nbsp; ${r.examDate||'โ€”'}</div>
       </div>
       <span class="hazard-chip" style="color:${hz.color};background:${hz.bg};margin-left:auto">${hz.icon} ${hz.label}</span>
     </div>
 
     <div class="summary-box">
-      <div class="summary-stat"><div class="sv">${total.toLocaleString()}</div><div class="sl">ตรวจทั้งหมด</div></div>
-      <div class="summary-stat"><div class="sv" style="color:#16a34a">${normal.toLocaleString()}</div><div class="sl">✅ ปกติ</div></div>
-      <div class="summary-stat"><div class="sv" style="color:#d97706">${(r.watchlistCount||0).toLocaleString()}</div><div class="sl">🟡 เฝ้าระวัง</div></div>
-      <div class="summary-stat"><div class="sv" style="color:#ea580c">${(r.restrictedCount||0).toLocaleString()}</div><div class="sl">🔶 จำกัดงาน</div></div>
-      <div class="summary-stat"><div class="sv" style="color:#dc2626">${(r.referredCount||0).toLocaleString()}</div><div class="sl">🔴 ส่งต่อ</div></div>
-      <div class="summary-stat"><div class="sv" style="color:#7c3aed">${abnormPct}%</div><div class="sl">ผิดปกติ</div></div>
+      <div class="summary-stat"><div class="sv">${total.toLocaleString()}</div><div class="sl">เธ•เธฃเธงเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
+      <div class="summary-stat"><div class="sv" style="color:#16a34a">${normal.toLocaleString()}</div><div class="sl">โ… เธเธเธ•เธด</div></div>
+      <div class="summary-stat"><div class="sv" style="color:#d97706">${(r.watchlistCount||0).toLocaleString()}</div><div class="sl">๐ก เน€เธเนเธฒเธฃเธฐเธงเธฑเธ</div></div>
+      <div class="summary-stat"><div class="sv" style="color:#ea580c">${(r.restrictedCount||0).toLocaleString()}</div><div class="sl">๐”ถ เธเธณเธเธฑเธ”เธเธฒเธ</div></div>
+      <div class="summary-stat"><div class="sv" style="color:#dc2626">${(r.referredCount||0).toLocaleString()}</div><div class="sl">๐”ด เธชเนเธเธ•เนเธญ</div></div>
+      <div class="summary-stat"><div class="sv" style="color:#7c3aed">${abnormPct}%</div><div class="sl">เธเธดเธ”เธเธเธ•เธด</div></div>
     </div>
 
     <div class="detail-section" style="margin-bottom:12px">
-      <div style="font-size:.8rem;color:#6b7280;margin-bottom:6px">อัตราผลปกติ ${normalPct}%</div>
+      <div style="font-size:.8rem;color:#6b7280;margin-bottom:6px">เธญเธฑเธ•เธฃเธฒเธเธฅเธเธเธ•เธด ${normalPct}%</div>
       <div class="pct-bar-wrap" style="height:12px">
         <div class="pct-bar" style="width:${normalPct}%;background:#16a34a"></div>
       </div>
     </div>
 
     <div class="detail-section">
-      <h3>ข้อมูลทั่วไป</h3>
-      <div class="detail-row"><span class="dk">สถานที่ตรวจ</span><span class="dv">${r.examProvider||'—'}</span></div>
-      <div class="detail-row"><span class="dk">แพทย์ / ผู้รับผิดชอบ</span><span class="dv">${r.physician||'—'}</span></div>
-      <div class="detail-row"><span class="dk">ตรวจครั้งถัดไป</span><span class="dv">${r.nextExamDate||'—'}</span></div>
+      <h3>เธเนเธญเธกเธนเธฅเธ—เธฑเนเธงเนเธ</h3>
+      <div class="detail-row"><span class="dk">เธชเธ–เธฒเธเธ—เธตเนเธ•เธฃเธงเธ</span><span class="dv">${r.examProvider||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เนเธเธ—เธขเน / เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</span><span class="dv">${r.physician||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เธ•เธฃเธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</span><span class="dv">${r.nextExamDate||'โ€”'}</span></div>
     </div>
-    ${r.findings?`<div class="detail-section"><h3>ข้อมูลความเสี่ยงที่ตรวจพบ</h3><p style="font-size:.85rem;line-height:1.6">${r.findings}</p></div>`:''}
-    ${r.actions?`<div class="detail-section"><h3>มาตรการ / การติดตาม</h3><p style="font-size:.85rem;line-height:1.6">${r.actions}</p></div>`:''}
-    ${r.notes?`<div class="detail-section"><h3>หมายเหตุ</h3><p style="font-size:.85rem">${r.notes}</p></div>`:''}
+    ${r.findings?`<div class="detail-section"><h3>เธเนเธญเธกเธนเธฅเธเธงเธฒเธกเน€เธชเธตเนเธขเธเธ—เธตเนเธ•เธฃเธงเธเธเธ</h3><p style="font-size:.85rem;line-height:1.6">${r.findings}</p></div>`:''}
+    ${r.actions?`<div class="detail-section"><h3>เธกเธฒเธ•เธฃเธเธฒเธฃ / เธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธก</h3><p style="font-size:.85rem;line-height:1.6">${r.actions}</p></div>`:''}
+    ${r.notes?`<div class="detail-section"><h3>เธซเธกเธฒเธขเน€เธซเธ•เธธ</h3><p style="font-size:.85rem">${r.notes}</p></div>`:''}
     <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button class="btn btn-ghost btn-sm" onclick="window.__editOcc('${r.id}')">✏️ แก้ไข</button>
-      <button class="btn btn-danger btn-sm" onclick="window.__deleteOcc('${r.id}','${(r.programName||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.__editOcc('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteOcc('${r.id}','${(r.programName||'').replace(/'/g,"\\'")}')">๐—‘๏ธ เธฅเธ</button>
     </div>
   </div>`;
 }
 
-// ── Helpers ──
+// โ”€โ”€ Helpers โ”€โ”€
 window.__calcTotal = () => {
   const n  = Number(document.getElementById('f-normalCount')?.value||0);
   const w  = Number(document.getElementById('f-watchlistCount')?.value||0);
@@ -270,10 +271,10 @@ window.__calcTotal = () => {
   const el = document.getElementById('total-display');
   const ad = document.getElementById('abnorm-display');
   if (el) el.textContent = t;
-  if (ad) ad.textContent = t ? `ผิดปกติ ${(((w+rs+rf)/t)*100).toFixed(1)}%` : '';
+  if (ad) ad.textContent = t ? `เธเธดเธ”เธเธเธ•เธด ${(((w+rs+rf)/t)*100).toFixed(1)}%` : '';
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -286,15 +287,15 @@ function openPanel(html, title) {
   window.__calcTotal();
 }
 
-window.__newOcc = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มข้อมูลการเฝ้าระวัง'); };
+window.__newOcc = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธเนเธญเธกเธนเธฅเธเธฒเธฃเน€เธเนเธฒเธฃเธฐเธงเธฑเธ'); };
 window.__editOcc = async id => {
   editId = id;
   const r = await getOccHealth(id);
-  openPanel(renderForm(r), '✏️ แก้ไขข้อมูล');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธเนเธญเธกเธนเธฅ');
 };
 window.__viewOcc = async id => {
   const r = await getOccHealth(id);
-  document.getElementById('panel-title').textContent = '🩺 รายละเอียดการเฝ้าระวัง';
+  document.getElementById('panel-title').textContent = '๐ฉบ เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธฃเน€เธเนเธฒเธฃเธฐเธงเธฑเธ';
   document.getElementById('panel-content').innerHTML = renderDetail(r);
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
@@ -323,23 +324,23 @@ window.__saveOcc = async () => {
     actions:        document.getElementById('f-actions').value.trim(),
     notes:          document.getElementById('f-notes').value.trim(),
   };
-  if (!data.programName || !data.examDate) { alert('กรุณากรอกชื่อโปรแกรมและวันที่ตรวจ'); return; }
+  if (!data.programName || !data.examDate) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเนเธเธฃเนเธเธฃเธกเนเธฅเธฐเธงเธฑเธเธ—เธตเนเธ•เธฃเธงเธ'); return; }
   try {
     if (editId) await updateOccHealth(editId, data);
     else        await createOccHealth(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
 window.__deleteOcc = async (id, name) => {
-  if (!confirm(`ลบข้อมูล "${name}" ออกจากระบบ?`)) return;
+  if (!confirm(`เธฅเธเธเนเธญเธกเธนเธฅ "${name}" เธญเธญเธเธเธฒเธเธฃเธฐเธเธ?`)) return;
   await deleteOccHealth(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q  = document.getElementById('search-box')?.value.toLowerCase()||'';
   const hz = document.getElementById('filter-hazard')?.value||'';
@@ -359,20 +360,20 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const hzOpts = `<option value="">-- ทุกประเภทความเสี่ยง --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const hzOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ—เธเธงเธฒเธกเน€เธชเธตเนเธขเธ --</option>` +
   OCCH_HAZARD_TYPES.map(h=>`<option value="${h.key}">${h.icon} ${h.label}</option>`).join('');
-const deptOpts = `<option value="">-- ทุกแผนก --</option>` +
+const deptOpts = `<option value="">-- เธ—เธธเธเนเธเธเธ --</option>` +
   DEPARTMENTS.map(d=>`<option value="${d}">${d}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาชื่อโปรแกรม…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธเธทเนเธญเนเธเธฃเนเธเธฃเธกโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-hazard" onchange="applyFilter()">${hzOpts}</select>
       <select id="filter-dept"   onchange="applyFilter()">${deptOpts}</select>
-      <button class="btn btn-primary" onclick="window.__newOcc()">+ เพิ่มข้อมูล</button>
+      <button class="btn btn-primary" onclick="window.__newOcc()">+ เน€เธเธดเนเธกเธเนเธญเธกเธนเธฅ</button>
     </div>
     <div id="table-wrap"></div>
   </div>
@@ -380,8 +381,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เฝ้าระวังโรคอาชีวอนามัย</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เน€เธเนเธฒเธฃเธฐเธงเธฑเธเนเธฃเธเธญเธฒเธเธตเธงเธญเธเธฒเธกเธฑเธข</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -391,3 +392,4 @@ await loadData();
 </script>
 </body>
 </html>
+

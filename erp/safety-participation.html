@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>การมีส่วนร่วมของพนักงาน</title>
+<title>เธเธฒเธฃเธกเธตเธชเนเธงเธเธฃเนเธงเธกเธเธญเธเธเธเธฑเธเธเธฒเธ</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#2563eb;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -55,20 +55,21 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   PARTI_TYPES, PARTI_STATUS,
   listParticipation, getParticipation, createParticipation, updateParticipation, deleteParticipation,
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-participation', 'การมีส่วนร่วมของพนักงาน');
+const main = renderShell(profile, 'safety-participation', 'เธเธฒเธฃเธกเธตเธชเนเธงเธเธฃเนเธงเธกเธเธญเธเธเธเธฑเธเธเธฒเธ');
 
 let allRecs   = [];
 let editId    = null;
 let actions   = []; // follow-up action list
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const total   = recs.length;
   const open    = recs.filter(r=>r.status==='open').length;
@@ -78,116 +79,116 @@ function renderKPI(recs) {
   const typeCount = {};
   recs.forEach(r=>{ typeCount[r.actType] = (typeCount[r.actType]||0)+1; });
   const topType = Object.entries(typeCount).sort((a,b)=>b[1]-a[1])[0];
-  const topLabel = topType ? (PARTI_TYPES.find(t=>t.key===topType[0])?.label||topType[0]) : '—';
+  const topLabel = topType ? (PARTI_TYPES.find(t=>t.key===topType[0])?.label||topType[0]) : 'โ€”';
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">กิจกรรมทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${open}</div><div class="lbl">🔄 รอดำเนินการ</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${closed}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${workers.toLocaleString()}</div><div class="lbl">👷 พนักงานเข้าร่วม (รวม)</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${issues}</div><div class="lbl">💬 ประเด็นที่หยิบยก</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed;font-size:.9rem">${topLabel}</div><div class="lbl">กิจกรรมหลัก</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธเธดเธเธเธฃเธฃเธกเธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${open}</div><div class="lbl">๐” เธฃเธญเธ”เธณเน€เธเธดเธเธเธฒเธฃ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${closed}</div><div class="lbl">โ… เน€เธชเธฃเนเธเธชเธดเนเธ</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${workers.toLocaleString()}</div><div class="lbl">๐‘ท เธเธเธฑเธเธเธฒเธเน€เธเนเธฒเธฃเนเธงเธก (เธฃเธงเธก)</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${issues}</div><div class="lbl">๐’ฌ เธเธฃเธฐเน€เธ”เนเธเธ—เธตเนเธซเธขเธดเธเธขเธ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed;font-size:.9rem">${topLabel}</div><div class="lbl">เธเธดเธเธเธฃเธฃเธกเธซเธฅเธฑเธ</div></div>
   </div>`;
 }
 
-// ── Table ──
+// โ”€โ”€ Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">🤝</div><p>ยังไม่มีบันทึกกิจกรรม</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐ค</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเธฑเธเธ—เธถเธเธเธดเธเธเธฃเธฃเธก</p></div>`;
   const rows = recs.map(r => {
-    const tp = PARTI_TYPES.find(t=>t.key===r.actType)||{icon:'📌',label:r.actType||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const tp = PARTI_TYPES.find(t=>t.key===r.actType)||{icon:'๐“',label:r.actType||'โ€”',color:'#6b7280',bg:'#f3f4f6'};
     const st = PARTI_STATUS[r.status]||PARTI_STATUS.open;
     const issueCount  = (r.issues||[]).length;
     const actionCount = (r.followUp||[]).length;
     const actionOpen  = (r.followUp||[]).filter(a=>!a.done).length;
     return `<tr>
-      <td style="font-size:.82rem;white-space:nowrap">${r.activityDate||'—'}</td>
+      <td style="font-size:.82rem;white-space:nowrap">${r.activityDate||'โ€”'}</td>
       <td><span class="type-chip" style="color:${tp.color};background:${tp.bg}">${tp.icon} ${tp.label}</span></td>
-      <td><strong>${r.topic||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.location||''}</span></td>
+      <td><strong>${r.topic||'โ€”'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${r.location||''}</span></td>
       <td style="text-align:center">${r.workerCount||0}</td>
-      <td style="font-size:.82rem">${r.facilitator||'—'}</td>
+      <td style="font-size:.82rem">${r.facilitator||'โ€”'}</td>
       <td style="text-align:center">
-        ${issueCount ? `<span class="badge" style="color:#dc2626;background:#fee2e2">${issueCount} ประเด็น</span>` : '<span style="color:#9ca3af">—</span>'}
+        ${issueCount ? `<span class="badge" style="color:#dc2626;background:#fee2e2">${issueCount} เธเธฃเธฐเน€เธ”เนเธ</span>` : '<span style="color:#9ca3af">โ€”</span>'}
       </td>
       <td style="text-align:center">
-        ${actionCount ? `<span class="badge" style="color:${actionOpen?'#d97706':'#16a34a'};background:${actionOpen?'#fef3c7':'#dcfce7'}">${actionOpen?actionOpen+' รอ':actionCount+' เสร็จ'}</span>` : '<span style="color:#9ca3af">—</span>'}
+        ${actionCount ? `<span class="badge" style="color:${actionOpen?'#d97706':'#16a34a'};background:${actionOpen?'#fef3c7':'#dcfce7'}">${actionOpen?actionOpen+' เธฃเธญ':actionCount+' เน€เธชเธฃเนเธ'}</span>` : '<span style="color:#9ca3af">โ€”</span>'}
       </td>
       <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editParti('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteParti('${r.id}','${(r.topic||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editParti('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteParti('${r.id}','${(r.topic||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>วันที่</th><th>ประเภท</th><th>หัวข้อ / สถานที่</th>
-      <th style="text-align:center">ผู้เข้าร่วม</th><th>ผู้ดำเนินการ</th>
-      <th style="text-align:center">ประเด็น</th><th style="text-align:center">Follow-up</th>
-      <th>สถานะ</th><th>จัดการ</th>
+      <th>เธงเธฑเธเธ—เธตเน</th><th>เธเธฃเธฐเน€เธ เธ—</th><th>เธซเธฑเธงเธเนเธญ / เธชเธ–เธฒเธเธ—เธตเน</th>
+      <th style="text-align:center">เธเธนเนเน€เธเนเธฒเธฃเนเธงเธก</th><th>เธเธนเนเธ”เธณเน€เธเธดเธเธเธฒเธฃ</th>
+      <th style="text-align:center">เธเธฃเธฐเน€เธ”เนเธ</th><th style="text-align:center">Follow-up</th>
+      <th>เธชเธ–เธฒเธเธฐ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const typeOpts = PARTI_TYPES.map(t=>`<option value="${t.key}" ${rec?.actType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
   const stOpts   = Object.entries(PARTI_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'open')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
   const issueList = (actions.filter(a=>a.kind==='issue')).map((a,i)=>
-    `<li>💬 ${a.text} <button onclick="window.__removeItem('issue',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('');
+    `<li>๐’ฌ ${a.text} <button onclick="window.__removeItem('issue',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">โ•</button></li>`).join('');
   const actionList = (actions.filter(a=>a.kind==='action')).map((a,i)=>
-    `<li>→ ${a.text} ${a.done?'<span style="color:#16a34a">✅</span>':''} <button onclick="window.__removeItem('action',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('');
+    `<li>โ’ ${a.text} ${a.done?'<span style="color:#16a34a">โ…</span>':''} <button onclick="window.__removeItem('action',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">โ•</button></li>`).join('');
   return `<form id="parti-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>วันที่กิจกรรม *</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธเธดเธเธเธฃเธฃเธก *</label>
         <input id="f-date" type="date" value="${rec?.activityDate||''}"/></div>
-      <div class="form-group"><label>ประเภทกิจกรรม *</label>
+      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ—เธเธดเธเธเธฃเธฃเธก *</label>
         <select id="f-actType">${typeOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หัวข้อ / เรื่องที่ปรึกษาหารือ *</label>
-        <input id="f-topic" value="${rec?.topic||''}" placeholder="หัวข้อหลักของกิจกรรม"/></div>
+      <div class="form-group"><label>เธซเธฑเธงเธเนเธญ / เน€เธฃเธทเนเธญเธเธ—เธตเนเธเธฃเธถเธเธฉเธฒเธซเธฒเธฃเธทเธญ *</label>
+        <input id="f-topic" value="${rec?.topic||''}" placeholder="เธซเธฑเธงเธเนเธญเธซเธฅเธฑเธเธเธญเธเธเธดเธเธเธฃเธฃเธก"/></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>สถานที่ / แผนก</label>
-        <input id="f-location" value="${rec?.location||''}" placeholder="เช่น โรงงาน A / ฝ่ายผลิต"/></div>
-      <div class="form-group"><label>จำนวนพนักงานเข้าร่วม</label>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธ—เธตเน / เนเธเธเธ</label>
+        <input id="f-location" value="${rec?.location||''}" placeholder="เน€เธเนเธ เนเธฃเธเธเธฒเธ A / เธเนเธฒเธขเธเธฅเธดเธ•"/></div>
+      <div class="form-group"><label>เธเธณเธเธงเธเธเธเธฑเธเธเธฒเธเน€เธเนเธฒเธฃเนเธงเธก</label>
         <input id="f-workerCount" type="number" min="0" value="${rec?.workerCount||0}"/></div>
-      <div class="form-group"><label>สถานะ</label>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label>
         <select id="f-status">${stOpts}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>ผู้ดำเนินการ / วิทยากร</label>
-        <input id="f-facilitator" value="${rec?.facilitator||''}" placeholder="ชื่อ / ตำแหน่ง"/></div>
-      <div class="form-group"><label>ระยะเวลา (นาที)</label>
+      <div class="form-group"><label>เธเธนเนเธ”เธณเน€เธเธดเธเธเธฒเธฃ / เธงเธดเธ—เธขเธฒเธเธฃ</label>
+        <input id="f-facilitator" value="${rec?.facilitator||''}" placeholder="เธเธทเนเธญ / เธ•เธณเนเธซเธเนเธ"/></div>
+      <div class="form-group"><label>เธฃเธฐเธขเธฐเน€เธงเธฅเธฒ (เธเธฒเธ—เธต)</label>
         <input id="f-duration" type="number" min="0" value="${rec?.duration||''}"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>สรุปผล / มติที่ประชุม</label>
-        <textarea id="f-summary" rows="3" placeholder="สรุปสิ่งที่เกิดขึ้น มติ หรือข้อตกลงที่ได้">${rec?.summary||''}</textarea></div>
+      <div class="form-group"><label>เธชเธฃเธธเธเธเธฅ / เธกเธ•เธดเธ—เธตเนเธเธฃเธฐเธเธธเธก</label>
+        <textarea id="f-summary" rows="3" placeholder="เธชเธฃเธธเธเธชเธดเนเธเธ—เธตเนเน€เธเธดเธ”เธเธถเนเธ เธกเธ•เธด เธซเธฃเธทเธญเธเนเธญเธ•เธเธฅเธเธ—เธตเนเนเธ”เน">${rec?.summary||''}</textarea></div>
     </div>
     <div class="form-group" style="margin-bottom:14px">
-      <label>ประเด็น / ข้อกังวลที่พนักงานยกขึ้น</label>
-      <ul class="action-list" id="issue-list">${issueList||'<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีประเด็น</li>'}</ul>
+      <label>เธเธฃเธฐเน€เธ”เนเธ / เธเนเธญเธเธฑเธเธงเธฅเธ—เธตเนเธเธเธฑเธเธเธฒเธเธขเธเธเธถเนเธ</label>
+      <ul class="action-list" id="issue-list">${issueList||'<li style="color:#9ca3af;font-size:.8rem">เธขเธฑเธเนเธกเนเธกเธตเธเธฃเธฐเน€เธ”เนเธ</li>'}</ul>
       <div class="action-add">
-        <input id="new-issue" placeholder="เพิ่มประเด็น/ข้อกังวล…"/>
-        <button onclick="window.__addItem('issue')">+ เพิ่ม</button>
+        <input id="new-issue" placeholder="เน€เธเธดเนเธกเธเธฃเธฐเน€เธ”เนเธ/เธเนเธญเธเธฑเธเธงเธฅโ€ฆ"/>
+        <button onclick="window.__addItem('issue')">+ เน€เธเธดเนเธก</button>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:14px">
-      <label>การดำเนินการติดตาม (Follow-up Actions)</label>
-      <ul class="action-list" id="action-list">${actionList||'<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีการติดตาม</li>'}</ul>
+      <label>เธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธก (Follow-up Actions)</label>
+      <ul class="action-list" id="action-list">${actionList||'<li style="color:#9ca3af;font-size:.8rem">เธขเธฑเธเนเธกเนเธกเธตเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธก</li>'}</ul>
       <div class="action-add">
-        <input id="new-action" placeholder="เพิ่ม follow-up action…"/>
-        <button onclick="window.__addItem('action')">+ เพิ่ม</button>
+        <input id="new-action" placeholder="เน€เธเธดเนเธก follow-up actionโ€ฆ"/>
+        <button onclick="window.__addItem('action')">+ เน€เธเธดเนเธก</button>
       </div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธ"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveParti()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveParti()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
@@ -196,11 +197,11 @@ function refreshLists() {
   const il = document.getElementById('issue-list');
   const al = document.getElementById('action-list');
   if (il) il.innerHTML = actions.filter(a=>a.kind==='issue').map((a,i)=>
-    `<li>💬 ${a.text} <button onclick="window.__removeItem('issue',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('')
-    || '<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีประเด็น</li>';
+    `<li>๐’ฌ ${a.text} <button onclick="window.__removeItem('issue',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">โ•</button></li>`).join('')
+    || '<li style="color:#9ca3af;font-size:.8rem">เธขเธฑเธเนเธกเนเธกเธตเธเธฃเธฐเน€เธ”เนเธ</li>';
   if (al) al.innerHTML = actions.filter(a=>a.kind==='action').map((a,i)=>
-    `<li>→ ${a.text} <button onclick="window.__removeItem('action',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">✕</button></li>`).join('')
-    || '<li style="color:#9ca3af;font-size:.8rem">ยังไม่มีการติดตาม</li>';
+    `<li>โ’ ${a.text} <button onclick="window.__removeItem('action',${i})" style="border:none;background:none;cursor:pointer;color:#dc2626;font-size:.8rem">โ•</button></li>`).join('')
+    || '<li style="color:#9ca3af;font-size:.8rem">เธขเธฑเธเนเธกเนเธกเธตเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธก</li>';
 }
 
 window.__addItem = kind => {
@@ -217,7 +218,7 @@ window.__removeItem = (kind, idx) => {
   refreshLists();
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -229,7 +230,7 @@ function openPanel(html, title) {
   document.getElementById('panel').classList.add('open');
 }
 
-window.__newParti = () => { editId = null; actions = []; openPanel(renderForm(null), '+ เพิ่มบันทึกกิจกรรม'); };
+window.__newParti = () => { editId = null; actions = []; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธเธฑเธเธ—เธถเธเธเธดเธเธเธฃเธฃเธก'); };
 window.__editParti = async id => {
   editId = id;
   const r = await getParticipation(id);
@@ -237,10 +238,10 @@ window.__editParti = async id => {
     ...(r.issues||[]).map(t=>({ kind:'issue',  text:t, done:false })),
     ...(r.followUp||[]).map(a=>({ kind:'action', text:a.text||a, done:!!a.done })),
   ];
-  openPanel(renderForm(r), '✏️ แก้ไขบันทึกกิจกรรม');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธเธฑเธเธ—เธถเธเธเธดเธเธเธฃเธฃเธก');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveParti = async () => {
   const data = {
     activityDate: document.getElementById('f-date').value,
@@ -256,25 +257,25 @@ window.__saveParti = async () => {
     issues:   actions.filter(a=>a.kind==='issue').map(a=>a.text),
     followUp: actions.filter(a=>a.kind==='action').map(a=>({ text:a.text, done:a.done })),
   };
-  if (!data.activityDate) { alert('กรุณาเลือกวันที่กิจกรรม'); return; }
-  if (!data.topic)        { alert('กรุณากรอกหัวข้อกิจกรรม'); return; }
+  if (!data.activityDate) { alert('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธงเธฑเธเธ—เธตเนเธเธดเธเธเธฃเธฃเธก'); return; }
+  if (!data.topic)        { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธซเธฑเธงเธเนเธญเธเธดเธเธเธฃเธฃเธก'); return; }
   try {
     if (editId) await updateParticipation(editId, data);
     else        await createParticipation(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deleteParti = async (id, topic) => {
-  if (!confirm(`ลบบันทึก "${topic}"?`)) return;
+  if (!confirm(`เธฅเธเธเธฑเธเธ—เธถเธ "${topic}"?`)) return;
   await deleteParticipation(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q  = document.getElementById('search-box')?.value.toLowerCase()||'';
   const tp = document.getElementById('filter-type')?.value||'';
@@ -294,20 +295,20 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const typeOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ— --</option>` +
   PARTI_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
-const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+const stOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
   Object.entries(PARTI_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาหัวข้อ / ผู้ดำเนินการ…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธซเธฑเธงเธเนเธญ / เธเธนเนเธ”เธณเน€เธเธดเธเธเธฒเธฃโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
       <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
-      <button class="btn btn-primary" onclick="window.__newParti()">+ เพิ่มบันทึก</button>
+      <button class="btn btn-primary" onclick="window.__newParti()">+ เน€เธเธดเนเธกเธเธฑเธเธ—เธถเธ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -315,8 +316,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">บันทึกการมีส่วนร่วม</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เธเธฑเธเธ—เธถเธเธเธฒเธฃเธกเธตเธชเนเธงเธเธฃเนเธงเธก</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -326,3 +327,4 @@ await loadData();
 </script>
 </body>
 </html>
+

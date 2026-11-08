@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>แผนการติดตามผลการดำเนินงาน</title>
+<title>เนเธเธเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธกเธเธฅเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธ</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -72,28 +72,29 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import {
   MON_INDICATOR_TYPES, MON_CATEGORIES, MON_FREQ, MON_STATUS,
   listMonitorProgs, getMonitorProg, createMonitorProg, updateMonitorProg, deleteMonitorProg,
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-monitor-prog', 'แผนการติดตามผลการดำเนินงาน (§9.1.1)');
+const main = renderShell(profile, 'safety-monitor-prog', 'เนเธเธเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธกเธเธฅเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธ (ยง9.1.1)');
 
 let allRecs  = [];
 let editId   = null;
 let viewMode = 'split';
 
-function getCategory(key) { return MON_CATEGORIES.find(c=>c.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
-function getFreq(key)     { return MON_FREQ.find(f=>f.key===key)||{label:key||'—'}; }
+function getCategory(key) { return MON_CATEGORIES.find(c=>c.key===key)||{icon:'๐“',label:key||'โ€”',color:'#6b7280',bg:'#f3f4f6'}; }
+function getFreq(key)     { return MON_FREQ.find(f=>f.key===key)||{label:key||'โ€”'}; }
 
 function isOverdue(r) {
   if (!r.nextMeasureDate) return false;
   return r.nextMeasureDate < new Date().toISOString().split('T')[0];
 }
 
-// ── KPI ──
+// โ”€โ”€ KPI โ”€โ”€
 function renderKPI(recs) {
   const total   = recs.length;
   const leading = recs.filter(r=>r.indicatorType==='leading').length;
@@ -102,16 +103,16 @@ function renderKPI(recs) {
   const overdue = recs.filter(r=>isOverdue(r)&&r.status==='active').length;
   const catCnt  = [...new Set(recs.map(r=>r.category))].length;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">ตัวชี้วัดทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${leading}</div><div class="lbl">📈 Leading</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${lagging}</div><div class="lbl">📉 Lagging</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${active}</div><div class="lbl">✅ ใช้งาน</div></div>
-    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${overdue}</div><div class="lbl">🔴 เกินกำหนดวัด</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${catCnt}</div><div class="lbl">หมวดหมู่</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธ•เธฑเธงเธเธตเนเธงเธฑเธ”เธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${leading}</div><div class="lbl">๐“ Leading</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${lagging}</div><div class="lbl">๐“ Lagging</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${active}</div><div class="lbl">โ… เนเธเนเธเธฒเธ</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${overdue}</div><div class="lbl">๐”ด เน€เธเธดเธเธเธณเธซเธเธ”เธงเธฑเธ”</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${catCnt}</div><div class="lbl">เธซเธกเธงเธ”เธซเธกเธนเน</div></div>
   </div>`;
 }
 
-// ── Card ──
+// โ”€โ”€ Card โ”€โ”€
 function makeCard(r) {
   const cat  = getCategory(r.category);
   const sts  = MON_STATUS[r.status]||MON_STATUS.active;
@@ -119,21 +120,21 @@ function makeCard(r) {
   const freq = getFreq(r.measureFreq);
   return `<div class="mon-card${od?' overdue-row':''}" onclick="window.__editMon('${r.id}')">
     <div class="mon-card-head">
-      <div class="mon-card-title">${cat.icon} ${r.name||'—'}</div>
+      <div class="mon-card-title">${cat.icon} ${r.name||'โ€”'}</div>
       <span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span>
     </div>
     <div class="mon-card-meta">
       <span class="meta-pill" style="background:${cat.bg};color:${cat.color}">${cat.label}</span>
-      <span class="meta-pill">🔄 ${freq.label}</span>
-      ${r.responsible?`<span class="meta-pill">👤 ${r.responsible}</span>`:''}
-      ${r.targetValue?`<span class="meta-pill">🎯 เป้า: ${r.targetValue} ${r.unit||''}</span>`:''}
-      ${r.nextMeasureDate?`<span class="meta-pill${od?' '+`style="color:#dc2626;font-weight:700"`:''}">${od?'⚠️':'📅'} ${r.nextMeasureDate}</span>`:''}
+      <span class="meta-pill">๐” ${freq.label}</span>
+      ${r.responsible?`<span class="meta-pill">๐‘ค ${r.responsible}</span>`:''}
+      ${r.targetValue?`<span class="meta-pill">๐ฏ เน€เธเนเธฒ: ${r.targetValue} ${r.unit||''}</span>`:''}
+      ${r.nextMeasureDate?`<span class="meta-pill${od?' '+`style="color:#dc2626;font-weight:700"`:''}">${od?'โ ๏ธ':'๐“…'} ${r.nextMeasureDate}</span>`:''}
     </div>
-    ${r.measureMethod?`<div style="font-size:.76rem;color:#6b7280;margin-top:4px">📏 ${r.measureMethod.substring(0,80)}${r.measureMethod.length>80?'…':''}</div>`:''}
+    ${r.measureMethod?`<div style="font-size:.76rem;color:#6b7280;margin-top:4px">๐“ ${r.measureMethod.substring(0,80)}${r.measureMethod.length>80?'โ€ฆ':''}</div>`:''}
   </div>`;
 }
 
-// ── Split view ──
+// โ”€โ”€ Split view โ”€โ”€
 function renderSplit(recs) {
   const leading = recs.filter(r=>r.indicatorType==='leading');
   const lagging = recs.filter(r=>r.indicatorType==='lagging');
@@ -142,19 +143,19 @@ function renderSplit(recs) {
   return `<div class="split-view">
     <div class="split-col">
       <h2 style="background:${cfg.leading.bg};color:${cfg.leading.color}">${cfg.leading.icon} ${cfg.leading.label} <span style="font-size:.78rem;font-weight:400">(${leading.length})</span></h2>
-      <div class="cards">${leading.length?leading.map(makeCard).join(''):`<div class="empty-mini">ยังไม่มีตัวชี้วัด Leading</div>`}</div>
+      <div class="cards">${leading.length?leading.map(makeCard).join(''):`<div class="empty-mini">เธขเธฑเธเนเธกเนเธกเธตเธ•เธฑเธงเธเธตเนเธงเธฑเธ” Leading</div>`}</div>
     </div>
     <div class="split-col">
       <h2 style="background:${cfg.lagging.bg};color:${cfg.lagging.color}">${cfg.lagging.icon} ${cfg.lagging.label} <span style="font-size:.78rem;font-weight:400">(${lagging.length})</span></h2>
-      <div class="cards">${lagging.length?lagging.map(makeCard).join(''):`<div class="empty-mini">ยังไม่มีตัวชี้วัด Lagging</div>`}</div>
+      <div class="cards">${lagging.length?lagging.map(makeCard).join(''):`<div class="empty-mini">เธขเธฑเธเนเธกเนเธกเธตเธ•เธฑเธงเธเธตเนเธงเธฑเธ” Lagging</div>`}</div>
     </div>
   </div>
-  ${other.length?`<div style="margin-bottom:16px"><h3 style="font-size:.85rem;color:#6b7280;margin-bottom:8px">อื่นๆ (${other.length})</h3><div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px">${other.map(makeCard).join('')}</div></div>`:''}`;
+  ${other.length?`<div style="margin-bottom:16px"><h3 style="font-size:.85rem;color:#6b7280;margin-bottom:8px">เธญเธทเนเธเน (${other.length})</h3><div style="background:#fff;border:1px solid #e2e8f0;border-radius:9px">${other.map(makeCard).join('')}</div></div>`:''}`;
 }
 
-// ── Table ──
+// โ”€โ”€ Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div style="text-align:center;padding:60px;color:#9ca3af"><div style="font-size:3rem">📊</div><p style="margin-top:12px">ยังไม่มีแผนการติดตาม</p></div>`;
+  if (!recs.length) return `<div style="text-align:center;padding:60px;color:#9ca3af"><div style="font-size:3rem">๐“</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเนเธเธเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธก</p></div>`;
   const rows = recs.map(r => {
     const itype = MON_INDICATOR_TYPES[r.indicatorType]||MON_INDICATOR_TYPES.leading;
     const cat   = getCategory(r.category);
@@ -163,26 +164,26 @@ function renderTable(recs) {
     return `<tr ${od?"style='background:#fff5f5'":''}>
       <td><span class="badge" style="color:${itype.color};background:${itype.bg}">${itype.icon} ${r.indicatorType==='leading'?'Leading':'Lagging'}</span></td>
       <td><span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:5px;font-size:.77rem;background:${cat.bg};color:${cat.color}">${cat.icon} ${cat.label}</span></td>
-      <td><strong>${r.name||'—'}</strong></td>
-      <td style="font-size:.8rem">${r.measureMethod||'—'}</td>
+      <td><strong>${r.name||'โ€”'}</strong></td>
+      <td style="font-size:.8rem">${r.measureMethod||'โ€”'}</td>
       <td style="font-size:.8rem">${getFreq(r.measureFreq).label}</td>
-      <td style="font-size:.82rem">${r.targetValue||'—'} ${r.unit||''}</td>
-      <td style="font-size:.82rem${od?';color:#dc2626;font-weight:700':''}">${r.nextMeasureDate||'—'}${od?' ⚠️':''}</td>
-      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td style="font-size:.82rem">${r.targetValue||'โ€”'} ${r.unit||''}</td>
+      <td style="font-size:.82rem${od?';color:#dc2626;font-weight:700':''}">${r.nextMeasureDate||'โ€”'}${od?' โ ๏ธ':''}</td>
+      <td style="font-size:.82rem">${r.responsible||'โ€”'}</td>
       <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editMon('${r.id}');event.stopPropagation()">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteMon('${r.id}','${(r.name||'').replace(/'/g,"\\'")}');event.stopPropagation()">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editMon('${r.id}');event.stopPropagation()">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteMon('${r.id}','${(r.name||'').replace(/'/g,"\\'")}');event.stopPropagation()">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table><thead><tr>
-    <th>ประเภท</th><th>หมวด</th><th>ชื่อตัวชี้วัด</th><th>วิธีวัด</th>
-    <th>ความถี่</th><th>เป้าหมาย</th><th>วัดครั้งถัดไป</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th><th>จัดการ</th>
+    <th>เธเธฃเธฐเน€เธ เธ—</th><th>เธซเธกเธงเธ”</th><th>เธเธทเนเธญเธ•เธฑเธงเธเธตเนเธงเธฑเธ”</th><th>เธงเธดเธเธตเธงเธฑเธ”</th>
+    <th>เธเธงเธฒเธกเธ–เธตเน</th><th>เน€เธเนเธฒเธซเธกเธฒเธข</th><th>เธงเธฑเธ”เธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</th><th>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// ── Form ──
+// โ”€โ”€ Form โ”€โ”€
 function renderForm(rec) {
   const sel = rec?.indicatorType||'leading';
   const catOpts  = MON_CATEGORIES.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
@@ -196,55 +197,55 @@ function renderForm(rec) {
       <div class="desc">${v.desc}</div>
     </div>`).join('');
   return `<form id="mon-form" onsubmit="return false">
-    <div class="section-head">ประเภทตัวชี้วัด *</div>
+    <div class="section-head">เธเธฃเธฐเน€เธ เธ—เธ•เธฑเธงเธเธตเนเธงเธฑเธ” *</div>
     <div class="type-selector">${typeBtns}</div>
     <div class="form-row">
-      <div class="form-group"><label>หมวดหมู่ *</label><select id="f-category">${catOpts}</select></div>
-      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+      <div class="form-group"><label>เธซเธกเธงเธ”เธซเธกเธนเน *</label><select id="f-category">${catOpts}</select></div>
+      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label><select id="f-status">${stsOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ชื่อตัวชี้วัด *</label>
-        <input id="f-name" value="${rec?.name||''}" placeholder="เช่น อัตราความถี่การบาดเจ็บ (FR), จำนวนครั้งการตรวจสอบ"/></div>
+      <div class="form-group"><label>เธเธทเนเธญเธ•เธฑเธงเธเธตเนเธงเธฑเธ” *</label>
+        <input id="f-name" value="${rec?.name||''}" placeholder="เน€เธเนเธ เธญเธฑเธ•เธฃเธฒเธเธงเธฒเธกเธ–เธตเนเธเธฒเธฃเธเธฒเธ”เน€เธเนเธ (FR), เธเธณเธเธงเธเธเธฃเธฑเนเธเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>สูตรคำนวณ / คำนิยาม</label>
-        <textarea id="f-formula" rows="2" placeholder="เช่น (จำนวนอุบัติเหตุ × 1,000,000) ÷ ชั่วโมงทำงาน">${rec?.formula||''}</textarea></div>
+      <div class="form-group"><label>เธชเธนเธ•เธฃเธเธณเธเธงเธ“ / เธเธณเธเธดเธขเธฒเธก</label>
+        <textarea id="f-formula" rows="2" placeholder="เน€เธเนเธ (เธเธณเธเธงเธเธญเธธเธเธฑเธ•เธดเน€เธซเธ•เธธ ร— 1,000,000) รท เธเธฑเนเธงเนเธกเธเธ—เธณเธเธฒเธ">${rec?.formula||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>วิธีการวัด / เก็บข้อมูล</label>
-        <textarea id="f-measureMethod" rows="2" placeholder="วิธีการเก็บข้อมูลและเครื่องมือที่ใช้">${rec?.measureMethod||''}</textarea></div>
+      <div class="form-group"><label>เธงเธดเธเธตเธเธฒเธฃเธงเธฑเธ” / เน€เธเนเธเธเนเธญเธกเธนเธฅ</label>
+        <textarea id="f-measureMethod" rows="2" placeholder="เธงเธดเธเธตเธเธฒเธฃเน€เธเนเธเธเนเธญเธกเธนเธฅเนเธฅเธฐเน€เธเธฃเธทเนเธญเธเธกเธทเธญเธ—เธตเนเนเธเน">${rec?.measureMethod||''}</textarea></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>ค่าเป้าหมาย</label>
-        <input id="f-targetValue" value="${rec?.targetValue||''}" placeholder="เช่น 0, ≤2, ≥95"/></div>
-      <div class="form-group"><label>หน่วย</label>
-        <input id="f-unit" value="${rec?.unit||''}" placeholder="เช่น ครั้ง, %, คะแนน"/></div>
-      <div class="form-group"><label>ความถี่การวัด</label>
+      <div class="form-group"><label>เธเนเธฒเน€เธเนเธฒเธซเธกเธฒเธข</label>
+        <input id="f-targetValue" value="${rec?.targetValue||''}" placeholder="เน€เธเนเธ 0, โค2, โฅ95"/></div>
+      <div class="form-group"><label>เธซเธเนเธงเธข</label>
+        <input id="f-unit" value="${rec?.unit||''}" placeholder="เน€เธเนเธ เธเธฃเธฑเนเธ, %, เธเธฐเนเธเธ"/></div>
+      <div class="form-group"><label>เธเธงเธฒเธกเธ–เธตเนเธเธฒเธฃเธงเธฑเธ”</label>
         <select id="f-measureFreq">${freqOpts}</select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>แหล่งข้อมูล / ระบบที่ใช้</label>
-        <input id="f-dataSource" value="${rec?.dataSource||''}" placeholder="เช่น ระบบ ERP, บันทึกอุบัติเหตุ"/></div>
-      <div class="form-group"><label>ผู้รับผิดชอบวัด/รายงาน</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+      <div class="form-group"><label>เนเธซเธฅเนเธเธเนเธญเธกเธนเธฅ / เธฃเธฐเธเธเธ—เธตเนเนเธเน</label>
+        <input id="f-dataSource" value="${rec?.dataSource||''}" placeholder="เน€เธเนเธ เธฃเธฐเธเธ ERP, เธเธฑเธเธ—เธถเธเธญเธธเธเธฑเธ•เธดเน€เธซเธ•เธธ"/></div>
+      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธเธงเธฑเธ”/เธฃเธฒเธขเธเธฒเธ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>วันที่วัดครั้งถัดไป</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธงเธฑเธ”เธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
         <input id="f-nextMeasureDate" type="date" value="${rec?.nextMeasureDate||''}"/></div>
-      <div class="form-group"><label>วันที่ทบทวนตัวชี้วัด</label>
+      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธเธ•เธฑเธงเธเธตเนเธงเธฑเธ”</label>
         <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>ผู้ใช้ผลการวัด / รายงานถึง</label>
-        <input id="f-reportTo" value="${rec?.reportTo||''}" placeholder="เช่น ผู้จัดการโรงงาน, คปอ, ที่ประชุมความปลอดภัย"/></div>
+      <div class="form-group"><label>เธเธนเนเนเธเนเธเธฅเธเธฒเธฃเธงเธฑเธ” / เธฃเธฒเธขเธเธฒเธเธ–เธถเธ</label>
+        <input id="f-reportTo" value="${rec?.reportTo||''}" placeholder="เน€เธเนเธ เธเธนเนเธเธฑเธ”เธเธฒเธฃเนเธฃเธเธเธฒเธ, เธเธเธญ, เธ—เธตเนเธเธฃเธฐเธเธธเธกเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>หมายเหตุ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
+      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveMon()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveMon()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
@@ -263,7 +264,7 @@ window.__selType = key => {
   });
 };
 
-// ── Panel ──
+// โ”€โ”€ Panel โ”€โ”€
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -274,14 +275,14 @@ function openPanel(html, title) {
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 }
-window.__newMon  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มตัวชี้วัด'); };
+window.__newMon  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธ•เธฑเธงเธเธตเนเธงเธฑเธ”'); };
 window.__editMon = async id => {
   editId = id;
   const r = await getMonitorProg(id);
-  openPanel(renderForm(r), '✏️ แก้ไขตัวชี้วัด');
+  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธ•เธฑเธงเธเธตเนเธงเธฑเธ”');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveMon = async () => {
   const selType = document.querySelector('input[name="indicatorType"]:checked')?.value || 'leading';
   const data = {
@@ -301,24 +302,24 @@ window.__saveMon = async () => {
     reportTo:        document.getElementById('f-reportTo').value.trim(),
     notes:           document.getElementById('f-notes').value.trim(),
   };
-  if (!data.name) { alert('กรุณากรอกชื่อตัวชี้วัด'); return; }
+  if (!data.name) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธ•เธฑเธงเธเธตเนเธงเธฑเธ”'); return; }
   try {
     if (editId) await updateMonitorProg(editId, data);
     else        await createMonitorProg(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deleteMon = async (id, name) => {
-  if (!confirm(`ลบตัวชี้วัด "${name}"?`)) return;
+  if (!confirm(`เธฅเธเธ•เธฑเธงเธเธตเนเธงเธฑเธ” "${name}"?`)) return;
   await deleteMonitorProg(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter ──
+// โ”€โ”€ Filter โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const tp  = document.getElementById('filter-type')?.value||'';
@@ -349,30 +350,30 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const typeOpts = `<option value="">-- ทุกประเภท --</option>
-  <option value="leading">📈 Leading</option>
-  <option value="lagging">📉 Lagging</option>`;
-const catOpts = `<option value="">-- ทุกหมวด --</option>` + MON_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
-const stsOpts = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(MON_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+// โ”€โ”€ Build UI โ”€โ”€
+const typeOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ— --</option>
+  <option value="leading">๐“ Leading</option>
+  <option value="lagging">๐“ Lagging</option>`;
+const catOpts = `<option value="">-- เธ—เธธเธเธซเธกเธงเธ” --</option>` + MON_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
+const stsOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` + Object.entries(MON_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาตัวชี้วัด…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธ•เธฑเธงเธเธตเนเธงเธฑเธ”โ€ฆ" oninput="applyFilter()"/>
       <select id="filter-type"    onchange="applyFilter()">${typeOpts}</select>
       <select id="filter-cat"     onchange="applyFilter()">${catOpts}</select>
       <select id="filter-status"  onchange="applyFilter()">${stsOpts}</select>
       <select id="filter-overdue" onchange="applyFilter()">
-        <option value="">-- ทั้งหมด --</option>
-        <option value="1">🔴 เกินกำหนดวัด</option>
+        <option value="">-- เธ—เธฑเนเธเธซเธกเธ” --</option>
+        <option value="1">๐”ด เน€เธเธดเธเธเธณเธซเธเธ”เธงเธฑเธ”</option>
       </select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="split" onclick="window.__switchView('split')">📊 Leading/Lagging</button>
-        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
+        <button class="view-btn active" data-view="split" onclick="window.__switchView('split')">๐“ Leading/Lagging</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newMon()">+ เพิ่มตัวชี้วัด</button>
+      <button class="btn btn-primary" onclick="window.__newMon()">+ เน€เธเธดเนเธกเธ•เธฑเธงเธเธตเนเธงเธฑเธ”</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -380,8 +381,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">แผนการติดตามผล</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เนเธเธเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธกเธเธฅ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -391,3 +392,4 @@ await loadData();
 </script>
 </body>
 </html>
+

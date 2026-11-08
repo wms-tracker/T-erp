@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>ประเมินผู้รับเหมาด้านความปลอดภัย</title>
+<title>เธเธฃเธฐเน€เธกเธดเธเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒเธ”เนเธฒเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#2563eb;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -74,7 +74,8 @@ tr:hover td{background:#f8fafc}
 </head>
 <body>
 <script type="module">
-import { requireRole, renderShell } from './js/shell.js';
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
 import { db } from './js/auth.js';
 import {
   COL,
@@ -87,15 +88,15 @@ import {
 import { collection, query, orderBy, getDocs } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-contractor-eval', 'ประเมินผู้รับเหมาด้านความปลอดภัย');
+const main = renderShell(profile, 'safety-contractor-eval', 'เธเธฃเธฐเน€เธกเธดเธเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒเธ”เนเธฒเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข');
 
-// ── State ──
+// โ”€โ”€ State โ”€โ”€
 let allRecs = [];
 let editId   = null;
 let preqScores = {}, onsiteScores = {};
 let viewRec  = null;
 
-// ── Render KPI ──
+// โ”€โ”€ Render KPI โ”€โ”€
 function renderKPI(recs) {
   const total  = recs.length;
   const approved    = recs.filter(r=>r.approvalStatus==='approved').length;
@@ -104,55 +105,55 @@ function renderKPI(recs) {
   const pending     = recs.filter(r=>r.approvalStatus==='pending').length;
   return `
   <div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">ทั้งหมด</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${approved}</div><div class="lbl">✅ อนุมัติ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${conditional}</div><div class="lbl">⚠️ มีเงื่อนไข</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${rejected}</div><div class="lbl">❌ ไม่ผ่าน</div></div>
-    <div class="kpi" style="border-color:#6b7280"><div class="num" style="color:#6b7280">${pending}</div><div class="lbl">⏳ รอตรวจ</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธ—เธฑเนเธเธซเธกเธ”</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${approved}</div><div class="lbl">โ… เธญเธเธธเธกเธฑเธ•เธด</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${conditional}</div><div class="lbl">โ ๏ธ เธกเธตเน€เธเธทเนเธญเธเนเธ</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${rejected}</div><div class="lbl">โ เนเธกเนเธเนเธฒเธ</div></div>
+    <div class="kpi" style="border-color:#6b7280"><div class="num" style="color:#6b7280">${pending}</div><div class="lbl">โณ เธฃเธญเธ•เธฃเธงเธ</div></div>
   </div>`;
 }
 
-// ── Render Table ──
+// โ”€โ”€ Render Table โ”€โ”€
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">🏗️</div><p>ยังไม่มีข้อมูลการประเมิน</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">๐—๏ธ</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ</p></div>`;
   const rows = recs.map(r => {
     const a = CEVAL_APPROVAL[r.approvalStatus] || CEVAL_APPROVAL.pending;
-    const wt = CEVAL_WORK_TYPE.find(w=>w.key===r.workType) || { icon:'🔖', label: r.workType||'—' };
-    const preqScore  = r.preqTotalScore  != null ? r.preqTotalScore.toFixed(1)  : '—';
-    const onsiteScore= r.onsiteTotalScore!= null ? r.onsiteTotalScore.toFixed(1): '—';
-    const finalScore = r.finalScore      != null ? r.finalScore.toFixed(1)      : '—';
+    const wt = CEVAL_WORK_TYPE.find(w=>w.key===r.workType) || { icon:'๐”–', label: r.workType||'โ€”' };
+    const preqScore  = r.preqTotalScore  != null ? r.preqTotalScore.toFixed(1)  : 'โ€”';
+    const onsiteScore= r.onsiteTotalScore!= null ? r.onsiteTotalScore.toFixed(1): 'โ€”';
+    const finalScore = r.finalScore      != null ? r.finalScore.toFixed(1)      : 'โ€”';
     const grade      = r.finalScore      != null ? getCEvalGrade(r.finalScore)  : null;
     return `<tr>
-      <td><strong>${r.contractorName||'—'}</strong><br/><span style="font-size:.75rem;color:#6b7280">${r.contractorId||''}</span></td>
+      <td><strong>${r.contractorName||'โ€”'}</strong><br/><span style="font-size:.75rem;color:#6b7280">${r.contractorId||''}</span></td>
       <td>${wt.icon} ${wt.label}</td>
-      <td>${r.evalDate||'—'}</td>
+      <td>${r.evalDate||'โ€”'}</td>
       <td style="text-align:center">${preqScore}</td>
       <td style="text-align:center">${onsiteScore}</td>
       <td style="text-align:center">${grade?`<span style="font-weight:700;color:${grade.color}">${finalScore}</span>`:finalScore}</td>
       <td><span class="badge" style="color:${a.color};background:${a.bg}">${a.icon} ${a.label}</span></td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__viewEval('${r.id}')">ดู</button>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editEval('${r.id}')">แก้ไข</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteEval('${r.id}','${(r.contractorName||'').replace(/'/g,"\\'")}')">ลบ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__viewEval('${r.id}')">เธ”เธน</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editEval('${r.id}')">เนเธเนเนเธ</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteEval('${r.id}','${(r.contractorName||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>ผู้รับเหมา</th><th>ประเภทงาน</th><th>วันที่ประเมิน</th>
-      <th style="text-align:center">Prequalify</th><th style="text-align:center">On-site</th><th style="text-align:center">รวม</th>
-      <th>สถานะ</th><th>จัดการ</th>
+      <th>เธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ</th><th>เธเธฃเธฐเน€เธ เธ—เธเธฒเธ</th><th>เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ</th>
+      <th style="text-align:center">Prequalify</th><th style="text-align:center">On-site</th><th style="text-align:center">เธฃเธงเธก</th>
+      <th>เธชเธ–เธฒเธเธฐ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// ── Score row helper ──
+// โ”€โ”€ Score row helper โ”€โ”€
 function scoreRow(c, scoreObj, prefix) {
   const v = scoreObj[c.key] || 0;
   return `<div class="score-row">
     <div class="score-label">${c.label}</div>
-    <div class="score-weight">น้ำหนัก ${c.weight}%</div>
+    <div class="score-weight">เธเนเธณเธซเธเธฑเธ ${c.weight}%</div>
     <div class="score-bar-wrap"><div class="score-bar" id="bar-${prefix}-${c.key}" style="width:${v}%"></div></div>
     <input class="score-input" type="number" min="0" max="100" value="${v}"
       oninput="window.__scoreChange('${prefix}','${c.key}',this.value)"
@@ -160,7 +161,7 @@ function scoreRow(c, scoreObj, prefix) {
   </div>`;
 }
 
-// ── Render panel form ──
+// โ”€โ”€ Render panel form โ”€โ”€
 function renderPanelForm(rec) {
   const wts = CEVAL_WORK_TYPE.map(w=>`<option value="${w.key}" ${(rec?.workType===w.key)?'selected':''}>${w.icon} ${w.label}</option>`).join('');
   const appOpts = Object.entries(CEVAL_APPROVAL).map(([k,v])=>`<option value="${k}" ${(rec?.approvalStatus===k)?'selected':''}>${v.label}</option>`).join('');
@@ -169,105 +170,105 @@ function renderPanelForm(rec) {
   return `
   <form id="eval-form" onsubmit="return false">
     <div class="tab-bar">
-      <button type="button" class="tab-btn active" onclick="window.__switchTab('info')">ข้อมูลทั่วไป</button>
+      <button type="button" class="tab-btn active" onclick="window.__switchTab('info')">เธเนเธญเธกเธนเธฅเธ—เธฑเนเธงเนเธ</button>
       <button type="button" class="tab-btn" onclick="window.__switchTab('preq')">Prequalification</button>
       <button type="button" class="tab-btn" onclick="window.__switchTab('onsite')">On-site</button>
-      <button type="button" class="tab-btn" onclick="window.__switchTab('summary')">สรุปผล</button>
+      <button type="button" class="tab-btn" onclick="window.__switchTab('summary')">เธชเธฃเธธเธเธเธฅ</button>
     </div>
 
     <div class="tab-panel active" id="tab-info">
       <div class="form-row">
-        <div class="form-group"><label>ชื่อผู้รับเหมา *</label>
-          <input id="f-contractorName" value="${rec?.contractorName||''}" placeholder="บริษัท/บุคคล" required/></div>
-        <div class="form-group"><label>รหัสผู้รับเหมา</label>
+        <div class="form-group"><label>เธเธทเนเธญเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ *</label>
+          <input id="f-contractorName" value="${rec?.contractorName||''}" placeholder="เธเธฃเธดเธฉเธฑเธ—/เธเธธเธเธเธฅ" required/></div>
+        <div class="form-group"><label>เธฃเธซเธฑเธชเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ</label>
           <input id="f-contractorId" value="${rec?.contractorId||''}" placeholder="CTR-001"/></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>ผู้ติดต่อ</label>
-          <input id="f-contactPerson" value="${rec?.contactPerson||''}" placeholder="ชื่อ-นามสกุล"/></div>
-        <div class="form-group"><label>โทรศัพท์</label>
+        <div class="form-group"><label>เธเธนเนเธ•เธดเธ”เธ•เนเธญ</label>
+          <input id="f-contactPerson" value="${rec?.contactPerson||''}" placeholder="เธเธทเนเธญ-เธเธฒเธกเธชเธเธธเธฅ"/></div>
+        <div class="form-group"><label>เนเธ—เธฃเธจเธฑเธเธ—เน</label>
           <input id="f-contactPhone" value="${rec?.contactPhone||''}" placeholder="08x-xxx-xxxx"/></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>ประเภทงาน</label>
+        <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ—เธเธฒเธ</label>
           <select id="f-workType">${wts}</select></div>
-        <div class="form-group"><label>วันที่ประเมิน *</label>
+        <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธเธฃเธฐเน€เธกเธดเธ *</label>
           <input id="f-evalDate" type="date" value="${rec?.evalDate||''}" required/></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>วันเริ่มงาน</label>
+        <div class="form-group"><label>เธงเธฑเธเน€เธฃเธดเนเธกเธเธฒเธ</label>
           <input id="f-workStart" type="date" value="${rec?.workStart||''}"/></div>
-        <div class="form-group"><label>วันสิ้นสุดงาน</label>
+        <div class="form-group"><label>เธงเธฑเธเธชเธดเนเธเธชเธธเธ”เธเธฒเธ</label>
           <input id="f-workEnd" type="date" value="${rec?.workEnd||''}"/></div>
       </div>
       <div class="form-row one">
-        <div class="form-group"><label>ขอบเขตงาน/รายละเอียด</label>
-          <textarea id="f-workScope" rows="3" placeholder="ระบุรายละเอียดงานที่รับเหมา">${rec?.workScope||''}</textarea></div>
+        <div class="form-group"><label>เธเธญเธเน€เธเธ•เธเธฒเธ/เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”</label>
+          <textarea id="f-workScope" rows="3" placeholder="เธฃเธฐเธเธธเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธเธ—เธตเนเธฃเธฑเธเน€เธซเธกเธฒ">${rec?.workScope||''}</textarea></div>
       </div>
     </div>
 
     <div class="tab-panel" id="tab-preq">
-      <div class="section-title">คะแนน Pre-qualification — เอกสารและเงื่อนไขก่อนเริ่มงาน</div>
+      <div class="section-title">เธเธฐเนเธเธ Pre-qualification โ€” เน€เธญเธเธชเธฒเธฃเนเธฅเธฐเน€เธเธทเนเธญเธเนเธเธเนเธญเธเน€เธฃเธดเนเธกเธเธฒเธ</div>
       ${preqRows}
       <div class="total-box" id="preq-total-box">
         <div class="total-score-num" id="preq-total">0</div>
-        <div><div class="total-grade" id="preq-grade">—</div><div style="font-size:.78rem;color:#6b7280">คะแนน Prequalification</div></div>
+        <div><div class="total-grade" id="preq-grade">โ€”</div><div style="font-size:.78rem;color:#6b7280">เธเธฐเนเธเธ Prequalification</div></div>
       </div>
     </div>
 
     <div class="tab-panel" id="tab-onsite">
-      <div class="section-title">คะแนน On-site — พฤติกรรมและการปฏิบัติงานจริง</div>
+      <div class="section-title">เธเธฐเนเธเธ On-site โ€” เธเธคเธ•เธดเธเธฃเธฃเธกเนเธฅเธฐเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธเธฒเธเธเธฃเธดเธ</div>
       ${onsiteRows}
       <div class="total-box" id="onsite-total-box">
         <div class="total-score-num" id="onsite-total">0</div>
-        <div><div class="total-grade" id="onsite-grade">—</div><div style="font-size:.78rem;color:#6b7280">คะแนน On-site</div></div>
+        <div><div class="total-grade" id="onsite-grade">โ€”</div><div style="font-size:.78rem;color:#6b7280">เธเธฐเนเธเธ On-site</div></div>
       </div>
     </div>
 
     <div class="tab-panel" id="tab-summary">
-      <div class="section-title">สรุปผลการประเมิน</div>
+      <div class="section-title">เธชเธฃเธธเธเธเธฅเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ</div>
       <div class="form-row">
-        <div class="form-group"><label>น้ำหนัก Prequalification (%)</label>
+        <div class="form-group"><label>เธเนเธณเธซเธเธฑเธ Prequalification (%)</label>
           <input id="f-preqWeight" type="number" min="0" max="100" value="${rec?.preqWeight??50}" oninput="window.__recalcFinal()"/></div>
-        <div class="form-group"><label>น้ำหนัก On-site (%)</label>
+        <div class="form-group"><label>เธเนเธณเธซเธเธฑเธ On-site (%)</label>
           <input id="f-onsiteWeight" type="number" min="0" max="100" value="${rec?.onsiteWeight??50}" oninput="window.__recalcFinal()"/></div>
       </div>
       <div class="total-box" id="final-total-box">
         <div class="total-score-num" id="final-score">0</div>
         <div>
-          <div class="total-grade" id="final-grade">—</div>
-          <div style="font-size:.78rem;color:#6b7280">คะแนนรวมสุดท้าย</div>
+          <div class="total-grade" id="final-grade">โ€”</div>
+          <div style="font-size:.78rem;color:#6b7280">เธเธฐเนเธเธเธฃเธงเธกเธชเธธเธ”เธ—เนเธฒเธข</div>
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>ผลการตัดสิน</label>
+        <div class="form-group"><label>เธเธฅเธเธฒเธฃเธ•เธฑเธ”เธชเธดเธ</label>
           <select id="f-approvalStatus">${appOpts}</select></div>
-        <div class="form-group"><label>ผู้ประเมิน</label>
-          <input id="f-evaluator" value="${rec?.evaluator||profile.name||''}" placeholder="ชื่อ Safety Officer"/></div>
+        <div class="form-group"><label>เธเธนเนเธเธฃเธฐเน€เธกเธดเธ</label>
+          <input id="f-evaluator" value="${rec?.evaluator||profile.name||''}" placeholder="เธเธทเนเธญ Safety Officer"/></div>
       </div>
       <div class="form-row one">
-        <div class="form-group"><label>เงื่อนไขพิเศษ / หมายเหตุ</label>
-          <textarea id="f-conditions" rows="3" placeholder="ระบุเงื่อนไขที่ต้องปฏิบัติตามก่อนเริ่มงาน หรือหมายเหตุอื่นๆ">${rec?.conditions||''}</textarea></div>
+        <div class="form-group"><label>เน€เธเธทเนเธญเธเนเธเธเธดเน€เธจเธฉ / เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+          <textarea id="f-conditions" rows="3" placeholder="เธฃเธฐเธเธธเน€เธเธทเนเธญเธเนเธเธ—เธตเนเธ•เนเธญเธเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธกเธเนเธญเธเน€เธฃเธดเนเธกเธเธฒเธ เธซเธฃเธทเธญเธซเธกเธฒเธขเน€เธซเธ•เธธเธญเธทเนเธเน">${rec?.conditions||''}</textarea></div>
       </div>
     </div>
 
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveEval()">💾 บันทึก</button>
-      <button type="button" class="btn btn-ghost"   onclick="window.__closePanel()">ยกเลิก</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveEval()">๐’พ เธเธฑเธเธ—เธถเธ</button>
+      <button type="button" class="btn btn-ghost"   onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
     </div>
   </form>`;
 }
 
-// ── Render Detail View ──
+// โ”€โ”€ Render Detail View โ”€โ”€
 function renderDetail(r) {
   const a  = CEVAL_APPROVAL[r.approvalStatus] || CEVAL_APPROVAL.pending;
-  const wt = CEVAL_WORK_TYPE.find(w=>w.key===r.workType) || { icon:'🔖', label: r.workType||'—' };
+  const wt = CEVAL_WORK_TYPE.find(w=>w.key===r.workType) || { icon:'๐”–', label: r.workType||'โ€”' };
   const grade = r.finalScore != null ? getCEvalGrade(r.finalScore) : null;
 
   const preqRows = CEVAL_CRITERIA_PREQUALIFY.map(c=>{
     const v = (r.preqScores||{})[c.key]||0;
     return `<div class="score-detail-row">
-      <div class="score-detail-label">${c.label} <span style="color:#9ca3af;font-size:.73rem">(น้ำหนัก ${c.weight}%)</span></div>
+      <div class="score-detail-label">${c.label} <span style="color:#9ca3af;font-size:.73rem">(เธเนเธณเธซเธเธฑเธ ${c.weight}%)</span></div>
       <div class="score-detail-bar-wrap"><div class="score-detail-bar" style="width:${v}%;background:${v>=80?'#16a34a':v>=60?'#d97706':'#dc2626'}"></div></div>
       <div class="score-detail-val">${v}</div>
     </div>`;
@@ -276,7 +277,7 @@ function renderDetail(r) {
   const onsiteRows = CEVAL_CRITERIA_ONSITE.map(c=>{
     const v = (r.onsiteScores||{})[c.key]||0;
     return `<div class="score-detail-row">
-      <div class="score-detail-label">${c.label} <span style="color:#9ca3af;font-size:.73rem">(น้ำหนัก ${c.weight}%)</span></div>
+      <div class="score-detail-label">${c.label} <span style="color:#9ca3af;font-size:.73rem">(เธเนเธณเธซเธเธฑเธ ${c.weight}%)</span></div>
       <div class="score-detail-bar-wrap"><div class="score-detail-bar" style="width:${v}%;background:${v>=80?'#16a34a':v>=60?'#d97706':'#dc2626'}"></div></div>
       <div class="score-detail-val">${v}</div>
     </div>`;
@@ -285,8 +286,8 @@ function renderDetail(r) {
   return `<div class="detail-view">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div>
-        <div style="font-size:1.2rem;font-weight:800">${r.contractorName||'—'}</div>
-        <div style="color:#6b7280;font-size:.82rem">${wt.icon} ${wt.label} &nbsp;•&nbsp; ${r.evalDate||'—'}</div>
+        <div style="font-size:1.2rem;font-weight:800">${r.contractorName||'โ€”'}</div>
+        <div style="color:#6b7280;font-size:.82rem">${wt.icon} ${wt.label} &nbsp;โ€ข&nbsp; ${r.evalDate||'โ€”'}</div>
       </div>
       <span class="badge" style="color:${a.color};background:${a.bg};font-size:.85rem">${a.icon} ${a.label}</span>
       ${grade?`<span style="font-size:1.5rem;font-weight:800;color:${grade.color};margin-left:auto">${(r.finalScore||0).toFixed(1)} pts</span>`:''}
@@ -299,31 +300,31 @@ function renderDetail(r) {
     </div>`:''}
 
     <div class="detail-section">
-      <h3>ข้อมูลทั่วไป</h3>
-      <div class="detail-row"><span class="dk">รหัสผู้รับเหมา</span><span class="dv">${r.contractorId||'—'}</span></div>
-      <div class="detail-row"><span class="dk">ผู้ติดต่อ</span><span class="dv">${r.contactPerson||'—'} ${r.contactPhone?'('+r.contactPhone+')':''}</span></div>
-      <div class="detail-row"><span class="dk">ระยะเวลางาน</span><span class="dv">${r.workStart||'—'} ถึง ${r.workEnd||'—'}</span></div>
-      <div class="detail-row"><span class="dk">ขอบเขตงาน</span><span class="dv">${r.workScope||'—'}</span></div>
-      <div class="detail-row"><span class="dk">ผู้ประเมิน</span><span class="dv">${r.evaluator||'—'}</span></div>
-      ${r.conditions?`<div class="detail-row"><span class="dk">เงื่อนไข/หมายเหตุ</span><span class="dv">${r.conditions}</span></div>`:''}
+      <h3>เธเนเธญเธกเธนเธฅเธ—เธฑเนเธงเนเธ</h3>
+      <div class="detail-row"><span class="dk">เธฃเธซเธฑเธชเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ</span><span class="dv">${r.contractorId||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เธเธนเนเธ•เธดเธ”เธ•เนเธญ</span><span class="dv">${r.contactPerson||'โ€”'} ${r.contactPhone?'('+r.contactPhone+')':''}</span></div>
+      <div class="detail-row"><span class="dk">เธฃเธฐเธขเธฐเน€เธงเธฅเธฒเธเธฒเธ</span><span class="dv">${r.workStart||'โ€”'} เธ–เธถเธ ${r.workEnd||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เธเธญเธเน€เธเธ•เธเธฒเธ</span><span class="dv">${r.workScope||'โ€”'}</span></div>
+      <div class="detail-row"><span class="dk">เธเธนเนเธเธฃเธฐเน€เธกเธดเธ</span><span class="dv">${r.evaluator||'โ€”'}</span></div>
+      ${r.conditions?`<div class="detail-row"><span class="dk">เน€เธเธทเนเธญเธเนเธ/เธซเธกเธฒเธขเน€เธซเธ•เธธ</span><span class="dv">${r.conditions}</span></div>`:''}
     </div>
 
     <div class="detail-section">
-      <h3>Prequalification — คะแนน ${(r.preqTotalScore||0).toFixed(1)} / 100</h3>
+      <h3>Prequalification โ€” เธเธฐเนเธเธ ${(r.preqTotalScore||0).toFixed(1)} / 100</h3>
       ${preqRows}
     </div>
     <div class="detail-section">
-      <h3>On-site Evaluation — คะแนน ${(r.onsiteTotalScore||0).toFixed(1)} / 100</h3>
+      <h3>On-site Evaluation โ€” เธเธฐเนเธเธ ${(r.onsiteTotalScore||0).toFixed(1)} / 100</h3>
       ${onsiteRows}
     </div>
     <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button class="btn btn-ghost btn-sm" onclick="window.__editEval('${r.id}')">✏️ แก้ไข</button>
-      <button class="btn btn-danger btn-sm" onclick="window.__deleteEval('${r.id}','${(r.contractorName||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.__editEval('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteEval('${r.id}','${(r.contractorName||'').replace(/'/g,"\\'")}')">๐—‘๏ธ เธฅเธ</button>
     </div>
   </div>`;
 }
 
-// ── Score helpers ──
+// โ”€โ”€ Score helpers โ”€โ”€
 function recalcScoreUI(prefix, criteria, scoreObj) {
   const score = calcCEvalScore(scoreObj, criteria);
   const g = getCEvalGrade(score);
@@ -356,7 +357,7 @@ window.__recalcFinal = () => {
   if (asSel) asSel.value = g.approved;
 };
 
-// ── Tabs ──
+// โ”€โ”€ Tabs โ”€โ”€
 window.__switchTab = (tab) => {
   document.querySelectorAll('.tab-btn').forEach((b,i)=>{
     const tabs=['info','preq','onsite','summary'];
@@ -367,7 +368,7 @@ window.__switchTab = (tab) => {
   });
 };
 
-// ── Panel open/close ──
+// โ”€โ”€ Panel open/close โ”€โ”€
 window.__closePanel = ()=>{
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -383,31 +384,31 @@ function openPanel(html, title) {
   window.__recalcFinal();
 }
 
-// ── New / Edit ──
+// โ”€โ”€ New / Edit โ”€โ”€
 window.__newEval = ()=>{
   editId = null;
   preqScores = {}; onsiteScores = {};
-  openPanel(renderPanelForm(null), '+ เพิ่มการประเมินผู้รับเหมา');
+  openPanel(renderPanelForm(null), '+ เน€เธเธดเนเธกเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ');
 };
 window.__editEval = async (id) => {
   editId = id;
   const r = await getContractorEval(id);
   preqScores   = { ...(r.preqScores   || {}) };
   onsiteScores = { ...(r.onsiteScores || {}) };
-  openPanel(renderPanelForm(r), '✏️ แก้ไขการประเมิน');
+  openPanel(renderPanelForm(r), 'โ๏ธ เนเธเนเนเธเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ');
 };
 
-// ── View detail ──
+// โ”€โ”€ View detail โ”€โ”€
 window.__viewEval = async (id) => {
   const r = await getContractorEval(id);
   viewRec = r;
-  document.getElementById('panel-title').textContent = '📋 รายละเอียดการประเมิน';
+  document.getElementById('panel-title').textContent = '๐“ เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ';
   document.getElementById('panel-content').innerHTML = renderDetail(r);
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 };
 
-// ── Save ──
+// โ”€โ”€ Save โ”€โ”€
 window.__saveEval = async ()=>{
   const pw = Number(document.getElementById('f-preqWeight').value||50);
   const ow = Number(document.getElementById('f-onsiteWeight').value||50);
@@ -437,24 +438,24 @@ window.__saveEval = async ()=>{
     evaluator:       document.getElementById('f-evaluator').value.trim(),
     conditions:      document.getElementById('f-conditions').value.trim(),
   };
-  if (!data.contractorName || !data.evalDate) { alert('กรุณากรอกชื่อผู้รับเหมาและวันที่'); return; }
+  if (!data.contractorName || !data.evalDate) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒเนเธฅเธฐเธงเธฑเธเธ—เธตเน'); return; }
   try {
     if (editId) await updateContractorEval(editId, data);
     else        await createContractorEval(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
+  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
 };
 
-// ── Delete ──
+// โ”€โ”€ Delete โ”€โ”€
 window.__deleteEval = async (id, name) => {
-  if (!confirm(`ลบการประเมิน "${name}" ออกจากระบบ?`)) return;
+  if (!confirm(`เธฅเธเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ "${name}" เธญเธญเธเธเธฒเธเธฃเธฐเธเธ?`)) return;
   await deleteContractorEval(id);
   window.__closePanel();
   await loadData();
 };
 
-// ── Filter + render ──
+// โ”€โ”€ Filter + render โ”€โ”€
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const st  = document.getElementById('filter-status')?.value||'';
@@ -474,20 +475,20 @@ async function loadData() {
   applyFilter();
 }
 
-// ── Build UI ──
-const wtOpts = `<option value="">-- ทุกประเภท --</option>` +
+// โ”€โ”€ Build UI โ”€โ”€
+const wtOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ— --</option>` +
   CEVAL_WORK_TYPE.map(w=>`<option value="${w.key}">${w.icon} ${w.label}</option>`).join('');
-const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
+const stOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
   Object.entries(CEVAL_APPROVAL).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="🔍 ค้นหาชื่อผู้รับเหมา…" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธเธทเนเธญเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒโ€ฆ" oninput="applyFilter()"/>
       <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
       <select id="filter-wtype"  onchange="applyFilter()">${wtOpts}</select>
-      <button class="btn btn-primary" onclick="window.__newEval()">+ เพิ่มการประเมิน</button>
+      <button class="btn btn-primary" onclick="window.__newEval()">+ เน€เธเธดเนเธกเธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธ</button>
     </div>
     <div id="table-wrap"></div>
   </div>
@@ -495,8 +496,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">ประเมินผู้รับเหมา</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
+      <h2 id="panel-title">เธเธฃเธฐเน€เธกเธดเธเธเธนเนเธฃเธฑเธเน€เธซเธกเธฒ</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -509,3 +510,4 @@ await loadData();
 </script>
 </body>
 </html>
+
