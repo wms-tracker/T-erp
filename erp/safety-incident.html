@@ -12,7 +12,7 @@
 import { requireRole } from "./js/auth.js";
 import { renderShell  } from "./js/shell.js";
 import {
-  listIncidents, getIncident, createIncident, updateIncident,
+  listIncidents, getIncident, createIncident, updateIncident, deleteIncident,
   INCIDENT_TYPES, INCIDENT_STATUS, DEPARTMENTS, BODY_PARTS, INJURY_NATURES
 } from "./js/safety-data.js";
 
@@ -360,7 +360,9 @@ async function openDetail(id) {
     ${r.status !== 'closed' ? `<button class="workflow-btn" onclick="__openEdit('${id}')">แก้ไขข้อมูล</button>` : ''}
   </div>`;
 
-  $('modalFoot').innerHTML = `<button class="btn btn-ghost" onclick="__closeModal(null)">ปิด</button>`;
+  $('modalFoot').innerHTML = `
+    <button class="btn btn-danger" onclick="__deleteIncident('${id}')" style="margin-right:auto">🗑 ลบ</button>
+    <button class="btn btn-ghost" onclick="__closeModal(null)">ปิด</button>`;
 }
 
 // ─── edit form ─────────────────────────────────────────────────────────
@@ -484,6 +486,13 @@ window.__closeModal  = closeModal;
 window.__submitCreate = submitCreate;
 window.__submitEdit   = submitEdit;
 window.__updateStatus = updateStatus;
+window.__deleteIncident = async id => {
+  if (!confirm('ลบรายการอุบัติเหตุนี้?')) return;
+  await deleteIncident(id);
+  _rows = await listIncidents({ lim: 200 });
+  renderTable();
+  closeModal(null);
+};
 
 // ─── boot ───────────────────────────────────────────────────────────────
 _profile = await requireRole(['safety_officer', 'kpo', 'admin', 'manager', 'warehouse']);

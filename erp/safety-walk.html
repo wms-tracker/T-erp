@@ -45,7 +45,7 @@ function kpiBar() {
 }
 
 function monthOptions() {
-  const months=[..new Set(records.map(r=>(r.walkDate||'').slice(0,7)).filter(Boolean))].sort().reverse();
+  const months=[...new Set(records.map(r=>(r.walkDate||'').slice(0,7)).filter(Boolean))].sort().reverse();
   return months.map(m=>{
     const label=new Date(m+'-01').toLocaleDateString('th-TH',{year:'numeric',month:'long'});
     return `<option value="${m}" ${m===filterMonth?'selected':''}>${label}</option>`;
