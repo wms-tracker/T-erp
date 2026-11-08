@@ -58,17 +58,6 @@ import {
 
 const profile = await requireRole(['safety_officer','kpo']);
 const main    = renderShell(profile, 'safety-gas', 'ทะเบียนถังแก๊สและแก๊สอัดแรงดัน');
-main.insertAdjacentHTML('afterbegin', `
-<div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
-<div class="panel" id="panel">
-  <div class="panel-header">
-    <span id="panel-title">เพิ่มถังแก๊ส</span>
-    <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
-  </div>
-  <div class="panel-body" id="panel-body"></div>
-  <div class="panel-footer" id="panel-footer"></div>
-</div>
-`);
 
 const badge   = (l,c,bg) => `<span class="badge" style="color:${c};background:${bg}">${l}</span>`;
 const esc     = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -120,7 +109,16 @@ async function render() {
       </div>`).join('')}
   </div>
 
-  <div id="list-wrap">${renderList(getFiltered())}</div>`;
+  <div id="list-wrap">${renderList(getFiltered())}</div>
+  <div class="overlay" id="overlay" onclick="window.__closePanel()"></div>
+  <div class="panel" id="panel">
+    <div class="panel-header">
+      <span id="panel-title">เพิ่มถังแก๊ส</span>
+      <button onclick="window.__closePanel()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+    <div class="panel-footer" id="panel-footer"></div>
+  </div>`;
 }
 
 function getFiltered() {
