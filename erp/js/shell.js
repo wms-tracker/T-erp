@@ -225,6 +225,7 @@ const NAV = {
       { key: 'safety-env',      label: 'ตรวจวัดสภาพแวดล้อมการทำงาน',   href: 'safety-env.html' },
       { key: 'safety-waste',    label: 'การจัดการของเสีย',               href: 'safety-waste.html' },
       { key: 'safety-noise',    label: 'ตรวจวัดเสียง/สั่นสะเทือน (Noise)',href: 'safety-noise.html' },
+      { key: 'safety-lux',      label: 'ตรวจวัดแสงสว่าง (Lux)',            href: 'safety-lux.html' },
     ]},
     { groupKey: 'safety-report', icon: '📊', label: 'รายงาน', items: [
       { key: 'safety-stats',         label: 'Man-Hours & อัตราอุบัติเหตุ',  href: 'safety-stats.html' },
@@ -336,6 +337,7 @@ const NAV = {
       { key: 'safety-chemical', label: 'ทะเบียนสารเคมีอันตราย',           href: 'safety-chemical.html' },
       { key: 'safety-spill',    label: 'รั่วไหลสารเคมี',                   href: 'safety-spill.html' },
       { key: 'safety-noise',    label: 'ตรวจวัดเสียง/สั่นสะเทือน',        href: 'safety-noise.html' },
+      { key: 'safety-lux',      label: 'ตรวจวัดแสงสว่าง (Lux)',            href: 'safety-lux.html' },
       { key: 'safety-env',      label: 'ตรวจวัดสภาพแวดล้อม',              href: 'safety-env.html' },
       { key: 'safety-waste',    label: 'การจัดการของเสีย',                 href: 'safety-waste.html' },
       { key: 'safety-gas',      label: 'ทะเบียนถังแก๊ส',                  href: 'safety-gas.html' },
@@ -558,6 +560,7 @@ const PAGE_DEPARTMENT = {
   "safety-ergo.html":           "safety_officer",
   "safety-alert.html":          "safety_officer",
   "safety-noise.html":          "safety_officer",
+  "safety-lux.html":            "safety_officer",
   "safety-exec-dashboard.html": "safety_officer",
   "safety-passport.html":       "safety_officer",
   "safety-moc.html":            "safety_officer",

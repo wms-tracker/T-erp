@@ -97,6 +97,7 @@ export const COL = {
   statutory:        "safetyStatutoryEq",
   govReport:        "safetyGovReports",
   aidStation:       "safetyAidStations",
+  luxMonitor:       "safetyLuxMonitor",
 };
 
 // ────────────────────────────────────────────
@@ -4969,4 +4970,46 @@ export async function updateAidStation(id, data) {
 }
 export async function deleteAidStation(id) {
   await deleteDoc(doc(db, COL.aidStation, id));
+}
+
+// ─── Phase 92: ตรวจวัดแสงสว่าง (Workplace Lighting / Lux Register) ──────────
+export const LUX_AREA_TYPES = [
+  { key:'office',      label:'สำนักงาน / ห้องทำงาน',       standard:300  },
+  { key:'production',  label:'พื้นที่ผลิต / โรงงาน',         standard:300  },
+  { key:'precision',   label:'งานละเอียด / งานประณีต',       standard:500  },
+  { key:'inspection',  label:'ตรวจสอบคุณภาพ / QC',          standard:1000 },
+  { key:'storage',     label:'คลังสินค้า / พื้นที่เก็บ',      standard:150  },
+  { key:'corridor',    label:'ทางเดิน / บันได / ประตู',       standard:100  },
+  { key:'outdoor',     label:'พื้นที่กลางแจ้ง',               standard:50   },
+  { key:'emergency',   label:'แสงฉุกเฉิน (Emergency)',       standard:10   },
+  { key:'other',       label:'อื่นๆ',                         standard:null },
+];
+export const LUX_STATUS = {
+  compliant: { label:'ผ่านมาตรฐาน',         color:'#16a34a', bg:'#dcfce7' },
+  warning:   { label:'ใกล้ต่ำกว่ามาตรฐาน',  color:'#d97706', bg:'#fef3c7' },
+  low:       { label:'ต่ำกว่ามาตรฐาน',       color:'#dc2626', bg:'#fee2e2' },
+  no_std:    { label:'ไม่มีค่ามาตรฐาน',      color:'#6b7280', bg:'#f3f4f6' },
+};
+export function classifyLux(avgLux, standard) {
+  if (!standard) return 'no_std';
+  if (avgLux >= standard) return 'compliant';
+  if (avgLux >= standard * 0.8) return 'warning';
+  return 'low';
+}
+export async function listLuxMonitor() {
+  const s = await getDocs(query(collection(db, COL.luxMonitor), orderBy('measureDate','desc'), limit(300)));
+  return s.docs.map(d=>({ id:d.id, ...d.data() }));
+}
+export async function getLuxMonitor(id) {
+  const d = await getDoc(doc(db, COL.luxMonitor, id));
+  return d.exists() ? { id:d.id, ...d.data() } : null;
+}
+export async function createLuxMonitor(data, createdBy) {
+  return addDoc(collection(db, COL.luxMonitor), { ...data, createdBy, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
+}
+export async function updateLuxMonitor(id, data) {
+  await updateDoc(doc(db, COL.luxMonitor, id), { ...data, updatedAt:serverTimestamp() });
+}
+export async function deleteLuxMonitor(id) {
+  await deleteDoc(doc(db, COL.luxMonitor, id));
 }
