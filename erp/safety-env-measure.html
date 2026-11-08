@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>เธ•เธฃเธงเธเธงเธฑเธ”เธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธกเธเธฒเธฃเธ—เธณเธเธฒเธ</title>
+<title>ตรวจวัดสภาพแวดล้อมการทำงาน</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
@@ -100,7 +100,7 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'env-measure', 'เธ•เธฃเธงเธเธงเธฑเธ”เธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธกเธเธฒเธฃเธ—เธณเธเธฒเธ');
+const main = renderShell(profile, 'env-measure', 'ตรวจวัดสภาพแวดล้อมการทำงาน');
 
 let allMeasures = [];
 let editId = null;
@@ -110,7 +110,7 @@ let filterParam='', filterLoc='', filterResult_='', filterDate='', filterText=''
 function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
 function fmtDate(d){ if(!d) return '-'; return new Date(d+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}); }
 
-/* โ”€โ”€โ”€ KPIs โ”€โ”€โ”€ */
+/* ─── KPIs ─── */
 function kpis(){
   const today = new Date().toISOString().substring(0,10);
   const todayM = allMeasures.filter(m=>m.measureDate===today);
@@ -122,12 +122,12 @@ function kpis(){
   const wbgtCol = wbgtVal===null?'#64748b':wbgtVal>=33?'#dc2626':wbgtVal>=30?'#d97706':'#16a34a';
   return `
   <div class="kpi-row">
-    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${allMeasures.length}</div><div class="kpi-lbl">เธเธฑเธเธ—เธถเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${todayM.length}</div><div class="kpi-lbl">เธงเธฑเธเธเธตเน</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${critical}</div><div class="kpi-lbl">๐จ เน€เธเธดเธเธกเธฒเธ•เธฃเธเธฒเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${alert_}</div><div class="kpi-lbl">โ ๏ธ เน€เธเนเธฒเธฃเธฐเธงเธฑเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${locs}</div><div class="kpi-lbl">๐“ เธเธธเธ”เธ—เธตเนเธ•เธฃเธงเธเธงเธฑเธ”</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:${wbgtCol};font-size:1.3rem">${wbgtVal!==null?wbgtVal+'ยฐC':'-'}</div><div class="kpi-lbl">๐ก๏ธ WBGT เธฅเนเธฒเธชเธธเธ”</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${allMeasures.length}</div><div class="kpi-lbl">บันทึกทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${todayM.length}</div><div class="kpi-lbl">วันนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${critical}</div><div class="kpi-lbl">🚨 เกินมาตรฐาน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${alert_}</div><div class="kpi-lbl">⚠️ เฝ้าระวัง</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${locs}</div><div class="kpi-lbl">📍 จุดที่ตรวจวัด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${wbgtCol};font-size:1.3rem">${wbgtVal!==null?wbgtVal+'°C':'-'}</div><div class="kpi-lbl">🌡️ WBGT ล่าสุด</div></div>
   </div>`;
 }
 
@@ -145,20 +145,20 @@ function filtered(){
   });
 }
 
-/* โ”€โ”€โ”€ Dashboard view: latest per param+location โ”€โ”€โ”€ */
+/* ─── Dashboard view: latest per param+location ─── */
 function dashboardView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธกเธตเธเนเธญเธกเธนเธฅ โ€” เธเธ”เธเธฑเธเธ—เธถเธเธเนเธฒเนเธฃเธ</div>`;
+  if(!data.length) return `<div class="empty">ไม่มีข้อมูล — กดบันทึกค่าแรก</div>`;
 
   // WBGT reference table
   const wbgtRef = `<div class="wbgt-ref">
-    <h4>๐ก๏ธ เธ•เธฒเธฃเธฒเธเธญเนเธฒเธเธญเธดเธเธฃเธฐเธ”เธฑเธ WBGT เนเธฅเธฐเนเธเธงเธเธเธดเธเธฑเธ•เธด (เธเธฒเธเธซเธเธฑเธเธเธฒเธเธเธฅเธฒเธ)</h4>
+    <h4>🌡️ ตารางอ้างอิงระดับ WBGT และแนวปฏิบัติ (งานหนักปานกลาง)</h4>
     <div class="wbgt-row">
-      <div class="wbgt-box" style="background:#dcfce7;color:#16a34a"><div class="wbgt-range">&lt; 28ยฐC</div><div class="wbgt-action">เธ—เธณเธเธฒเธเนเธ”เนเธเธเธ•เธด</div></div>
-      <div class="wbgt-box" style="background:#fef9c3;color:#ca8a04"><div class="wbgt-range">28โ€“30ยฐC</div><div class="wbgt-action">เธฃเธฐเธงเธฑเธ / เน€เธเธดเนเธกเธเนเธณเธ”เธทเนเธก</div></div>
-      <div class="wbgt-box" style="background:#fef3c7;color:#d97706"><div class="wbgt-range">30โ€“33ยฐC</div><div class="wbgt-action">เธเธฑเธเธเนเธญเธขเธเธถเนเธ</div></div>
-      <div class="wbgt-box" style="background:#fee2e2;color:#dc2626"><div class="wbgt-range">33โ€“35ยฐC</div><div class="wbgt-action">เธเธณเธเธฑเธ”เน€เธงเธฅเธฒเธ—เธณเธเธฒเธ</div></div>
-      <div class="wbgt-box" style="background:#fecaca;color:#b91c1c"><div class="wbgt-range">&gt; 35ยฐC</div><div class="wbgt-action">เธซเธขเธธเธ”เธเธฒเธ/เธขเนเธฒเธขเธเธทเนเธเธ—เธตเน</div></div>
+      <div class="wbgt-box" style="background:#dcfce7;color:#16a34a"><div class="wbgt-range">&lt; 28°C</div><div class="wbgt-action">ทำงานได้ปกติ</div></div>
+      <div class="wbgt-box" style="background:#fef9c3;color:#ca8a04"><div class="wbgt-range">28–30°C</div><div class="wbgt-action">ระวัง / เพิ่มน้ำดื่ม</div></div>
+      <div class="wbgt-box" style="background:#fef3c7;color:#d97706"><div class="wbgt-range">30–33°C</div><div class="wbgt-action">พักบ่อยขึ้น</div></div>
+      <div class="wbgt-box" style="background:#fee2e2;color:#dc2626"><div class="wbgt-range">33–35°C</div><div class="wbgt-action">จำกัดเวลาทำงาน</div></div>
+      <div class="wbgt-box" style="background:#fecaca;color:#b91c1c"><div class="wbgt-range">&gt; 35°C</div><div class="wbgt-action">หยุดงาน/ย้ายพื้นที่</div></div>
     </div>
   </div>`;
 
@@ -168,7 +168,7 @@ function dashboardView(){
     latest[`${m.param}|${m.location}`] = m;
   }
   const cards = Object.values(latest).map(m=>{
-    const p = ENV_PARAMS[m.param]||{label:m.param,icon:'๐“',unit:'',color:'#64748b',bg:'#f1f5f9',limits:{normal:0,alert:50,critical:100}};
+    const p = ENV_PARAMS[m.param]||{label:m.param,icon:'📊',unit:'',color:'#64748b',bg:'#f1f5f9',limits:{normal:0,alert:50,critical:100}};
     const res = envResult(m.param, m.value);
     const rc = ENV_RESULT[res];
     const v = Number(m.value);
@@ -196,9 +196,9 @@ function dashboardView(){
           <span>${p.limits.critical}</span>
         </div>
       </div>
-      <div class="pc-limit" style="font-size:.68rem;color:#94a3b8">เธกเธฒเธ•เธฃเธเธฒเธ: โค${p.invert?'โฅ':''} ${p.limits.normal} ${p.unit}</div>
+      <div class="pc-limit" style="font-size:.68rem;color:#94a3b8">มาตรฐาน: ≤${p.invert?'≥':''} ${p.limits.normal} ${p.unit}</div>
       <div class="pc-footer">
-        <span class="pc-loc">๐“ ${m.location||'-'}</span>
+        <span class="pc-loc">📍 ${m.location||'-'}</span>
         <span class="pc-date">${fmtDate(m.measureDate)}</span>
       </div>
       <div style="padding:4px 14px 8px">${badge(rc)}</div>
@@ -208,12 +208,12 @@ function dashboardView(){
   return wbgtRef + `<div class="param-grid">${cards}</div>`;
 }
 
-/* โ”€โ”€โ”€ History view โ”€โ”€โ”€ */
+/* ─── History view ─── */
 function historyView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div>`;
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
   return `<div class="hist-grid">${data.map(m=>{
-    const p=ENV_PARAMS[m.param]||{label:m.param,icon:'๐“',unit:'',color:'#64748b',bg:'#f1f5f9'};
+    const p=ENV_PARAMS[m.param]||{label:m.param,icon:'📊',unit:'',color:'#64748b',bg:'#f1f5f9'};
     const res=envResult(m.param,m.value);
     const rc=ENV_RESULT[res];
     return `<div class="hist-card" onclick="window.__editMeasure('${m.id}')">
@@ -225,23 +225,23 @@ function historyView(){
       <div class="hc-body">
         <span class="hc-value" style="color:${rc.color}">${m.value??'-'}</span>
         <span class="hc-unit">${p.unit}</span>
-        <div class="hc-limit">เธกเธฒเธ•เธฃเธเธฒเธ: โค ${p.limits?.normal??'-'} ${p.unit}</div>
+        <div class="hc-limit">มาตรฐาน: ≤ ${p.limits?.normal??'-'} ${p.unit}</div>
       </div>
       <div class="hc-footer">
-        <span class="hc-loc">๐“ ${m.location||'-'}</span>
-        ${m.shift?`<span style="font-size:.7rem;color:#64748b">๐” ${m.shift}</span>`:''}
+        <span class="hc-loc">📍 ${m.location||'-'}</span>
+        ${m.shift?`<span style="font-size:.7rem;color:#64748b">🔄 ${m.shift}</span>`:''}
         ${badge(rc)}
       </div>
     </div>`;
   }).join('')}</div>`;
 }
 
-/* โ”€โ”€โ”€ Table view โ”€โ”€โ”€ */
+/* ─── Table view ─── */
 function tableView(){
   const data = filtered();
-  if(!data.length) return `<div class="tbl-wrap"><div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div></div>`;
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
   const rows = data.map(m=>{
-    const p=ENV_PARAMS[m.param]||{label:m.param,icon:'๐“',unit:'',color:'#64748b',bg:'#f1f5f9'};
+    const p=ENV_PARAMS[m.param]||{label:m.param,icon:'📊',unit:'',color:'#64748b',bg:'#f1f5f9'};
     const res=envResult(m.param,m.value);
     const rc=ENV_RESULT[res];
     return `<tr>
@@ -249,46 +249,46 @@ function tableView(){
       <td><span class="badge" style="color:${p.color};background:${p.bg}">${p.icon} ${p.label}</span></td>
       <td>${m.location||'-'}</td>
       <td style="font-weight:800;font-size:.95rem;color:${rc.color}">${m.value??'-'} <small style="font-weight:400;color:#64748b">${p.unit}</small></td>
-      <td style="color:#94a3b8;font-size:.78rem">โค ${p.limits?.normal??'-'} ${p.unit}</td>
+      <td style="color:#94a3b8;font-size:.78rem">≤ ${p.limits?.normal??'-'} ${p.unit}</td>
       <td>${badge(rc)}</td>
       <td>${m.measuredBy||'-'}</td>
       <td>
-        <button class="action-btn btn-edit" onclick="window.__editMeasure('${m.id}')">เนเธเนเนเธ</button>
-        <button class="action-btn btn-del" onclick="window.__delMeasure('${m.id}')">เธฅเธ</button>
+        <button class="action-btn btn-edit" onclick="window.__editMeasure('${m.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delMeasure('${m.id}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>เธงเธฑเธ/เน€เธงเธฅเธฒ</th><th>เธเธฒเธฃเธฒเธกเธดเน€เธ•เธญเธฃเน</th><th>เธเธธเธ”เธงเธฑเธ”</th><th>เธเนเธฒเธ—เธตเนเธงเธฑเธ”เนเธ”เน</th><th>เธกเธฒเธ•เธฃเธเธฒเธ</th><th>เธเธฅ</th><th>เธเธนเนเธงเธฑเธ”</th><th></th></tr></thead>
+    <thead><tr><th>วัน/เวลา</th><th>พารามิเตอร์</th><th>จุดวัด</th><th>ค่าที่วัดได้</th><th>มาตรฐาน</th><th>ผล</th><th>ผู้วัด</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
-/* โ”€โ”€โ”€ Render โ”€โ”€โ”€ */
+/* ─── Render ─── */
 function render(){
   main.innerHTML = `
   ${kpis()}
   <div class="toolbar">
-    <input type="text" placeholder="เธเนเธเธซเธฒเธชเธ–เธฒเธเธ—เธตเน / เธเธนเนเธงเธฑเธ”..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <input type="text" placeholder="ค้นหาสถานที่ / ผู้วัด..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
     <select onchange="window.applyFilter('param',this.value)">
-      <option value="">เธเธฒเธฃเธฒเธกเธดเน€เธ•เธญเธฃเนเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">พารามิเตอร์ทั้งหมด</option>
       ${Object.entries(ENV_PARAMS).map(([k,v])=>`<option value="${k}" ${filterParam===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('loc',this.value)">
-      <option value="">เธเธธเธ”เธงเธฑเธ”เธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">จุดวัดทั้งหมด</option>
       ${ENV_LOCATIONS.map(l=>`<option value="${l}" ${filterLoc===l?'selected':''}>${l}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('result',this.value)">
-      <option value="">เธเธฅเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">ผลทั้งหมด</option>
       ${Object.entries(ENV_RESULT).map(([k,v])=>`<option value="${k}" ${filterResult_===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
-    <input type="date" value="${filterDate}" onchange="window.applyFilter('date',this.value)" title="เธเธฃเธญเธเธ•เธฒเธกเธงเธฑเธเธ—เธตเน">
+    <input type="date" value="${filterDate}" onchange="window.applyFilter('date',this.value)" title="กรองตามวันที่">
     <div class="view-btns">
-      <button class="view-btn ${curView==='dashboard'?'active':''}" onclick="window.setView('dashboard')">เนเธ”เธเธเธญเธฃเนเธ”</button>
-      <button class="view-btn ${curView==='history'?'active':''}" onclick="window.setView('history')">เธเธฃเธฐเธงเธฑเธ•เธด</button>
-      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">เธ•เธฒเธฃเธฒเธ</button>
+      <button class="view-btn ${curView==='dashboard'?'active':''}" onclick="window.setView('dashboard')">แดชบอร์ด</button>
+      <button class="view-btn ${curView==='history'?'active':''}" onclick="window.setView('history')">ประวัติ</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
     </div>
-    <button class="add-btn" onclick="window.__openPanel(null)">+ เธเธฑเธเธ—เธถเธเธเนเธฒ</button>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ บันทึกค่า</button>
   </div>
   <div id="content">${renderContent()}</div>
   ${panelHTML()}`;
@@ -300,20 +300,20 @@ function renderContent(){
   return tableView();
 }
 
-/* โ”€โ”€โ”€ Panel โ”€โ”€โ”€ */
+/* ─── Panel ─── */
 function panelHTML(){
   return `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="slide-panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธเธฑเธเธ—เธถเธเธเนเธฒเธเธฒเธฃเธงเธฑเธ”</h2>
-      <button class="btn btn-secondary" onclick="window.__closePanel()">โ•</button>
+      <h2 id="panel-title">บันทึกค่าการวัด</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
     </div>
     <div class="panel-body" id="panel-body"></div>
     <div class="panel-foot">
-      ${editId?`<button class="btn btn-danger" onclick="window.__delMeasure('${editId}')">เธฅเธ</button>`:''}
-      <button class="btn btn-secondary" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
-      <button class="btn btn-primary" onclick="window.__saveMeasure()">เธเธฑเธเธ—เธถเธ</button>
+      ${editId?`<button class="btn btn-danger" onclick="window.__delMeasure('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveMeasure()">บันทึก</button>
     </div>
   </div>`;
 }
@@ -326,73 +326,73 @@ function formHTML(data={}, prefillParam='', prefillLoc=''){
   const rc = res ? ENV_RESULT[res] : null;
 
   return `
-  <div class="section-title">เธเธฒเธฃเธฒเธกเธดเน€เธ•เธญเธฃเนเนเธฅเธฐเธชเธ–เธฒเธเธ—เธตเน</div>
+  <div class="section-title">พารามิเตอร์และสถานที่</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธฒเธฃเธฒเธกเธดเน€เธ•เธญเธฃเนเธ—เธตเนเธงเธฑเธ” *</label>
+      <label>พารามิเตอร์ที่วัด *</label>
       <select id="f-param" onchange="window.__onParamChange()">
         ${Object.entries(ENV_PARAMS).map(([k,v])=>`<option value="${k}" ${selParam===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธเธธเธ”เธงเธฑเธ” / เธชเธ–เธฒเธเธ—เธตเน *</label>
+      <label>จุดวัด / สถานที่ *</label>
       <select id="f-location">
-        <option value="">-- เน€เธฅเธทเธญเธ --</option>
+        <option value="">-- เลือก --</option>
         ${ENV_LOCATIONS.map(l=>`<option value="${l}" ${selLoc===l?'selected':''}>${l}</option>`).join('')}
       </select>
     </div>
   </div>
 
-  <div class="section-title">เธเนเธฒเธ—เธตเนเธงเธฑเธ”เนเธ”เน</div>
+  <div class="section-title">ค่าที่วัดได้</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเนเธฒเธ—เธตเนเธงเธฑเธ”เนเธ”เน <span id="f-unit-label">(${p.unit})</span> *</label>
-      <input type="number" id="f-value" value="${data.value??''}" step="0.1" placeholder="เนเธชเนเธเนเธฒเธ—เธตเนเธงเธฑเธ”เนเธ”เน" oninput="window.__onValueChange()">
+      <label>ค่าที่วัดได้ <span id="f-unit-label">(${p.unit})</span> *</label>
+      <input type="number" id="f-value" value="${data.value??''}" step="0.1" placeholder="ใส่ค่าที่วัดได้" oninput="window.__onValueChange()">
     </div>
     <div class="form-group">
-      <label>เธซเธเนเธงเธข</label>
+      <label>หน่วย</label>
       <input id="f-unit" value="${data.unit||p.unit}" readonly style="background:#f8fafc;color:#64748b">
     </div>
   </div>
-  <div id="result-preview">${rc?`<div class="result-preview" style="color:${rc.color};background:${rc.bg}">${rc.icon} ${rc.label} โ€” เธเนเธฒเธกเธฒเธ•เธฃเธเธฒเธ: โค ${p.limits?.normal??'-'} ${p.unit}</div>`:''}</div>
+  <div id="result-preview">${rc?`<div class="result-preview" style="color:${rc.color};background:${rc.bg}">${rc.icon} ${rc.label} — ค่ามาตรฐาน: ≤ ${p.limits?.normal??'-'} ${p.unit}</div>`:''}</div>
 
-  <div class="section-title">เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธฃเธงเธฑเธ”</div>
+  <div class="section-title">รายละเอียดการวัด</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธงเธฑเธเธ—เธตเนเธงเธฑเธ” *</label>
+      <label>วันที่วัด *</label>
       <input type="date" id="f-measureDate" value="${data.measureDate||new Date().toISOString().substring(0,10)}">
     </div>
     <div class="form-group">
-      <label>เน€เธงเธฅเธฒ</label>
+      <label>เวลา</label>
       <input type="time" id="f-measureTime" value="${data.measureTime||''}">
     </div>
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธฐเธเธฒเธ</label>
+      <label>กะงาน</label>
       <select id="f-shift">
-        <option value="">-- เน€เธฅเธทเธญเธ --</option>
+        <option value="">-- เลือก --</option>
         ${ENV_SHIFT.map(s=>`<option value="${s}" ${(data.shift||'')==s?'selected':''}>${s}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธเธนเนเธ•เธฃเธงเธเธงเธฑเธ”</label>
+      <label>ผู้ตรวจวัด</label>
       <input id="f-measuredBy" value="${data.measuredBy||''}">
     </div>
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label>เน€เธเธฃเธทเนเธญเธเธกเธทเธญเธงเธฑเธ” / เธฃเธซเธฑเธชเน€เธเธฃเธทเนเธญเธ</label>
-      <input id="f-instrument" value="${data.instrument||''}" placeholder="เน€เธเนเธ WBGT Meter QT-36">
+      <label>เครื่องมือวัด / รหัสเครื่อง</label>
+      <input id="f-instrument" value="${data.instrument||''}" placeholder="เช่น WBGT Meter QT-36">
     </div>
     <div class="form-group">
-      <label>เธชเธ เธฒเธเธญเธฒเธเธฒเธจ / เน€เธเธทเนเธญเธเนเธเธเธ“เธฐเธงเธฑเธ”</label>
-      <input id="f-condition" value="${data.condition||''}" placeholder="เน€เธเนเธ เนเธ”เธ”เธเธฑเธ”, เธกเธตเธฅเธก">
+      <label>สภาพอากาศ / เงื่อนไขขณะวัด</label>
+      <input id="f-condition" value="${data.condition||''}" placeholder="เช่น แดดจัด, มีลม">
     </div>
   </div>
   <div class="form-row full"><div class="form-group">
-    <label>เธซเธกเธฒเธขเน€เธซเธ•เธธ / เธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธฃ</label>
-    <textarea id="f-notes" placeholder="เธเธฑเธเธ—เธถเธเน€เธเธดเนเธกเน€เธ•เธดเธก เธซเธฃเธทเธญเธกเธฒเธ•เธฃเธเธฒเธฃเธ—เธตเนเธ”เธณเน€เธเธดเธเธเธฒเธฃ...">${data.notes||''}</textarea>
+    <label>หมายเหตุ / การดำเนินการ</label>
+    <textarea id="f-notes" placeholder="บันทึกเพิ่มเติม หรือมาตรการที่ดำเนินการ...">${data.notes||''}</textarea>
   </div></div>`;
 }
 
@@ -411,14 +411,14 @@ window.__onValueChange = () => {
   const rc = ENV_RESULT[res];
   const p = ENV_PARAMS[param]||{unit:'',limits:{normal:'-'}};
   document.getElementById('result-preview').innerHTML = val
-    ? `<div class="result-preview" style="color:${rc.color};background:${rc.bg}">${rc.icon} ${rc.label} โ€” เธเนเธฒเธกเธฒเธ•เธฃเธเธฒเธ: โค ${p.limits?.normal??'-'} ${p.unit}</div>`
+    ? `<div class="result-preview" style="color:${rc.color};background:${rc.bg}">${rc.icon} ${rc.label} — ค่ามาตรฐาน: ≤ ${p.limits?.normal??'-'} ${p.unit}</div>`
     : '';
 };
 
 window.__openPanel = (id, prefillParam='', prefillLoc='') => {
   editId = id;
   const data = id ? (allMeasures.find(m=>m.id===id)||{}) : {};
-  document.getElementById('panel-title').textContent = id ? 'เนเธเนเนเธเธเนเธฒเธเธฒเธฃเธงเธฑเธ”' : 'เธเธฑเธเธ—เธถเธเธเนเธฒเธเธฒเธฃเธงเธฑเธ”เธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธก';
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขค่าการวัด' : 'บันทึกค่าการวัดสภาพแวดล้อม';
   document.getElementById('panel-body').innerHTML = formHTML(data, prefillParam, prefillLoc);
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('open');
@@ -433,7 +433,7 @@ window.__closePanel = () => {
 window.__editMeasure = (id) => window.__openPanel(id);
 
 window.__delMeasure = async (id) => {
-  if(!confirm('เธขเธทเธเธขเธฑเธเธเธฒเธฃเธฅเธเธเนเธฒเธเธฒเธฃเธงเธฑเธ”เธเธตเน?')) return;
+  if(!confirm('ยืนยันการลบค่าการวัดนี้?')) return;
   await deleteEnvMeasure(id);
   allMeasures = allMeasures.filter(m=>m.id!==id);
   window.__closePanel();
@@ -445,9 +445,9 @@ window.__saveMeasure = async () => {
   const value = document.getElementById('f-value').value;
   const measureDate = document.getElementById('f-measureDate').value;
   const location = document.getElementById('f-location').value;
-  if(!value){ alert('เธเธฃเธธเธ“เธฒเนเธชเนเธเนเธฒเธ—เธตเนเธงเธฑเธ”เนเธ”เน'); return; }
-  if(!measureDate){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธงเธฑเธเธ—เธตเน'); return; }
-  if(!location){ alert('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธเธธเธ”เธงเธฑเธ”'); return; }
+  if(!value){ alert('กรุณาใส่ค่าที่วัดได้'); return; }
+  if(!measureDate){ alert('กรุณาระบุวันที่'); return; }
+  if(!location){ alert('กรุณาเลือกจุดวัด'); return; }
 
   const p = ENV_PARAMS[param]||{unit:''};
   const data = {
@@ -492,4 +492,3 @@ render();
 </script>
 </body>
 </html>
-

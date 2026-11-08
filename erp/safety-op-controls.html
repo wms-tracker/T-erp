@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>เธ—เธฐเน€เธเธตเธขเธเธเธฒเธฃเธเธงเธเธเธธเธกเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธเธฒเธ</title>
+<title>ทะเบียนการควบคุมการปฏิบัติงาน</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -78,22 +78,22 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-op-controls', 'เธ—เธฐเน€เธเธตเธขเธเธเธฒเธฃเธเธงเธเธเธธเธกเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธเธฒเธ (ยง8.1)');
+const main = renderShell(profile, 'safety-op-controls', 'ทะเบียนการควบคุมการปฏิบัติงาน (§8.1)');
 
 let allRecs  = [];
 let editId   = null;
 let viewMode = 'group';
 
-function getProcess(key) { return OPC_PROCESS_TYPES.find(p=>p.key===key)||{icon:'๐“',label:key||'โ€”',color:'#6b7280',bg:'#f3f4f6'}; }
-function getCtrlType(key){ return OPC_CONTROL_TYPES.find(c=>c.key===key)||{icon:'๐“',label:key||'โ€”'}; }
-function getFreq(key)    { return OPC_VERIFY_FREQ.find(f=>f.key===key)||{label:key||'โ€”'}; }
+function getProcess(key) { return OPC_PROCESS_TYPES.find(p=>p.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+function getCtrlType(key){ return OPC_CONTROL_TYPES.find(c=>c.key===key)||{icon:'📌',label:key||'—'}; }
+function getFreq(key)    { return OPC_VERIFY_FREQ.find(f=>f.key===key)||{label:key||'—'}; }
 
 function isOverdue(r) {
   if (!r.nextVerifyDate) return false;
   return r.nextVerifyDate < new Date().toISOString().split('T')[0];
 }
 
-// โ”€โ”€ KPI โ”€โ”€
+// ── KPI ──
 function renderKPI(recs) {
   const total    = recs.length;
   const active   = recs.filter(r=>r.status==='active').length;
@@ -104,18 +104,18 @@ function renderKPI(recs) {
     return s + (Array.isArray(r.controlTypes) ? r.controlTypes.length : 0);
   }, 0);
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธกเธฒเธ•เธฃเธเธฒเธฃเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${active}</div><div class="lbl">โ… เนเธเนเธเธฒเธ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${needUpd}</div><div class="lbl">โ ๏ธ เธ•เนเธญเธเธเธฃเธฑเธเธเธฃเธธเธ</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">๐”ด เน€เธเธดเธเธเธณเธซเธเธ”เธ—เธเธ—เธงเธ</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${procCnt}</div><div class="lbl">เธเธฃเธฐเน€เธ เธ—เธเธฃเธฐเธเธงเธเธเธฒเธฃ</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${ctrlCnt}</div><div class="lbl">เธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธกเธฃเธงเธก</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">มาตรการทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${active}</div><div class="lbl">✅ ใช้งาน</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${needUpd}</div><div class="lbl">⚠️ ต้องปรับปรุง</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${overdue}</div><div class="lbl">🔴 เกินกำหนดทบทวน</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${procCnt}</div><div class="lbl">ประเภทกระบวนการ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${ctrlCnt}</div><div class="lbl">มาตรการควบคุมรวม</div></div>
   </div>`;
 }
 
-// โ”€โ”€ Grouped card view โ”€โ”€
+// ── Grouped card view ──
 function renderGroups(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐”ง</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🔧</div><p style="margin-top:12px">ยังไม่มีมาตรการควบคุม</p></div>`;
   const grouped = {};
   recs.forEach(r => {
     const k = r.processType||'other';
@@ -130,22 +130,22 @@ function renderGroups(recs) {
       const ctypes = (r.controlTypes||[]).map(k => { const c = getCtrlType(k); return `<span class="ctrl-tag" style="background:#f1f5f9;color:#334155">${c.icon} ${c.label}</span>`; }).join('');
       return `<div class="ctrl-card${od?' overdue':''}">
         <div class="ctrl-card-head">
-          <div class="ctrl-card-title">๐“ ${r.title||'โ€”'}</div>
+          <div class="ctrl-card-title">📋 ${r.title||'—'}</div>
           <span class="badge" style="color:${sts.color};background:${sts.bg};white-space:nowrap">${sts.icon} ${sts.label}</span>
         </div>
-        ${r.description?`<div style="font-size:.8rem;color:#6b7280;margin-bottom:8px">${r.description.substring(0,100)}${r.description.length>100?'โ€ฆ':''}</div>`:''}
+        ${r.description?`<div style="font-size:.8rem;color:#6b7280;margin-bottom:8px">${r.description.substring(0,100)}${r.description.length>100?'…':''}</div>`:''}
         <div class="ctrl-tags">${ctypes}</div>
         <div class="ctrl-meta">
-          <div class="meta-item"><span class="meta-label">เธญเธฑเธเธ•เธฃเธฒเธข:</span>${r.associatedHazards||'โ€”'}</div>
-          <div class="meta-item"><span class="meta-label">เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ:</span>${r.responsible||'โ€”'}</div>
-          <div class="meta-item"><span class="meta-label">เธงเธดเธเธตเธ•เธฃเธงเธเธชเธญเธ:</span>${r.verifyMethod||'โ€”'}</div>
-          <div class="meta-item"><span class="meta-label">เธเธงเธฒเธกเธ–เธตเน:</span>${getFreq(r.verifyFreq).label}</div>
-          ${r.nextVerifyDate?`<div class="meta-item" style="${od?'color:#dc2626;font-weight:700':''}"><span class="meta-label">เธ—เธเธ—เธงเธเธ–เธฑเธ”เนเธ:</span>${r.nextVerifyDate}${od?' โ ๏ธ':''}</div>`:''}
-          ${r.docRef?`<div class="meta-item"><span class="meta-label">เน€เธญเธเธชเธฒเธฃเธญเนเธฒเธเธญเธดเธ:</span>${r.docRef}</div>`:''}
+          <div class="meta-item"><span class="meta-label">อันตราย:</span>${r.associatedHazards||'—'}</div>
+          <div class="meta-item"><span class="meta-label">ผู้รับผิดชอบ:</span>${r.responsible||'—'}</div>
+          <div class="meta-item"><span class="meta-label">วิธีตรวจสอบ:</span>${r.verifyMethod||'—'}</div>
+          <div class="meta-item"><span class="meta-label">ความถี่:</span>${getFreq(r.verifyFreq).label}</div>
+          ${r.nextVerifyDate?`<div class="meta-item" style="${od?'color:#dc2626;font-weight:700':''}"><span class="meta-label">ทบทวนถัดไป:</span>${r.nextVerifyDate}${od?' ⚠️':''}</div>`:''}
+          ${r.docRef?`<div class="meta-item"><span class="meta-label">เอกสารอ้างอิง:</span>${r.docRef}</div>`:''}
         </div>
         <div style="display:flex;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #f1f5f9">
-          <button class="btn btn-sm btn-ghost" onclick="window.__editOpc('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
-          <button class="btn btn-sm btn-danger" onclick="window.__deleteOpc('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
+          <button class="btn btn-sm btn-ghost" onclick="window.__editOpc('${r.id}')">✏️ แก้ไข</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteOpc('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
         </div>
       </div>`;
     }).join('');
@@ -153,17 +153,17 @@ function renderGroups(recs) {
       <div class="group-header" style="background:${proc.bg}" onclick="this.nextElementSibling.classList.toggle('hidden')">
         <span style="font-size:1.1rem">${proc.icon}</span>
         <h3 style="color:${proc.color}">${proc.label}</h3>
-        <span class="group-count" style="background:${proc.color}20;color:${proc.color}">${items.length} เธกเธฒเธ•เธฃเธเธฒเธฃ</span>
-        <span style="color:${proc.color}">โ–พ</span>
+        <span class="group-count" style="background:${proc.color}20;color:${proc.color}">${items.length} มาตรการ</span>
+        <span style="color:${proc.color}">▾</span>
       </div>
       <div>${cards}</div>
     </div>`;
   }).join('');
 }
 
-// โ”€โ”€ Table view โ”€โ”€
+// ── Table view ──
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐”ง</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเธกเธฒเธ•เธฃเธเธฒเธฃ</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🔧</div><p style="margin-top:12px">ยังไม่มีมาตรการ</p></div>`;
   const rows = recs.map(r => {
     const proc = getProcess(r.processType);
     const sts  = OPC_STATUS[r.status]||OPC_STATUS.active;
@@ -171,26 +171,26 @@ function renderTable(recs) {
     const ctypes = (r.controlTypes||[]).map(k => getCtrlType(k).icon).join(' ');
     return `<tr ${od?"style='background:#fff5f5'":''}>
       <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:${proc.bg};color:${proc.color}">${proc.icon} ${proc.label}</span></td>
-      <td><strong>${r.title||'โ€”'}</strong></td>
+      <td><strong>${r.title||'—'}</strong></td>
       <td style="font-size:.8rem">${ctypes} ${(r.controlTypes||[]).map(k=>getCtrlType(k).label).join(', ')}</td>
-      <td style="font-size:.8rem">${r.associatedHazards||'โ€”'}</td>
+      <td style="font-size:.8rem">${r.associatedHazards||'—'}</td>
       <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
       <td style="font-size:.82rem">${getFreq(r.verifyFreq).label}</td>
-      <td style="font-size:.82rem${od?';color:#dc2626;font-weight:700':''}">${r.nextVerifyDate||'โ€”'}${od?' โ ๏ธ':''}</td>
-      <td style="font-size:.82rem">${r.responsible||'โ€”'}</td>
+      <td style="font-size:.82rem${od?';color:#dc2626;font-weight:700':''}">${r.nextVerifyDate||'—'}${od?' ⚠️':''}</td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editOpc('${r.id}')">เนเธเนเนเธ</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteOpc('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editOpc('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteOpc('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table><thead><tr>
-    <th>เธเธฃเธฐเธเธงเธเธเธฒเธฃ</th><th>เธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก</th><th>เธเธฃเธฐเน€เธ เธ—เธกเธฒเธ•เธฃเธเธฒเธฃ</th>
-    <th>เธญเธฑเธเธ•เธฃเธฒเธข/เธเธงเธฒเธกเน€เธชเธตเนเธขเธ</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธเธงเธฒเธกเธ–เธตเน</th><th>เธ—เธเธ—เธงเธเธ–เธฑเธ”เนเธ</th><th>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
+    <th>กระบวนการ</th><th>มาตรการควบคุม</th><th>ประเภทมาตรการ</th>
+    <th>อันตราย/ความเสี่ยง</th><th>สถานะ</th><th>ความถี่</th><th>ทบทวนถัดไป</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th>
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// โ”€โ”€ Form โ”€โ”€
+// ── Form ──
 function renderForm(rec) {
   const procOpts = OPC_PROCESS_TYPES.map(p=>`<option value="${p.key}" ${rec?.processType===p.key?'selected':''}>${p.icon} ${p.label}</option>`).join('');
   const stsOpts  = Object.entries(OPC_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'active')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
@@ -203,49 +203,49 @@ function renderForm(rec) {
   }).join('');
   return `<form id="opc-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ—เธเธฃเธฐเธเธงเธเธเธฒเธฃ *</label><select id="f-processType">${procOpts}</select></div>
-      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label><select id="f-status">${stsOpts}</select></div>
+      <div class="form-group"><label>ประเภทกระบวนการ *</label><select id="f-processType">${procOpts}</select></div>
+      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธทเนเธญเธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก *</label>
-        <input id="f-title" value="${rec?.title||''}" placeholder="เน€เธเนเธ เธเธฒเธฃเธเธงเธเธเธธเธกเธเธฒเธฃเธ—เธณเธเธฒเธเธเธเธ—เธตเนเธชเธนเธเธ”เนเธงเธข PTW"/></div>
+      <div class="form-group"><label>ชื่อมาตรการควบคุม *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="เช่น การควบคุมการทำงานบนที่สูงด้วย PTW"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ” / เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน</label>
-        <textarea id="f-description" rows="2" placeholder="เธญเธเธดเธเธฒเธขเธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเนเนเธฅเธฐเธเธญเธเน€เธเธ•เธเธญเธเธกเธฒเธ•เธฃเธเธฒเธฃเธเธตเน">${rec?.description||''}</textarea></div>
+      <div class="form-group"><label>รายละเอียด / วัตถุประสงค์</label>
+        <textarea id="f-description" rows="2" placeholder="อธิบายวัตถุประสงค์และขอบเขตของมาตรการนี้">${rec?.description||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธญเธฑเธเธ•เธฃเธฒเธข / เธเธงเธฒเธกเน€เธชเธตเนเธขเธเธ—เธตเนเน€เธเธตเนเธขเธงเธเนเธญเธ</label>
-        <input id="f-associatedHazards" value="${rec?.associatedHazards||''}" placeholder="เน€เธเนเธ เธ•เธเธเธฒเธเธ—เธตเนเธชเธนเธ, เธเธฒเธเนเธเธเนเธฒ"/></div>
+      <div class="form-group"><label>อันตราย / ความเสี่ยงที่เกี่ยวข้อง</label>
+        <input id="f-associatedHazards" value="${rec?.associatedHazards||''}" placeholder="เช่น ตกจากที่สูง, งานไฟฟ้า"/></div>
     </div>
-    <div class="section-head">เธเธฃเธฐเน€เธ เธ—เธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก (เน€เธฅเธทเธญเธเนเธ”เนเธซเธฅเธฒเธขเธเนเธญ)</div>
+    <div class="section-head">ประเภทมาตรการควบคุม (เลือกได้หลายข้อ)</div>
     <div class="ctrl-type-grid" style="margin-bottom:14px">${ctrlBoxes}</div>
     <div class="form-row one">
-      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธกเธฒเธ•เธฃเธเธฒเธฃเธ—เธตเนเนเธเน</label>
-        <textarea id="f-controlDetail" rows="3" placeholder="เธญเธเธดเธเธฒเธขเธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธกเธญเธขเนเธฒเธเธฅเธฐเน€เธญเธตเธขเธ”">${rec?.controlDetail||''}</textarea></div>
+      <div class="form-group"><label>รายละเอียดมาตรการที่ใช้</label>
+        <textarea id="f-controlDetail" rows="3" placeholder="อธิบายมาตรการควบคุมอย่างละเอียด">${rec?.controlDetail||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เน€เธญเธเธชเธฒเธฃ/เธฃเธฐเน€เธเธตเธขเธเธญเนเธฒเธเธญเธดเธ (Document Reference)</label>
-        <input id="f-docRef" value="${rec?.docRef||''}" placeholder="เน€เธเนเธ WI-PRD-001, SOP-MNT-005"/></div>
+      <div class="form-group"><label>เอกสาร/ระเบียบอ้างอิง (Document Reference)</label>
+        <input id="f-docRef" value="${rec?.docRef||''}" placeholder="เช่น WI-PRD-001, SOP-MNT-005"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธงเธดเธเธตเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ / เธ•เธดเธ”เธ•เธฒเธกเธเธฅ</label>
-        <textarea id="f-verifyMethod" rows="2" placeholder="เธงเธดเธเธตเธ•เธฃเธงเธเธชเธญเธเธงเนเธฒเธกเธฒเธ•เธฃเธเธฒเธฃเธ–เธนเธเธเธณเนเธเธเธเธดเธเธฑเธ•เธด">${rec?.verifyMethod||''}</textarea></div>
+      <div class="form-group"><label>วิธีการตรวจสอบ / ติดตามผล</label>
+        <textarea id="f-verifyMethod" rows="2" placeholder="วิธีตรวจสอบว่ามาตรการถูกนำไปปฏิบัติ">${rec?.verifyMethod||''}</textarea></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>เธเธงเธฒเธกเธ–เธตเนเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ</label><select id="f-verifyFreq">${freqOpts}</select></div>
-      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
+      <div class="form-group"><label>ความถี่การตรวจสอบ</label><select id="f-verifyFreq">${freqOpts}</select></div>
+      <div class="form-group"><label>วันที่ทบทวนครั้งถัดไป</label>
         <input id="f-nextVerifyDate" type="date" value="${rec?.nextVerifyDate||''}"/></div>
-      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveOpc()">๐’พ เธเธฑเธเธ—เธถเธ</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveOpc()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
     </div>
   </form>`;
 }
@@ -258,7 +258,7 @@ window.__toggleCtrlType = key => {
   box.classList.toggle('checked', cb.checked);
 };
 
-// โ”€โ”€ Panel โ”€โ”€
+// ── Panel ──
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -269,14 +269,14 @@ function openPanel(html, title) {
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 }
-window.__newOpc  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก'); };
+window.__newOpc  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มมาตรการควบคุม'); };
 window.__editOpc = async id => {
   editId = id;
   const r = await getOpControl(id);
-  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก');
+  openPanel(renderForm(r), '✏️ แก้ไขมาตรการควบคุม');
 };
 
-// โ”€โ”€ Save โ”€โ”€
+// ── Save ──
 window.__saveOpc = async () => {
   const controlTypes = OPC_CONTROL_TYPES
     .map(c => document.getElementById(`ctype-${c.key}`)?.checked ? c.key : null)
@@ -296,24 +296,24 @@ window.__saveOpc = async () => {
     responsible:       document.getElementById('f-responsible').value.trim(),
     notes:             document.getElementById('f-notes').value.trim(),
   };
-  if (!data.title) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธกเธฒเธ•เธฃเธเธฒเธฃ'); return; }
+  if (!data.title) { alert('กรุณากรอกชื่อมาตรการ'); return; }
   try {
     if (editId) await updateOpControl(editId, data);
     else        await createOpControl(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
 };
 
-// โ”€โ”€ Delete โ”€โ”€
+// ── Delete ──
 window.__deleteOpc = async (id, title) => {
-  if (!confirm(`เธฅเธ "${title}"?`)) return;
+  if (!confirm(`ลบ "${title}"?`)) return;
   await deleteOpControl(id);
   window.__closePanel();
   await loadData();
 };
 
-// โ”€โ”€ Filter โ”€โ”€
+// ── Filter ──
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const pt  = document.getElementById('filter-process')?.value||'';
@@ -342,26 +342,26 @@ async function loadData() {
   applyFilter();
 }
 
-// โ”€โ”€ Build UI โ”€โ”€
-const procOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเธเธงเธเธเธฒเธฃ --</option>` + OPC_PROCESS_TYPES.map(p=>`<option value="${p.key}">${p.icon} ${p.label}</option>`).join('');
-const stsOpts  = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` + Object.entries(OPC_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+// ── Build UI ──
+const procOpts = `<option value="">-- ทุกกระบวนการ --</option>` + OPC_PROCESS_TYPES.map(p=>`<option value="${p.key}">${p.icon} ${p.label}</option>`).join('');
+const stsOpts  = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(OPC_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธกเธฒเธ•เธฃเธเธฒเธฃโ€ฆ" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="🔍 ค้นหามาตรการ…" oninput="applyFilter()"/>
       <select id="filter-process" onchange="applyFilter()">${procOpts}</select>
       <select id="filter-status"  onchange="applyFilter()">${stsOpts}</select>
       <select id="filter-overdue" onchange="applyFilter()">
-        <option value="">-- เธ—เธฑเนเธเธซเธกเธ” --</option>
-        <option value="1">๐”ด เน€เธเธดเธเธเธณเธซเธเธ”เธ—เธเธ—เธงเธ</option>
+        <option value="">-- ทั้งหมด --</option>
+        <option value="1">🔴 เกินกำหนดทบทวน</option>
       </select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="group" onclick="window.__switchView('group')">๐ญ เธเธฅเธธเนเธก</button>
-        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
+        <button class="view-btn active" data-view="group" onclick="window.__switchView('group')">🏭 กลุ่ม</button>
+        <button class="view-btn"        data-view="table" onclick="window.__switchView('table')">📋 ตาราง</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newOpc()">+ เน€เธเธดเนเธกเธกเธฒเธ•เธฃเธเธฒเธฃ</button>
+      <button class="btn btn-primary" onclick="window.__newOpc()">+ เพิ่มมาตรการ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -369,8 +369,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธกเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธเธฒเธ</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
+      <h2 id="panel-title">มาตรการควบคุมการปฏิบัติงาน</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -380,4 +380,3 @@ await loadData();
 </script>
 </body>
 </html>
-

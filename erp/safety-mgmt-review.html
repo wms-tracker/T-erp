@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>เธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃ</title>
+<title>การทบทวนของฝ่ายบริหาร</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#7c3aed;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -86,16 +86,16 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-mgmt-review', 'เธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃ (ISO 45001)');
+const main = renderShell(profile, 'safety-mgmt-review', 'การทบทวนของฝ่ายบริหาร (ISO 45001)');
 
 let allRecs = [];
 let editId  = null;
-let inputRatings = {}; // key โ’ 'good'|'fair'|'poor'
-let inputNotes   = {}; // key โ’ string
-let outputNotes  = {}; // key โ’ string
+let inputRatings = {}; // key → 'good'|'fair'|'poor'
+let inputNotes   = {}; // key → string
+let outputNotes  = {}; // key → string
 let actionItems  = []; // [{what,who,due}]
 
-// โ”€โ”€ KPI โ”€โ”€
+// ── KPI ──
 function renderKPI(recs) {
   const total    = recs.length;
   const approved = recs.filter(r=>r.status==='approved').length;
@@ -103,17 +103,17 @@ function renderKPI(recs) {
   const draft    = recs.filter(r=>r.status==='draft').length;
   const totalActions = recs.reduce((s,r)=>s+(r.actionItems||[]).length,0);
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธเธฃเธฑเนเธเธ—เธเธ—เธงเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${closed}</div><div class="lbl">โ… เธเธดเธ”เนเธฅเนเธง</div></div>
-    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${approved}</div><div class="lbl">๐“ เธญเธเธธเธกเธฑเธ•เธดเนเธฅเนเธง</div></div>
-    <div class="kpi" style="border-color:#6b7280"><div class="num" style="color:#6b7280">${draft}</div><div class="lbl">๐“ เธฃเนเธฒเธ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${totalActions}</div><div class="lbl">๐“ Action Items</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">ครั้งทบทวนทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${closed}</div><div class="lbl">✅ ปิดแล้ว</div></div>
+    <div class="kpi" style="border-color:#2563eb"><div class="num" style="color:#2563eb">${approved}</div><div class="lbl">📋 อนุมัติแล้ว</div></div>
+    <div class="kpi" style="border-color:#6b7280"><div class="num" style="color:#6b7280">${draft}</div><div class="lbl">📝 ร่าง</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${totalActions}</div><div class="lbl">📌 Action Items</div></div>
   </div>`;
 }
 
-// โ”€โ”€ Cards โ”€โ”€
+// ── Cards ──
 function renderCards(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">๐“</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเธฑเธเธ—เธถเธเธเธฒเธฃเธ—เธเธ—เธงเธ</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📋</div><p>ยังไม่มีบันทึกการทบทวน</p></div>`;
   return `<div class="review-cards">${recs.map(r => {
     const st = MGMT_REVIEW_STATUS[r.status]||MGMT_REVIEW_STATUS.draft;
     const coveredInputs = MGMT_REVIEW_INPUTS.filter(i=>(r.inputRatings||{})[i.key]).length;
@@ -122,27 +122,27 @@ function renderCards(recs) {
     return `<div class="review-card">
       <div class="card-head">
         <div>
-          <div class="card-title">${r.meetingTitle||'เธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃ'}</div>
-          <div class="card-meta">๐“… ${r.reviewDate||'โ€”'} &nbsp;โ€ข&nbsp; ๐“ ${r.location||'โ€”'}</div>
+          <div class="card-title">${r.meetingTitle||'การทบทวนของฝ่ายบริหาร'}</div>
+          <div class="card-meta">📅 ${r.reviewDate||'—'} &nbsp;•&nbsp; 📍 ${r.location||'—'}</div>
         </div>
         <span class="badge" style="color:${st.color};background:${st.bg}">${st.label}</span>
       </div>
       <div class="card-body">
-        <div class="card-row"><span>เธเธนเนเน€เธเนเธฒเธฃเนเธงเธก</span><strong>${attendees} เธเธ</strong></div>
-        <div class="card-row"><span>Input เธ—เธตเนเธเธฃเธญเธเธเธฅเธธเธก</span><strong>${coveredInputs}/${MGMT_REVIEW_INPUTS.length} เธเนเธญ</strong></div>
-        <div class="card-row"><span>Action Items</span><strong>${actions} เธฃเธฒเธขเธเธฒเธฃ</strong></div>
-        <div class="card-row"><span>เธเธฃเธฐเธเธฒเธ</span><strong>${r.chairperson||'โ€”'}</strong></div>
+        <div class="card-row"><span>ผู้เข้าร่วม</span><strong>${attendees} คน</strong></div>
+        <div class="card-row"><span>Input ที่ครอบคลุม</span><strong>${coveredInputs}/${MGMT_REVIEW_INPUTS.length} ข้อ</strong></div>
+        <div class="card-row"><span>Action Items</span><strong>${actions} รายการ</strong></div>
+        <div class="card-row"><span>ประธาน</span><strong>${r.chairperson||'—'}</strong></div>
       </div>
       <div class="card-actions">
-        <button class="btn btn-sm btn-ghost" onclick="window.__viewReview('${r.id}')">เธ”เธนเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”</button>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editReview('${r.id}')">เนเธเนเนเธ</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteReview('${r.id}','${(r.meetingTitle||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__viewReview('${r.id}')">ดูรายละเอียด</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editReview('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteReview('${r.id}','${(r.meetingTitle||'').replace(/'/g,"\\'")}')">ลบ</button>
       </div>
     </div>`;
   }).join('')}</div>`;
 }
 
-// โ”€โ”€ Form โ”€โ”€
+// ── Form ──
 function renderForm(rec) {
   const stOpts = Object.entries(MGMT_REVIEW_STATUS).map(([k,v])=>
     `<option value="${k}" ${(rec?.status||'draft')===k?'selected':''}>${v.label}</option>`
@@ -155,15 +155,15 @@ function renderForm(rec) {
       <div style="flex:1">
         <div style="font-weight:500">${inp.label}</div>
         <div style="font-size:.73rem;color:#9ca3af">${inp.clause}</div>
-        <input type="text" placeholder="เธชเธฃเธธเธเธเธฃเธฐเน€เธ”เนเธ / เธเธฅเธเธฒเธฃเธเธดเธเธฒเธฃเธ“เธฒโ€ฆ"
+        <input type="text" placeholder="สรุปประเด็น / ผลการพิจารณา…"
           style="margin-top:4px;width:100%;padding:4px 8px;border:1px solid #d1d5db;border-radius:5px;font-size:.8rem;font-family:inherit"
           value="${note.replace(/"/g,'&quot;')}"
           oninput="window.__inputNote('${inp.key}',this.value)"/>
       </div>
       <div class="input-status">
-        <button type="button" class="rating-btn ${rating==='good'?'sel-good':''}" onclick="window.__rate('${inp.key}','good')">เธ”เธต</button>
-        <button type="button" class="rating-btn ${rating==='fair'?'sel-fair':''}" onclick="window.__rate('${inp.key}','fair')">เธเธญเนเธเน</button>
-        <button type="button" class="rating-btn ${rating==='poor'?'sel-poor':''}" onclick="window.__rate('${inp.key}','poor')">เธ•เนเธญเธเนเธเนเนเธ</button>
+        <button type="button" class="rating-btn ${rating==='good'?'sel-good':''}" onclick="window.__rate('${inp.key}','good')">ดี</button>
+        <button type="button" class="rating-btn ${rating==='fair'?'sel-fair':''}" onclick="window.__rate('${inp.key}','fair')">พอใช้</button>
+        <button type="button" class="rating-btn ${rating==='poor'?'sel-poor':''}" onclick="window.__rate('${inp.key}','poor')">ต้องแก้ไข</button>
       </div>
     </div>`;
   }).join('');
@@ -172,27 +172,27 @@ function renderForm(rec) {
     const note = outputNotes[out.key]||'';
     return `<div class="form-group" style="margin-bottom:10px">
       <label>${out.label}</label>
-      <textarea rows="2" placeholder="เธฃเธฐเธเธธเธเธฅเธเธฒเธฃเธ•เธฑเธ”เธชเธดเธเนเธ / เธกเธ•เธดเธ—เธตเนเธเธฃเธฐเธเธธเธกโ€ฆ"
+      <textarea rows="2" placeholder="ระบุผลการตัดสินใจ / มติที่ประชุม…"
         oninput="window.__outputNote('${out.key}',this.value)">${note}</textarea>
     </div>`;
   }).join('');
 
   const actionRows = actionItems.map((a,i) => `
     <div class="action-row" id="action-row-${i}">
-      <input placeholder="เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธกเธฒเธ•เธฃเธเธฒเธฃ / เธเธฒเธเธ—เธตเนเธกเธญเธเธซเธกเธฒเธข"
+      <input placeholder="รายละเอียดมาตรการ / งานที่มอบหมาย"
         value="${(a.what||'').replace(/"/g,'&quot;')}"
         oninput="window.__actionChange(${i},'what',this.value)"/>
-      <input placeholder="เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ" style="width:110px"
+      <input placeholder="ผู้รับผิดชอบ" style="width:110px"
         value="${(a.who||'').replace(/"/g,'&quot;')}"
         oninput="window.__actionChange(${i},'who',this.value)"/>
       <input type="date" style="width:130px" value="${a.due||''}"
         oninput="window.__actionChange(${i},'due',this.value)"/>
-      <button type="button" class="btn btn-sm btn-danger" onclick="window.__removeAction(${i})">โ•</button>
+      <button type="button" class="btn btn-sm btn-danger" onclick="window.__removeAction(${i})">✕</button>
     </div>`).join('');
 
   return `<form id="review-form" onsubmit="return false">
     <div class="tab-bar">
-      <button type="button" class="tab-btn active" onclick="window.__switchTab('info')">เธเนเธญเธกเธนเธฅเธเธฒเธฃเธเธฃเธฐเธเธธเธก</button>
+      <button type="button" class="tab-btn active" onclick="window.__switchTab('info')">ข้อมูลการประชุม</button>
       <button type="button" class="tab-btn" onclick="window.__switchTab('inputs')">Input (9.3)</button>
       <button type="button" class="tab-btn" onclick="window.__switchTab('outputs')">Output</button>
       <button type="button" class="tab-btn" onclick="window.__switchTab('actions')">Action Items</button>
@@ -200,100 +200,100 @@ function renderForm(rec) {
 
     <div class="tab-panel active" id="tab-info">
       <div class="form-row one">
-        <div class="form-group"><label>เธเธทเนเธญเธเธฒเธฃเธเธฃเธฐเธเธธเธกเธ—เธเธ—เธงเธ *</label>
-          <input id="f-meetingTitle" value="${rec?.meetingTitle||'เธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃเธ”เนเธฒเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข'}" required/></div>
+        <div class="form-group"><label>ชื่อการประชุมทบทวน *</label>
+          <input id="f-meetingTitle" value="${rec?.meetingTitle||'การทบทวนของฝ่ายบริหารด้านความปลอดภัย'}" required/></div>
       </div>
       <div class="form-row three">
-        <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธเธฃเธฐเธเธธเธก *</label>
+        <div class="form-group"><label>วันที่ประชุม *</label>
           <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}" required/></div>
-        <div class="form-group"><label>เน€เธงเธฅเธฒ</label>
+        <div class="form-group"><label>เวลา</label>
           <input id="f-reviewTime" type="time" value="${rec?.reviewTime||''}"/></div>
-        <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label>
+        <div class="form-group"><label>สถานะ</label>
           <select id="f-status">${stOpts}</select></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>เธชเธ–เธฒเธเธ—เธตเนเธเธฃเธฐเธเธธเธก</label>
-          <input id="f-location" value="${rec?.location||''}" placeholder="เธซเนเธญเธเธเธฃเธฐเธเธธเธก / เธชเธ–เธฒเธเธ—เธตเน"/></div>
-        <div class="form-group"><label>เธเธฃเธฐเธเธฒเธเธเธฒเธฃเธเธฃเธฐเธเธธเธก</label>
-          <input id="f-chairperson" value="${rec?.chairperson||''}" placeholder="เธเธทเนเธญ-เธ•เธณเนเธซเธเนเธ"/></div>
+        <div class="form-group"><label>สถานที่ประชุม</label>
+          <input id="f-location" value="${rec?.location||''}" placeholder="ห้องประชุม / สถานที่"/></div>
+        <div class="form-group"><label>ประธานการประชุม</label>
+          <input id="f-chairperson" value="${rec?.chairperson||''}" placeholder="ชื่อ-ตำแหน่ง"/></div>
       </div>
       <div class="form-row one">
-        <div class="form-group"><label>เธเธนเนเน€เธเนเธฒเธฃเนเธงเธกเธเธฃเธฐเธเธธเธก (เธเธฑเนเธเธ”เนเธงเธขเธเธธเธฅเธ เธฒเธ)</label>
-          <textarea id="f-attendees" rows="2" placeholder="เธเธทเนเธญ-เธ•เธณเนเธซเธเนเธ, ...">${rec?.attendees||''}</textarea></div>
+        <div class="form-group"><label>ผู้เข้าร่วมประชุม (คั่นด้วยจุลภาค)</label>
+          <textarea id="f-attendees" rows="2" placeholder="ชื่อ-ตำแหน่ง, ...">${rec?.attendees||''}</textarea></div>
       </div>
       <div class="form-row one">
-        <div class="form-group"><label>เธงเธฒเธฃเธฐเธเธฒเธฃเธเธฃเธฐเธเธธเธก</label>
-          <textarea id="f-agenda" rows="3" placeholder="เธฃเธฐเธเธธเธงเธฒเธฃเธฐเธชเธณเธเธฑเธเธเธญเธเธเธฒเธฃเธเธฃเธฐเธเธธเธก">${rec?.agenda||''}</textarea></div>
+        <div class="form-group"><label>วาระการประชุม</label>
+          <textarea id="f-agenda" rows="3" placeholder="ระบุวาระสำคัญของการประชุม">${rec?.agenda||''}</textarea></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>เธงเธฑเธเธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
+        <div class="form-group"><label>วันทบทวนครั้งถัดไป</label>
           <input id="f-nextReviewDate" type="date" value="${rec?.nextReviewDate||''}"/></div>
-        <div class="form-group"><label>เธเธนเนเธเธ”เธเธฑเธเธ—เธถเธ</label>
-          <input id="f-secretary" value="${rec?.secretary||profile.displayName||''}" placeholder="เธเธทเนเธญ"/></div>
+        <div class="form-group"><label>ผู้จดบันทึก</label>
+          <input id="f-secretary" value="${rec?.secretary||profile.displayName||''}" placeholder="ชื่อ"/></div>
       </div>
     </div>
 
     <div class="tab-panel" id="tab-inputs">
       <div style="background:#ede9fe;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:#5b21b6">
-        ๐“ ISO 45001 เธเนเธญ 9.3 เธเธณเธซเธเธ”เนเธซเนเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃเธเธดเธเธฒเธฃเธ“เธฒ Input เธ—เธฑเนเธ 10 เธซเธฑเธงเธเนเธญ เนเธซเนเธเธฐเนเธเธเนเธฅเธฐเธเธฑเธเธ—เธถเธเธชเธฃเธธเธเธเธฃเธฐเน€เธ”เนเธเธชเธณเธเธฑเธ
+        📌 ISO 45001 ข้อ 9.3 กำหนดให้ฝ่ายบริหารพิจารณา Input ทั้ง 10 หัวข้อ ให้คะแนนและบันทึกสรุปประเด็นสำคัญ
       </div>
       ${inputRows}
     </div>
 
     <div class="tab-panel" id="tab-outputs">
       <div style="background:#ecfdf5;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:.82rem;color:#065f46">
-        ๐“ Output เธ—เธตเนเธ•เนเธญเธเธกเธตเธเธฒเธเธเธฒเธฃเธ—เธเธ—เธงเธ เนเธซเนเธฃเธฐเธเธธเธกเธ•เธดเธซเธฃเธทเธญเธเธฅเธเธฒเธฃเธ•เธฑเธ”เธชเธดเธเนเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃเนเธเนเธ•เนเธฅเธฐเธซเธฑเธงเธเนเธญ
+        📌 Output ที่ต้องมีจากการทบทวน ให้ระบุมติหรือผลการตัดสินใจของฝ่ายบริหารในแต่ละหัวข้อ
       </div>
       ${outputRows}
     </div>
 
     <div class="tab-panel" id="tab-actions">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:.85rem;color:#475569">เธกเธฒเธ•เธฃเธเธฒเธฃ / เธเธฒเธเธ—เธตเนเธกเธญเธเธซเธกเธฒเธขเธเธฒเธเธเธฒเธฃเธ—เธเธ—เธงเธ</span>
-        <button type="button" class="btn btn-sm btn-ghost" onclick="window.__addAction()">+ เน€เธเธดเนเธกเธฃเธฒเธขเธเธฒเธฃ</button>
+        <span style="font-size:.85rem;color:#475569">มาตรการ / งานที่มอบหมายจากการทบทวน</span>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="window.__addAction()">+ เพิ่มรายการ</button>
       </div>
-      <div id="action-list">${actionRows||'<div style="color:#9ca3af;font-size:.85rem;padding:12px 0">เธขเธฑเธเนเธกเนเธกเธต Action Items โ€” เธเธ”เธเธธเนเธกเน€เธเธดเนเธกเธฃเธฒเธขเธเธฒเธฃ</div>'}</div>
+      <div id="action-list">${actionRows||'<div style="color:#9ca3af;font-size:.85rem;padding:12px 0">ยังไม่มี Action Items — กดปุ่มเพิ่มรายการ</div>'}</div>
     </div>
 
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveReview()">๐’พ เธเธฑเธเธ—เธถเธ</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveReview()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
     </div>
   </form>`;
 }
 
-// โ”€โ”€ Detail view โ”€โ”€
+// ── Detail view ──
 function renderDetail(r) {
   const st = MGMT_REVIEW_STATUS[r.status]||MGMT_REVIEW_STATUS.draft;
   const attendeeList = (r.attendees||'').split(',').filter(Boolean).map(a=>`<span style="display:inline-block;background:#f1f5f9;border-radius:5px;padding:2px 8px;font-size:.8rem;margin:2px">${a.trim()}</span>`).join('');
 
   const inputRows = MGMT_REVIEW_INPUTS.map(inp => {
     const rating = (r.inputRatings||{})[inp.key];
-    const note   = (r.inputNotes||{})[inp.key]||'โ€”';
+    const note   = (r.inputNotes||{})[inp.key]||'—';
     const ratingColors = { good:'#16a34a', fair:'#d97706', poor:'#dc2626' };
-    const ratingLabels = { good:'เธ”เธต', fair:'เธเธญเนเธเน', poor:'เธ•เนเธญเธเนเธเนเนเธ' };
+    const ratingLabels = { good:'ดี', fair:'พอใช้', poor:'ต้องแก้ไข' };
     return `<div class="input-detail-row">
       <div class="idl"><strong>${inp.label}</strong><div style="color:#9ca3af;font-size:.73rem;margin-top:1px">${inp.clause}</div>
         <div style="color:#475569;margin-top:3px">${note}</div></div>
-      <div class="idst">${rating?`<span class="badge" style="color:${ratingColors[rating]};background:${ratingColors[rating]}22">${ratingLabels[rating]}</span>`:'<span style="color:#9ca3af;font-size:.78rem">โ€”</span>'}</div>
+      <div class="idst">${rating?`<span class="badge" style="color:${ratingColors[rating]};background:${ratingColors[rating]}22">${ratingLabels[rating]}</span>`:'<span style="color:#9ca3af;font-size:.78rem">—</span>'}</div>
     </div>`;
   }).join('');
 
   const outputRows = MGMT_REVIEW_OUTPUTS.map(out => {
-    const note = (r.outputNotes||{})[out.key]||'โ€”';
+    const note = (r.outputNotes||{})[out.key]||'—';
     return `<div class="output-row"><strong>${out.label}</strong><div style="color:#475569;margin-top:3px;font-size:.83rem">${note}</div></div>`;
   }).join('');
 
   const actionRows = (r.actionItems||[]).length
     ? `<table style="width:100%;border-collapse:collapse;font-size:.82rem">
         <thead><tr style="background:#f1f5f9">
-          <th style="padding:7px 10px;text-align:left;font-weight:600">เธกเธฒเธ•เธฃเธเธฒเธฃ / เธเธฒเธ</th>
-          <th style="padding:7px 10px;text-align:left;font-weight:600">เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th>
-          <th style="padding:7px 10px;text-align:left;font-weight:600">เธเธณเธซเธเธ”เน€เธชเธฃเนเธ</th>
+          <th style="padding:7px 10px;text-align:left;font-weight:600">มาตรการ / งาน</th>
+          <th style="padding:7px 10px;text-align:left;font-weight:600">ผู้รับผิดชอบ</th>
+          <th style="padding:7px 10px;text-align:left;font-weight:600">กำหนดเสร็จ</th>
         </tr></thead>
-        <tbody>${(r.actionItems||[]).map(a=>`<tr><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9">${a.what||'โ€”'}</td><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9">${a.who||'โ€”'}</td><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9">${a.due||'โ€”'}</td></tr>`).join('')}</tbody>
+        <tbody>${(r.actionItems||[]).map(a=>`<tr><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9">${a.what||'—'}</td><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9">${a.who||'—'}</td><td style="padding:7px 10px;border-bottom:1px solid #f1f5f9">${a.due||'—'}</td></tr>`).join('')}</tbody>
       </table>`
-    : '<div style="color:#9ca3af;font-size:.85rem">เนเธกเนเธกเธต Action Items</div>';
+    : '<div style="color:#9ca3af;font-size:.85rem">ไม่มี Action Items</div>';
 
   const good = MGMT_REVIEW_INPUTS.filter(i=>(r.inputRatings||{})[i.key]==='good').length;
   const fair = MGMT_REVIEW_INPUTS.filter(i=>(r.inputRatings||{})[i.key]==='fair').length;
@@ -302,57 +302,57 @@ function renderDetail(r) {
   return `<div style="padding:20px">
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px;flex-wrap:wrap">
       <div>
-        <div style="font-size:1.1rem;font-weight:800">${r.meetingTitle||'เธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃ'}</div>
-        <div style="color:#6b7280;font-size:.82rem">๐“… ${r.reviewDate||'โ€”'} ${r.reviewTime?'เน€เธงเธฅเธฒ '+r.reviewTime:''} &nbsp;โ€ข&nbsp; ๐“ ${r.location||'โ€”'}</div>
-        <div style="color:#6b7280;font-size:.82rem;margin-top:2px">เธเธฃเธฐเธเธฒเธ: ${r.chairperson||'โ€”'} &nbsp;โ€ข&nbsp; เธเธฑเธเธ—เธถเธเนเธ”เธข: ${r.secretary||'โ€”'}</div>
+        <div style="font-size:1.1rem;font-weight:800">${r.meetingTitle||'การทบทวนของฝ่ายบริหาร'}</div>
+        <div style="color:#6b7280;font-size:.82rem">📅 ${r.reviewDate||'—'} ${r.reviewTime?'เวลา '+r.reviewTime:''} &nbsp;•&nbsp; 📍 ${r.location||'—'}</div>
+        <div style="color:#6b7280;font-size:.82rem;margin-top:2px">ประธาน: ${r.chairperson||'—'} &nbsp;•&nbsp; บันทึกโดย: ${r.secretary||'—'}</div>
       </div>
       <span class="badge" style="color:${st.color};background:${st.bg};margin-left:auto">${st.label}</span>
     </div>
 
     <div style="background:#f5f3ff;border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;gap:16px;flex-wrap:wrap">
-      <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#16a34a">${good}</div><div style="font-size:.75rem;color:#6b7280">Input เธ”เธต</div></div>
-      <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#d97706">${fair}</div><div style="font-size:.75rem;color:#6b7280">เธเธญเนเธเน</div></div>
-      <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#dc2626">${poor}</div><div style="font-size:.75rem;color:#6b7280">เธ•เนเธญเธเนเธเนเนเธ</div></div>
+      <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#16a34a">${good}</div><div style="font-size:.75rem;color:#6b7280">Input ดี</div></div>
+      <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#d97706">${fair}</div><div style="font-size:.75rem;color:#6b7280">พอใช้</div></div>
+      <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#dc2626">${poor}</div><div style="font-size:.75rem;color:#6b7280">ต้องแก้ไข</div></div>
       <div style="text-align:center"><div style="font-size:1.4rem;font-weight:800;color:#7c3aed">${(r.actionItems||[]).length}</div><div style="font-size:.75rem;color:#6b7280">Action Items</div></div>
     </div>
 
-    ${r.agenda?`<div class="detail-section" style="margin-bottom:12px"><h3>เธงเธฒเธฃเธฐเธเธฒเธฃเธเธฃเธฐเธเธธเธก</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.agenda}</p></div>`:''}
+    ${r.agenda?`<div class="detail-section" style="margin-bottom:12px"><h3>วาระการประชุม</h3><p style="font-size:.85rem;line-height:1.7;white-space:pre-wrap">${r.agenda}</p></div>`:''}
 
     <div class="detail-section">
-      <h3>เธเธนเนเน€เธเนเธฒเธฃเนเธงเธกเธเธฃเธฐเธเธธเธก</h3>
-      <div>${attendeeList||'โ€”'}</div>
+      <h3>ผู้เข้าร่วมประชุม</h3>
+      <div>${attendeeList||'—'}</div>
     </div>
 
     <div class="detail-section">
-      <h3>๐“ฅ Input เธ•เธฒเธก ISO 45001 เธเนเธญ 9.3</h3>
+      <h3>📥 Input ตาม ISO 45001 ข้อ 9.3</h3>
       ${inputRows}
     </div>
 
     <div class="detail-section">
-      <h3>๐“ค Output เธเธฒเธเธเธฒเธฃเธ—เธเธ—เธงเธ</h3>
+      <h3>📤 Output จากการทบทวน</h3>
       ${outputRows}
     </div>
 
     <div class="detail-section">
-      <h3>๐“ Action Items (${(r.actionItems||[]).length} เธฃเธฒเธขเธเธฒเธฃ)</h3>
+      <h3>📌 Action Items (${(r.actionItems||[]).length} รายการ)</h3>
       ${actionRows}
     </div>
 
-    ${r.nextReviewDate?`<div style="background:#ede9fe;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#5b21b6;margin-top:4px">๐“… เธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ: <strong>${r.nextReviewDate}</strong></div>`:''}
+    ${r.nextReviewDate?`<div style="background:#ede9fe;border-radius:8px;padding:10px 14px;font-size:.85rem;color:#5b21b6;margin-top:4px">📅 ทบทวนครั้งถัดไป: <strong>${r.nextReviewDate}</strong></div>`:''}
 
     <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button class="btn btn-ghost btn-sm" onclick="window.__editReview('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
-      <button class="btn btn-danger btn-sm" onclick="window.__deleteReview('${r.id}','${(r.meetingTitle||'').replace(/'/g,"\\'")}')">๐—‘๏ธ เธฅเธ</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.__editReview('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteReview('${r.id}','${(r.meetingTitle||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
     </div>
   </div>`;
 }
 
-// โ”€โ”€ Helpers โ”€โ”€
+// ── Helpers ──
 window.__rate = (key, val) => {
   inputRatings[key] = val;
   document.querySelectorAll(`[onclick*="__rate('${key}'"]`).forEach(b => {
     b.classList.remove('sel-good','sel-fair','sel-poor');
-    if (b.textContent.trim()===(val==='good'?'เธ”เธต':val==='fair'?'เธเธญเนเธเน':'เธ•เนเธญเธเนเธเนเนเธ'))
+    if (b.textContent.trim()===(val==='good'?'ดี':val==='fair'?'พอใช้':'ต้องแก้ไข'))
       b.classList.add(`sel-${val}`);
   });
 };
@@ -371,27 +371,27 @@ window.__actionChange = (idx, field, val) => { actionItems[idx][field] = val; };
 function reRenderActions() {
   const wrap = document.getElementById('action-list');
   if (!wrap) return;
-  if (!actionItems.length) { wrap.innerHTML = '<div style="color:#9ca3af;font-size:.85rem;padding:12px 0">เธขเธฑเธเนเธกเนเธกเธต Action Items โ€” เธเธ”เธเธธเนเธกเน€เธเธดเนเธกเธฃเธฒเธขเธเธฒเธฃ</div>'; return; }
+  if (!actionItems.length) { wrap.innerHTML = '<div style="color:#9ca3af;font-size:.85rem;padding:12px 0">ยังไม่มี Action Items — กดปุ่มเพิ่มรายการ</div>'; return; }
   wrap.innerHTML = actionItems.map((a,i)=>`
     <div class="action-row">
-      <input placeholder="เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธกเธฒเธ•เธฃเธเธฒเธฃ" value="${(a.what||'').replace(/"/g,'&quot;')}"
+      <input placeholder="รายละเอียดมาตรการ" value="${(a.what||'').replace(/"/g,'&quot;')}"
         oninput="window.__actionChange(${i},'what',this.value)"/>
-      <input placeholder="เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ" style="width:110px" value="${(a.who||'').replace(/"/g,'&quot;')}"
+      <input placeholder="ผู้รับผิดชอบ" style="width:110px" value="${(a.who||'').replace(/"/g,'&quot;')}"
         oninput="window.__actionChange(${i},'who',this.value)"/>
       <input type="date" style="width:130px" value="${a.due||''}"
         oninput="window.__actionChange(${i},'due',this.value)"/>
-      <button type="button" class="btn btn-sm btn-danger" onclick="window.__removeAction(${i})">โ•</button>
+      <button type="button" class="btn btn-sm btn-danger" onclick="window.__removeAction(${i})">✕</button>
     </div>`).join('');
 }
 
-// โ”€โ”€ Tabs โ”€โ”€
+// ── Tabs ──
 window.__switchTab = tab => {
   const tabs = ['info','inputs','outputs','actions'];
   document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('active',tabs[i]===tab));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+tab));
 };
 
-// โ”€โ”€ Panel โ”€โ”€
+// ── Panel ──
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -405,7 +405,7 @@ function openPanel(html, title) {
 
 window.__newReview = () => {
   editId = null; inputRatings = {}; inputNotes = {}; outputNotes = {}; actionItems = [];
-  openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธเธฑเธเธ—เธถเธเธเธฒเธฃเธ—เธเธ—เธงเธ');
+  openPanel(renderForm(null), '+ เพิ่มบันทึกการทบทวน');
 };
 window.__editReview = async id => {
   editId = id;
@@ -414,17 +414,17 @@ window.__editReview = async id => {
   inputNotes   = { ...(r.inputNotes||{}) };
   outputNotes  = { ...(r.outputNotes||{}) };
   actionItems  = JSON.parse(JSON.stringify(r.actionItems||[]));
-  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธเธฒเธฃเธ—เธเธ—เธงเธ');
+  openPanel(renderForm(r), '✏️ แก้ไขการทบทวน');
 };
 window.__viewReview = async id => {
   const r = await getMgmtReview(id);
-  document.getElementById('panel-title').textContent = '๐“ เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃ';
+  document.getElementById('panel-title').textContent = '📋 บันทึกการทบทวนของฝ่ายบริหาร';
   document.getElementById('panel-content').innerHTML = renderDetail(r);
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 };
 
-// โ”€โ”€ Save โ”€โ”€
+// ── Save ──
 window.__saveReview = async () => {
   const data = {
     meetingTitle:   document.getElementById('f-meetingTitle').value.trim(),
@@ -442,24 +442,24 @@ window.__saveReview = async () => {
     outputNotes:    { ...outputNotes },
     actionItems:    JSON.parse(JSON.stringify(actionItems)),
   };
-  if (!data.meetingTitle || !data.reviewDate) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธเธฒเธฃเธเธฃเธฐเธเธธเธกเนเธฅเธฐเธงเธฑเธเธ—เธตเน'); return; }
+  if (!data.meetingTitle || !data.reviewDate) { alert('กรุณากรอกชื่อการประชุมและวันที่'); return; }
   try {
     if (editId) await updateMgmtReview(editId, data);
     else        await createMgmtReview(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
 };
 
-// โ”€โ”€ Delete โ”€โ”€
+// ── Delete ──
 window.__deleteReview = async (id, name) => {
-  if (!confirm(`เธฅเธเธเธฑเธเธ—เธถเธ "${name}"?`)) return;
+  if (!confirm(`ลบบันทึก "${name}"?`)) return;
   await deleteMgmtReview(id);
   window.__closePanel();
   await loadData();
 };
 
-// โ”€โ”€ Filter โ”€โ”€
+// ── Filter ──
 function applyFilter() {
   const st = document.getElementById('filter-status')?.value||'';
   const yr = document.getElementById('filter-year')?.value||'';
@@ -477,11 +477,11 @@ async function loadData() {
   applyFilter();
 }
 
-// โ”€โ”€ Build UI โ”€โ”€
-const stOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
+// ── Build UI ──
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
   Object.entries(MGMT_REVIEW_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 const curYear = new Date().getFullYear();
-const yrOpts = `<option value="">-- เธ—เธธเธเธเธต --</option>` +
+const yrOpts = `<option value="">-- ทุกปี --</option>` +
   [curYear, curYear-1, curYear-2].map(y=>`<option value="${y}">${y+543} (${y})</option>`).join('');
 
 main.innerHTML = `
@@ -490,7 +490,7 @@ main.innerHTML = `
     <div class="toolbar">
       <select id="filter-year"   onchange="applyFilter()">${yrOpts}</select>
       <select id="filter-status" onchange="applyFilter()">${stOpts}</select>
-      <button class="btn btn-primary" onclick="window.__newReview()">+ เน€เธเธดเนเธกเธเธฑเธเธ—เธถเธเธเธฒเธฃเธ—เธเธ—เธงเธ</button>
+      <button class="btn btn-primary" onclick="window.__newReview()">+ เพิ่มบันทึกการทบทวน</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -498,8 +498,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธเธฒเธฃเธ—เธเธ—เธงเธเธเธญเธเธเนเธฒเธขเธเธฃเธดเธซเธฒเธฃ</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
+      <h2 id="panel-title">การทบทวนของฝ่ายบริหาร</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -509,4 +509,3 @@ await loadData();
 </script>
 </body>
 </html>
-

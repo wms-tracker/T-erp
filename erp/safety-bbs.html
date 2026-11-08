@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BBS โ€” Behavior-Based Safety Observation</title>
+<title>BBS — Behavior-Based Safety Observation</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
@@ -111,7 +111,7 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'bbs-observation', 'BBS โ€” Behavior-Based Safety Observation');
+const main = renderShell(profile, 'bbs-observation', 'BBS — Behavior-Based Safety Observation');
 
 let allObs = [];
 let editId = null;
@@ -120,7 +120,7 @@ let filterZone='', filterStatus='', filterMonth='', filterText='';
 
 function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
 
-/* โ”€โ”€โ”€ Totals helpers โ”€โ”€โ”€ */
+/* ─── Totals helpers ─── */
 function calcTotals(obs){
   let safe=0, risk=0;
   for(const cat of (obs.categories||[])){
@@ -134,7 +134,7 @@ function safePct(obs){
   return total ? Math.round(safe/total*100) : null;
 }
 
-/* โ”€โ”€โ”€ KPIs โ”€โ”€โ”€ */
+/* ─── KPIs ─── */
 function kpis(){
   const total = allObs.length;
   const mo = new Date().getMonth(), yr = new Date().getFullYear();
@@ -149,10 +149,10 @@ function kpis(){
   const pctColor = pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
   return `
   <div class="kpi-row">
-    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">เธชเธฑเธเน€เธเธ•เธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${thisMonth.length}</div><div class="kpi-lbl">เน€เธ”เธทเธญเธเธเธตเน</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${totSafe}</div><div class="kpi-lbl">โ… เธเธคเธ•เธดเธเธฃเธฃเธกเธเธฅเธญเธ”เธ เธฑเธข</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${totRisk}</div><div class="kpi-lbl">โ ๏ธ เธเธคเธ•เธดเธเธฃเธฃเธกเน€เธชเธตเนเธขเธ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">สังเกตทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${thisMonth.length}</div><div class="kpi-lbl">เดือนนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${totSafe}</div><div class="kpi-lbl">✅ พฤติกรรมปลอดภัย</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${totRisk}</div><div class="kpi-lbl">⚠️ พฤติกรรมเสี่ยง</div></div>
     <div class="kpi-card"><div class="kpi-val" style="color:${pctColor}">${pct}%</div><div class="kpi-lbl">Safe Behavior %</div></div>
   </div>`;
 }
@@ -170,7 +170,7 @@ function filtered(){
   });
 }
 
-/* โ”€โ”€โ”€ Trend view โ”€โ”€โ”€ */
+/* ─── Trend view ─── */
 function trendView(){
   const data = filtered();
   // group by YYYY-MM
@@ -185,7 +185,7 @@ function trendView(){
   const months = Object.keys(byMonth).sort().slice(-12);
   const maxTotal = Math.max(1,...months.map(m=>byMonth[m].safe+byMonth[m].risk));
 
-  const TH_MONTHS=['เธก.เธ.','เธ.เธ.','เธกเธต.เธ.','เน€เธก.เธข.','เธ.เธ.','เธกเธด.เธข.','เธ.เธ.','เธช.เธ.','เธ.เธข.','เธ•.เธ.','เธ.เธข.','เธ.เธ.'];
+  const TH_MONTHS=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   const bars = months.map(ym=>{
     const d=byMonth[ym];
     const tot=d.safe+d.risk;
@@ -195,7 +195,7 @@ function trendView(){
     const mon=parseInt(ym.substring(5))-1;
     return `<div class="bar-col">
       <div class="bar-pct" style="color:${pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626'}">${pct}%</div>
-      <div class="bar-stack" style="height:${safeH+riskH}px" title="${ym}: โ…${d.safe} โ ๏ธ${d.risk}">
+      <div class="bar-stack" style="height:${safeH+riskH}px" title="${ym}: ✅${d.safe} ⚠️${d.risk}">
         <div class="bar-risk" style="height:${riskH}px"></div>
         <div class="bar-safe" style="height:${safeH}px"></div>
       </div>
@@ -226,27 +226,27 @@ function trendView(){
     </div>`;
   }).join('');
 
-  if(!months.length) return `<div class="empty">เนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเน€เธเธตเธขเธเธเธญเธชเธณเธซเธฃเธฑเธเนเธชเธ”เธเนเธเธงเนเธเนเธก</div>`;
+  if(!months.length) return `<div class="empty">ไม่มีข้อมูลเพียงพอสำหรับแสดงแนวโน้ม</div>`;
 
   return `<div class="trend-wrap">
     <div>
       <div class="chart-box" style="margin-bottom:12px">
-        <h3>๐“ เนเธเธงเนเธเนเธก Safe Behavior % เธฃเธฒเธขเน€เธ”เธทเธญเธ</h3>
+        <h3>📊 แนวโน้ม Safe Behavior % รายเดือน</h3>
         <div class="bar-chart">${bars}</div>
         <div class="chart-legend">
-          <span><span class="leg-dot" style="background:#16a34a"></span>เธเธคเธ•เธดเธเธฃเธฃเธกเธเธฅเธญเธ”เธ เธฑเธข</span>
-          <span><span class="leg-dot" style="background:#dc2626"></span>เธเธคเธ•เธดเธเธฃเธฃเธกเน€เธชเธตเนเธขเธ</span>
+          <span><span class="leg-dot" style="background:#16a34a"></span>พฤติกรรมปลอดภัย</span>
+          <span><span class="leg-dot" style="background:#dc2626"></span>พฤติกรรมเสี่ยง</span>
         </div>
       </div>
     </div>
     <div class="chart-box">
-      <h3>๐” Safe % เนเธขเธเธ•เธฒเธกเธซเธกเธงเธ”เธเธคเธ•เธดเธเธฃเธฃเธก</h3>
+      <h3>🔍 Safe % แยกตามหมวดพฤติกรรม</h3>
       <div class="cat-bars">${catBars}</div>
     </div>
   </div>`;
 }
 
-/* โ”€โ”€โ”€ SVG ring helper โ”€โ”€โ”€ */
+/* ─── SVG ring helper ─── */
 function ring(pct, color){
   if(pct===null) return `<div class="pct-ring-wrap"><div class="pct-label" style="color:#94a3b8">-</div></div>`;
   const r=20, c=26, circ=2*Math.PI*r;
@@ -261,10 +261,10 @@ function ring(pct, color){
   </div>`;
 }
 
-/* โ”€โ”€โ”€ Record view โ”€โ”€โ”€ */
+/* ─── Record view ─── */
 function recordView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div>`;
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
   return `<div class="record-grid">${data.map(o=>{
     const pct=safePct(o);
     const col=pct===null?'#94a3b8':pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
@@ -272,42 +272,42 @@ function recordView(){
     const st=BBS_STATUS[o.status]||BBS_STATUS.submitted;
     const dateStr=o.obsDate?new Date(o.obsDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}):'-';
     const miniRows = (o.categories||[]).filter(c=>c.safe||c.risk).slice(0,5).map(c=>{
-      const catInfo=BBS_CATEGORIES.find(x=>x.key===c.key)||{label:c.key,icon:'๐“'};
+      const catInfo=BBS_CATEGORIES.find(x=>x.key===c.key)||{label:c.key,icon:'📌'};
       const tot=(Number(c.safe)||0)+(Number(c.risk)||0);
       const p=tot?Math.round((Number(c.safe)||0)/tot*100):0;
       const mc=p>=90?'#16a34a':p>=75?'#d97706':'#dc2626';
       return `<div class="oc-mini-row">
-        <span class="oc-mini-name">${catInfo.icon} ${catInfo.label.length>10?catInfo.label.substring(0,10)+'โ€ฆ':catInfo.label}</span>
+        <span class="oc-mini-name">${catInfo.icon} ${catInfo.label.length>10?catInfo.label.substring(0,10)+'…':catInfo.label}</span>
         <div class="oc-mini-bar"><div class="oc-mini-fill" style="width:${p}%;background:${mc}"></div></div>
         <span style="font-size:.65rem;width:28px;text-align:right;color:${mc}">${tot?p+'%':'-'}</span>
       </div>`;
     }).join('');
     return `<div class="obs-card" onclick="window.__editObs('${o.id}')">
       <div class="oc-banner">
-        <span class="oc-date">๐“… ${dateStr}</span>
-        <span class="oc-zone">๐“ ${o.zone||'-'}</span>
+        <span class="oc-date">📅 ${dateStr}</span>
+        <span class="oc-zone">📍 ${o.zone||'-'}</span>
       </div>
       <div class="oc-body">
         <div class="oc-safe-pct">
           ${ring(pct,col)}
           <div class="oc-counts">
-            <span>โ… เธเธฅเธญเธ”เธ เธฑเธข: <strong>${t.safe}</strong></span>
-            <span>โ ๏ธ เน€เธชเธตเนเธขเธ: <strong>${t.risk}</strong></span>
-            <span>๐“ เธฃเธงเธก: <strong>${t.total}</strong></span>
-            <span>๐‘ค ${o.observer||'เนเธกเนเธฃเธฐเธเธธ'}</span>
+            <span>✅ ปลอดภัย: <strong>${t.safe}</strong></span>
+            <span>⚠️ เสี่ยง: <strong>${t.risk}</strong></span>
+            <span>📊 รวม: <strong>${t.total}</strong></span>
+            <span>👤 ${o.observer||'ไม่ระบุ'}</span>
           </div>
         </div>
         ${miniRows?`<div class="oc-mini-bars">${miniRows}</div>`:''}
       </div>
-      <div class="oc-footer">${badge(st)}${o.actionItems?`<span style="font-size:.72rem;color:#ea580c">๐“ เธกเธต Action</span>`:''}</div>
+      <div class="oc-footer">${badge(st)}${o.actionItems?`<span style="font-size:.72rem;color:#ea580c">📋 มี Action</span>`:''}</div>
     </div>`;
   }).join('')}</div>`;
 }
 
-/* โ”€โ”€โ”€ Table view โ”€โ”€โ”€ */
+/* ─── Table view ─── */
 function tableView(){
   const data = filtered();
-  if(!data.length) return `<div class="tbl-wrap"><div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div></div>`;
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
   const rows = data.map(o=>{
     const t=calcTotals(o); const pct=safePct(o);
     const col=pct===null?'#94a3b8':pct>=90?'#16a34a':pct>=75?'#d97706':'#dc2626';
@@ -316,44 +316,44 @@ function tableView(){
     return `<tr>
       <td>${dateStr}</td>
       <td>${o.zone||'-'}</td>
-      <td>${o.observer||'เนเธกเนเธฃเธฐเธเธธ'}</td>
+      <td>${o.observer||'ไม่ระบุ'}</td>
       <td style="text-align:center;color:#16a34a;font-weight:700">${t.safe}</td>
       <td style="text-align:center;color:#dc2626;font-weight:700">${t.risk}</td>
       <td style="text-align:center;font-weight:700;color:${col}">${pct!=null?pct+'%':'-'}</td>
       <td>${badge(st)}</td>
       <td>
-        <button class="action-btn btn-edit" onclick="window.__editObs('${o.id}')">เนเธเนเนเธ</button>
-        <button class="action-btn btn-del" onclick="window.__delObs('${o.id}')">เธฅเธ</button>
+        <button class="action-btn btn-edit" onclick="window.__editObs('${o.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delObs('${o.id}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>เธงเธฑเธเธ—เธตเน</th><th>เธเธทเนเธเธ—เธตเน</th><th>เธเธนเนเธชเธฑเธเน€เธเธ•</th><th>โ… เธเธฅเธญเธ”เธ เธฑเธข</th><th>โ ๏ธ เน€เธชเธตเนเธขเธ</th><th>Safe%</th><th>เธชเธ–เธฒเธเธฐ</th><th></th></tr></thead>
+    <thead><tr><th>วันที่</th><th>พื้นที่</th><th>ผู้สังเกต</th><th>✅ ปลอดภัย</th><th>⚠️ เสี่ยง</th><th>Safe%</th><th>สถานะ</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
-/* โ”€โ”€โ”€ Render โ”€โ”€โ”€ */
+/* ─── Render ─── */
 function render(){
   main.innerHTML = `
   ${kpis()}
   <div class="toolbar">
-    <input type="text" placeholder="เธเนเธเธซเธฒเธเธนเนเธชเธฑเธเน€เธเธ• / เธเธทเนเธเธ—เธตเน..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <input type="text" placeholder="ค้นหาผู้สังเกต / พื้นที่..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
     <select onchange="window.applyFilter('zone',this.value)">
-      <option value="">เธเธทเนเธเธ—เธตเนเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">พื้นที่ทั้งหมด</option>
       ${BBS_ZONES.map(z=>`<option value="${z}" ${filterZone===z?'selected':''}>${z}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('status',this.value)">
-      <option value="">เธชเธ–เธฒเธเธฐเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">สถานะทั้งหมด</option>
       ${Object.entries(BBS_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
-    <input type="month" value="${filterMonth}" onchange="window.applyFilter('month',this.value)" title="เธเธฃเธญเธเธ•เธฒเธกเน€เธ”เธทเธญเธ">
+    <input type="month" value="${filterMonth}" onchange="window.applyFilter('month',this.value)" title="กรองตามเดือน">
     <div class="view-btns">
-      <button class="view-btn ${curView==='trend'?'active':''}" onclick="window.setView('trend')">เนเธเธงเนเธเนเธก</button>
-      <button class="view-btn ${curView==='record'?'active':''}" onclick="window.setView('record')">เธเธฑเธเธ—เธถเธ</button>
-      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">เธ•เธฒเธฃเธฒเธ</button>
+      <button class="view-btn ${curView==='trend'?'active':''}" onclick="window.setView('trend')">แนวโน้ม</button>
+      <button class="view-btn ${curView==='record'?'active':''}" onclick="window.setView('record')">บันทึก</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
     </div>
-    <button class="add-btn" onclick="window.__openPanel(null)">+ เธเธฑเธเธ—เธถเธเธเธฒเธฃเธชเธฑเธเน€เธเธ•</button>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ บันทึกการสังเกต</button>
   </div>
   <div id="content">${renderContent()}</div>
   ${panelHTML()}`;
@@ -365,20 +365,20 @@ function renderContent(){
   return tableView();
 }
 
-/* โ”€โ”€โ”€ Panel โ”€โ”€โ”€ */
+/* ─── Panel ─── */
 function panelHTML(){
   return `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="slide-panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธเธฑเธเธ—เธถเธ BBS Observation</h2>
-      <button class="btn btn-secondary" onclick="window.__closePanel()">โ•</button>
+      <h2 id="panel-title">บันทึก BBS Observation</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
     </div>
     <div class="panel-body" id="panel-body"></div>
     <div class="panel-foot">
-      ${editId?`<button class="btn btn-danger" onclick="window.__delObs('${editId}')">เธฅเธ</button>`:''}
-      <button class="btn btn-secondary" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
-      <button class="btn btn-primary" onclick="window.__saveObs()">เธเธฑเธเธ—เธถเธ</button>
+      ${editId?`<button class="btn btn-danger" onclick="window.__delObs('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveObs()">บันทึก</button>
     </div>
   </div>`;
 }
@@ -396,13 +396,13 @@ function catTableHTML(savedCats=[]){
       <td style="text-align:center"><input type="number" class="ci-safe" min="0" value="${saved.safe||''}" placeholder="0" oninput="window.__updateCatPct(this)"></td>
       <td style="text-align:center"><input type="number" class="ci-risk" min="0" value="${saved.risk||''}" placeholder="0" oninput="window.__updateCatPct(this)"></td>
       <td class="pct-cell" style="color:${col}" id="cpct-${cat.key}">${pct!=null?pct+'%':'-'}</td>
-      <td><input type="text" class="ci-comment" value="${saved.comment||''}" placeholder="เธเนเธญเธชเธฑเธเน€เธเธ•..."></td>
+      <td><input type="text" class="ci-comment" value="${saved.comment||''}" placeholder="ข้อสังเกต..."></td>
     </tr>`;
   }).join('');
   return `<table class="bbs-cat-table">
     <thead><tr>
-      <th style="text-align:left">เธซเธกเธงเธ”เธเธคเธ•เธดเธเธฃเธฃเธก</th>
-      <th>โ… เธเธฅเธญเธ”เธ เธฑเธข</th><th>โ ๏ธ เน€เธชเธตเนเธขเธ</th><th>%</th><th>เธเนเธญเธชเธฑเธเน€เธเธ•</th>
+      <th style="text-align:left">หมวดพฤติกรรม</th>
+      <th>✅ ปลอดภัย</th><th>⚠️ เสี่ยง</th><th>%</th><th>ข้อสังเกต</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -410,62 +410,62 @@ function catTableHTML(savedCats=[]){
 
 function formHTML(data={}){
   return `
-  <div class="section-title">เธเนเธญเธกเธนเธฅเธเธฒเธฃเธชเธฑเธเน€เธเธ•</div>
+  <div class="section-title">ข้อมูลการสังเกต</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธงเธฑเธเธ—เธตเนเธชเธฑเธเน€เธเธ• *</label>
+      <label>วันที่สังเกต *</label>
       <input type="date" id="f-obsDate" value="${data.obsDate||new Date().toISOString().substring(0,10)}">
     </div>
     <div class="form-group">
-      <label>เน€เธงเธฅเธฒ</label>
+      <label>เวลา</label>
       <input type="time" id="f-obsTime" value="${data.obsTime||''}">
     </div>
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธทเนเธเธ—เธตเนเธ—เธตเนเธชเธฑเธเน€เธเธ• *</label>
+      <label>พื้นที่ที่สังเกต *</label>
       <select id="f-zone">
-        <option value="">-- เน€เธฅเธทเธญเธเธเธทเนเธเธ—เธตเน --</option>
+        <option value="">-- เลือกพื้นที่ --</option>
         ${BBS_ZONES.map(z=>`<option value="${z}" ${(data.zone||'')==z?'selected':''}>${z}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธเธนเนเธชเธฑเธเน€เธเธ• (เธฃเธฐเธเธธเธซเธฃเธทเธญเนเธกเนเธเนเนเธ”เน)</label>
-      <input id="f-observer" value="${data.observer||''}" placeholder="เธเธทเนเธญ เธซเธฃเธทเธญเน€เธงเนเธเธงเนเธฒเธเนเธงเน">
+      <label>ผู้สังเกต (ระบุหรือไม่ก็ได้)</label>
+      <input id="f-observer" value="${data.observer||''}" placeholder="ชื่อ หรือเว้นว่างไว้">
     </div>
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธณเธเธงเธเธเธเธ—เธตเนเธชเธฑเธเน€เธเธ•</label>
-      <input type="number" id="f-observedCount" value="${data.observedCount||''}" min="1" placeholder="เธเธณเธเธงเธเธเธเนเธเธเธทเนเธเธ—เธตเน">
+      <label>จำนวนคนที่สังเกต</label>
+      <input type="number" id="f-observedCount" value="${data.observedCount||''}" min="1" placeholder="จำนวนคนในพื้นที่">
     </div>
     <div class="form-group">
-      <label>เธฃเธฐเธขเธฐเน€เธงเธฅเธฒเธชเธฑเธเน€เธเธ• (เธเธฒเธ—เธต)</label>
+      <label>ระยะเวลาสังเกต (นาที)</label>
       <input type="number" id="f-duration" value="${data.duration||''}" min="1">
     </div>
   </div>
 
-  <div class="section-title">เธเธฑเธเธ—เธถเธเธเธคเธ•เธดเธเธฃเธฃเธก โ€” เนเธชเนเธเธณเธเธงเธเธ—เธตเนเธเธฑเธเนเธ”เน</div>
+  <div class="section-title">บันทึกพฤติกรรม — ใส่จำนวนที่นับได้</div>
   <div id="cat-table-wrap">${catTableHTML(data.categories||[])}</div>
 
-  <div class="section-title">เธชเธฃเธธเธเนเธฅเธฐ Follow-up</div>
+  <div class="section-title">สรุปและ Follow-up</div>
   <div class="form-row full"><div class="form-group">
-    <label>Positive Feedback เธ—เธตเนเนเธซเนเนเธ</label>
-    <textarea id="f-feedback" placeholder="เธเธณเธเธกเน€เธเธขเธซเธฃเธทเธญ feedback เธ—เธตเนเธกเธญเธเนเธซเนเธเธเธเธฒเธ...">${data.feedback||''}</textarea>
+    <label>Positive Feedback ที่ให้ไป</label>
+    <textarea id="f-feedback" placeholder="คำชมเชยหรือ feedback ที่มอบให้คนงาน...">${data.feedback||''}</textarea>
   </div></div>
   <div class="form-row full"><div class="form-group">
-    <label>๐“ Action Items / เธชเธดเนเธเธ—เธตเนเธ•เนเธญเธเธ•เธดเธ”เธ•เธฒเธก</label>
-    <textarea id="f-actionItems" placeholder="เธฃเธฐเธเธธเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธเนเนเธเธเธคเธ•เธดเธเธฃเธฃเธกเน€เธชเธตเนเธขเธ...">${data.actionItems||''}</textarea>
+    <label>📋 Action Items / สิ่งที่ต้องติดตาม</label>
+    <textarea id="f-actionItems" placeholder="ระบุการดำเนินการแก้ไขพฤติกรรมเสี่ยง...">${data.actionItems||''}</textarea>
   </div></div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธชเธ–เธฒเธเธฐ</label>
+      <label>สถานะ</label>
       <select id="f-status">
         ${Object.entries(BBS_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'submitted')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+      <label>หมายเหตุ</label>
       <input id="f-notes" value="${data.notes||''}">
     </div>
   </div>`;
@@ -499,7 +499,7 @@ function readCategories(){
 window.__openPanel = (id) => {
   editId = id;
   const data = id ? (allObs.find(o=>o.id===id)||{}) : {};
-  document.getElementById('panel-title').textContent = id ? 'เนเธเนเนเธเธเธฑเธเธ—เธถเธ BBS' : 'เธเธฑเธเธ—เธถเธ BBS Observation';
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขบันทึก BBS' : 'บันทึก BBS Observation';
   document.getElementById('panel-body').innerHTML = formHTML(data);
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('open');
@@ -514,7 +514,7 @@ window.__closePanel = () => {
 window.__editObs = (id) => window.__openPanel(id);
 
 window.__delObs = async (id) => {
-  if(!confirm('เธขเธทเธเธขเธฑเธเธเธฒเธฃเธฅเธเธเธฑเธเธ—เธถเธเธเธตเน?')) return;
+  if(!confirm('ยืนยันการลบบันทึกนี้?')) return;
   await deleteBBSObs(id);
   allObs = allObs.filter(o=>o.id!==id);
   window.__closePanel();
@@ -524,8 +524,8 @@ window.__delObs = async (id) => {
 window.__saveObs = async () => {
   const obsDate = document.getElementById('f-obsDate').value;
   const zone = document.getElementById('f-zone').value;
-  if(!obsDate){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธงเธฑเธเธ—เธตเน'); return; }
-  if(!zone){ alert('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธเธทเนเธเธ—เธตเน'); return; }
+  if(!obsDate){ alert('กรุณาระบุวันที่'); return; }
+  if(!zone){ alert('กรุณาเลือกพื้นที่'); return; }
 
   const categories = readCategories();
   const data = {
@@ -569,4 +569,3 @@ render();
 </script>
 </body>
 </html>
-

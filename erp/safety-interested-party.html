@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>เธ—เธฐเน€เธเธตเธขเธเธเธนเนเธกเธตเธชเนเธงเธเนเธ”เนเธชเนเธงเธเน€เธชเธตเธข</title>
+<title>ทะเบียนผู้มีส่วนได้ส่วนเสีย</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#4f46e5;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -78,64 +78,64 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-interested-party', 'เธ—เธฐเน€เธเธตเธขเธเธเธนเนเธกเธตเธชเนเธงเธเนเธ”เนเธชเนเธงเธเน€เธชเธตเธข (ISO 45001 ยง4.2)');
+const main = renderShell(profile, 'safety-interested-party', 'ทะเบียนผู้มีส่วนได้ส่วนเสีย (ISO 45001 §4.2)');
 
 let allRecs   = [];
 let editId    = null;
 let selInfl   = '';
 
-// โ”€โ”€ KPI โ”€โ”€
+// ── KPI ──
 function renderKPI(recs) {
   const high   = recs.filter(r=>r.influence==='high').length;
   const medium = recs.filter(r=>r.influence==='medium').length;
   const low    = recs.filter(r=>r.influence==='low').length;
   const typeCount = new Set(recs.map(r=>r.partyType)).size;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">เธเธฅเธธเนเธกเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">เธญเธดเธ—เธเธดเธเธฅเธชเธนเธ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${medium}</div><div class="lbl">เธญเธดเธ—เธเธดเธเธฅเธเธฒเธเธเธฅเธฒเธ</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${low}</div><div class="lbl">เธญเธดเธ—เธเธดเธเธฅเธ•เนเธณ</div></div>
-    <div class="kpi" style="border-color:#4f46e5"><div class="num" style="color:#4f46e5">${typeCount}</div><div class="lbl">เธเธฃเธฐเน€เธ เธ—เธเธฅเธธเนเธก</div></div>
+    <div class="kpi"><div class="num">${recs.length}</div><div class="lbl">กลุ่มทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">อิทธิพลสูง</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${medium}</div><div class="lbl">อิทธิพลปานกลาง</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${low}</div><div class="lbl">อิทธิพลต่ำ</div></div>
+    <div class="kpi" style="border-color:#4f46e5"><div class="num" style="color:#4f46e5">${typeCount}</div><div class="lbl">ประเภทกลุ่ม</div></div>
   </div>`;
 }
 
-// โ”€โ”€ Cards โ”€โ”€
+// ── Cards ──
 function renderCards(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">๐‘ฅ</div><p>เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธเธนเนเธกเธตเธชเนเธงเธเนเธ”เนเธชเนเธงเธเน€เธชเธตเธข</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">👥</div><p>ยังไม่มีข้อมูลผู้มีส่วนได้ส่วนเสีย</p></div>`;
   return `<div class="party-grid">${recs.map(r => {
-    const pt  = IPARTY_TYPES.find(t=>t.key===r.partyType)||{icon:'๐”–',label:r.partyType||'โ€”',color:'#6b7280',bg:'#f3f4f6'};
-    const inf = IPARTY_INFLUENCE[r.influence]||{label:'โ€”',color:'#9ca3af',bg:'#f3f4f6'};
-    const cf  = IPARTY_COMM_FREQ.find(f=>f.key===r.commFrequency)||{label:r.commFrequency||'โ€”'};
-    const needsPreview = (r.needs||'').split('\n').filter(Boolean).slice(0,2).join(' โ€ข ')||'โ€”';
+    const pt  = IPARTY_TYPES.find(t=>t.key===r.partyType)||{icon:'🔖',label:r.partyType||'—',color:'#6b7280',bg:'#f3f4f6'};
+    const inf = IPARTY_INFLUENCE[r.influence]||{label:'—',color:'#9ca3af',bg:'#f3f4f6'};
+    const cf  = IPARTY_COMM_FREQ.find(f=>f.key===r.commFrequency)||{label:r.commFrequency||'—'};
+    const needsPreview = (r.needs||'').split('\n').filter(Boolean).slice(0,2).join(' • ')||'—';
     return `<div class="party-card">
       <div class="card-stripe" style="background:${pt.color}"></div>
       <div class="card-body">
         <div class="card-header">
           <div class="card-icon">${pt.icon}</div>
           <div>
-            <div class="card-title">${r.partyName||'โ€”'}</div>
+            <div class="card-title">${r.partyName||'—'}</div>
             <div class="card-type"><span style="color:${pt.color};font-weight:600">${pt.label}</span></div>
           </div>
         </div>
         <div class="card-needs">${needsPreview}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <span class="badge" style="color:${inf.color};background:${inf.bg}">เธญเธดเธ—เธเธดเธเธฅ: ${inf.label}</span>
+          <span class="badge" style="color:${inf.color};background:${inf.bg}">อิทธิพล: ${inf.label}</span>
           <span class="badge" style="color:#4f46e5;background:#ede9fe">${cf.label}</span>
         </div>
       </div>
       <div class="card-footer">
-        <span style="font-size:.75rem;color:#9ca3af">เธ—เธเธ—เธงเธ: ${r.reviewDate||'โ€”'}</span>
+        <span style="font-size:.75rem;color:#9ca3af">ทบทวน: ${r.reviewDate||'—'}</span>
         <div class="card-actions">
-          <button class="btn btn-sm btn-ghost" onclick="window.__viewParty('${r.id}')">เธ”เธน</button>
-          <button class="btn btn-sm btn-ghost" onclick="window.__editParty('${r.id}')">เนเธเนเนเธ</button>
-          <button class="btn btn-sm btn-danger" onclick="window.__deleteParty('${r.id}','${(r.partyName||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
+          <button class="btn btn-sm btn-ghost" onclick="window.__viewParty('${r.id}')">ดู</button>
+          <button class="btn btn-sm btn-ghost" onclick="window.__editParty('${r.id}')">แก้ไข</button>
+          <button class="btn btn-sm btn-danger" onclick="window.__deleteParty('${r.id}','${(r.partyName||'').replace(/'/g,"\\'")}')">ลบ</button>
         </div>
       </div>
     </div>`;
   }).join('')}</div>`;
 }
 
-// โ”€โ”€ Form โ”€โ”€
+// ── Form ──
 function renderForm(rec) {
   const typeOpts = IPARTY_TYPES.map(t=>
     `<option value="${t.key}" ${rec?.partyType===t.key?'selected':''}>${t.icon} ${t.label}</option>`
@@ -151,109 +151,109 @@ function renderForm(rec) {
   ).join('');
   return `<form id="party-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>เธเธทเนเธญเธเธฅเธธเนเธก / เธญเธเธเนเธเธฃ *</label>
-        <input id="f-partyName" value="${rec?.partyName||''}" placeholder="เน€เธเนเธ เธเธเธฑเธเธเธฒเธเธชเธฒเธขเธเธฒเธฃเธเธฅเธดเธ•" required/></div>
-      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ— *</label>
+      <div class="form-group"><label>ชื่อกลุ่ม / องค์กร *</label>
+        <input id="f-partyName" value="${rec?.partyName||''}" placeholder="เช่น พนักงานสายการผลิต" required/></div>
+      <div class="form-group"><label>ประเภท *</label>
         <select id="f-partyType">${typeOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธณเธญเธเธดเธเธฒเธข / เนเธเธฃเธเธทเธญเธเธฅเธธเนเธกเธเธตเน</label>
-        <textarea id="f-description" rows="2" placeholder="เธญเธเธดเธเธฒเธขเธงเนเธฒเธเธฅเธธเนเธกเธเธตเนเธเธทเธญเนเธเธฃ เธกเธตเธเธงเธฒเธกเธชเธฑเธกเธเธฑเธเธเนเธเธฑเธเนเธฃเธเธเธฒเธเธญเธขเนเธฒเธเนเธฃ">${rec?.description||''}</textarea></div>
+      <div class="form-group"><label>คำอธิบาย / ใครคือกลุ่มนี้</label>
+        <textarea id="f-description" rows="2" placeholder="อธิบายว่ากลุ่มนี้คือใคร มีความสัมพันธ์กับโรงงานอย่างไร">${rec?.description||''}</textarea></div>
     </div>
 
-    <div class="section-title">๐ฏ เธฃเธฐเธ”เธฑเธเธญเธดเธ—เธเธดเธเธฅ / เธเธฅเธเธฃเธฐเธ—เธ</div>
+    <div class="section-title">🎯 ระดับอิทธิพล / ผลกระทบ</div>
     <div class="infl-opts" id="infl-wrap">${inflBtns}</div>
     <input type="hidden" id="f-influence" value="${curInfl}"/>
 
-    <div class="section-title">๐“ เธเธงเธฒเธกเธ•เนเธญเธเธเธฒเธฃเนเธฅเธฐเธเธงเธฒเธกเธเธฒเธ”เธซเธงเธฑเธ</div>
+    <div class="section-title">📋 ความต้องการและความคาดหวัง</div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธงเธฒเธกเธ•เนเธญเธเธเธฒเธฃ (Needs) โ€” เธชเธดเนเธเธ—เธตเนเธเธฅเธธเนเธกเธเธตเนเธ•เนเธญเธเธเธฒเธฃเธเธฒเธเธญเธเธเนเธเธฃ</label>
-        <textarea id="f-needs" rows="4" placeholder="เน€เธเนเธ&#10;- เธชเธ เธฒเธเนเธงเธ”เธฅเนเธญเธกเธเธฒเธฃเธ—เธณเธเธฒเธเธ—เธตเนเธเธฅเธญเธ”เธ เธฑเธข&#10;- เธเนเธฒเธ•เธญเธเนเธ—เธเนเธฅเธฐเธชเธงเธฑเธชเธ”เธดเธเธฒเธฃเธ—เธตเนเน€เธเนเธเธเธฃเธฃเธก&#10;- เธเนเธญเธกเธนเธฅเธเธงเธฒเธกเน€เธชเธตเนเธขเธเนเธฅเธฐเธกเธฒเธ•เธฃเธเธฒเธฃเธเนเธญเธเธเธฑเธ">${rec?.needs||''}</textarea></div>
+      <div class="form-group"><label>ความต้องการ (Needs) — สิ่งที่กลุ่มนี้ต้องการจากองค์กร</label>
+        <textarea id="f-needs" rows="4" placeholder="เช่น&#10;- สภาพแวดล้อมการทำงานที่ปลอดภัย&#10;- ค่าตอบแทนและสวัสดิการที่เป็นธรรม&#10;- ข้อมูลความเสี่ยงและมาตรการป้องกัน">${rec?.needs||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธงเธฒเธกเธเธฒเธ”เธซเธงเธฑเธ (Expectations) โ€” เธชเธดเนเธเธ—เธตเนเธเธฅเธธเนเธกเธเธตเนเธเธฒเธ”เธซเธงเธฑเธเธเธฒเธเธฃเธฐเธเธ OH&SMS</label>
-        <textarea id="f-expectations" rows="4" placeholder="เน€เธเนเธ&#10;- เธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธเธ•เธฒเธกเธเธเธซเธกเธฒเธขเธญเธขเนเธฒเธเน€เธเธฃเนเธเธเธฃเธฑเธ”&#10;- เธเธฒเธฃเนเธเนเธเน€เธ•เธทเธญเธเน€เธกเธทเนเธญเน€เธเธดเธ”เน€เธซเธ•เธธเธเธธเธเน€เธเธดเธ&#10;- เธฃเธฒเธขเธเธฒเธเธเธฒเธฃเธเธเธดเธเธฑเธ•เธดเธ•เธฒเธกเธเนเธญเธเธณเธซเธเธ”">${rec?.expectations||''}</textarea></div>
+      <div class="form-group"><label>ความคาดหวัง (Expectations) — สิ่งที่กลุ่มนี้คาดหวังจากระบบ OH&SMS</label>
+        <textarea id="f-expectations" rows="4" placeholder="เช่น&#10;- การดำเนินงานตามกฎหมายอย่างเคร่งครัด&#10;- การแจ้งเตือนเมื่อเกิดเหตุฉุกเฉิน&#10;- รายงานการปฏิบัติตามข้อกำหนด">${rec?.expectations||''}</textarea></div>
     </div>
 
-    <div class="section-title">๐“ก เธเธฒเธฃเธชเธทเนเธญเธชเธฒเธฃเนเธฅเธฐเธ•เธดเธ”เธ•เธฒเธก</div>
+    <div class="section-title">📡 การสื่อสารและติดตาม</div>
     <div class="form-row">
-      <div class="form-group"><label>เธงเธดเธเธตเธเธฒเธฃเธชเธทเนเธญเธชเธฒเธฃ</label>
-        <input id="f-commMethod" value="${rec?.commMethod||''}" placeholder="เน€เธเนเธ เธเธฃเธฐเธเธธเธก, เธญเธตเน€เธกเธฅ, เธเธฃเธฐเธเธฒเธจ, Line"/></div>
-      <div class="form-group"><label>เธเธงเธฒเธกเธ–เธตเนเธเธฒเธฃเธชเธทเนเธญเธชเธฒเธฃ</label>
+      <div class="form-group"><label>วิธีการสื่อสาร</label>
+        <input id="f-commMethod" value="${rec?.commMethod||''}" placeholder="เช่น ประชุม, อีเมล, ประกาศ, Line"/></div>
+      <div class="form-group"><label>ความถี่การสื่อสาร</label>
         <select id="f-commFrequency">${freqOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธงเธดเธเธตเธ•เธดเธ”เธ•เธฒเธก/เธเธฃเธฐเน€เธกเธดเธเธเธงเธฒเธกเธ•เนเธญเธเธเธฒเธฃ</label>
-        <textarea id="f-monitorMethod" rows="2" placeholder="เธงเธดเธเธตเธเธฒเธฃเธ•เธดเธ”เธ•เธฒเธกเธงเนเธฒเธเธงเธฒเธกเธ•เนเธญเธเธเธฒเธฃเธขเธฑเธเธเธเน€เธเนเธเน€เธเนเธเน€เธ”เธดเธกเธซเธฃเธทเธญเน€เธเธฅเธตเนเธขเธเนเธเธฅเธ">${rec?.monitorMethod||''}</textarea></div>
+      <div class="form-group"><label>วิธีติดตาม/ประเมินความต้องการ</label>
+        <textarea id="f-monitorMethod" rows="2" placeholder="วิธีการติดตามว่าความต้องการยังคงเป็นเช่นเดิมหรือเปลี่ยนแปลง">${rec?.monitorMethod||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเนเธญเธเธณเธซเธเธ”/เธเธเธซเธกเธฒเธขเธ—เธตเนเน€เธเธตเนเธขเธงเธเนเธญเธ</label>
-        <input id="f-relevantReq" value="${rec?.relevantReq||''}" placeholder="เน€เธเนเธ เธกเธฒเธ•เธฃเธฒ 8, เธเนเธญ 4.2 ISO 45001"/></div>
+      <div class="form-group"><label>ข้อกำหนด/กฎหมายที่เกี่ยวข้อง</label>
+        <input id="f-relevantReq" value="${rec?.relevantReq||''}" placeholder="เช่น มาตรา 8, ข้อ 4.2 ISO 45001"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธ</label>
+      <div class="form-group"><label>วันที่ทบทวน</label>
         <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
-      <div class="form-group"><label>เธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
+      <div class="form-group"><label>ทบทวนครั้งถัดไป</label>
         <input id="f-nextReviewDate" type="date" value="${rec?.nextReviewDate||''}"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธ"/></div>
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveParty()">๐’พ เธเธฑเธเธ—เธถเธ</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveParty()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
     </div>
   </form>`;
 }
 
-// โ”€โ”€ Detail โ”€โ”€
+// ── Detail ──
 function renderDetail(r) {
-  const pt  = IPARTY_TYPES.find(t=>t.key===r.partyType)||{icon:'๐”–',label:r.partyType||'โ€”',color:'#6b7280',bg:'#f3f4f6'};
-  const inf = IPARTY_INFLUENCE[r.influence]||{label:'โ€”',color:'#9ca3af',bg:'#f3f4f6'};
-  const cf  = IPARTY_COMM_FREQ.find(f=>f.key===r.commFrequency)||{label:r.commFrequency||'โ€”'};
-  const needTags  = (r.needs||'').split('\n').filter(s=>s.trim()).map(s=>`<span class="need-tag">${s.replace(/^[-โ€ข]\s*/,'')}</span>`).join('');
-  const expectTags= (r.expectations||'').split('\n').filter(s=>s.trim()).map(s=>`<span class="expect-tag">${s.replace(/^[-โ€ข]\s*/,'')}</span>`).join('');
+  const pt  = IPARTY_TYPES.find(t=>t.key===r.partyType)||{icon:'🔖',label:r.partyType||'—',color:'#6b7280',bg:'#f3f4f6'};
+  const inf = IPARTY_INFLUENCE[r.influence]||{label:'—',color:'#9ca3af',bg:'#f3f4f6'};
+  const cf  = IPARTY_COMM_FREQ.find(f=>f.key===r.commFrequency)||{label:r.commFrequency||'—'};
+  const needTags  = (r.needs||'').split('\n').filter(s=>s.trim()).map(s=>`<span class="need-tag">${s.replace(/^[-•]\s*/,'')}</span>`).join('');
+  const expectTags= (r.expectations||'').split('\n').filter(s=>s.trim()).map(s=>`<span class="expect-tag">${s.replace(/^[-•]\s*/,'')}</span>`).join('');
   return `<div style="padding:20px">
     <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:16px">
       <div style="font-size:2.5rem">${pt.icon}</div>
       <div style="flex:1">
-        <div style="font-size:1.1rem;font-weight:800">${r.partyName||'โ€”'}</div>
+        <div style="font-size:1.1rem;font-weight:800">${r.partyName||'—'}</div>
         <div style="color:${pt.color};font-size:.82rem;font-weight:600;margin-top:2px">${pt.label}</div>
         ${r.description?`<div style="color:#6b7280;font-size:.82rem;margin-top:4px">${r.description}</div>`:''}
       </div>
-      <span class="badge" style="color:${inf.color};background:${inf.bg}">เธญเธดเธ—เธเธดเธเธฅ: ${inf.label}</span>
+      <span class="badge" style="color:${inf.color};background:${inf.bg}">อิทธิพล: ${inf.label}</span>
     </div>
 
     <div class="detail-section">
-      <h3>๐ฏ เธเธงเธฒเธกเธ•เนเธญเธเธเธฒเธฃ (Needs)</h3>
-      <div>${needTags||'<span style="color:#9ca3af;font-size:.85rem">โ€”</span>'}</div>
+      <h3>🎯 ความต้องการ (Needs)</h3>
+      <div>${needTags||'<span style="color:#9ca3af;font-size:.85rem">—</span>'}</div>
     </div>
     <div class="detail-section">
-      <h3>๐’ก เธเธงเธฒเธกเธเธฒเธ”เธซเธงเธฑเธ (Expectations)</h3>
-      <div>${expectTags||'<span style="color:#9ca3af;font-size:.85rem">โ€”</span>'}</div>
+      <h3>💡 ความคาดหวัง (Expectations)</h3>
+      <div>${expectTags||'<span style="color:#9ca3af;font-size:.85rem">—</span>'}</div>
     </div>
     <div class="detail-section">
-      <h3>๐“ก เธเธฒเธฃเธชเธทเนเธญเธชเธฒเธฃ</h3>
-      <div class="detail-row"><span class="dk">เธงเธดเธเธตเธเธฒเธฃเธชเธทเนเธญเธชเธฒเธฃ</span><span class="dv">${r.commMethod||'โ€”'}</span></div>
-      <div class="detail-row"><span class="dk">เธเธงเธฒเธกเธ–เธตเน</span><span class="dv">${cf.label}</span></div>
-      <div class="detail-row"><span class="dk">เธงเธดเธเธตเธ•เธดเธ”เธ•เธฒเธก</span><span class="dv">${r.monitorMethod||'โ€”'}</span></div>
+      <h3>📡 การสื่อสาร</h3>
+      <div class="detail-row"><span class="dk">วิธีการสื่อสาร</span><span class="dv">${r.commMethod||'—'}</span></div>
+      <div class="detail-row"><span class="dk">ความถี่</span><span class="dv">${cf.label}</span></div>
+      <div class="detail-row"><span class="dk">วิธีติดตาม</span><span class="dv">${r.monitorMethod||'—'}</span></div>
     </div>
     <div class="detail-section">
-      <h3>๐“ เธเนเธญเธกเธนเธฅเน€เธเธดเนเธกเน€เธ•เธดเธก</h3>
-      <div class="detail-row"><span class="dk">เธเนเธญเธเธณเธซเธเธ”เธ—เธตเนเน€เธเธตเนเธขเธงเธเนเธญเธ</span><span class="dv">${r.relevantReq||'โ€”'}</span></div>
-      <div class="detail-row"><span class="dk">เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธ</span><span class="dv">${r.reviewDate||'โ€”'}</span></div>
-      <div class="detail-row"><span class="dk">เธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</span><span class="dv">${r.nextReviewDate||'โ€”'}</span></div>
-      ${r.notes?`<div class="detail-row"><span class="dk">เธซเธกเธฒเธขเน€เธซเธ•เธธ</span><span class="dv">${r.notes}</span></div>`:''}
+      <h3>📋 ข้อมูลเพิ่มเติม</h3>
+      <div class="detail-row"><span class="dk">ข้อกำหนดที่เกี่ยวข้อง</span><span class="dv">${r.relevantReq||'—'}</span></div>
+      <div class="detail-row"><span class="dk">วันที่ทบทวน</span><span class="dv">${r.reviewDate||'—'}</span></div>
+      <div class="detail-row"><span class="dk">ทบทวนครั้งถัดไป</span><span class="dv">${r.nextReviewDate||'—'}</span></div>
+      ${r.notes?`<div class="detail-row"><span class="dk">หมายเหตุ</span><span class="dv">${r.notes}</span></div>`:''}
     </div>
     <div style="display:flex;gap:10px;margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button class="btn btn-ghost btn-sm" onclick="window.__editParty('${r.id}')">โ๏ธ เนเธเนเนเธ</button>
-      <button class="btn btn-danger btn-sm" onclick="window.__deleteParty('${r.id}','${(r.partyName||'').replace(/'/g,"\\'")}')">๐—‘๏ธ เธฅเธ</button>
+      <button class="btn btn-ghost btn-sm" onclick="window.__editParty('${r.id}')">✏️ แก้ไข</button>
+      <button class="btn btn-danger btn-sm" onclick="window.__deleteParty('${r.id}','${(r.partyName||'').replace(/'/g,"\\'")}')">🗑️ ลบ</button>
     </div>
   </div>`;
 }
 
-// โ”€โ”€ Influence selector โ”€โ”€
+// ── Influence selector ──
 window.__selInfl = key => {
   selInfl = key;
   document.getElementById('f-influence').value = key;
@@ -267,7 +267,7 @@ window.__selInfl = key => {
   });
 };
 
-// โ”€โ”€ Panel โ”€โ”€
+// ── Panel ──
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -279,22 +279,22 @@ function openPanel(html, title) {
   document.getElementById('panel').classList.add('open');
 }
 
-window.__newParty = () => { editId = null; selInfl = ''; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธเธนเนเธกเธตเธชเนเธงเธเนเธ”เนเธชเนเธงเธเน€เธชเธตเธข'); };
+window.__newParty = () => { editId = null; selInfl = ''; openPanel(renderForm(null), '+ เพิ่มผู้มีส่วนได้ส่วนเสีย'); };
 window.__editParty = async id => {
   editId = id;
   const r = await getInterestedParty(id);
   selInfl = r.influence||'';
-  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธเนเธญเธกเธนเธฅ');
+  openPanel(renderForm(r), '✏️ แก้ไขข้อมูล');
 };
 window.__viewParty = async id => {
   const r = await getInterestedParty(id);
-  document.getElementById('panel-title').textContent = '๐‘ฅ เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธนเนเธกเธตเธชเนเธงเธเนเธ”เนเธชเนเธงเธเน€เธชเธตเธข';
+  document.getElementById('panel-title').textContent = '👥 รายละเอียดผู้มีส่วนได้ส่วนเสีย';
   document.getElementById('panel-content').innerHTML = renderDetail(r);
   document.getElementById('overlay').classList.add('open');
   document.getElementById('panel').classList.add('open');
 };
 
-// โ”€โ”€ Save โ”€โ”€
+// ── Save ──
 window.__saveParty = async () => {
   const data = {
     partyName:      document.getElementById('f-partyName').value.trim(),
@@ -311,24 +311,24 @@ window.__saveParty = async () => {
     nextReviewDate: document.getElementById('f-nextReviewDate').value,
     notes:          document.getElementById('f-notes').value.trim(),
   };
-  if (!data.partyName) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธเธฅเธธเนเธก'); return; }
-  if (!data.influence) { alert('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธฃเธฐเธ”เธฑเธเธญเธดเธ—เธเธดเธเธฅ'); return; }
+  if (!data.partyName) { alert('กรุณากรอกชื่อกลุ่ม'); return; }
+  if (!data.influence) { alert('กรุณาเลือกระดับอิทธิพล'); return; }
   try {
     if (editId) await updateInterestedParty(editId, data);
     else        await createInterestedParty(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
 };
 
 window.__deleteParty = async (id, name) => {
-  if (!confirm(`เธฅเธ "${name}" เธญเธญเธเธเธฒเธเธฃเธฐเธเธ?`)) return;
+  if (!confirm(`ลบ "${name}" ออกจากระบบ?`)) return;
   await deleteInterestedParty(id);
   window.__closePanel();
   await loadData();
 };
 
-// โ”€โ”€ Filter โ”€โ”€
+// ── Filter ──
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const typ = document.getElementById('filter-type')?.value||'';
@@ -348,20 +348,20 @@ async function loadData() {
   applyFilter();
 }
 
-// โ”€โ”€ Build UI โ”€โ”€
-const typeOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ— --</option>` +
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` +
   IPARTY_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
-const inflOpts = `<option value="">-- เธ—เธธเธเธฃเธฐเธ”เธฑเธ --</option>` +
+const inflOpts = `<option value="">-- ทุกระดับ --</option>` +
   Object.entries(IPARTY_INFLUENCE).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธเธฅเธธเนเธกโ€ฆ" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="🔍 ค้นหากลุ่ม…" oninput="applyFilter()"/>
       <select id="filter-type" onchange="applyFilter()">${typeOpts}</select>
       <select id="filter-infl" onchange="applyFilter()">${inflOpts}</select>
-      <button class="btn btn-primary" onclick="window.__newParty()">+ เน€เธเธดเนเธกเธเธฅเธธเนเธก</button>
+      <button class="btn btn-primary" onclick="window.__newParty()">+ เพิ่มกลุ่ม</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -369,8 +369,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธเธนเนเธกเธตเธชเนเธงเธเนเธ”เนเธชเนเธงเธเน€เธชเธตเธข</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
+      <h2 id="panel-title">ผู้มีส่วนได้ส่วนเสีย</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -380,4 +380,3 @@ await loadData();
 </script>
 </body>
 </html>
-

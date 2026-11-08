@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>เธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธเธญเธขเนเธฒเธเธ•เนเธญเน€เธเธทเนเธญเธ</title>
+<title>การปรับปรุงอย่างต่อเนื่อง</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#059669;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -73,13 +73,13 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-improvement', 'เธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธเธญเธขเนเธฒเธเธ•เนเธญเน€เธเธทเนเธญเธ');
+const main = renderShell(profile, 'safety-improvement', 'การปรับปรุงอย่างต่อเนื่อง');
 
 let allRecs  = [];
 let editId   = null;
 let viewMode = 'table';
 
-// โ”€โ”€ KPI โ”€โ”€
+// ── KPI ──
 function renderKPI(recs) {
   const total    = recs.length;
   const idea     = recs.filter(r=>r.status==='idea').length;
@@ -88,73 +88,73 @@ function renderKPI(recs) {
   const high     = recs.filter(r=>r.priority==='high' && r.status!=='completed' && r.status!=='cancelled').length;
   const pct      = total ? Math.round(done/total*100) : 0;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${idea}</div><div class="lbl">๐’ก เนเธเธงเธเธดเธ”</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${inProg}</div><div class="lbl">๐” เธเธณเธฅเธฑเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">โ… เน€เธชเธฃเนเธเธชเธดเนเธ</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">๐”ด เธเธงเธฒเธกเธชเธณเธเธฑเธเธชเธนเธ</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">ทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#9ca3af"><div class="num" style="color:#9ca3af">${idea}</div><div class="lbl">💡 แนวคิด</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${inProg}</div><div class="lbl">🔄 กำลังดำเนินการ</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${done}</div><div class="lbl">✅ เสร็จสิ้น</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">🔴 ความสำคัญสูง</div></div>
     <div class="kpi" style="border-color:#059669">
       <div class="num" style="color:#059669">${pct}%</div>
-      <div class="lbl">เธเธงเธฒเธกเธชเธณเน€เธฃเนเธ</div>
+      <div class="lbl">ความสำเร็จ</div>
       <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div>
     </div>
   </div>`;
 }
 
-// โ”€โ”€ Table โ”€โ”€
+// ── Table ──
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div class="icon">๐“</div><p>เธขเธฑเธเนเธกเนเธกเธตเธฃเธฒเธขเธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธ</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div class="icon">📈</div><p>ยังไม่มีรายการปรับปรุง</p></div>`;
   const rows = recs.map(r => {
-    const cat  = IMPV_CATEGORIES.find(c=>c.key===r.category)||{icon:'๐“',label:r.category||'โ€”',color:'#6b7280',bg:'#f3f4f6'};
+    const cat  = IMPV_CATEGORIES.find(c=>c.key===r.category)||{icon:'📌',label:r.category||'—',color:'#6b7280',bg:'#f3f4f6'};
     const st   = IMPV_STATUS[r.status]||IMPV_STATUS.idea;
     const pri  = IMPV_PRIORITY[r.priority]||IMPV_PRIORITY.medium;
     const src  = IMPV_SOURCES.find(s=>s.key===r.source);
     const overdue = r.targetDate && r.status!=='completed' && r.status!=='cancelled' && new Date(r.targetDate) < new Date();
     return `<tr>
-      <td><strong style="font-size:.85rem">${r.title||'โ€”'}</strong><br/>
-        <span style="font-size:.74rem;color:#6b7280">${src?src.icon+' '+src.label:'โ€”'}</span></td>
+      <td><strong style="font-size:.85rem">${r.title||'—'}</strong><br/>
+        <span style="font-size:.74rem;color:#6b7280">${src?src.icon+' '+src.label:'—'}</span></td>
       <td><span class="cat-chip" style="color:${cat.color};background:${cat.bg}">${cat.icon} ${cat.label}</span></td>
       <td><span class="badge" style="color:${pri.color};background:${pri.bg}">${pri.label}</span></td>
-      <td style="font-size:.82rem">${r.responsible||'โ€”'}</td>
-      <td style="font-size:.82rem;color:${overdue?'#dc2626':'inherit'};font-weight:${overdue?600:400}">${r.targetDate||'โ€”'}${overdue?' โ ๏ธ':''}</td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
+      <td style="font-size:.82rem;color:${overdue?'#dc2626':'inherit'};font-weight:${overdue?600:400}">${r.targetDate||'—'}${overdue?' ⚠️':''}</td>
       <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editImpv('${r.id}')">เนเธเนเนเธ</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteImpv('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editImpv('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteImpv('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table>
     <thead><tr>
-      <th>เธเธทเนเธญเนเธเธฃเธเธเธฒเธฃ / เนเธซเธฅเนเธเธ—เธตเนเธกเธฒ</th><th>เธซเธกเธงเธ”เธซเธกเธนเน</th><th>เธเธงเธฒเธกเธชเธณเธเธฑเธ</th>
-      <th>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เน€เธเนเธฒเธซเธกเธฒเธขเธงเธฑเธเธ—เธตเน</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
+      <th>ชื่อโครงการ / แหล่งที่มา</th><th>หมวดหมู่</th><th>ความสำคัญ</th>
+      <th>ผู้รับผิดชอบ</th><th>เป้าหมายวันที่</th><th>สถานะ</th><th>จัดการ</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-// โ”€โ”€ Kanban โ”€โ”€
+// ── Kanban ──
 function renderKanban(recs) {
   const cols = Object.entries(IMPV_STATUS).map(([key, st]) => {
     const items = recs.filter(r=>r.status===key);
     const cards = items.map(r => {
       const pri = IMPV_PRIORITY[r.priority]||IMPV_PRIORITY.medium;
-      const cat = IMPV_CATEGORIES.find(c=>c.key===r.category)||{icon:'๐“'};
+      const cat = IMPV_CATEGORIES.find(c=>c.key===r.category)||{icon:'📌'};
       return `<div class="kan-card" onclick="window.__editImpv('${r.id}')" style="border-left-color:${pri.color}">
-        <div class="title">${cat.icon} ${r.title||'โ€”'}</div>
-        <div class="meta">${r.responsible||'โ€”'} ${r.targetDate?'ยท '+r.targetDate:''}</div>
+        <div class="title">${cat.icon} ${r.title||'—'}</div>
+        <div class="meta">${r.responsible||'—'} ${r.targetDate?'· '+r.targetDate:''}</div>
         <div style="margin-top:4px"><span class="badge" style="color:${pri.color};background:${pri.bg};font-size:.7rem">${pri.label}</span></div>
       </div>`;
     }).join('');
     return `<div class="kan-col">
       <h3 style="color:${st.color}">${st.icon} ${st.label} <span style="font-size:.75rem;color:#9ca3af;font-weight:400">(${items.length})</span></h3>
-      ${cards||'<div style="font-size:.8rem;color:#9ca3af;text-align:center;padding:12px">เนเธกเนเธกเธตเธฃเธฒเธขเธเธฒเธฃ</div>'}
+      ${cards||'<div style="font-size:.8rem;color:#9ca3af;text-align:center;padding:12px">ไม่มีรายการ</div>'}
     </div>`;
   }).join('');
   return `<div class="kanban">${cols}</div>`;
 }
 
-// โ”€โ”€ Form โ”€โ”€
+// ── Form ──
 function renderForm(rec) {
   const catOpts = IMPV_CATEGORIES.map(c=>`<option value="${c.key}" ${rec?.category===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('');
   const srcOpts = IMPV_SOURCES.map(s=>`<option value="${s.key}" ${rec?.source===s.key?'selected':''}>${s.icon} ${s.label}</option>`).join('');
@@ -162,63 +162,63 @@ function renderForm(rec) {
   const stOpts  = Object.entries(IMPV_STATUS).map(([k,v])=>`<option value="${k}" ${(rec?.status||'idea')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('');
   return `<form id="impv-form" onsubmit="return false">
     <div class="form-row one">
-      <div class="form-group"><label>เธเธทเนเธญเนเธเธฃเธเธเธฒเธฃ / เนเธเธงเธเธดเธ”เธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธ *</label>
-        <input id="f-title" value="${rec?.title||''}" placeholder="เธเธทเนเธญเนเธเธฃเธเธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธ"/></div>
+      <div class="form-group"><label>ชื่อโครงการ / แนวคิดการปรับปรุง *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="ชื่อโครงการปรับปรุง"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>เธซเธกเธงเธ”เธซเธกเธนเน ISO 45001</label>
+      <div class="form-group"><label>หมวดหมู่ ISO 45001</label>
         <select id="f-category">${catOpts}</select></div>
-      <div class="form-group"><label>เนเธซเธฅเนเธเธ—เธตเนเธกเธฒ</label>
+      <div class="form-group"><label>แหล่งที่มา</label>
         <select id="f-source">${srcOpts}</select></div>
     </div>
     <div class="form-row three">
-      <div class="form-group"><label>เธเธงเธฒเธกเธชเธณเธเธฑเธ</label>
+      <div class="form-group"><label>ความสำคัญ</label>
         <select id="f-priority">${priOpts}</select></div>
-      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label>
+      <div class="form-group"><label>สถานะ</label>
         <select id="f-status">${stOpts}</select></div>
-      <div class="form-group"><label>เธงเธฑเธเน€เธเนเธฒเธซเธกเธฒเธข</label>
+      <div class="form-group"><label>วันเป้าหมาย</label>
         <input id="f-targetDate" type="date" value="${rec?.targetDate||''}"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
-      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเน€เธชเธฃเนเธเธเธฃเธดเธ</label>
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
+      <div class="form-group"><label>วันที่เสร็จจริง</label>
         <input id="f-completedDate" type="date" value="${rec?.completedDate||''}"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธชเธ เธฒเธเธเธฑเธเธซเธฒ / เนเธญเธเธฒเธชเธเธฃเธฑเธเธเธฃเธธเธ</label>
-        <textarea id="f-problem" rows="2" placeholder="เธญเธเธดเธเธฒเธขเธเธฑเธเธซเธฒเธซเธฃเธทเธญเนเธญเธเธฒเธชเธ—เธตเนเธฃเธฐเธเธธเนเธ”เน">${rec?.problem||''}</textarea></div>
+      <div class="form-group"><label>สภาพปัญหา / โอกาสปรับปรุง</label>
+        <textarea id="f-problem" rows="2" placeholder="อธิบายปัญหาหรือโอกาสที่ระบุได้">${rec?.problem||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธงเธฑเธ•เธ–เธธเธเธฃเธฐเธชเธเธเน / เน€เธเนเธฒเธซเธกเธฒเธขเธ—เธตเนเธเธฒเธ”เธซเธงเธฑเธ</label>
-        <textarea id="f-objective" rows="2" placeholder="เธเธฅเธฅเธฑเธเธเนเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเธเธฒเธเธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธ">${rec?.objective||''}</textarea></div>
+      <div class="form-group"><label>วัตถุประสงค์ / เป้าหมายที่คาดหวัง</label>
+        <textarea id="f-objective" rows="2" placeholder="ผลลัพธ์ที่ต้องการจากการปรับปรุง">${rec?.objective||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เนเธเธงเธ—เธฒเธเธ”เธณเน€เธเธดเธเธเธฒเธฃ</label>
-        <textarea id="f-approach" rows="2" placeholder="เธงเธดเธเธตเธเธฒเธฃเธซเธฃเธทเธญเธเธฑเนเธเธ•เธญเธเธ—เธตเนเธเธฐเธ”เธณเน€เธเธดเธเธเธฒเธฃ">${rec?.approach||''}</textarea></div>
+      <div class="form-group"><label>แนวทางดำเนินการ</label>
+        <textarea id="f-approach" rows="2" placeholder="วิธีการหรือขั้นตอนที่จะดำเนินการ">${rec?.approach||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธฅเธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธฃ / เธเธฃเธฐเนเธขเธเธเนเธ—เธตเนเนเธ”เนเธฃเธฑเธ</label>
-        <textarea id="f-result" rows="2" placeholder="เธเธฅเธ—เธตเนเน€เธเธดเธ”เธเธถเนเธเธเธฃเธดเธ / เธเธฃเธฐเนเธขเธเธเนเธ—เธตเนเนเธ”เนเธฃเธฑเธเธซเธฅเธฑเธเธเธฃเธฑเธเธเธฃเธธเธ">${rec?.result||''}</textarea></div>
+      <div class="form-group"><label>ผลการดำเนินการ / ประโยชน์ที่ได้รับ</label>
+        <textarea id="f-result" rows="2" placeholder="ผลที่เกิดขึ้นจริง / ประโยชน์ที่ได้รับหลังปรับปรุง">${rec?.result||''}</textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>เธเธเธเธฃเธฐเธกเธฒเธ“เธ—เธตเนเนเธเน (เธเธฒเธ—)</label>
+      <div class="form-group"><label>งบประมาณที่ใช้ (บาท)</label>
         <input id="f-budget" type="number" min="0" value="${rec?.budget||0}"/></div>
-      <div class="form-group"><label>เธเนเธญเธญเนเธฒเธเธญเธดเธ (เธเนเธญเธเธณเธซเธเธ” ISO / เธเธเธซเธกเธฒเธข)</label>
-        <input id="f-reference" value="${rec?.reference||''}" placeholder="เน€เธเนเธ ISO 45001 ยง10.3, ..."/></div>
+      <div class="form-group"><label>ข้ออ้างอิง (ข้อกำหนด ISO / กฎหมาย)</label>
+        <input id="f-reference" value="${rec?.reference||''}" placeholder="เช่น ISO 45001 §10.3, ..."/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธเน€เธเธดเนเธกเน€เธ•เธดเธก"/></div>
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุเพิ่มเติม"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveImpv()">๐’พ เธเธฑเธเธ—เธถเธ</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveImpv()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
     </div>
   </form>`;
 }
 
-// โ”€โ”€ Panel โ”€โ”€
+// ── Panel ──
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -230,14 +230,14 @@ function openPanel(html, title) {
   document.getElementById('panel').classList.add('open');
 }
 
-window.__newImpv  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเนเธเธฃเธเธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธ'); };
+window.__newImpv  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มโครงการปรับปรุง'); };
 window.__editImpv = async id => {
   editId = id;
   const r = await getImprovement(id);
-  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเนเธเธฃเธเธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธ');
+  openPanel(renderForm(r), '✏️ แก้ไขโครงการปรับปรุง');
 };
 
-// โ”€โ”€ Save โ”€โ”€
+// ── Save ──
 window.__saveImpv = async () => {
   const data = {
     title:         document.getElementById('f-title').value.trim(),
@@ -256,24 +256,24 @@ window.__saveImpv = async () => {
     reference:     document.getElementById('f-reference').value.trim(),
     notes:         document.getElementById('f-notes').value.trim(),
   };
-  if (!data.title) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเนเธเธฃเธเธเธฒเธฃ'); return; }
+  if (!data.title) { alert('กรุณากรอกชื่อโครงการ'); return; }
   try {
     if (editId) await updateImprovement(editId, data);
     else        await createImprovement(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
 };
 
-// โ”€โ”€ Delete โ”€โ”€
+// ── Delete ──
 window.__deleteImpv = async (id, title) => {
-  if (!confirm(`เธฅเธเนเธเธฃเธเธเธฒเธฃ "${title}"?`)) return;
+  if (!confirm(`ลบโครงการ "${title}"?`)) return;
   await deleteImprovement(id);
   window.__closePanel();
   await loadData();
 };
 
-// โ”€โ”€ Filter + render โ”€โ”€
+// ── Filter + render ──
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const cat = document.getElementById('filter-cat')?.value||'';
@@ -302,27 +302,27 @@ async function loadData() {
   applyFilter();
 }
 
-// โ”€โ”€ Build UI โ”€โ”€
-const catOpts = `<option value="">-- เธ—เธธเธเธซเธกเธงเธ” --</option>` +
+// ── Build UI ──
+const catOpts = `<option value="">-- ทุกหมวด --</option>` +
   IMPV_CATEGORIES.map(c=>`<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
-const stOpts = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` +
+const stOpts = `<option value="">-- ทุกสถานะ --</option>` +
   Object.entries(IMPV_STATUS).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
-const priOpts = `<option value="">-- เธ—เธธเธเธฃเธฐเธ”เธฑเธ --</option>` +
+const priOpts = `<option value="">-- ทุกระดับ --</option>` +
   Object.entries(IMPV_PRIORITY).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเนเธเธฃเธเธเธฒเธฃ / เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธโ€ฆ" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="🔍 ค้นหาโครงการ / ผู้รับผิดชอบ…" oninput="applyFilter()"/>
       <select id="filter-cat"      onchange="applyFilter()">${catOpts}</select>
       <select id="filter-status"   onchange="applyFilter()">${stOpts}</select>
       <select id="filter-priority" onchange="applyFilter()">${priOpts}</select>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="table"  onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
-        <button class="view-btn"        data-view="kanban" onclick="window.__switchView('kanban')">๐—๏ธ Kanban</button>
+        <button class="view-btn active" data-view="table"  onclick="window.__switchView('table')">📋 ตาราง</button>
+        <button class="view-btn"        data-view="kanban" onclick="window.__switchView('kanban')">🗂️ Kanban</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newImpv()">+ เน€เธเธดเนเธกเนเธเธฃเธเธเธฒเธฃ</button>
+      <button class="btn btn-primary" onclick="window.__newImpv()">+ เพิ่มโครงการ</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -330,8 +330,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธเธฒเธฃเธเธฃเธฑเธเธเธฃเธธเธเธญเธขเนเธฒเธเธ•เนเธญเน€เธเธทเนเธญเธ</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
+      <h2 id="panel-title">การปรับปรุงอย่างต่อเนื่อง</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -341,4 +341,3 @@ await loadData();
 </script>
 </body>
 </html>
-

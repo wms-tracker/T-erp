@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>เธ—เธฐเน€เธเธตเธขเธเธญเธฑเธเธ•เธฃเธฒเธข</title>
+<title>ทะเบียนอันตราย</title>
 <link rel="stylesheet" href="css/style.css"/>
 <style>
 :root{--c-primary:#1e40af;--c-success:#16a34a;--c-warn:#d97706;--c-danger:#dc2626;--c-gray:#6b7280}
@@ -80,26 +80,26 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-hazard-register', 'เธ—เธฐเน€เธเธตเธขเธเธญเธฑเธเธ•เธฃเธฒเธข (ยง6.1.2)');
+const main = renderShell(profile, 'safety-hazard-register', 'ทะเบียนอันตราย (§6.1.2)');
 
 let allRecs  = [];
 let editId   = null;
 let viewMode = 'matrix';
 
-function getHazardType(key) { return HAZARD_TYPES.find(t=>t.key===key)||{icon:'๐“',label:key||'โ€”',color:'#6b7280',bg:'#f3f4f6'}; }
-function getArea(key)       { return HAZARD_AREAS.find(a=>a.key===key)||{label:key||'โ€”'}; }
-function getControl(key)    { return HAZARD_CONTROL_HIERARCHY.find(c=>c.key===key)||{icon:'๐“',label:key||'โ€”',color:'#6b7280',bg:'#f3f4f6'}; }
+function getHazardType(key) { return HAZARD_TYPES.find(t=>t.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
+function getArea(key)       { return HAZARD_AREAS.find(a=>a.key===key)||{label:key||'—'}; }
+function getControl(key)    { return HAZARD_CONTROL_HIERARCHY.find(c=>c.key===key)||{icon:'📌',label:key||'—',color:'#6b7280',bg:'#f3f4f6'}; }
 
 function riskScore(r) { return (parseInt(r.severity)||1) * (parseInt(r.likelihood)||1); }
 function riskColor(score) {
-  if (score >= 15) return { color:'#7f1d1d', bg:'#fca5a5', label:'เธชเธนเธเธกเธฒเธ' };
-  if (score >= 10) return { color:'#dc2626', bg:'#fee2e2', label:'เธชเธนเธ' };
-  if (score >= 6)  return { color:'#d97706', bg:'#fef3c7', label:'เธเธฒเธเธเธฅเธฒเธ' };
-  if (score >= 3)  return { color:'#2563eb', bg:'#dbeafe', label:'เธ•เนเธณ' };
-  return { color:'#16a34a', bg:'#dcfce7', label:'เธ•เนเธณเธกเธฒเธ' };
+  if (score >= 15) return { color:'#7f1d1d', bg:'#fca5a5', label:'สูงมาก' };
+  if (score >= 10) return { color:'#dc2626', bg:'#fee2e2', label:'สูง' };
+  if (score >= 6)  return { color:'#d97706', bg:'#fef3c7', label:'ปานกลาง' };
+  if (score >= 3)  return { color:'#2563eb', bg:'#dbeafe', label:'ต่ำ' };
+  return { color:'#16a34a', bg:'#dcfce7', label:'ต่ำมาก' };
 }
 
-// โ”€โ”€ KPI โ”€โ”€
+// ── KPI ──
 function renderKPI(recs) {
   const total  = recs.length;
   const high   = recs.filter(r=>riskScore(r)>=10).length;
@@ -108,16 +108,16 @@ function renderKPI(recs) {
   const noCtrl = recs.filter(r=>r.status==='identified'||r.status==='assessed').length;
   const typeCnt = [...new Set(recs.map(r=>r.hazardType))].length;
   return `<div class="kpi-row">
-    <div class="kpi"><div class="num">${total}</div><div class="lbl">เธญเธฑเธเธ•เธฃเธฒเธขเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">๐”ด เธเธงเธฒเธกเน€เธชเธตเนเธขเธเธชเธนเธ</div></div>
-    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${medium}</div><div class="lbl">๐ก เธเธงเธฒเธกเน€เธชเธตเนเธขเธเธเธฒเธเธเธฅเธฒเธ</div></div>
-    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${low}</div><div class="lbl">๐ข เธเธงเธฒเธกเน€เธชเธตเนเธขเธเธ•เนเธณ</div></div>
-    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${noCtrl}</div><div class="lbl">โ ๏ธ เธฃเธญเธกเธฒเธ•เธฃเธเธฒเธฃ</div></div>
-    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${typeCnt}</div><div class="lbl">เธเธฃเธฐเน€เธ เธ—เธญเธฑเธเธ•เธฃเธฒเธข</div></div>
+    <div class="kpi"><div class="num">${total}</div><div class="lbl">อันตรายทั้งหมด</div></div>
+    <div class="kpi" style="border-color:#dc2626"><div class="num" style="color:#dc2626">${high}</div><div class="lbl">🔴 ความเสี่ยงสูง</div></div>
+    <div class="kpi" style="border-color:#d97706"><div class="num" style="color:#d97706">${medium}</div><div class="lbl">🟡 ความเสี่ยงปานกลาง</div></div>
+    <div class="kpi" style="border-color:#16a34a"><div class="num" style="color:#16a34a">${low}</div><div class="lbl">🟢 ความเสี่ยงต่ำ</div></div>
+    <div class="kpi" style="border-color:#ea580c"><div class="num" style="color:#ea580c">${noCtrl}</div><div class="lbl">⚠️ รอมาตรการ</div></div>
+    <div class="kpi" style="border-color:#7c3aed"><div class="num" style="color:#7c3aed">${typeCnt}</div><div class="lbl">ประเภทอันตราย</div></div>
   </div>`;
 }
 
-// โ”€โ”€ Risk Matrix โ”€โ”€
+// ── Risk Matrix ──
 function renderMatrix(recs) {
   // 5x5 grid: x=likelihood(1-5), y=severity(5-1)
   const cells = {};
@@ -159,7 +159,7 @@ function renderMatrix(recs) {
       const bg = cellBg(s, l);
       const tc = cellTextColor(s, l);
       grid += `<div class="matrix-cell" style="background:${bg};color:${tc}"
-        onclick="window.__filterMatrix(${s},${l})" title="S${s}ร—L${l}=${score} ยท ${items.length} เธฃเธฒเธขเธเธฒเธฃ">
+        onclick="window.__filterMatrix(${s},${l})" title="S${s}×L${l}=${score} · ${items.length} รายการ">
         <span style="font-weight:800;font-size:.8rem">${score}</span>
         ${items.length ? `<span style="font-size:.65rem;background:rgba(0,0,0,.12);padding:1px 5px;border-radius:999px">${items.length}</span>` : ''}
       </div>`;
@@ -171,15 +171,15 @@ function renderMatrix(recs) {
   }
   grid += `</div>
       <div style="font-size:.72rem;color:#6b7280;margin-top:8px">
-        S=เธเธงเธฒเธกเธฃเธธเธเนเธฃเธ (Severity) ยท L=เนเธญเธเธฒเธชเน€เธเธดเธ” (Likelihood) ยท เธเธฅเธดเธเธเนเธญเธเน€เธเธทเนเธญเธเธฃเธญเธ
+        S=ความรุนแรง (Severity) · L=โอกาสเกิด (Likelihood) · คลิกช่องเพื่อกรอง
       </div>
     </div>
     <div style="flex:1;min-width:200px">
-      <div class="section-head">เธฅเธณเธ”เธฑเธเธเธฑเนเธเธเธฒเธฃเธเธงเธเธเธธเธก</div>
+      <div class="section-head">ลำดับชั้นการควบคุม</div>
       ${renderHierarchy(recs)}
     </div>
   </div>`;
-  return `<div class="matrix-wrap"><div class="matrix-title">๐—บ๏ธ Risk Matrix (5ร—5)</div>${grid}</div>`;
+  return `<div class="matrix-wrap"><div class="matrix-title">🗺️ Risk Matrix (5×5)</div>${grid}</div>`;
 }
 
 function renderHierarchy(recs) {
@@ -203,9 +203,9 @@ function renderHierarchy(recs) {
   }).join('');
 }
 
-// โ”€โ”€ Table โ”€โ”€
+// ── Table ──
 function renderTable(recs) {
-  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">๐ก๏ธ</div><p style="margin-top:12px">เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเธญเธฑเธเธ•เธฃเธฒเธข</p></div>`;
+  if (!recs.length) return `<div class="empty-state"><div style="font-size:3rem">🛡️</div><p style="margin-top:12px">ยังไม่มีข้อมูลอันตราย</p></div>`;
   const rows = recs.map(r => {
     const ht  = getHazardType(r.hazardType);
     const sts = HAZARD_STATUS[r.status]||HAZARD_STATUS.identified;
@@ -215,26 +215,26 @@ function renderTable(recs) {
     return `<tr>
       <td><span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;font-size:.77rem;font-weight:600;background:${ht.bg};color:${ht.color}">${ht.icon} ${ht.label}</span></td>
       <td style="font-size:.82rem">${area.label}</td>
-      <td><strong>${r.title||'โ€”'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${(r.activity||'').substring(0,40)}</span></td>
+      <td><strong>${r.title||'—'}</strong><br/><span style="font-size:.74rem;color:#6b7280">${(r.activity||'').substring(0,40)}</span></td>
       <td style="font-size:.82rem">${(r.consequence||'').substring(0,60)}</td>
       <td style="text-align:center">
         <div class="risk-chip" style="background:${rc.bg};color:${rc.color}">${sc}</div>
       </td>
       <td><span class="badge" style="color:${sts.color};background:${sts.bg}">${sts.icon} ${sts.label}</span></td>
-      <td style="font-size:.82rem">${r.responsible||'โ€”'}</td>
+      <td style="font-size:.82rem">${r.responsible||'—'}</td>
       <td>
-        <button class="btn btn-sm btn-ghost" onclick="window.__editHaz('${r.id}')">เนเธเนเนเธ</button>
-        <button class="btn btn-sm btn-danger" onclick="window.__deleteHaz('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">เธฅเธ</button>
+        <button class="btn btn-sm btn-ghost" onclick="window.__editHaz('${r.id}')">แก้ไข</button>
+        <button class="btn btn-sm btn-danger" onclick="window.__deleteHaz('${r.id}','${(r.title||'').replace(/'/g,"\\'")}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<table><thead><tr>
-    <th>เธเธฃเธฐเน€เธ เธ—เธญเธฑเธเธ•เธฃเธฒเธข</th><th>เธเธทเนเธเธ—เธตเน</th><th>เธเธทเนเธญเธญเธฑเธเธ•เธฃเธฒเธข / เธเธดเธเธเธฃเธฃเธก</th>
-    <th>เธเธฅเธ—เธตเนเธญเธฒเธเน€เธเธดเธ”</th><th>เธเธงเธฒเธกเน€เธชเธตเนเธขเธ</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</th><th>เธเธฑเธ”เธเธฒเธฃ</th>
+    <th>ประเภทอันตราย</th><th>พื้นที่</th><th>ชื่ออันตราย / กิจกรรม</th>
+    <th>ผลที่อาจเกิด</th><th>ความเสี่ยง</th><th>สถานะ</th><th>ผู้รับผิดชอบ</th><th>จัดการ</th>
   </tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-// โ”€โ”€ Form โ”€โ”€
+// ── Form ──
 function renderForm(rec) {
   const typeOpts = HAZARD_TYPES.map(t=>`<option value="${t.key}" ${rec?.hazardType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('');
   const areaOpts = HAZARD_AREAS.map(a=>`<option value="${a.key}" ${rec?.area===a.key?'selected':''}>${a.label}</option>`).join('');
@@ -247,57 +247,57 @@ function renderForm(rec) {
     </label>`).join('');
   return `<form id="haz-form" onsubmit="return false">
     <div class="form-row">
-      <div class="form-group"><label>เธเธฃเธฐเน€เธ เธ—เธญเธฑเธเธ•เธฃเธฒเธข *</label><select id="f-hazardType">${typeOpts}</select></div>
-      <div class="form-group"><label>เธเธทเนเธเธ—เธตเน / เนเธเธเธ *</label><select id="f-area">${areaOpts}</select></div>
+      <div class="form-group"><label>ประเภทอันตราย *</label><select id="f-hazardType">${typeOpts}</select></div>
+      <div class="form-group"><label>พื้นที่ / แผนก *</label><select id="f-area">${areaOpts}</select></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธทเนเธญเธญเธฑเธเธ•เธฃเธฒเธข *</label>
-        <input id="f-title" value="${rec?.title||''}" placeholder="เน€เธเนเธ เธเธฒเธฃเธ—เธณเธเธฒเธเธเธเธ—เธตเนเธชเธนเธ, เธชเธฒเธฃเน€เธเธกเธตเธฃเธฑเนเธงเนเธซเธฅ"/></div>
+      <div class="form-group"><label>ชื่ออันตราย *</label>
+        <input id="f-title" value="${rec?.title||''}" placeholder="เช่น การทำงานบนที่สูง, สารเคมีรั่วไหล"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธดเธเธเธฃเธฃเธก / เธเธฒเธเธ—เธตเนเน€เธเธตเนเธขเธงเธเนเธญเธ</label>
-        <input id="f-activity" value="${rec?.activity||''}" placeholder="เน€เธเนเธ เธเธฒเธเน€เธเธทเนเธญเธก, เธเธฒเธเธเนเธญเธกเธเธณเธฃเธธเธเธชเธฒเธขเธเธฒเธ"/></div>
+      <div class="form-group"><label>กิจกรรม / งานที่เกี่ยวข้อง</label>
+        <input id="f-activity" value="${rec?.activity||''}" placeholder="เช่น งานเชื่อม, งานซ่อมบำรุงสายพาน"/></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธญเธฑเธเธ•เธฃเธฒเธข</label>
-        <textarea id="f-description" rows="2" placeholder="เธญเธเธดเธเธฒเธขเธญเธฑเธเธ•เธฃเธฒเธขเธ—เธตเนเธญเธฒเธเน€เธเธดเธ”เธเธถเนเธ">${rec?.description||''}</textarea></div>
+      <div class="form-group"><label>รายละเอียดอันตราย</label>
+        <textarea id="f-description" rows="2" placeholder="อธิบายอันตรายที่อาจเกิดขึ้น">${rec?.description||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธเธฅเธ—เธตเนเธญเธฒเธเน€เธเธดเธ”เธเธถเนเธ (Consequence)</label>
-        <textarea id="f-consequence" rows="2" placeholder="เน€เธเนเธ เธเธฒเธ”เน€เธเนเธเธชเธฒเธซเธฑเธช, เน€เธชเธตเธขเธเธตเธงเธดเธ•, เน€เธเธฅเธดเธเนเธซเธกเน">${rec?.consequence||''}</textarea></div>
+      <div class="form-group"><label>ผลที่อาจเกิดขึ้น (Consequence)</label>
+        <textarea id="f-consequence" rows="2" placeholder="เช่น บาดเจ็บสาหัส, เสียชีวิต, เพลิงไหม้">${rec?.consequence||''}</textarea></div>
     </div>
-    <div class="section-head">เธเธฒเธฃเธเธฃเธฐเน€เธกเธดเธเธเธงเธฒเธกเน€เธชเธตเนเธขเธ</div>
+    <div class="section-head">การประเมินความเสี่ยง</div>
     <div class="form-row">
-      <div class="form-group"><label>เธเธงเธฒเธกเธฃเธธเธเนเธฃเธ (Severity)</label>
+      <div class="form-group"><label>ความรุนแรง (Severity)</label>
         <select id="f-severity" onchange="window.__updateRiskPreview()">${sevOpts}</select></div>
-      <div class="form-group"><label>เนเธญเธเธฒเธชเน€เธเธดเธ” (Likelihood)</label>
+      <div class="form-group"><label>โอกาสเกิด (Likelihood)</label>
         <select id="f-likelihood" onchange="window.__updateRiskPreview()">${likOpts}</select></div>
     </div>
     <div id="risk-preview-wrap"></div>
-    <div class="section-head" style="margin-top:16px">เธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธก (Hierarchy of Controls)</div>
+    <div class="section-head" style="margin-top:16px">มาตรการควบคุม (Hierarchy of Controls)</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px" id="ctrl-boxes">${ctrlBoxes}</div>
     <div class="form-row one">
-      <div class="form-group"><label>เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธกเธฒเธ•เธฃเธเธฒเธฃเธเธงเธเธเธธเธกเธ—เธตเนเธกเธตเธญเธขเธนเน</label>
-        <textarea id="f-existingControls" rows="2" placeholder="เธฃเธฐเธเธธเธกเธฒเธ•เธฃเธเธฒเธฃเธ—เธตเนเนเธเนเธเธฒเธเธญเธขเธนเนเธเธฑเธเธเธธเธเธฑเธ">${rec?.existingControls||''}</textarea></div>
+      <div class="form-group"><label>รายละเอียดมาตรการควบคุมที่มีอยู่</label>
+        <textarea id="f-existingControls" rows="2" placeholder="ระบุมาตรการที่ใช้งานอยู่ปัจจุบัน">${rec?.existingControls||''}</textarea></div>
     </div>
     <div class="form-row one">
-      <div class="form-group"><label>เธกเธฒเธ•เธฃเธเธฒเธฃเธ—เธตเนเธ•เนเธญเธเธเธฒเธฃเน€เธเธดเนเธกเน€เธ•เธดเธก</label>
-        <textarea id="f-requiredControls" rows="2" placeholder="เธกเธฒเธ•เธฃเธเธฒเธฃเธ—เธตเนเธ•เนเธญเธเธ”เธณเน€เธเธดเธเธเธฒเธฃเน€เธเธดเนเธกเน€เธ•เธดเธก">${rec?.requiredControls||''}</textarea></div>
+      <div class="form-group"><label>มาตรการที่ต้องการเพิ่มเติม</label>
+        <textarea id="f-requiredControls" rows="2" placeholder="มาตรการที่ต้องดำเนินการเพิ่มเติม">${rec?.requiredControls||''}</textarea></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>เธชเธ–เธฒเธเธฐ</label><select id="f-status">${stsOpts}</select></div>
-      <div class="form-group"><label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
-        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="เธเธทเนเธญ / เนเธเธเธ"/></div>
+      <div class="form-group"><label>สถานะ</label><select id="f-status">${stsOpts}</select></div>
+      <div class="form-group"><label>ผู้รับผิดชอบ</label>
+        <input id="f-responsible" value="${rec?.responsible||''}" placeholder="ชื่อ / แผนก"/></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>เธงเธฑเธเธ—เธตเนเธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
+      <div class="form-group"><label>วันที่ทบทวนครั้งถัดไป</label>
         <input id="f-reviewDate" type="date" value="${rec?.reviewDate||''}"/></div>
-      <div class="form-group"><label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
-        <input id="f-notes" value="${rec?.notes||''}" placeholder="เธซเธกเธฒเธขเน€เธซเธ•เธธ"/></div>
+      <div class="form-group"><label>หมายเหตุ</label>
+        <input id="f-notes" value="${rec?.notes||''}" placeholder="หมายเหตุ"/></div>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <button type="button" class="btn btn-primary" onclick="window.__saveHaz()">๐’พ เธเธฑเธเธ—เธถเธ</button>
-      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
+      <button type="button" class="btn btn-primary" onclick="window.__saveHaz()">💾 บันทึก</button>
+      <button type="button" class="btn btn-ghost" onclick="window.__closePanel()">ยกเลิก</button>
     </div>
   </form>`;
 }
@@ -309,7 +309,7 @@ window.__updateRiskPreview = () => {
   const rc = riskColor(sc);
   const wrap = document.getElementById('risk-preview-wrap');
   if (wrap) wrap.innerHTML = `<div class="risk-preview" style="background:${rc.bg};color:${rc.color}">
-    เธฃเธฐเธ”เธฑเธเธเธงเธฒเธกเน€เธชเธตเนเธขเธ: <span style="font-size:1.1rem">${sc}</span> โ€” ${rc.label}
+    ระดับความเสี่ยง: <span style="font-size:1.1rem">${sc}</span> — ${rc.label}
   </div>`;
 };
 
@@ -324,7 +324,7 @@ window.__onCtrlChange = () => {
   });
 };
 
-// โ”€โ”€ Panel โ”€โ”€
+// ── Panel ──
 window.__closePanel = () => {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('panel').classList.remove('open');
@@ -336,14 +336,14 @@ function openPanel(html, title) {
   document.getElementById('panel').classList.add('open');
   window.__updateRiskPreview();
 }
-window.__newHaz  = () => { editId = null; openPanel(renderForm(null), '+ เน€เธเธดเนเธกเธญเธฑเธเธ•เธฃเธฒเธข'); };
+window.__newHaz  = () => { editId = null; openPanel(renderForm(null), '+ เพิ่มอันตราย'); };
 window.__editHaz = async id => {
   editId = id;
   const r = await getHazard(id);
-  openPanel(renderForm(r), 'โ๏ธ เนเธเนเนเธเธญเธฑเธเธ•เธฃเธฒเธข');
+  openPanel(renderForm(r), '✏️ แก้ไขอันตราย');
 };
 
-// โ”€โ”€ Save โ”€โ”€
+// ── Save ──
 window.__saveHaz = async () => {
   const controlMeasures = HAZARD_CONTROL_HIERARCHY
     .map(h => document.getElementById(`ctrl-${h.key}`)?.checked ? h.key : null)
@@ -365,24 +365,24 @@ window.__saveHaz = async () => {
     reviewDate:       document.getElementById('f-reviewDate').value,
     notes:            document.getElementById('f-notes').value.trim(),
   };
-  if (!data.title) { alert('เธเธฃเธธเธ“เธฒเธเธฃเธญเธเธเธทเนเธญเธญเธฑเธเธ•เธฃเธฒเธข'); return; }
+  if (!data.title) { alert('กรุณากรอกชื่ออันตราย'); return; }
   try {
     if (editId) await updateHazard(editId, data);
     else        await createHazard(data, profile.uid||profile.email||'unknown');
     window.__closePanel();
     await loadData();
-  } catch(e) { alert('เธเธฑเธเธ—เธถเธเนเธกเนเธชเธณเน€เธฃเนเธ: ' + e.message); }
+  } catch(e) { alert('บันทึกไม่สำเร็จ: ' + e.message); }
 };
 
-// โ”€โ”€ Delete โ”€โ”€
+// ── Delete ──
 window.__deleteHaz = async (id, title) => {
-  if (!confirm(`เธฅเธ "${title}"?`)) return;
+  if (!confirm(`ลบ "${title}"?`)) return;
   await deleteHazard(id);
   window.__closePanel();
   await loadData();
 };
 
-// โ”€โ”€ Matrix filter โ”€โ”€
+// ── Matrix filter ──
 window.__filterMatrix = (s, l) => {
   document.getElementById('filter-sev').value = '';
   document.getElementById('filter-lik').value = '';
@@ -394,7 +394,7 @@ window.__filterMatrix = (s, l) => {
   applyFilter();
 };
 
-// โ”€โ”€ Filter โ”€โ”€
+// ── Filter ──
 function applyFilter() {
   const q   = document.getElementById('search-box')?.value.toLowerCase()||'';
   const tp  = document.getElementById('filter-type')?.value||'';
@@ -430,25 +430,25 @@ async function loadData() {
   applyFilter();
 }
 
-// โ”€โ”€ Build UI โ”€โ”€
-const typeOpts = `<option value="">-- เธ—เธธเธเธเธฃเธฐเน€เธ เธ— --</option>` + HAZARD_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
-const areaOpts = `<option value="">-- เธ—เธธเธเธเธทเนเธเธ—เธตเน --</option>` + HAZARD_AREAS.map(a=>`<option value="${a.key}">${a.label}</option>`).join('');
-const stsOpts  = `<option value="">-- เธ—เธธเธเธชเธ–เธฒเธเธฐ --</option>` + Object.entries(HAZARD_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
+// ── Build UI ──
+const typeOpts = `<option value="">-- ทุกประเภท --</option>` + HAZARD_TYPES.map(t=>`<option value="${t.key}">${t.icon} ${t.label}</option>`).join('');
+const areaOpts = `<option value="">-- ทุกพื้นที่ --</option>` + HAZARD_AREAS.map(a=>`<option value="${a.key}">${a.label}</option>`).join('');
+const stsOpts  = `<option value="">-- ทุกสถานะ --</option>` + Object.entries(HAZARD_STATUS).map(([k,v])=>`<option value="${k}">${v.icon} ${v.label}</option>`).join('');
 
 main.innerHTML = `
   <div style="padding:20px">
     <div id="kpi-wrap"></div>
     <div class="toolbar">
-      <input id="search-box" placeholder="๐” เธเนเธเธซเธฒเธญเธฑเธเธ•เธฃเธฒเธขโ€ฆ" oninput="applyFilter()"/>
+      <input id="search-box" placeholder="🔍 ค้นหาอันตราย…" oninput="applyFilter()"/>
       <select id="filter-type"   onchange="applyFilter()">${typeOpts}</select>
       <select id="filter-area"   onchange="applyFilter()">${areaOpts}</select>
       <select id="filter-status" onchange="applyFilter()">${stsOpts}</select>
       <input id="filter-sev" type="hidden"/><input id="filter-lik" type="hidden"/>
       <div class="view-toggle">
-        <button class="view-btn active" data-view="matrix" onclick="window.__switchView('matrix')">๐—บ๏ธ Matrix</button>
-        <button class="view-btn"        data-view="table"  onclick="window.__switchView('table')">๐“ เธ•เธฒเธฃเธฒเธ</button>
+        <button class="view-btn active" data-view="matrix" onclick="window.__switchView('matrix')">🗺️ Matrix</button>
+        <button class="view-btn"        data-view="table"  onclick="window.__switchView('table')">📋 ตาราง</button>
       </div>
-      <button class="btn btn-primary" onclick="window.__newHaz()">+ เน€เธเธดเนเธกเธญเธฑเธเธ•เธฃเธฒเธข</button>
+      <button class="btn btn-primary" onclick="window.__newHaz()">+ เพิ่มอันตราย</button>
     </div>
     <div id="content-wrap"></div>
   </div>
@@ -456,8 +456,8 @@ main.innerHTML = `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธ—เธฐเน€เธเธตเธขเธเธญเธฑเธเธ•เธฃเธฒเธข</h2>
-      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">โ• เธเธดเธ”</button>
+      <h2 id="panel-title">ทะเบียนอันตราย</h2>
+      <button class="btn btn-ghost btn-sm" onclick="window.__closePanel()">✕ ปิด</button>
     </div>
     <div class="panel-body" id="panel-content"></div>
   </div>
@@ -467,4 +467,3 @@ await loadData();
 </script>
 </body>
 </html>
-

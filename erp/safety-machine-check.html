@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>เธ•เธฃเธงเธเธชเธญเธเธเนเธญเธเนเธเนเธเธฒเธเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃเนเธฅเธฐเธญเธธเธเธเธฃเธ“เน</title>
+<title>ตรวจสอบก่อนใช้งานเครื่องจักรและอุปกรณ์</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
@@ -100,7 +100,7 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'machine-check', 'เธ•เธฃเธงเธเธชเธญเธเธเนเธญเธเนเธเนเธเธฒเธเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃเนเธฅเธฐเธญเธธเธเธเธฃเธ“เน');
+const main = renderShell(profile, 'machine-check', 'ตรวจสอบก่อนใช้งานเครื่องจักรและอุปกรณ์');
 
 let allChecks = [];
 let editId = null;
@@ -111,7 +111,7 @@ let filterType='', filterResult='', filterDate='', filterText='';
 let formItems = [];
 
 function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
-function typeInfo(key){ return MACHINE_TYPES.find(t=>t.key===key)||{label:key,icon:'๐ท๏ธ',color:'#6b7280',bg:'#f3f4f6'}; }
+function typeInfo(key){ return MACHINE_TYPES.find(t=>t.key===key)||{label:key,icon:'🏷️',color:'#6b7280',bg:'#f3f4f6'}; }
 
 function passRate(items){
   if(!items||!items.length) return null;
@@ -120,7 +120,7 @@ function passRate(items){
   return Math.round(items.filter(i=>i.result==='pass').length/counted.length*100);
 }
 
-/* โ”€โ”€โ”€ KPIs โ”€โ”€โ”€ */
+/* ─── KPIs ─── */
 function kpis(){
   const today = new Date().toISOString().substring(0,10);
   const todayChecks = allChecks.filter(c=>c.checkDate===today);
@@ -130,12 +130,12 @@ function kpis(){
   const rate = allChecks.length ? Math.round(passCount/allChecks.length*100) : 0;
   return `
   <div class="kpi-row">
-    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${allChecks.length}</div><div class="kpi-lbl">เธเธฑเธเธ—เธถเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${todayChecks.length}</div><div class="kpi-lbl">เธงเธฑเธเธเธตเน</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${passCount}</div><div class="kpi-lbl">โ… เธเนเธฒเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${failCount}</div><div class="kpi-lbl">โ เนเธกเนเธเนเธฒเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#9333ea">${oos}</div><div class="kpi-lbl">๐”ด เธซเธขเธธเธ”เนเธเนเธเธฒเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:${rate>=80?'#16a34a':rate>=60?'#d97706':'#dc2626'}">${rate}%</div><div class="kpi-lbl">เธญเธฑเธ•เธฃเธฒเธเนเธฒเธ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${allChecks.length}</div><div class="kpi-lbl">บันทึกทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${todayChecks.length}</div><div class="kpi-lbl">วันนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${passCount}</div><div class="kpi-lbl">✅ ผ่าน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#dc2626">${failCount}</div><div class="kpi-lbl">❌ ไม่ผ่าน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#9333ea">${oos}</div><div class="kpi-lbl">🔴 หยุดใช้งาน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${rate>=80?'#16a34a':rate>=60?'#d97706':'#dc2626'}">${rate}%</div><div class="kpi-lbl">อัตราผ่าน</div></div>
   </div>`;
 }
 
@@ -152,10 +152,10 @@ function filtered(){
   });
 }
 
-/* โ”€โ”€โ”€ Status Board view โ”€โ”€โ”€ */
+/* ─── Status Board view ─── */
 function boardView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div>`;
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
   // group by machineName, show latest record per machine
   const byMachine = {};
   for(const c of data){
@@ -176,12 +176,12 @@ function boardView(){
         <span class="bc-status-dot"></span>
       </div>
       <div class="bc-body">
-        <div class="bc-row"><span>ID: <strong>${c.machineId||'-'}</strong></span><span>เธ•เธฃเธงเธ: <strong>${dateStr}</strong></span></div>
-        <div class="bc-row"><span>เธเธนเนเธ•เธฃเธงเธ: <strong>${c.operator||'-'}</strong></span></div>
+        <div class="bc-row"><span>ID: <strong>${c.machineId||'-'}</strong></span><span>ตรวจ: <strong>${dateStr}</strong></span></div>
+        <div class="bc-row"><span>ผู้ตรวจ: <strong>${c.operator||'-'}</strong></span></div>
         <div class="bc-row" style="margin-top:4px">${badge(st)}</div>
       </div>
       <div class="bc-footer">
-        <span style="font-size:.72rem;color:#64748b">เธเนเธฒเธ</span>
+        <span style="font-size:.72rem;color:#64748b">ผ่าน</span>
         <div class="pass-bar-wrap"><div class="pass-bar" style="width:${rate??0}%;background:${(rate??0)>=80?'#16a34a':(rate??0)>=60?'#d97706':'#dc2626'}"></div></div>
         <span style="font-size:.72rem;font-weight:700;color:${(rate??0)>=80?'#16a34a':(rate??0)>=60?'#d97706':'#dc2626'}">${rate!=null?rate+'%':'-'}</span>
       </div>
@@ -189,10 +189,10 @@ function boardView(){
   }).join('')}</div>`;
 }
 
-/* โ”€โ”€โ”€ Record view (all checks) โ”€โ”€โ”€ */
+/* ─── Record view (all checks) ─── */
 function recordView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div>`;
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
   return `<div class="record-grid">${data.map(c=>{
     const tp = typeInfo(c.machineType);
     const res = MACHINE_CHECK_RESULT[c.result]||MACHINE_CHECK_RESULT.pass;
@@ -200,7 +200,7 @@ function recordView(){
     const dateStr = c.checkDate ? new Date(c.checkDate+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}) : '-';
     const dots = (c.checkItems||[]).map(i=>{
       const col=i.result==='pass'?'#16a34a':i.result==='fail'?'#dc2626':'#94a3b8';
-      return `<div class="ci-dot" style="background:${col}" title="${i.name}: ${i.result||'N/A'}">${i.result==='pass'?'โ“':i.result==='fail'?'โ—':'โ€”'}</div>`;
+      return `<div class="ci-dot" style="background:${col}" title="${i.name}: ${i.result||'N/A'}">${i.result==='pass'?'✓':i.result==='fail'?'✗':'—'}</div>`;
     }).join('');
     return `<div class="record-card" onclick="window.__editCheck('${c.id}')">
       <div class="rc-banner" style="background:${tp.bg}">
@@ -211,10 +211,10 @@ function recordView(){
       <div class="rc-body">
         <div class="rc-title">${c.machineName||c.machineId||'-'} ${c.machineId&&c.machineName?`<span style="font-size:.75rem;color:#64748b">(${c.machineId})</span>`:''}</div>
         <div class="rc-meta">
-          <span>๐‘ค ${c.operator||'-'}</span>
-          <span>๐• ${c.checkTime||'-'}</span>
+          <span>👤 ${c.operator||'-'}</span>
+          <span>🕐 ${c.checkTime||'-'}</span>
         </div>
-        ${dots?`<div class="check-items-mini" title="เธฃเธฒเธขเธเธฒเธฃเธ•เธฃเธงเธ">${dots}</div>`:''}
+        ${dots?`<div class="check-items-mini" title="รายการตรวจ">${dots}</div>`:''}
       </div>
       <div class="rc-footer">
         ${badge(res)} ${badge(st)}
@@ -223,10 +223,10 @@ function recordView(){
   }).join('')}</div>`;
 }
 
-/* โ”€โ”€โ”€ Table view โ”€โ”€โ”€ */
+/* ─── Table view ─── */
 function tableView(){
   const data = filtered();
-  if(!data.length) return `<div class="tbl-wrap"><div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div></div>`;
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
   const rows = data.map(c=>{
     const tp=typeInfo(c.machineType);
     const res=MACHINE_CHECK_RESULT[c.result]||MACHINE_CHECK_RESULT.pass;
@@ -243,38 +243,38 @@ function tableView(){
       <td>${badge(res)}</td>
       <td>${badge(st)}</td>
       <td>
-        <button class="action-btn btn-edit" onclick="window.__editCheck('${c.id}')">เนเธเนเนเธ</button>
-        <button class="action-btn btn-del" onclick="window.__delCheck('${c.id}')">เธฅเธ</button>
+        <button class="action-btn btn-edit" onclick="window.__editCheck('${c.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delCheck('${c.id}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>เธงเธฑเธ/เน€เธงเธฅเธฒ</th><th>เธเธฃเธฐเน€เธ เธ—</th><th>เธเธทเนเธญเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃ</th><th>เธฃเธซเธฑเธช</th><th>เธเธนเนเธ•เธฃเธงเธ</th><th>%เธเนเธฒเธ</th><th>เธเธฅ</th><th>เธชเธ–เธฒเธเธฐเน€เธเธฃเธทเนเธญเธ</th><th></th></tr></thead>
+    <thead><tr><th>วัน/เวลา</th><th>ประเภท</th><th>ชื่อเครื่องจักร</th><th>รหัส</th><th>ผู้ตรวจ</th><th>%ผ่าน</th><th>ผล</th><th>สถานะเครื่อง</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
-/* โ”€โ”€โ”€ Render โ”€โ”€โ”€ */
+/* ─── Render ─── */
 function render(){
   main.innerHTML = `
   ${kpis()}
   <div class="toolbar">
-    <input type="text" placeholder="เธเนเธเธซเธฒเธเธทเนเธญ / เธฃเธซเธฑเธช / เธเธนเนเธ•เธฃเธงเธ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <input type="text" placeholder="ค้นหาชื่อ / รหัส / ผู้ตรวจ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
     <select onchange="window.applyFilter('type',this.value)">
-      <option value="">เธเธฃเธฐเน€เธ เธ—เธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">ประเภททั้งหมด</option>
       ${MACHINE_TYPES.map(t=>`<option value="${t.key}" ${filterType===t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('result',this.value)">
-      <option value="">เธเธฅเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">ผลทั้งหมด</option>
       ${Object.entries(MACHINE_CHECK_RESULT).map(([k,v])=>`<option value="${k}" ${filterResult===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
-    <input type="date" value="${filterDate}" onchange="window.applyFilter('date',this.value)" title="เธเธฃเธญเธเธ•เธฒเธกเธงเธฑเธเธ—เธตเน">
+    <input type="date" value="${filterDate}" onchange="window.applyFilter('date',this.value)" title="กรองตามวันที่">
     <div class="view-btns">
-      <button class="view-btn ${curView==='board'?'active':''}" onclick="window.setView('board')">เธชเธ–เธฒเธเธฐ</button>
-      <button class="view-btn ${curView==='record'?'active':''}" onclick="window.setView('record')">เธเธฑเธเธ—เธถเธ</button>
-      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">เธ•เธฒเธฃเธฒเธ</button>
+      <button class="view-btn ${curView==='board'?'active':''}" onclick="window.setView('board')">สถานะ</button>
+      <button class="view-btn ${curView==='record'?'active':''}" onclick="window.setView('record')">บันทึก</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
     </div>
-    <button class="add-btn" onclick="window.__openPanel(null)">+ เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฃเธงเธ</button>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ บันทึกการตรวจ</button>
   </div>
   <div id="content">${renderContent()}</div>
   ${panelHTML()}`;
@@ -286,20 +286,20 @@ function renderContent(){
   return tableView();
 }
 
-/* โ”€โ”€โ”€ Panel โ”€โ”€โ”€ */
+/* ─── Panel ─── */
 function panelHTML(){
   return `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="slide-panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ</h2>
-      <button class="btn btn-secondary" onclick="window.__closePanel()">โ•</button>
+      <h2 id="panel-title">บันทึกการตรวจสอบ</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
     </div>
     <div class="panel-body" id="panel-body"></div>
     <div class="panel-foot">
-      ${editId?`<button class="btn btn-danger" onclick="window.__delCheck('${editId}')">เธฅเธ</button>`:''}
-      <button class="btn btn-secondary" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
-      <button class="btn btn-primary" onclick="window.__saveCheck()">เธเธฑเธเธ—เธถเธ</button>
+      ${editId?`<button class="btn btn-danger" onclick="window.__delCheck('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveCheck()">บันทึก</button>
     </div>
   </div>`;
 }
@@ -310,14 +310,14 @@ function checkItemsHTML(){
     <div class="ci-row" data-idx="${i}">
       <span class="ci-name">${item.name}</span>
       <div class="ci-pass-fail">
-        <button class="ci-btn pass ${item.result==='pass'?'pass':''}" onclick="window.__setCIResult(${i},'pass')">โ“ เธเนเธฒเธ</button>
-        <button class="ci-btn fail ${item.result==='fail'?'fail':''}" onclick="window.__setCIResult(${i},'fail')">โ— เนเธกเนเธเนเธฒเธ</button>
+        <button class="ci-btn pass ${item.result==='pass'?'pass':''}" onclick="window.__setCIResult(${i},'pass')">✓ ผ่าน</button>
+        <button class="ci-btn fail ${item.result==='fail'?'fail':''}" onclick="window.__setCIResult(${i},'fail')">✗ ไม่ผ่าน</button>
         <button class="ci-btn na ${item.result==='na'?'na':''}" onclick="window.__setCIResult(${i},'na')">N/A</button>
       </div>
     </div>`).join('')}
     <div class="add-item-row">
-      <input id="new-item-input" placeholder="เน€เธเธดเนเธกเธฃเธฒเธขเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ...">
-      <button onclick="window.__addCIItem()">+ เน€เธเธดเนเธก</button>
+      <input id="new-item-input" placeholder="เพิ่มรายการตรวจสอบ...">
+      <button onclick="window.__addCIItem()">+ เพิ่ม</button>
     </div>
   </div>`;
 }
@@ -328,95 +328,95 @@ function formHTML(data={}){
     : MACHINE_CHECK_ITEMS_DEFAULT.map(n=>({name:n,result:''}));
 
   return `
-  <div class="section-title">เธเนเธญเธกเธนเธฅเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃ</div>
+  <div class="section-title">ข้อมูลเครื่องจักร</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธฃเธฐเน€เธ เธ—เน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃ *</label>
+      <label>ประเภทเครื่องจักร *</label>
       <select id="f-machineType">
-        <option value="">-- เน€เธฅเธทเธญเธเธเธฃเธฐเน€เธ เธ— --</option>
+        <option value="">-- เลือกประเภท --</option>
         ${MACHINE_TYPES.map(t=>`<option value="${t.key}" ${(data.machineType||'')==t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธฃเธซเธฑเธชเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃ / ID</label>
-      <input id="f-machineId" value="${data.machineId||''}" placeholder="เน€เธเนเธ FK-001, CR-003">
+      <label>รหัสเครื่องจักร / ID</label>
+      <input id="f-machineId" value="${data.machineId||''}" placeholder="เช่น FK-001, CR-003">
     </div>
   </div>
   <div class="form-row full"><div class="form-group">
-    <label>เธเธทเนเธญเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃ / เธญเธธเธเธเธฃเธ“เน *</label>
-    <input id="f-machineName" value="${data.machineName||''}" placeholder="เน€เธเนเธ เธฃเธ–เนเธเธฅเนเธเธฅเธดเธเธ—เน Toyota เธซเธกเธฒเธขเน€เธฅเธ 1">
+    <label>ชื่อเครื่องจักร / อุปกรณ์ *</label>
+    <input id="f-machineName" value="${data.machineName||''}" placeholder="เช่น รถโฟล์คลิฟท์ Toyota หมายเลข 1">
   </div></div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธชเธ–เธฒเธเธ—เธตเนเธ•เธฑเนเธ / เธเธทเนเธเธ—เธตเน</label>
-      <input id="f-location" value="${data.location||''}" placeholder="เน€เธเนเธ เธเธฅเธฑเธเธชเธดเธเธเนเธฒ A">
+      <label>สถานที่ตั้ง / พื้นที่</label>
+      <input id="f-location" value="${data.location||''}" placeholder="เช่น คลังสินค้า A">
     </div>
     <div class="form-group">
-      <label>เนเธเธเธ</label>
+      <label>แผนก</label>
       <input id="f-department" value="${data.department||''}">
     </div>
   </div>
 
-  <div class="section-title">เธเนเธญเธกเธนเธฅเธเธฒเธฃเธ•เธฃเธงเธ</div>
+  <div class="section-title">ข้อมูลการตรวจ</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธงเธฑเธเธ—เธตเนเธ•เธฃเธงเธ *</label>
+      <label>วันที่ตรวจ *</label>
       <input type="date" id="f-checkDate" value="${data.checkDate||new Date().toISOString().substring(0,10)}">
     </div>
     <div class="form-group">
-      <label>เน€เธงเธฅเธฒ</label>
+      <label>เวลา</label>
       <input type="time" id="f-checkTime" value="${data.checkTime||''}">
     </div>
   </div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธนเนเธ•เธฃเธงเธเธชเธญเธ *</label>
+      <label>ผู้ตรวจสอบ *</label>
       <input id="f-operator" value="${data.operator||''}">
     </div>
     <div class="form-group">
-      <label>เธเธฐเธเธฒเธ</label>
+      <label>กะงาน</label>
       <select id="f-shift">
-        <option value="">-- เน€เธฅเธทเธญเธ --</option>
-        <option value="day" ${data.shift==='day'?'selected':''}>เธเธฐเน€เธเนเธฒ (Day Shift)</option>
-        <option value="afternoon" ${data.shift==='afternoon'?'selected':''}>เธเธฐเธเนเธฒเธข (Afternoon)</option>
-        <option value="night" ${data.shift==='night'?'selected':''}>เธเธฐเธ”เธถเธ (Night Shift)</option>
+        <option value="">-- เลือก --</option>
+        <option value="day" ${data.shift==='day'?'selected':''}>กะเช้า (Day Shift)</option>
+        <option value="afternoon" ${data.shift==='afternoon'?'selected':''}>กะบ่าย (Afternoon)</option>
+        <option value="night" ${data.shift==='night'?'selected':''}>กะดึก (Night Shift)</option>
       </select>
     </div>
   </div>
 
-  <div class="section-title">เธฃเธฒเธขเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธ (Checklist)</div>
+  <div class="section-title">รายการตรวจสอบ (Checklist)</div>
   <div id="ci-wrapper">${checkItemsHTML()}</div>
 
-  <div class="section-title">เธเธฅเธเธฒเธฃเธ•เธฃเธงเธเนเธฅเธฐเธชเธ–เธฒเธเธฐ</div>
+  <div class="section-title">ผลการตรวจและสถานะ</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธฅเธเธฒเธฃเธ•เธฃเธงเธเนเธ”เธขเธฃเธงเธก</label>
+      <label>ผลการตรวจโดยรวม</label>
       <select id="f-result">
         ${Object.entries(MACHINE_CHECK_RESULT).map(([k,v])=>`<option value="${k}" ${(data.result||'')==k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธชเธ–เธฒเธเธฐเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃเธซเธฅเธฑเธเธ•เธฃเธงเธ</label>
+      <label>สถานะเครื่องจักรหลังตรวจ</label>
       <select id="f-machineStatus">
         ${Object.entries(MACHINE_STATUS).map(([k,v])=>`<option value="${k}" ${(data.machineStatus||'in_service')==k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
       </select>
     </div>
   </div>
   <div class="form-row full"><div class="form-group">
-    <label>เธเนเธญเธเธเธเธฃเนเธญเธ / เธเธฑเธเธซเธฒเธ—เธตเนเธเธ</label>
-    <textarea id="f-defects" placeholder="เธฃเธฐเธเธธเธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเนเธญเธเธเธเธฃเนเธญเธเธ—เธตเนเธเธ">${data.defects||''}</textarea>
+    <label>ข้อบกพร่อง / ปัญหาที่พบ</label>
+    <textarea id="f-defects" placeholder="ระบุรายละเอียดข้อบกพร่องที่พบ">${data.defects||''}</textarea>
   </div></div>
   <div class="form-row full"><div class="form-group">
-    <label>เธเธฒเธฃเธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธเนเนเธ / Action Taken</label>
-    <textarea id="f-action" placeholder="เธเธฒเธฃเนเธเนเนเธเธ—เธตเนเธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธฅเนเธง เธซเธฃเธทเธญเนเธเธเธเธฒเธฃเนเธเนเนเธ">${data.action||''}</textarea>
+    <label>การดำเนินการแก้ไข / Action Taken</label>
+    <textarea id="f-action" placeholder="การแก้ไขที่ดำเนินการแล้ว หรือแผนการแก้ไข">${data.action||''}</textarea>
   </div></div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธณเธซเธเธ”เธ•เธฃเธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
+      <label>กำหนดตรวจครั้งถัดไป</label>
       <input type="date" id="f-nextCheckDate" value="${data.nextCheckDate||''}">
     </div>
     <div class="form-group">
-      <label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+      <label>หมายเหตุ</label>
       <input id="f-notes" value="${data.notes||''}">
     </div>
   </div>`;
@@ -437,7 +437,7 @@ window.__addCIItem = () => {
 window.__openPanel = (id) => {
   editId = id;
   const data = id ? (allChecks.find(c=>c.id===id)||{}) : {};
-  document.getElementById('panel-title').textContent = id ? 'เนเธเนเนเธเธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฃเธงเธ' : 'เธเธฑเธเธ—เธถเธเธเธฒเธฃเธ•เธฃเธงเธเธชเธญเธเธเนเธญเธเนเธเนเธเธฒเธ';
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขบันทึกการตรวจ' : 'บันทึกการตรวจสอบก่อนใช้งาน';
   document.getElementById('panel-body').innerHTML = formHTML(data);
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('open');
@@ -452,7 +452,7 @@ window.__closePanel = () => {
 window.__editCheck = (id) => window.__openPanel(id);
 
 window.__delCheck = async (id) => {
-  if(!confirm('เธขเธทเธเธขเธฑเธเธเธฒเธฃเธฅเธเธเธฑเธเธ—เธถเธเธเธตเน?')) return;
+  if(!confirm('ยืนยันการลบบันทึกนี้?')) return;
   await deleteMachineCheck(id);
   allChecks = allChecks.filter(c=>c.id!==id);
   window.__closePanel();
@@ -463,10 +463,10 @@ window.__saveCheck = async () => {
   const machineName = document.getElementById('f-machineName').value.trim();
   const checkDate = document.getElementById('f-checkDate').value;
   const operator = document.getElementById('f-operator').value.trim();
-  if(!machineName){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธเธทเนเธญเน€เธเธฃเธทเนเธญเธเธเธฑเธเธฃ'); return; }
-  if(!checkDate){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธงเธฑเธเธ—เธตเนเธ•เธฃเธงเธ'); return; }
+  if(!machineName){ alert('กรุณาระบุชื่อเครื่องจักร'); return; }
+  if(!checkDate){ alert('กรุณาระบุวันที่ตรวจ'); return; }
 
-  // auto-compute result if not set manually โ€” based on checklist
+  // auto-compute result if not set manually — based on checklist
   let resultVal = document.getElementById('f-result').value;
   if(!resultVal){
     const hasF = formItems.some(i=>i.result==='fail');
@@ -519,4 +519,3 @@ render();
 </script>
 </body>
 </html>
-

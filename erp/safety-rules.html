@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>เธ—เธฐเน€เธเธตเธขเธเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข (Golden Rules)</title>
+<title>ทะเบียนกฎความปลอดภัย (Golden Rules)</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
@@ -88,12 +88,12 @@ import {
 } from './js/safety-data.js';
 
 const profile = await requireRole(['safety_officer','kpo']);
-const main = renderShell(profile, 'safety-rules', 'เธ—เธฐเน€เธเธตเธขเธเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข (Golden Rules)');
+const main = renderShell(profile, 'safety-rules', 'ทะเบียนกฎความปลอดภัย (Golden Rules)');
 
 const WORK_AREAS = [
-  'เนเธฃเธเธเธฒเธ/เธเธฒเธฃเธเธฅเธดเธ•','เธเธฅเธฑเธเธชเธดเธเธเนเธฒ','เธชเธณเธเธฑเธเธเธฒเธ','เธฅเธฒเธเธเธญเธ”เธฃเธ–','เธเธทเนเธเธ—เธตเนเธเนเธญเธชเธฃเนเธฒเธ',
-  'เธซเนเธญเธเนเธฅเนเธ','เธเธทเนเธเธ—เธตเนเธญเธฑเธเธญเธฒเธเธฒเธจ','เธเธทเนเธเธ—เธตเนเธชเธนเธ','เธซเนเธญเธเนเธเธเนเธฒ','เธซเนเธญเธเธชเธฒเธฃเน€เธเธกเธต',
-  'เธ—เธฑเนเธงเธ—เธฑเนเธเธญเธเธเนเธเธฃ'
+  'โรงงาน/การผลิต','คลังสินค้า','สำนักงาน','ลานจอดรถ','พื้นที่ก่อสร้าง',
+  'ห้องแล็บ','พื้นที่อับอากาศ','พื้นที่สูง','ห้องไฟฟ้า','ห้องสารเคมี',
+  'ทั่วทั้งองค์กร'
 ];
 
 let allRules = [];
@@ -114,12 +114,12 @@ function kpis(){
   }
   return `
   <div class="kpi-row">
-    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">เธเธเธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.golden.color}">${counts.golden}</div><div class="kpi-lbl">๐ Golden Rules</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.mandatory.color}">${counts.mandatory}</div><div class="kpi-lbl">๐ซ เธเธเธเธฑเธเธเธฑเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.standard.color}">${counts.standard}</div><div class="kpi-lbl">๐“ เธกเธฒเธ•เธฃเธเธฒเธ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.recommended.color}">${counts.recommended}</div><div class="kpi-lbl">๐’ก เนเธเธฐเธเธณ</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${active}</div><div class="kpi-lbl">เนเธเนเธเธฒเธเธญเธขเธนเน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">กฎทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.golden.color}">${counts.golden}</div><div class="kpi-lbl">🏆 Golden Rules</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.mandatory.color}">${counts.mandatory}</div><div class="kpi-lbl">🚫 กฎบังคับ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.standard.color}">${counts.standard}</div><div class="kpi-lbl">📋 มาตรฐาน</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:${RULE_LEVELS.recommended.color}">${counts.recommended}</div><div class="kpi-lbl">💡 แนะนำ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${active}</div><div class="kpi-lbl">ใช้งานอยู่</div></div>
   </div>`;
 }
 
@@ -136,14 +136,14 @@ function filtered(){
   });
 }
 
-function catInfo(key){ return RULE_CATEGORIES.find(c=>c.key===key)||{label:key,icon:'๐“',color:'#6b7280',bg:'#f3f4f6'}; }
+function catInfo(key){ return RULE_CATEGORIES.find(c=>c.key===key)||{label:key,icon:'📌',color:'#6b7280',bg:'#f3f4f6'}; }
 
 function ruleCard(r){
   const lv = RULE_LEVELS[r.level]||RULE_LEVELS.standard;
   const cat = catInfo(r.category);
   const st = RULE_STATUS[r.status]||RULE_STATUS.active;
-  const dos = (r.dos||'').split('\n').filter(Boolean).slice(0,2).map(d=>`โ€ข ${d}`).join('<br>');
-  const donts = (r.donts||'').split('\n').filter(Boolean).slice(0,2).map(d=>`โ€ข ${d}`).join('<br>');
+  const dos = (r.dos||'').split('\n').filter(Boolean).slice(0,2).map(d=>`• ${d}`).join('<br>');
+  const donts = (r.donts||'').split('\n').filter(Boolean).slice(0,2).map(d=>`• ${d}`).join('<br>');
   return `
   <div class="rule-card" onclick="window.__editRule('${r.id}')">
     <div class="rule-card-banner" style="background:${lv.bg}">
@@ -152,21 +152,21 @@ function ruleCard(r){
       <span class="rc-num">${r.ruleCode||''}</span>
     </div>
     <div class="rule-card-body">
-      <div class="rc-title">${r.title||'(เนเธกเนเธกเธตเธเธทเนเธญ)'}</div>
+      <div class="rc-title">${r.title||'(ไม่มีชื่อ)'}</div>
       <div class="rc-cat" style="color:${cat.color};background:${cat.bg}">${cat.icon} ${cat.label}</div>
-      ${dos?`<div class="rc-dos"><strong>โ… เธ•เนเธญเธเธ—เธณ:</strong><br>${dos}</div>`:''}
-      ${donts?`<div class="rc-donts" style="margin-top:4px"><strong>โ เธซเนเธฒเธกเธ—เธณ:</strong><br>${donts}</div>`:''}
+      ${dos?`<div class="rc-dos"><strong>✅ ต้องทำ:</strong><br>${dos}</div>`:''}
+      ${donts?`<div class="rc-donts" style="margin-top:4px"><strong>❌ ห้ามทำ:</strong><br>${donts}</div>`:''}
     </div>
     <div class="rule-card-footer">
       ${badge(st)}
-      ${r.reviewDate?`<span style="font-size:.72rem;color:#64748b">เธ—เธเธ—เธงเธ: ${r.reviewDate}</span>`:''}
+      ${r.reviewDate?`<span style="font-size:.72rem;color:#64748b">ทบทวน: ${r.reviewDate}</span>`:''}
     </div>
   </div>`;
 }
 
 function groupedView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div>`;
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
   const order = ['golden','mandatory','standard','recommended'];
   let html='';
   for(const lk of order){
@@ -177,7 +177,7 @@ function groupedView(){
       <div class="level-header" style="background:${lv.bg}" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'grid':'none'">
         <span class="lh-icon">${lv.icon}</span>
         <span class="lh-title" style="color:${lv.color}">${lv.label}</span>
-        <span class="lh-count" style="color:${lv.color}">${rows.length} เธเธ</span>
+        <span class="lh-count" style="color:${lv.color}">${rows.length} กฎ</span>
       </div>
       <div class="rule-grid">${rows.map(ruleCard).join('')}</div>
     </div>`;
@@ -187,7 +187,7 @@ function groupedView(){
 
 function tableView(){
   const data = filtered();
-  if(!data.length) return `<div class="tbl-wrap"><div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div></div>`;
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
   const rows = data.map(r=>{
     const lv=RULE_LEVELS[r.level]||RULE_LEVELS.standard;
     const cat=catInfo(r.category);
@@ -202,13 +202,13 @@ function tableView(){
       <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
       <td>${r.reviewDate||'-'}</td>
       <td>
-        <button class="action-btn btn-edit" onclick="window.__editRule('${r.id}')">เนเธเนเนเธ</button>
-        <button class="action-btn btn-del" onclick="window.__delRule('${r.id}')">เธฅเธ</button>
+        <button class="action-btn btn-edit" onclick="window.__editRule('${r.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delRule('${r.id}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>เธฃเธฐเธ”เธฑเธ</th><th>เธฃเธซเธฑเธช</th><th>เธเธทเนเธญเธเธ</th><th>เธซเธกเธงเธ”เธซเธกเธนเน</th><th>เธเธฅเธเธฃเธฐเธ—เธ</th><th>เธชเธ–เธฒเธเธฐ</th><th>เธงเธฑเธเธ—เธเธ—เธงเธ</th><th></th></tr></thead>
+    <thead><tr><th>ระดับ</th><th>รหัส</th><th>ชื่อกฎ</th><th>หมวดหมู่</th><th>ผลกระทบ</th><th>สถานะ</th><th>วันทบทวน</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
@@ -217,24 +217,24 @@ function render(){
   main.innerHTML = `
   ${kpis()}
   <div class="toolbar">
-    <input type="text" placeholder="เธเนเธเธซเธฒเธเธทเนเธญ / เธฃเธซเธฑเธชเธเธ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <input type="text" placeholder="ค้นหาชื่อ / รหัสกฎ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
     <select onchange="window.applyFilter('level',this.value)">
-      <option value="">เธฃเธฐเธ”เธฑเธเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">ระดับทั้งหมด</option>
       ${Object.entries(RULE_LEVELS).map(([k,v])=>`<option value="${k}" ${filterLevel===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('category',this.value)">
-      <option value="">เธซเธกเธงเธ”เธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">หมวดทั้งหมด</option>
       ${RULE_CATEGORIES.map(c=>`<option value="${c.key}" ${filterCat===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('status',this.value)">
-      <option value="">เธชเธ–เธฒเธเธฐเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">สถานะทั้งหมด</option>
       ${Object.entries(RULE_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
     <div class="view-btns">
-      <button class="view-btn ${curView==='grouped'?'active':''}" onclick="window.setView('grouped')">เธเธฑเธ”เธเธฅเธธเนเธก</button>
-      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">เธ•เธฒเธฃเธฒเธ</button>
+      <button class="view-btn ${curView==='grouped'?'active':''}" onclick="window.setView('grouped')">จัดกลุ่ม</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
     </div>
-    <button class="add-btn" onclick="window.__openPanel(null)">+ เน€เธเธดเนเธกเธเธ</button>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ เพิ่มกฎ</button>
   </div>
   <div id="content">${curView==='grouped'?groupedView():tableView()}</div>
   ${panelHTML()}`;
@@ -245,14 +245,14 @@ function panelHTML(){
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="slide-panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เน€เธเธดเนเธกเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</h2>
-      <button class="btn btn-secondary" onclick="window.__closePanel()">โ•</button>
+      <h2 id="panel-title">เพิ่มกฎความปลอดภัย</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
     </div>
     <div class="panel-body" id="panel-body"></div>
     <div class="panel-foot">
-      ${editId?`<button class="btn btn-danger" onclick="window.__delRule('${editId}')">เธฅเธ</button>`:''}
-      <button class="btn btn-secondary" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
-      <button class="btn btn-primary" onclick="window.__saveRule()">เธเธฑเธเธ—เธถเธ</button>
+      ${editId?`<button class="btn btn-danger" onclick="window.__delRule('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveRule()">บันทึก</button>
     </div>
   </div>`;
 }
@@ -282,51 +282,51 @@ function formHTML(data={}){
   return `
   <input type="hidden" id="f-level" value="${selLevel}">
   <div class="form-row full"><div class="form-group">
-    <label>เธฃเธฐเธ”เธฑเธเธเธ *</label>
+    <label>ระดับกฎ *</label>
     <div class="level-cards">${levelCards}</div>
   </div></div>
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธฃเธซเธฑเธชเธเธ / Rule Code</label>
-      <input id="f-ruleCode" value="${data.ruleCode||''}" placeholder="เน€เธเนเธ GR-001, MR-005">
+      <label>รหัสกฎ / Rule Code</label>
+      <input id="f-ruleCode" value="${data.ruleCode||''}" placeholder="เช่น GR-001, MR-005">
     </div>
     <div class="form-group">
-      <label>เธซเธกเธงเธ”เธซเธกเธนเน *</label>
+      <label>หมวดหมู่ *</label>
       <select id="f-category">
-        <option value="">-- เน€เธฅเธทเธญเธเธซเธกเธงเธ”เธซเธกเธนเน --</option>
+        <option value="">-- เลือกหมวดหมู่ --</option>
         ${RULE_CATEGORIES.map(c=>`<option value="${c.key}" ${selCat===c.key?'selected':''}>${c.icon} ${c.label}</option>`).join('')}
       </select>
     </div>
   </div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เธเธทเนเธญเธเธ / เธเนเธญเธเธฑเธเธเธฑเธ *</label>
-    <input id="f-title" value="${data.title||''}" placeholder="เธฃเธฐเธเธธเธเธทเนเธญเธเธเธ—เธตเนเธเธฑเธ”เน€เธเธ">
+    <label>ชื่อกฎ / ข้อบังคับ *</label>
+    <input id="f-title" value="${data.title||''}" placeholder="ระบุชื่อกฎที่ชัดเจน">
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>โ… เธชเธดเนเธเธ—เธตเนเธ•เนเธญเธเธเธเธดเธเธฑเธ•เธด (Do's)</label>
-    <textarea id="f-dos" placeholder="เนเธ•เนเธฅเธฐเธเนเธญเธเธถเนเธเธเธฃเธฃเธ—เธฑเธ”เนเธซเธกเน">${data.dos||''}</textarea>
+    <label>✅ สิ่งที่ต้องปฏิบัติ (Do's)</label>
+    <textarea id="f-dos" placeholder="แต่ละข้อขึ้นบรรทัดใหม่">${data.dos||''}</textarea>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>โ เธชเธดเนเธเธ—เธตเนเธซเนเธฒเธกเธเธเธดเธเธฑเธ•เธด (Don'ts)</label>
-    <textarea id="f-donts" placeholder="เนเธ•เนเธฅเธฐเธเนเธญเธเธถเนเธเธเธฃเธฃเธ—เธฑเธ”เนเธซเธกเน">${data.donts||''}</textarea>
+    <label>❌ สิ่งที่ห้ามปฏิบัติ (Don'ts)</label>
+    <textarea id="f-donts" placeholder="แต่ละข้อขึ้นบรรทัดใหม่">${data.donts||''}</textarea>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เน€เธซเธ•เธธเธเธฅ / เน€เธซเธ•เธธเธเธฅเธ—เธตเนเธ•เนเธญเธเธกเธตเธเธเธเธตเน</label>
-    <textarea id="f-rationale" placeholder="เธญเธเธดเธเธฒเธขเน€เธซเธ•เธธเธเธฅเนเธฅเธฐเธเธงเธฒเธกเธชเธณเธเธฑเธ">${data.rationale||''}</textarea>
+    <label>เหตุผล / เหตุผลที่ต้องมีกฎนี้</label>
+    <textarea id="f-rationale" placeholder="อธิบายเหตุผลและความสำคัญ">${data.rationale||''}</textarea>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เธเธทเนเธเธ—เธตเนเธ—เธตเนเนเธเนเธเธฑเธเธเธฑเธ</label>
+    <label>พื้นที่ที่ใช้บังคับ</label>
     <div class="area-checks" id="f-areas">${areaBoxes}</div>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เธเธฅเธ—เธตเนเธ•เธฒเธกเธกเธฒเธซเธฒเธเธเนเธฒเธเธทเธ (เน€เธฅเธทเธญเธเนเธ”เนเธซเธฅเธฒเธขเธเนเธญ)</label>
+    <label>ผลที่ตามมาหากฝ่าฝืน (เลือกได้หลายข้อ)</label>
     <select id="f-consequence" multiple style="min-height:100px">
       ${consOpts}
     </select>
@@ -334,35 +334,35 @@ function formHTML(data={}){
 
   <div class="form-row">
     <div class="form-group">
-      <label>เน€เธญเธเธชเธฒเธฃเธญเนเธฒเธเธญเธดเธ</label>
-      <input id="f-reference" value="${data.reference||''}" placeholder="เน€เธเนเธ ISO 45001 ยง8.1">
+      <label>เอกสารอ้างอิง</label>
+      <input id="f-reference" value="${data.reference||''}" placeholder="เช่น ISO 45001 §8.1">
     </div>
     <div class="form-group">
-      <label>เธเธนเนเธฃเธฑเธเธเธดเธ”เธเธญเธ</label>
+      <label>ผู้รับผิดชอบ</label>
       <input id="f-responsible" value="${data.responsible||''}">
     </div>
   </div>
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธงเธฑเธเธ—เธตเนเธกเธตเธเธฅเธเธฑเธเธเธฑเธเนเธเน</label>
+      <label>วันที่มีผลบังคับใช้</label>
       <input type="date" id="f-effectiveDate" value="${data.effectiveDate||''}">
     </div>
     <div class="form-group">
-      <label>เธงเธฑเธเธ—เธเธ—เธงเธเธเธฃเธฑเนเธเธ–เธฑเธ”เนเธ</label>
+      <label>วันทบทวนครั้งถัดไป</label>
       <input type="date" id="f-reviewDate" value="${data.reviewDate||''}">
     </div>
   </div>
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธชเธ–เธฒเธเธฐ</label>
+      <label>สถานะ</label>
       <select id="f-status">
         ${Object.entries(RULE_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'active')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+      <label>หมายเหตุ</label>
       <input id="f-notes" value="${data.notes||''}">
     </div>
   </div>`;
@@ -381,7 +381,7 @@ window.__selLevel = (key, el) => {
 window.__openPanel = (id) => {
   editId = id;
   const data = id ? allRules.find(r=>r.id===id)||{} : {};
-  document.getElementById('panel-title').textContent = id ? 'เนเธเนเนเธเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข' : 'เน€เธเธดเนเธกเธเธเธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข';
+  document.getElementById('panel-title').textContent = id ? 'แก้ไขกฎความปลอดภัย' : 'เพิ่มกฎความปลอดภัย';
   document.getElementById('panel-body').innerHTML = formHTML(data);
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('open');
@@ -396,7 +396,7 @@ window.__closePanel = () => {
 window.__editRule = (id) => window.__openPanel(id);
 
 window.__delRule = async (id) => {
-  if(!confirm('เธขเธทเธเธขเธฑเธเธเธฒเธฃเธฅเธเธเธเธเธตเน?')) return;
+  if(!confirm('ยืนยันการลบกฎนี้?')) return;
   await deleteSafetyRule(id);
   allRules = allRules.filter(r=>r.id!==id);
   window.__closePanel();
@@ -407,8 +407,8 @@ window.__saveRule = async () => {
   const level = document.getElementById('f-level').value;
   const title = document.getElementById('f-title').value.trim();
   const category = document.getElementById('f-category').value;
-  if(!title){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธเธทเนเธญเธเธ'); return; }
-  if(!category){ alert('เธเธฃเธธเธ“เธฒเน€เธฅเธทเธญเธเธซเธกเธงเธ”เธซเธกเธนเน'); return; }
+  if(!title){ alert('กรุณาระบุชื่อกฎ'); return; }
+  if(!category){ alert('กรุณาเลือกหมวดหมู่'); return; }
 
   const checkedAreas = [...document.querySelectorAll('#f-areas input:checked')].map(e=>e.value);
   const selOptions = [...document.getElementById('f-consequence').selectedOptions].map(o=>o.value);
@@ -459,4 +459,3 @@ render();
 </script>
 </body>
 </html>
-

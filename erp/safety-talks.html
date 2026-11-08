@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -105,9 +105,9 @@ calMonth = now.getMonth();
 
 function badge(cfg){ return `<span class="badge" style="color:${cfg.color};background:${cfg.bg}">${cfg.icon||''} ${cfg.label}</span>`; }
 
-function topicInfo(key){ return TALK_TOPICS.find(t=>t.key===key)||{label:key,icon:'๐“'}; }
+function topicInfo(key){ return TALK_TOPICS.find(t=>t.key===key)||{label:key,icon:'📌'}; }
 
-/* โ”€โ”€โ”€ KPIs โ”€โ”€โ”€ */
+/* ─── KPIs ─── */
 function kpis(){
   const total = allTalks.length;
   const mo = now.getMonth(), yr = now.getFullYear();
@@ -125,11 +125,11 @@ function kpis(){
   }).length;
   return `
   <div class="kpi-row">
-    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">เธ—เธฑเนเธเธซเธกเธ”</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${thisMonth.length}</div><div class="kpi-lbl">เน€เธ”เธทเธญเธเธเธตเน</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${completed}</div><div class="kpi-lbl">เธ”เธณเน€เธเธดเธเธเธฒเธฃเนเธฅเนเธง</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${totalAtt}</div><div class="kpi-lbl">เธเธนเนเน€เธเนเธฒเธฃเนเธงเธกเธชเธฐเธชเธก</div></div>
-    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${upcoming}</div><div class="kpi-lbl">เธเธณเธฅเธฑเธเธเธฐเธ–เธถเธ</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#1e40af">${total}</div><div class="kpi-lbl">ทั้งหมด</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#0891b2">${thisMonth.length}</div><div class="kpi-lbl">เดือนนี้</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#16a34a">${completed}</div><div class="kpi-lbl">ดำเนินการแล้ว</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#7c3aed">${totalAtt}</div><div class="kpi-lbl">ผู้เข้าร่วมสะสม</div></div>
+    <div class="kpi-card"><div class="kpi-val" style="color:#d97706">${upcoming}</div><div class="kpi-lbl">กำลังจะถึง</div></div>
   </div>`;
 }
 
@@ -146,7 +146,7 @@ function filtered(){
   });
 }
 
-/* โ”€โ”€โ”€ Card view โ”€โ”€โ”€ */
+/* ─── Card view ─── */
 function talkCard(t){
   const tp = TALK_TYPES[t.type]||TALK_TYPES.toolbox;
   const topic = topicInfo(t.topic);
@@ -160,33 +160,33 @@ function talkCard(t){
       <span class="tb-date" style="color:${tp.color}">${dateStr}</span>
     </div>
     <div class="tc-body">
-      <div class="tc-title">${t.title||'(เนเธกเนเธกเธตเธเธทเนเธญ)'}</div>
+      <div class="tc-title">${t.title||'(ไม่มีชื่อ)'}</div>
       <div class="tc-topic" style="color:#7c3aed;background:#f5f3ff">${topic.icon} ${topic.label}</div>
       <div class="tc-meta">
-        <span><strong>เธงเธดเธ—เธขเธฒเธเธฃ:</strong> ${t.presenter||'-'}</span>
-        <span><strong>เนเธเธเธ:</strong> ${t.department||'-'}</span>
-        <span><strong>เธชเธ–เธฒเธเธ—เธตเน:</strong> ${t.location||'-'}</span>
-        <span><strong>เธเธนเนเน€เธเนเธฒเธฃเนเธงเธก:</strong> ${t.attendanceCount||'-'} เธเธ</span>
-        ${t.duration?`<span><strong>เธฃเธฐเธขเธฐเน€เธงเธฅเธฒ:</strong> ${t.duration} เธเธฒเธ—เธต</span>`:''}
+        <span><strong>วิทยากร:</strong> ${t.presenter||'-'}</span>
+        <span><strong>แผนก:</strong> ${t.department||'-'}</span>
+        <span><strong>สถานที่:</strong> ${t.location||'-'}</span>
+        <span><strong>ผู้เข้าร่วม:</strong> ${t.attendanceCount||'-'} คน</span>
+        ${t.duration?`<span><strong>ระยะเวลา:</strong> ${t.duration} นาที</span>`:''}
       </div>
     </div>
     <div class="tc-footer">
       ${badge(st)}
-      ${t.followUp?`<span style="font-size:.72rem;color:#ea580c">๐“ เธกเธต Follow-up</span>`:''}
+      ${t.followUp?`<span style="font-size:.72rem;color:#ea580c">📋 มี Follow-up</span>`:''}
     </div>
   </div>`;
 }
 
 function cardView(){
   const data = filtered();
-  if(!data.length) return `<div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div>`;
+  if(!data.length) return `<div class="empty">ไม่พบข้อมูล</div>`;
   return `<div class="talk-grid">${data.map(talkCard).join('')}</div>`;
 }
 
-/* โ”€โ”€โ”€ Calendar view โ”€โ”€โ”€ */
+/* ─── Calendar view ─── */
 function calView(){
-  const TH_DAYS = ['เธญเธฒ','เธ','เธญ','เธ','เธเธค','เธจ','เธช'];
-  const TH_MONTHS = ['เธก.เธ.','เธ.เธ.','เธกเธต.เธ.','เน€เธก.เธข.','เธ.เธ.','เธกเธด.เธข.','เธ.เธ.','เธช.เธ.','เธ.เธข.','เธ•.เธ.','เธ.เธข.','เธ.เธ.'];
+  const TH_DAYS = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   const yr=calYear, mo=calMonth;
   const first = new Date(yr,mo,1).getDay();
   const days = new Date(yr,mo+1,0).getDate();
@@ -222,10 +222,10 @@ function calView(){
 
   return `
   <div class="cal-nav">
-    <button onclick="window.__calPrev()">โ—€</button>
+    <button onclick="window.__calPrev()">◀</button>
     <h3>${TH_MONTHS[mo]} ${yr+543}</h3>
-    <button onclick="window.__calNext()">โ–ถ</button>
-    <button onclick="window.__calToday()" style="margin-left:auto">เธงเธฑเธเธเธตเน</button>
+    <button onclick="window.__calNext()">▶</button>
+    <button onclick="window.__calToday()" style="margin-left:auto">วันนี้</button>
   </div>
   <div class="cal-grid">
     ${TH_DAYS.map(d=>`<div class="cal-day-name">${d}</div>`).join('')}
@@ -233,10 +233,10 @@ function calView(){
   </div>`;
 }
 
-/* โ”€โ”€โ”€ Table view โ”€โ”€โ”€ */
+/* ─── Table view ─── */
 function tableView(){
   const data = filtered();
-  if(!data.length) return `<div class="tbl-wrap"><div class="empty">เนเธกเนเธเธเธเนเธญเธกเธนเธฅ</div></div>`;
+  if(!data.length) return `<div class="tbl-wrap"><div class="empty">ไม่พบข้อมูล</div></div>`;
   const rows = data.map(t=>{
     const tp=TALK_TYPES[t.type]||TALK_TYPES.toolbox;
     const topic=topicInfo(t.topic);
@@ -252,39 +252,39 @@ function tableView(){
       <td style="text-align:center">${t.attendanceCount||'-'}</td>
       <td><span class="badge" style="color:${st.color};background:${st.bg}">${st.icon} ${st.label}</span></td>
       <td>
-        <button class="action-btn btn-edit" onclick="window.__editTalk('${t.id}')">เนเธเนเนเธ</button>
-        <button class="action-btn btn-del" onclick="window.__delTalk('${t.id}')">เธฅเธ</button>
+        <button class="action-btn btn-edit" onclick="window.__editTalk('${t.id}')">แก้ไข</button>
+        <button class="action-btn btn-del" onclick="window.__delTalk('${t.id}')">ลบ</button>
       </td>
     </tr>`;
   }).join('');
   return `<div class="tbl-wrap"><table>
-    <thead><tr><th>เธงเธฑเธเธ—เธตเน</th><th>เธเธฃเธฐเน€เธ เธ—</th><th>เธซเธฑเธงเธเนเธญ / เธเธทเนเธญเธเธฒเธฃเธเธฃเธฐเธเธธเธก</th><th>เธซเธกเธงเธ”เธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข</th><th>เธงเธดเธ—เธขเธฒเธเธฃ</th><th>เนเธเธเธ</th><th>เน€เธเนเธฒเธฃเนเธงเธก</th><th>เธชเธ–เธฒเธเธฐ</th><th></th></tr></thead>
+    <thead><tr><th>วันที่</th><th>ประเภท</th><th>หัวข้อ / ชื่อการประชุม</th><th>หมวดความปลอดภัย</th><th>วิทยากร</th><th>แผนก</th><th>เข้าร่วม</th><th>สถานะ</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
 
-/* โ”€โ”€โ”€ Render โ”€โ”€โ”€ */
+/* ─── Render ─── */
 function render(){
   const monthInput = filterMonth ? filterMonth : '';
   main.innerHTML = `
   ${kpis()}
   <div class="toolbar">
-    <input type="text" placeholder="เธเนเธเธซเธฒเธเธทเนเธญ / เธงเธดเธ—เธขเธฒเธเธฃ..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
+    <input type="text" placeholder="ค้นหาชื่อ / วิทยากร..." value="${filterText}" oninput="window.applyFilter('text',this.value)">
     <select onchange="window.applyFilter('type',this.value)">
-      <option value="">เธเธฃเธฐเน€เธ เธ—เธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">ประเภททั้งหมด</option>
       ${Object.entries(TALK_TYPES).map(([k,v])=>`<option value="${k}" ${filterType===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
     <select onchange="window.applyFilter('status',this.value)">
-      <option value="">เธชเธ–เธฒเธเธฐเธ—เธฑเนเธเธซเธกเธ”</option>
+      <option value="">สถานะทั้งหมด</option>
       ${Object.entries(TALK_STATUS).map(([k,v])=>`<option value="${k}" ${filterStatus===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
     </select>
-    <input type="month" value="${monthInput}" onchange="window.applyFilter('month',this.value)" title="เธเธฃเธญเธเธ•เธฒเธกเน€เธ”เธทเธญเธ">
+    <input type="month" value="${monthInput}" onchange="window.applyFilter('month',this.value)" title="กรองตามเดือน">
     <div class="view-btns">
-      <button class="view-btn ${curView==='card'?'active':''}" onclick="window.setView('card')">เธเธฒเธฃเนเธ”</button>
-      <button class="view-btn ${curView==='calendar'?'active':''}" onclick="window.setView('calendar')">เธเธเธดเธ—เธดเธ</button>
-      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">เธ•เธฒเธฃเธฒเธ</button>
+      <button class="view-btn ${curView==='card'?'active':''}" onclick="window.setView('card')">การ์ด</button>
+      <button class="view-btn ${curView==='calendar'?'active':''}" onclick="window.setView('calendar')">ปฏิทิน</button>
+      <button class="view-btn ${curView==='table'?'active':''}" onclick="window.setView('table')">ตาราง</button>
     </div>
-    <button class="add-btn" onclick="window.__openPanel(null)">+ เน€เธเธดเนเธก Safety Talk</button>
+    <button class="add-btn" onclick="window.__openPanel(null)">+ เพิ่ม Safety Talk</button>
   </div>
   <div id="content">${renderContent()}</div>
   ${panelHTML()}`;
@@ -296,20 +296,20 @@ function renderContent(){
   return tableView();
 }
 
-/* โ”€โ”€โ”€ Panel โ”€โ”€โ”€ */
+/* ─── Panel ─── */
 function panelHTML(){
   return `
   <div class="panel-overlay" id="overlay" onclick="window.__closePanel()"></div>
   <div class="slide-panel" id="panel">
     <div class="panel-head">
-      <h2 id="panel-title">เน€เธเธดเนเธก Safety Talk</h2>
-      <button class="btn btn-secondary" onclick="window.__closePanel()">โ•</button>
+      <h2 id="panel-title">เพิ่ม Safety Talk</h2>
+      <button class="btn btn-secondary" onclick="window.__closePanel()">✕</button>
     </div>
     <div class="panel-body" id="panel-body"></div>
     <div class="panel-foot">
-      ${editId?`<button class="btn btn-danger" onclick="window.__delTalk('${editId}')">เธฅเธ</button>`:''}
-      <button class="btn btn-secondary" onclick="window.__closePanel()">เธขเธเน€เธฅเธดเธ</button>
-      <button class="btn btn-primary" onclick="window.__saveTalk()">เธเธฑเธเธ—เธถเธ</button>
+      ${editId?`<button class="btn btn-danger" onclick="window.__delTalk('${editId}')">ลบ</button>`:''}
+      <button class="btn btn-secondary" onclick="window.__closePanel()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="window.__saveTalk()">บันทึก</button>
     </div>
   </div>`;
 }
@@ -325,58 +325,58 @@ function formHTML(data={}){
 
   return `
   <input type="hidden" id="f-type" value="${selType}">
-  <div class="section-title">เธเธฃเธฐเน€เธ เธ—เนเธฅเธฐเธซเธฑเธงเธเนเธญ</div>
+  <div class="section-title">ประเภทและหัวข้อ</div>
   <div class="form-row full"><div class="form-group">
-    <label>เธเธฃเธฐเน€เธ เธ— Safety Talk *</label>
+    <label>ประเภท Safety Talk *</label>
     <div class="type-cards">${typeCards}</div>
   </div></div>
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธซเธกเธงเธ”เธเธงเธฒเธกเธเธฅเธญเธ”เธ เธฑเธข *</label>
+      <label>หมวดความปลอดภัย *</label>
       <select id="f-topic">
-        <option value="">-- เน€เธฅเธทเธญเธเธซเธกเธงเธ” --</option>
+        <option value="">-- เลือกหมวด --</option>
         ${TALK_TOPICS.map(t=>`<option value="${t.key}" ${(data.topic||'')==t.key?'selected':''}>${t.icon} ${t.label}</option>`).join('')}
       </select>
     </div>
     <div class="form-group">
-      <label>เธเธทเนเธญเธเธฒเธฃเธเธฃเธฐเธเธธเธก / เธซเธฑเธงเธเนเธญ *</label>
-      <input id="f-title" value="${data.title||''}" placeholder="เธฃเธฐเธเธธเธเธทเนเธญเธซเธฑเธงเธเนเธญเธ—เธตเนเธเธฑเธ”">
+      <label>ชื่อการประชุม / หัวข้อ *</label>
+      <input id="f-title" value="${data.title||''}" placeholder="ระบุชื่อหัวข้อที่จัด">
     </div>
   </div>
 
-  <div class="section-title">เธฃเธฒเธขเธฅเธฐเน€เธญเธตเธขเธ”เธเธฒเธฃเธเธฑเธ”</div>
+  <div class="section-title">รายละเอียดการจัด</div>
   <div class="form-row">
     <div class="form-group">
-      <label>เธงเธฑเธเธ—เธตเนเธเธฑเธ” *</label>
+      <label>วันที่จัด *</label>
       <input type="date" id="f-talkDate" value="${data.talkDate||''}">
     </div>
     <div class="form-group">
-      <label>เน€เธงเธฅเธฒ</label>
+      <label>เวลา</label>
       <input type="time" id="f-talkTime" value="${data.talkTime||''}">
     </div>
   </div>
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธฃเธฐเธขเธฐเน€เธงเธฅเธฒ (เธเธฒเธ—เธต)</label>
-      <input type="number" id="f-duration" value="${data.duration||''}" min="1" max="480" placeholder="เน€เธเนเธ 15">
+      <label>ระยะเวลา (นาที)</label>
+      <input type="number" id="f-duration" value="${data.duration||''}" min="1" max="480" placeholder="เช่น 15">
     </div>
     <div class="form-group">
-      <label>เธชเธ–เธฒเธเธ—เธตเน</label>
-      <input id="f-location" value="${data.location||''}" placeholder="เน€เธเนเธ เธซเธเนเธฒเธชเธฒเธขเธเธฒเธฃเธเธฅเธดเธ• A">
+      <label>สถานที่</label>
+      <input id="f-location" value="${data.location||''}" placeholder="เช่น หน้าสายการผลิต A">
     </div>
   </div>
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธงเธดเธ—เธขเธฒเธเธฃ / เธเธนเนเธเธฑเธ”</label>
+      <label>วิทยากร / ผู้จัด</label>
       <input id="f-presenter" value="${data.presenter||''}">
     </div>
     <div class="form-group">
-      <label>เนเธเธเธ / เธเธฅเธธเนเธกเน€เธเนเธฒเธซเธกเธฒเธข</label>
+      <label>แผนก / กลุ่มเป้าหมาย</label>
       <select id="f-department">
-        <option value="">-- เน€เธฅเธทเธญเธ --</option>
+        <option value="">-- เลือก --</option>
         ${TALK_DEPARTMENTS.map(d=>`<option value="${d}" ${(data.department||'')==d?'selected':''}>${d}</option>`).join('')}
       </select>
     </div>
@@ -384,40 +384,40 @@ function formHTML(data={}){
 
   <div class="form-row">
     <div class="form-group">
-      <label>เธเธณเธเธงเธเธเธนเนเน€เธเนเธฒเธฃเนเธงเธก (เธเธ)</label>
+      <label>จำนวนผู้เข้าร่วม (คน)</label>
       <input type="number" id="f-attendanceCount" value="${data.attendanceCount||''}" min="0">
     </div>
     <div class="form-group">
-      <label>เธชเธ–เธฒเธเธฐ</label>
+      <label>สถานะ</label>
       <select id="f-status">
         ${Object.entries(TALK_STATUS).map(([k,v])=>`<option value="${k}" ${(data.status||'planned')===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')}
       </select>
     </div>
   </div>
 
-  <div class="section-title">เน€เธเธทเนเธญเธซเธฒเนเธฅเธฐเธเธฅเธฅเธฑเธเธเน</div>
+  <div class="section-title">เนื้อหาและผลลัพธ์</div>
   <div class="form-row full"><div class="form-group">
-    <label>เน€เธเธทเนเธญเธซเธฒเธ—เธตเนเธเธฑเธ” / เธชเธฃเธธเธเธเธฒเธฃเธเธฃเธฐเธเธธเธก</label>
-    <textarea id="f-content" placeholder="เธชเธฃเธธเธเธชเธฒเธฃเธฐเธชเธณเธเธฑเธเธ—เธตเนเนเธเนเธเธเธฑเธ...">${data.content||''}</textarea>
+    <label>เนื้อหาที่จัด / สรุปการประชุม</label>
+    <textarea id="f-content" placeholder="สรุปสาระสำคัญที่แบ่งปัน...">${data.content||''}</textarea>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เธฃเธฒเธขเธเธทเนเธญเธเธนเนเน€เธเนเธฒเธฃเนเธงเธก (เธ–เนเธฒเธกเธต)</label>
-    <textarea id="f-attendees" placeholder="เนเธ•เนเธฅเธฐเธเธทเนเธญเธเธถเนเธเธเธฃเธฃเธ—เธฑเธ”เนเธซเธกเน">${data.attendees||''}</textarea>
+    <label>รายชื่อผู้เข้าร่วม (ถ้ามี)</label>
+    <textarea id="f-attendees" placeholder="แต่ละชื่อขึ้นบรรทัดใหม่">${data.attendees||''}</textarea>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>๐“ Follow-up / เธเนเธญเธกเธนเธฅเธ•เธดเธ”เธ•เธฒเธก</label>
-    <textarea id="f-followUp" placeholder="เธเธฒเธเธ—เธตเนเธ•เนเธญเธเธ•เธดเธ”เธ•เธฒเธกเธซเธฅเธฑเธเธเธฒเธฃเธเธฃเธฐเธเธธเธก...">${data.followUp||''}</textarea>
+    <label>📋 Follow-up / ข้อมูลติดตาม</label>
+    <textarea id="f-followUp" placeholder="งานที่ต้องติดตามหลังการประชุม...">${data.followUp||''}</textarea>
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เน€เธญเธเธชเธฒเธฃเธญเนเธฒเธเธญเธดเธ / เนเธเธฅเนเนเธเธ (เธเธทเนเธญเนเธเธฅเน)</label>
-    <input id="f-attachment" value="${data.attachment||''}" placeholder="เน€เธเนเธ toolbox-talk-2025-11.pdf">
+    <label>เอกสารอ้างอิง / ไฟล์แนบ (ชื่อไฟล์)</label>
+    <input id="f-attachment" value="${data.attachment||''}" placeholder="เช่น toolbox-talk-2025-11.pdf">
   </div></div>
 
   <div class="form-row full"><div class="form-group">
-    <label>เธซเธกเธฒเธขเน€เธซเธ•เธธ</label>
+    <label>หมายเหตุ</label>
     <input id="f-notes" value="${data.notes||''}">
   </div></div>`;
 }
@@ -436,7 +436,7 @@ window.__selType = (key, el) => {
 window.__openPanel = (id, prefillDate='') => {
   editId = id;
   const data = id ? (allTalks.find(t=>t.id===id)||{}) : (prefillDate?{talkDate:prefillDate}:{});
-  document.getElementById('panel-title').textContent = id ? 'เนเธเนเนเธ Safety Talk' : 'เน€เธเธดเนเธก Safety Talk';
+  document.getElementById('panel-title').textContent = id ? 'แก้ไข Safety Talk' : 'เพิ่ม Safety Talk';
   document.getElementById('panel-body').innerHTML = formHTML(data);
   document.getElementById('panel').classList.add('open');
   document.getElementById('overlay').classList.add('open');
@@ -451,7 +451,7 @@ window.__closePanel = () => {
 window.__editTalk = (id) => window.__openPanel(id);
 
 window.__delTalk = async (id) => {
-  if(!confirm('เธขเธทเธเธขเธฑเธเธเธฒเธฃเธฅเธเธฃเธฒเธขเธเธฒเธฃเธเธตเน?')) return;
+  if(!confirm('ยืนยันการลบรายการนี้?')) return;
   await deleteSafetyTalk(id);
   allTalks = allTalks.filter(t=>t.id!==id);
   window.__closePanel();
@@ -461,8 +461,8 @@ window.__delTalk = async (id) => {
 window.__saveTalk = async () => {
   const title = document.getElementById('f-title').value.trim();
   const talkDate = document.getElementById('f-talkDate').value;
-  if(!title){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธซเธฑเธงเธเนเธญ'); return; }
-  if(!talkDate){ alert('เธเธฃเธธเธ“เธฒเธฃเธฐเธเธธเธงเธฑเธเธ—เธตเน'); return; }
+  if(!title){ alert('กรุณาระบุหัวข้อ'); return; }
+  if(!talkDate){ alert('กรุณาระบุวันที่'); return; }
 
   const data = {
     type: document.getElementById('f-type').value,
@@ -525,4 +525,3 @@ render();
 </script>
 </body>
 </html>
-
