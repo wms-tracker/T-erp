@@ -239,7 +239,7 @@ export async function versionPayload(vid) {
   const ver = { ...v, rev: revLabel(v.revision), created_at: iso(v.created_at), updated_at: iso(v.updated_at), submitted_at: iso(v.submitted_at),
     reviewed_at: iso(v.reviewed_at), approved_at: iso(v.approved_at), published_at: iso(v.published_at),
     is_current: v.id === sop.current_version_id, is_working: v.id === sop.working_version_id };
-  const person = (id, name) => id ? { id, display_name: name || nameOf(id), position: memberById(id)?.position || "" } : null;
+  const person = (id, name) => id ? { id, display_name: memberById(id)?.name || name || "", position: memberById(id)?.position || "" } : null;
   return {
     sop: { ...sop, dept_code: dept.code, dept_name: dept.name, review_state: reviewState(sop.next_review_date) },
     version: ver,
