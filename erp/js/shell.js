@@ -611,8 +611,20 @@ export function renderShell(profile, activeKey, title) {
   const safetyNavKey = userRoles.includes('kpo') ? 'kpo' : 'safety_officer';
   let groups = NAV[navKey] || [];
   if (hasSafetyRole && NAV[safetyNavKey]) {
-    // append safety groups that don't duplicate existing groupKeys
     const existingKeys = new Set(groups.map(g => g.groupKey));
+
+    // ถ้ามี damage group อยู่แล้ว → merge safety-home items เข้าใน damage แทนที่จะเพิ่ม group ใหม่
+    const safetyHomeGroup = NAV[safetyNavKey].find(g => g.groupKey === 'safety-home');
+    if (safetyHomeGroup && existingKeys.has('damage')) {
+      const damageItemKeys = new Set(groups.find(g => g.groupKey === 'damage').items.map(i => i.key));
+      const newItems = safetyHomeGroup.items.filter(i => !damageItemKeys.has(i.key));
+      groups = groups.map(g =>
+        g.groupKey === 'damage' ? { ...g, items: [...g.items, ...newItems] } : g
+      );
+      existingKeys.add('safety-home'); // ถือว่าจัดการแล้ว ไม่ต้องเพิ่มเป็น group ใหม่
+    }
+
+    // append safety groups ที่เหลือ ที่ยังไม่ซ้ำกับ groupKey ที่มีอยู่
     const extraGroups = NAV[safetyNavKey].filter(g => !existingKeys.has(g.groupKey));
     groups = [...groups, ...extraGroups];
   }
