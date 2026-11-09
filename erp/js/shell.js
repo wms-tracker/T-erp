@@ -604,7 +604,19 @@ export function renderShell(profile, activeKey, title) {
     ? PAGE_DEPARTMENT[currentPage]
     : profile.role;
 
-  const groups = NAV[navKey] || [];
+  // ถ้า user มี kpo/safety_officer ใน roles แต่ primary role ไม่ใช่ ให้ merge KPO groups เข้า nav
+  const userRoles = profile.roles || [profile.role];
+  const hasSafetyRole = !['admin','kpo','safety_officer'].includes(navKey) &&
+    userRoles.some(r => ['kpo','safety_officer'].includes(r));
+  const safetyNavKey = userRoles.includes('kpo') ? 'kpo' : 'safety_officer';
+  let groups = NAV[navKey] || [];
+  if (hasSafetyRole && NAV[safetyNavKey]) {
+    // append safety groups that don't duplicate existing groupKeys
+    const existingKeys = new Set(groups.map(g => g.groupKey));
+    const extraGroups = NAV[safetyNavKey].filter(g => !existingKeys.has(g.groupKey));
+    groups = [...groups, ...extraGroups];
+  }
+
   // หา group ที่ activeKey อยู่ใน
   const activeGroup = groups.find(g => g.items.some(i => i.key === activeKey)) || groups[0];
 
