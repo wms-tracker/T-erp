@@ -1,9 +1,40 @@
-// safety-data.js — Firestore data layer สำหรับ KPO Safety Management System
+﻿// safety-data.js — Firestore data layer สำหรับ KPO Safety Management System
 import { db } from "./auth.js";
 import {
   collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, limit, serverTimestamp, getCountFromServer, setDoc
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+// ── File-attachment helpers (ใช้ร่วมกับ safety-attach.js) ─────────────────────
+async function _commitFiles(colName, docId) {
+  if (typeof window !== 'undefined' && window.__commitFiles &&
+      (window.__FILES?.pending?.length || window.__FILES?.toDelete?.length)) {
+    try { await window.__commitFiles(colName, docId); } catch {}
+  }
+}
+async function _loadFiles(colName, docId) {
+  if (typeof window !== 'undefined' && window.__loadFiles &&
+      document.getElementById('f-file-zone')) {
+    try { await window.__loadFiles(colName, docId); } catch {}
+  }
+}
+async function _addDoc(colRef, payload) {
+  const r = await addDoc(colRef, payload);
+  await _commitFiles(colRef.id, r.id);
+  return r;
+}
+async function _updateDoc(docRef, payload) {
+  await updateDoc(docRef, payload);
+  await _commitFiles(docRef.parent.id, docRef.id);
+}
+async function _setDoc(docRef, payload, options) {
+  options ? await setDoc(docRef, payload, options) : await setDoc(docRef, payload);
+  await _commitFiles(docRef.parent.id, docRef.id);
+}
+async function _getDoc(docRef) {
+  const s = await getDoc(docRef);
+  if (s.exists() && typeof window !== 'undefined') await _loadFiles(docRef.parent.id, s.id);
+  return s;
+}
 
 // ────────────────────────────────────────────
 // Collection names
@@ -168,7 +199,7 @@ export async function listIncidents({ startDate, endDate, type, status, dept, li
 }
 
 export async function getIncident(id) {
-  const snap = await getDoc(doc(db, COL.incidents, id));
+  const snap = await _getDoc(doc(db, COL.incidents, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
@@ -182,12 +213,12 @@ export async function createIncident(data, createdBy) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
-  const ref = await addDoc(collection(db, COL.incidents), payload);
+  const ref = await _addDoc(collection(db, COL.incidents), payload);
   return { id: ref.id, incidentId };
 }
 
 export async function updateIncident(id, data) {
-  await updateDoc(doc(db, COL.incidents, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.incidents, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteIncident(id) {
@@ -318,7 +349,7 @@ export async function countOverdueCapa() {
 }
 
 export async function createCapa(data, createdBy) {
-  return addDoc(collection(db, COL.capa), {
+  return _addDoc(collection(db, COL.capa), {
     ...data,
     status: 'open',
     createdBy,
@@ -328,7 +359,7 @@ export async function createCapa(data, createdBy) {
 }
 
 export async function updateCapa(id, data) {
-  await updateDoc(doc(db, COL.capa, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.capa, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 // ────────────────────────────────────────────
@@ -343,7 +374,7 @@ export async function listInspections({ startDate, endDate, lim = 100 } = {}) {
 }
 
 export async function createInspection(data, createdBy) {
-  return addDoc(collection(db, COL.inspections), {
+  return _addDoc(collection(db, COL.inspections), {
     ...data,
     createdBy,
     createdAt: serverTimestamp(),
@@ -364,7 +395,7 @@ export async function listNearMiss({ startDate, endDate, lim = 200 } = {}) {
 
 export async function createNearMiss(data, createdBy) {
   const id = `NM-${new Date().getFullYear()}${String(new Date().getMonth()+1).padStart(2,'0')}-${String(Math.floor(Math.random()*9000)+1000)}`;
-  return addDoc(collection(db, COL.nearMiss), {
+  return _addDoc(collection(db, COL.nearMiss), {
     ...data,
     reportId: id,
     status: 'open',
@@ -375,11 +406,11 @@ export async function createNearMiss(data, createdBy) {
 }
 
 export async function updateNearMiss(id, data) {
-  await updateDoc(doc(db, COL.nearMiss, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.nearMiss, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function getNearMiss(id) {
-  const snap = await getDoc(doc(db, COL.nearMiss, id));
+  const snap = await _getDoc(doc(db, COL.nearMiss, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
@@ -443,7 +474,7 @@ export async function listInspectionTemplates() {
 }
 
 export async function createInspectionTemplate(data, createdBy) {
-  return addDoc(collection(db, COL.inspTpl), {
+  return _addDoc(collection(db, COL.inspTpl), {
     ...data,
     createdBy,
     createdAt: serverTimestamp(),
@@ -452,7 +483,7 @@ export async function createInspectionTemplate(data, createdBy) {
 }
 
 export async function updateInspectionTemplate(id, data) {
-  await updateDoc(doc(db, COL.inspTpl, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.inspTpl, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteInspectionTemplate(id) {
@@ -460,16 +491,16 @@ export async function deleteInspectionTemplate(id) {
 }
 
 export async function getInspectionTemplate(id) {
-  const snap = await getDoc(doc(db, COL.inspTpl, id));
+  const snap = await _getDoc(doc(db, COL.inspTpl, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function updateInspection(id, data) {
-  await updateDoc(doc(db, COL.inspections, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.inspections, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function getInspection(id) {
-  const snap = await getDoc(doc(db, COL.inspections, id));
+  const snap = await _getDoc(doc(db, COL.inspections, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
@@ -521,12 +552,12 @@ export async function listRiskAssessments({ dept, lim = 100 } = {}) {
 }
 
 export async function getRiskAssessment(id) {
-  const snap = await getDoc(doc(db, COL.riskAssess, id));
+  const snap = await _getDoc(doc(db, COL.riskAssess, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createRiskAssessment(data, createdBy) {
-  return addDoc(collection(db, COL.riskAssess), {
+  return _addDoc(collection(db, COL.riskAssess), {
     ...data,
     createdBy,
     createdAt: serverTimestamp(),
@@ -535,7 +566,7 @@ export async function createRiskAssessment(data, createdBy) {
 }
 
 export async function updateRiskAssessment(id, data) {
-  await updateDoc(doc(db, COL.riskAssess, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.riskAssess, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 // ────────────────────────────────────────────
@@ -563,18 +594,18 @@ export async function listCommitteeMembers() {
 }
 
 export async function getCommitteeMember(id) {
-  const snap = await getDoc(doc(db, COL.committee, id));
+  const snap = await _getDoc(doc(db, COL.committee, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createCommitteeMember(data, createdBy) {
-  return addDoc(collection(db, COL.committee), {
+  return _addDoc(collection(db, COL.committee), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateCommitteeMember(id, data) {
-  await updateDoc(doc(db, COL.committee, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.committee, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteCommitteeMember(id) {
@@ -602,18 +633,18 @@ export async function listMeetings({ lim = 100 } = {}) {
 }
 
 export async function getMeeting(id) {
-  const snap = await getDoc(doc(db, COL.meetings, id));
+  const snap = await _getDoc(doc(db, COL.meetings, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createMeeting(data, createdBy) {
-  return addDoc(collection(db, COL.meetings), {
+  return _addDoc(collection(db, COL.meetings), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateMeeting(id, data) {
-  await updateDoc(doc(db, COL.meetings, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.meetings, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 // ────────────────────────────────────────────
@@ -643,18 +674,18 @@ export async function listTrainings({ lim = 100 } = {}) {
 }
 
 export async function getTraining(id) {
-  const snap = await getDoc(doc(db, COL.training, id));
+  const snap = await _getDoc(doc(db, COL.training, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createTraining(data, createdBy) {
-  return addDoc(collection(db, COL.training), {
+  return _addDoc(collection(db, COL.training), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateTraining(id, data) {
-  await updateDoc(doc(db, COL.training, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.training, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteTraining(id) {
@@ -684,18 +715,18 @@ export async function listEquipments({ lim = 200 } = {}) {
 }
 
 export async function getEquipment(id) {
-  const snap = await getDoc(doc(db, COL.equipment, id));
+  const snap = await _getDoc(doc(db, COL.equipment, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createEquipment(data, createdBy) {
-  return addDoc(collection(db, COL.equipment), {
+  return _addDoc(collection(db, COL.equipment), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateEquipment(id, data) {
-  await updateDoc(doc(db, COL.equipment, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.equipment, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteEquipment(id) {
@@ -727,18 +758,18 @@ export async function listDrills({ lim = 100 } = {}) {
 }
 
 export async function getDrill(id) {
-  const snap = await getDoc(doc(db, COL.drills, id));
+  const snap = await _getDoc(doc(db, COL.drills, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createDrill(data, createdBy) {
-  return addDoc(collection(db, COL.drills), {
+  return _addDoc(collection(db, COL.drills), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateDrill(id, data) {
-  await updateDoc(doc(db, COL.drills, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.drills, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteDrill(id) {
@@ -767,18 +798,18 @@ export async function listLegalRegisters({ lim = 200 } = {}) {
 }
 
 export async function getLegalRegister(id) {
-  const snap = await getDoc(doc(db, COL.legal, id));
+  const snap = await _getDoc(doc(db, COL.legal, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createLegalRegister(data, createdBy) {
-  return addDoc(collection(db, COL.legal), {
+  return _addDoc(collection(db, COL.legal), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateLegalRegister(id, data) {
-  await updateDoc(doc(db, COL.legal, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.legal, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteLegalRegister(id) {
@@ -890,44 +921,44 @@ export async function listPermits({ status, permitType, startDate, endDate, lim 
 }
 
 export async function getPermit(id) {
-  const snap = await getDoc(doc(db, COL.permits, id));
+  const snap = await _getDoc(doc(db, COL.permits, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createPermit(data, createdBy) {
-  return await addDoc(collection(db, COL.permits), {
+  return await _addDoc(collection(db, COL.permits), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updatePermit(id, data) {
-  await updateDoc(doc(db, COL.permits, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.permits, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function approvePermit(id, approvedBy) {
-  await updateDoc(doc(db, COL.permits, id), {
+  await _updateDoc(doc(db, COL.permits, id), {
     status: 'approved', approvedBy, approvedAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function rejectPermit(id, rejectedBy, reason) {
-  await updateDoc(doc(db, COL.permits, id), {
+  await _updateDoc(doc(db, COL.permits, id), {
     status: 'rejected', rejectedBy, rejectedReason: reason, updatedAt: serverTimestamp(),
   });
 }
 
 export async function activatePermit(id) {
-  await updateDoc(doc(db, COL.permits, id), { status: 'active', updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.permits, id), { status: 'active', updatedAt: serverTimestamp() });
 }
 
 export async function closePermit(id, closedBy, notes) {
-  await updateDoc(doc(db, COL.permits, id), {
+  await _updateDoc(doc(db, COL.permits, id), {
     status: 'completed', closedBy, closedNotes: notes, closedAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function cancelPermit(id, reason) {
-  await updateDoc(doc(db, COL.permits, id), {
+  await _updateDoc(doc(db, COL.permits, id), {
     status: 'cancelled', cancelReason: reason, updatedAt: serverTimestamp(),
   });
 }
@@ -963,18 +994,18 @@ export async function listTalks({ startDate, endDate, talkType, dept, lim = 200 
 }
 
 export async function getTalk(id) {
-  const snap = await getDoc(doc(db, COL.talks, id));
+  const snap = await _getDoc(doc(db, COL.talks, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createTalk(data, createdBy) {
-  return await addDoc(collection(db, COL.talks), {
+  return await _addDoc(collection(db, COL.talks), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateTalk(id, data) {
-  await updateDoc(doc(db, COL.talks, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.talks, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteTalk(id) {
@@ -1039,18 +1070,18 @@ export async function listInvestigations({ status, lim = 200 } = {}) {
 }
 
 export async function getInvestigation(id) {
-  const snap = await getDoc(doc(db, COL.investigations, id));
+  const snap = await _getDoc(doc(db, COL.investigations, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createInvestigation(data, createdBy) {
-  return await addDoc(collection(db, COL.investigations), {
+  return await _addDoc(collection(db, COL.investigations), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateInvestigation(id, data) {
-  await updateDoc(doc(db, COL.investigations, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.investigations, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteInvestigation(id) {
@@ -1090,19 +1121,19 @@ export async function listObservations({ startDate, endDate, obsType, dept, lim 
 }
 
 export async function getObservation(id) {
-  const snap = await getDoc(doc(db, COL.observations, id));
+  const snap = await _getDoc(doc(db, COL.observations, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createObservation(data, createdBy) {
-  return addDoc(collection(db, COL.observations), {
+  return _addDoc(collection(db, COL.observations), {
     ...data, status: data.obsType === 'safe' || data.obsType === 'positive' ? 'na' : 'open',
     createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateObservation(id, data) {
-  await updateDoc(doc(db, COL.observations, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.observations, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteObservation(id) {
@@ -1144,18 +1175,18 @@ export async function listContractors({ status, lim = 200 } = {}) {
 }
 
 export async function getContractor(id) {
-  const snap = await getDoc(doc(db, COL.contractors, id));
+  const snap = await _getDoc(doc(db, COL.contractors, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createContractor(data, createdBy) {
-  return addDoc(collection(db, COL.contractors), {
+  return _addDoc(collection(db, COL.contractors), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateContractor(id, data) {
-  await updateDoc(doc(db, COL.contractors, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.contractors, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteContractor(id) {
@@ -1181,12 +1212,12 @@ export const KPI_DEFINITIONS = [
 ];
 
 export async function getKpiTargets(year) {
-  const snap = await getDoc(doc(db, COL.kpiTargets, String(year)));
+  const snap = await _getDoc(doc(db, COL.kpiTargets, String(year)));
   return snap.exists() ? snap.data() : null;
 }
 
 export async function saveKpiTargets(year, targets, updatedBy) {
-  await setDoc(doc(db, COL.kpiTargets, String(year)), {
+  await _setDoc(doc(db, COL.kpiTargets, String(year)), {
     year, targets, updatedBy, updatedAt: serverTimestamp(),
   });
 }
@@ -1221,18 +1252,18 @@ export async function listEmergencyPlans({ type, status, lim = 200 } = {}) {
 }
 
 export async function getEmergencyPlan(id) {
-  const snap = await getDoc(doc(db, COL.emergencyPlans, id));
+  const snap = await _getDoc(doc(db, COL.emergencyPlans, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createEmergencyPlan(data, createdBy) {
-  return addDoc(collection(db, COL.emergencyPlans), {
+  return _addDoc(collection(db, COL.emergencyPlans), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateEmergencyPlan(id, data) {
-  await updateDoc(doc(db, COL.emergencyPlans, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.emergencyPlans, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteEmergencyPlan(id) {
@@ -1279,18 +1310,18 @@ export async function listChemicals({ ghsClass, status, lim = 300 } = {}) {
 }
 
 export async function getChemical(id) {
-  const snap = await getDoc(doc(db, COL.chemicals, id));
+  const snap = await _getDoc(doc(db, COL.chemicals, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createChemical(data, createdBy) {
-  return addDoc(collection(db, COL.chemicals), {
+  return _addDoc(collection(db, COL.chemicals), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateChemical(id, data) {
-  await updateDoc(doc(db, COL.chemicals, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.chemicals, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteChemical(id) {
@@ -1336,18 +1367,18 @@ export async function listJSA({ status, lim = 200 } = {}) {
 }
 
 export async function getJSA(id) {
-  const snap = await getDoc(doc(db, COL.jsa, id));
+  const snap = await _getDoc(doc(db, COL.jsa, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createJSA(data, createdBy) {
-  return addDoc(collection(db, COL.jsa), {
+  return _addDoc(collection(db, COL.jsa), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateJSA(id, data) {
-  await updateDoc(doc(db, COL.jsa, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.jsa, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteJSA(id) {
@@ -1402,18 +1433,18 @@ export async function listHealthRecords({ department, result, lim = 300 } = {}) 
 }
 
 export async function getHealthRecord(id) {
-  const snap = await getDoc(doc(db, COL.healthRecords, id));
+  const snap = await _getDoc(doc(db, COL.healthRecords, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createHealthRecord(data, createdBy) {
-  return addDoc(collection(db, COL.healthRecords), {
+  return _addDoc(collection(db, COL.healthRecords), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateHealthRecord(id, data) {
-  await updateDoc(doc(db, COL.healthRecords, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.healthRecords, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteHealthRecord(id) {
@@ -1455,18 +1486,18 @@ export async function listActionPlan({ year, category, status, lim = 300 } = {})
 }
 
 export async function getActionPlanItem(id) {
-  const snap = await getDoc(doc(db, COL.actionPlan, id));
+  const snap = await _getDoc(doc(db, COL.actionPlan, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createActionPlanItem(data, createdBy) {
-  return addDoc(collection(db, COL.actionPlan), {
+  return _addDoc(collection(db, COL.actionPlan), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateActionPlanItem(id, data) {
-  await updateDoc(doc(db, COL.actionPlan, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.actionPlan, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteActionPlanItem(id) {
@@ -1507,18 +1538,18 @@ export async function listEnvMonitor({ parameter, result, lim = 300 } = {}) {
 }
 
 export async function getEnvMonitorRecord(id) {
-  const snap = await getDoc(doc(db, COL.envMonitor, id));
+  const snap = await _getDoc(doc(db, COL.envMonitor, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createEnvMonitorRecord(data, createdBy) {
-  return addDoc(collection(db, COL.envMonitor), {
+  return _addDoc(collection(db, COL.envMonitor), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateEnvMonitorRecord(id, data) {
-  await updateDoc(doc(db, COL.envMonitor, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.envMonitor, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteEnvMonitorRecord(id) {
@@ -1567,18 +1598,18 @@ export async function listWaste({ type, status, lim = 300 } = {}) {
 }
 
 export async function getWasteRecord(id) {
-  const snap = await getDoc(doc(db, COL.waste, id));
+  const snap = await _getDoc(doc(db, COL.waste, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createWasteRecord(data, createdBy) {
-  return addDoc(collection(db, COL.waste), {
+  return _addDoc(collection(db, COL.waste), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateWasteRecord(id, data) {
-  await updateDoc(doc(db, COL.waste, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.waste, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteWasteRecord(id) {
@@ -1634,18 +1665,18 @@ export async function listAudits({ status, type, lim = 200 } = {}) {
 }
 
 export async function getAudit(id) {
-  const snap = await getDoc(doc(db, COL.audits, id));
+  const snap = await _getDoc(doc(db, COL.audits, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createAudit(data, createdBy) {
-  return addDoc(collection(db, COL.audits), {
+  return _addDoc(collection(db, COL.audits), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateAudit(id, data) {
-  await updateDoc(doc(db, COL.audits, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.audits, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteAudit(id) {
@@ -1663,14 +1694,14 @@ export async function listFindings({ auditId, severity, status: fStatus, lim = 5
 }
 
 export async function createFinding(data, createdBy) {
-  return addDoc(collection(db, COL.auditFindings), {
+  return _addDoc(collection(db, COL.auditFindings), {
     ...data, createdBy, status: data.status || 'open',
     createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateFinding(id, data) {
-  await updateDoc(doc(db, COL.auditFindings, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.auditFindings, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteFinding(id) {
@@ -1721,18 +1752,18 @@ export async function listInduction({ type, status, lim = 300 } = {}) {
 }
 
 export async function getInductionRecord(id) {
-  const snap = await getDoc(doc(db, COL.induction, id));
+  const snap = await _getDoc(doc(db, COL.induction, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createInductionRecord(data, createdBy) {
-  return addDoc(collection(db, COL.induction), {
+  return _addDoc(collection(db, COL.induction), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateInductionRecord(id, data) {
-  await updateDoc(doc(db, COL.induction, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.induction, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteInductionRecord(id) {
@@ -1778,18 +1809,18 @@ export async function listFireEq({ type, status, lim = 500 } = {}) {
 }
 
 export async function getFireEq(id) {
-  const snap = await getDoc(doc(db, COL.fireEq, id));
+  const snap = await _getDoc(doc(db, COL.fireEq, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createFireEq(data, createdBy) {
-  return addDoc(collection(db, COL.fireEq), {
+  return _addDoc(collection(db, COL.fireEq), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateFireEq(id, data) {
-  await updateDoc(doc(db, COL.fireEq, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.fireEq, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteFireEq(id) {
@@ -1845,18 +1876,18 @@ export async function listPPEIssuance({ dept, ppeItem, lim = 500 } = {}) {
 }
 
 export async function getPPERecord(id) {
-  const snap = await getDoc(doc(db, COL.ppeIssue, id));
+  const snap = await _getDoc(doc(db, COL.ppeIssue, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createPPERecord(data, createdBy) {
-  return addDoc(collection(db, COL.ppeIssue), {
+  return _addDoc(collection(db, COL.ppeIssue), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updatePPERecord(id, data) {
-  await updateDoc(doc(db, COL.ppeIssue, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.ppeIssue, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deletePPERecord(id) {
@@ -1919,18 +1950,18 @@ export async function listFirstAid({ dept, lim = 500 } = {}) {
 }
 
 export async function getFirstAidRecord(id) {
-  const snap = await getDoc(doc(db, COL.firstAid, id));
+  const snap = await _getDoc(doc(db, COL.firstAid, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createFirstAidRecord(data, createdBy) {
-  return addDoc(collection(db, COL.firstAid), {
+  return _addDoc(collection(db, COL.firstAid), {
     ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateFirstAidRecord(id, data) {
-  await updateDoc(doc(db, COL.firstAid, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.firstAid, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteFirstAidRecord(id) {
@@ -1988,18 +2019,18 @@ export async function listViolations({ dept, lim = 500 } = {}) {
 }
 
 export async function getViolation(id) {
-  const snap = await getDoc(doc(db, COL.violations, id));
+  const snap = await _getDoc(doc(db, COL.violations, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createViolation(data, createdBy) {
-  return addDoc(collection(db, COL.violations), {
+  return _addDoc(collection(db, COL.violations), {
     ...data, status:'open', createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateViolation(id, data) {
-  await updateDoc(doc(db, COL.violations, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.violations, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteViolation(id) {
@@ -2033,18 +2064,18 @@ export async function listHandovers({ lim = 200 } = {}) {
 }
 
 export async function getHandover(id) {
-  const snap = await getDoc(doc(db, COL.handover, id));
+  const snap = await _getDoc(doc(db, COL.handover, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createHandover(data, createdBy) {
-  return addDoc(collection(db, COL.handover), {
+  return _addDoc(collection(db, COL.handover), {
     ...data, status:'pending', createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateHandover(id, data) {
-  await updateDoc(doc(db, COL.handover, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.handover, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteHandover(id) {
@@ -2088,18 +2119,18 @@ export async function listSuggestions({ lim = 500 } = {}) {
 }
 
 export async function getSuggestion(id) {
-  const snap = await getDoc(doc(db, COL.suggestions, id));
+  const snap = await _getDoc(doc(db, COL.suggestions, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
 export async function createSuggestion(data, createdBy) {
-  return addDoc(collection(db, COL.suggestions), {
+  return _addDoc(collection(db, COL.suggestions), {
     ...data, status:'submitted', createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
   });
 }
 
 export async function updateSuggestion(id, data) {
-  await updateDoc(doc(db, COL.suggestions, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.suggestions, id), { ...data, updatedAt: serverTimestamp() });
 }
 
 export async function deleteSuggestion(id) {
@@ -2134,14 +2165,14 @@ export async function listEqLoans({ lim = 500 } = {}) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getEqLoan(id) {
-  const snap = await getDoc(doc(db, COL.eqLoan, id));
+  const snap = await _getDoc(doc(db, COL.eqLoan, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 export async function createEqLoan(data, createdBy) {
-  return addDoc(collection(db, COL.eqLoan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.eqLoan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateEqLoan(id, data) {
-  await updateDoc(doc(db, COL.eqLoan, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.eqLoan, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteEqLoan(id) {
   await deleteDoc(doc(db, COL.eqLoan, id));
@@ -2175,14 +2206,14 @@ export async function listSafetyWalks({ lim = 300 } = {}) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getSafetyWalk(id) {
-  const snap = await getDoc(doc(db, COL.safetyWalk, id));
+  const snap = await _getDoc(doc(db, COL.safetyWalk, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 export async function createSafetyWalk(data, createdBy) {
-  return addDoc(collection(db, COL.safetyWalk), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyWalk), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetyWalk(id, data) {
-  await updateDoc(doc(db, COL.safetyWalk, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyWalk, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetyWalk(id) {
   await deleteDoc(doc(db, COL.safetyWalk, id));
@@ -2216,14 +2247,14 @@ export async function listBudget({ year } = {}) {
   return rows;
 }
 export async function getBudgetItem(id) {
-  const snap = await getDoc(doc(db, COL.budget, id));
+  const snap = await _getDoc(doc(db, COL.budget, id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 export async function createBudgetItem(data, createdBy) {
-  return addDoc(collection(db, COL.budget), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.budget), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateBudgetItem(id, data) {
-  await updateDoc(doc(db, COL.budget, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.budget, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteBudgetItem(id) {
   await deleteDoc(doc(db, COL.budget, id));
@@ -2248,14 +2279,14 @@ export async function listLOTO() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getLOTO(id) {
-  const d = await getDoc(doc(db, COL.loto, id));
+  const d = await _getDoc(doc(db, COL.loto, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createLOTO(data, createdBy) {
-  return addDoc(collection(db, COL.loto), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.loto), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateLOTO(id, data) {
-  await updateDoc(doc(db, COL.loto, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.loto, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteLOTO(id) {
   await deleteDoc(doc(db, COL.loto, id));
@@ -2282,14 +2313,14 @@ export async function listRecognition() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getRecognition(id) {
-  const d = await getDoc(doc(db, COL.recognition, id));
+  const d = await _getDoc(doc(db, COL.recognition, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createRecognition(data, createdBy) {
-  return addDoc(collection(db, COL.recognition), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.recognition), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateRecognition(id, data) {
-  await updateDoc(doc(db, COL.recognition, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.recognition, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteRecognition(id) {
   await deleteDoc(doc(db, COL.recognition, id));
@@ -2318,14 +2349,14 @@ export async function listErgonomics() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getErgonomic(id) {
-  const d = await getDoc(doc(db, COL.ergonomic, id));
+  const d = await _getDoc(doc(db, COL.ergonomic, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createErgonomic(data, createdBy) {
-  return addDoc(collection(db, COL.ergonomic), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.ergonomic), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateErgonomic(id, data) {
-  await updateDoc(doc(db, COL.ergonomic, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.ergonomic, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteErgonomic(id) {
   await deleteDoc(doc(db, COL.ergonomic, id));
@@ -2358,14 +2389,14 @@ export async function listAlerts() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getAlert(id) {
-  const d = await getDoc(doc(db, COL.safetyAlert, id));
+  const d = await _getDoc(doc(db, COL.safetyAlert, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createAlert(data, createdBy) {
-  return addDoc(collection(db, COL.safetyAlert), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyAlert), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateAlert(id, data) {
-  await updateDoc(doc(db, COL.safetyAlert, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyAlert, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteAlert(id) {
   await deleteDoc(doc(db, COL.safetyAlert, id));
@@ -2403,14 +2434,14 @@ export async function listWorkHeight() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getWorkHeight(id) {
-  const d = await getDoc(doc(db, COL.workHeight, id));
+  const d = await _getDoc(doc(db, COL.workHeight, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createWorkHeight(data, createdBy) {
-  return addDoc(collection(db, COL.workHeight), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.workHeight), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateWorkHeight(id, data) {
-  await updateDoc(doc(db, COL.workHeight, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.workHeight, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteWorkHeight(id) {
   await deleteDoc(doc(db, COL.workHeight, id));
@@ -2455,14 +2486,14 @@ export async function listCSE() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getCSE(id) {
-  const d = await getDoc(doc(db, COL.cse, id));
+  const d = await _getDoc(doc(db, COL.cse, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createCSE(data, createdBy) {
-  return addDoc(collection(db, COL.cse), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.cse), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateCSE(id, data) {
-  await updateDoc(doc(db, COL.cse, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.cse, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteCSE(id) {
   await deleteDoc(doc(db, COL.cse, id));
@@ -2500,14 +2531,14 @@ export async function listHotWork() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getHotWork(id) {
-  const d = await getDoc(doc(db, COL.hotWork, id));
+  const d = await _getDoc(doc(db, COL.hotWork, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createHotWork(data, createdBy) {
-  return addDoc(collection(db, COL.hotWork), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.hotWork), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateHotWork(id, data) {
-  await updateDoc(doc(db, COL.hotWork, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.hotWork, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteHotWork(id) {
   await deleteDoc(doc(db, COL.hotWork, id));
@@ -2548,14 +2579,14 @@ export async function listVehicleCheck() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getVehicleCheck(id) {
-  const d = await getDoc(doc(db, COL.vehicleCheck, id));
+  const d = await _getDoc(doc(db, COL.vehicleCheck, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createVehicleCheck(data, createdBy) {
-  return addDoc(collection(db, COL.vehicleCheck), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.vehicleCheck), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateVehicleCheck(id, data) {
-  await updateDoc(doc(db, COL.vehicleCheck, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.vehicleCheck, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteVehicleCheck(id) {
   await deleteDoc(doc(db, COL.vehicleCheck, id));
@@ -2591,14 +2622,14 @@ export async function listGasCylinder() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getGasCylinder(id) {
-  const d = await getDoc(doc(db, COL.gasCylinder, id));
+  const d = await _getDoc(doc(db, COL.gasCylinder, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createGasCylinder(data, createdBy) {
-  return addDoc(collection(db, COL.gasCylinder), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.gasCylinder), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateGasCylinder(id, data) {
-  await updateDoc(doc(db, COL.gasCylinder, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.gasCylinder, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteGasCylinder(id) {
   await deleteDoc(doc(db, COL.gasCylinder, id));
@@ -2639,14 +2670,14 @@ export async function listLiftingEq() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getLiftingEq(id) {
-  const d = await getDoc(doc(db, COL.liftingEq, id));
+  const d = await _getDoc(doc(db, COL.liftingEq, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createLiftingEq(data, createdBy) {
-  return addDoc(collection(db, COL.liftingEq), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.liftingEq), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateLiftingEq(id, data) {
-  await updateDoc(doc(db, COL.liftingEq, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.liftingEq, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteLiftingEq(id) {
   await deleteDoc(doc(db, COL.liftingEq, id));
@@ -2714,14 +2745,14 @@ export async function listFiveS() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getFiveS(id) {
-  const d = await getDoc(doc(db, COL.fiveS, id));
+  const d = await _getDoc(doc(db, COL.fiveS, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createFiveS(data, createdBy) {
-  return addDoc(collection(db, COL.fiveS), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.fiveS), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateFiveS(id, data) {
-  await updateDoc(doc(db, COL.fiveS, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.fiveS, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteFiveS(id) {
   await deleteDoc(doc(db, COL.fiveS, id));
@@ -2763,14 +2794,14 @@ export async function listElectricalInsp() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getElectricalInsp(id) {
-  const d = await getDoc(doc(db, COL.electricalInsp, id));
+  const d = await _getDoc(doc(db, COL.electricalInsp, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createElectricalInsp(data, createdBy) {
-  return addDoc(collection(db, COL.electricalInsp), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.electricalInsp), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateElectricalInsp(id, data) {
-  await updateDoc(doc(db, COL.electricalInsp, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.electricalInsp, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteElectricalInsp(id) {
   await deleteDoc(doc(db, COL.electricalInsp, id));
@@ -2810,14 +2841,14 @@ export async function listSpillRecord() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getSpillRecord(id) {
-  const d = await getDoc(doc(db, COL.spillRecord, id));
+  const d = await _getDoc(doc(db, COL.spillRecord, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createSpillRecord(data, createdBy) {
-  return addDoc(collection(db, COL.spillRecord), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.spillRecord), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSpillRecord(id, data) {
-  await updateDoc(doc(db, COL.spillRecord, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.spillRecord, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSpillRecord(id) {
   await deleteDoc(doc(db, COL.spillRecord, id));
@@ -2847,25 +2878,25 @@ export async function listPPEStock() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getPPEStock(id) {
-  const d = await getDoc(doc(db, COL.ppeStock, id));
+  const d = await _getDoc(doc(db, COL.ppeStock, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createPPEStock(data, createdBy) {
-  return addDoc(collection(db, COL.ppeStock), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.ppeStock), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updatePPEStock(id, data) {
-  await updateDoc(doc(db, COL.ppeStock, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.ppeStock, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deletePPEStock(id) {
   await deleteDoc(doc(db, COL.ppeStock, id));
 }
 export async function adjustPPEStockQty(id, delta, note, updatedBy) {
   const ref = doc(db, COL.ppeStock, id);
-  const snap = await getDoc(ref);
+  const snap = await _getDoc(ref);
   if (!snap.exists()) throw new Error('ไม่พบรายการ');
   const cur = snap.data().currentQty || 0;
   const newQty = Math.max(0, cur + delta);
-  await updateDoc(ref, {
+  await _updateDoc(ref, {
     currentQty: newQty,
     lastAdjNote: note || '',
     lastAdjBy: updatedBy,
@@ -2901,14 +2932,14 @@ export async function listSafetySign() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getSafetySign(id) {
-  const d = await getDoc(doc(db, COL.safetySign, id));
+  const d = await _getDoc(doc(db, COL.safetySign, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createSafetySign(data, createdBy) {
-  return addDoc(collection(db, COL.safetySign), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetySign), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetySign(id, data) {
-  await updateDoc(doc(db, COL.safetySign, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetySign, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetySign(id) {
   await deleteDoc(doc(db, COL.safetySign, id));
@@ -2990,11 +3021,11 @@ export async function listCultureSurvey() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getCultureSurvey(id) {
-  const d = await getDoc(doc(db, COL.cultureSurvey, id));
+  const d = await _getDoc(doc(db, COL.cultureSurvey, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createCultureSurvey(data, createdBy) {
-  return addDoc(collection(db, COL.cultureSurvey), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.cultureSurvey), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function deleteCultureSurvey(id) {
   await deleteDoc(doc(db, COL.cultureSurvey, id));
@@ -3032,14 +3063,14 @@ export async function listPTW() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getPTW(id) {
-  const d = await getDoc(doc(db, COL.ptw, id));
+  const d = await _getDoc(doc(db, COL.ptw, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createPTW(data, createdBy) {
-  return addDoc(collection(db, COL.ptw), { ...data, createdBy, status:'draft', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.ptw), { ...data, createdBy, status:'draft', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updatePTW(id, data) {
-  await updateDoc(doc(db, COL.ptw, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.ptw, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deletePTW(id) {
   await deleteDoc(doc(db, COL.ptw, id));
@@ -3077,14 +3108,14 @@ export async function listNoiseMonitor() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getNoiseMonitor(id) {
-  const d = await getDoc(doc(db, COL.noiseMonitor, id));
+  const d = await _getDoc(doc(db, COL.noiseMonitor, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createNoiseMonitor(data, createdBy) {
-  return addDoc(collection(db, COL.noiseMonitor), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.noiseMonitor), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateNoiseMonitor(id, data) {
-  await updateDoc(doc(db, COL.noiseMonitor, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.noiseMonitor, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteNoiseMonitor(id) {
   await deleteDoc(doc(db, COL.noiseMonitor, id));
@@ -3117,14 +3148,14 @@ export async function listIncidentInvestig() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getIncidentInvestig(id) {
-  const d = await getDoc(doc(db, COL.incidentInvestig, id));
+  const d = await _getDoc(doc(db, COL.incidentInvestig, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createIncidentInvestig(data, createdBy) {
-  return addDoc(collection(db, COL.incidentInvestig), { ...data, createdBy, status:'open', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.incidentInvestig), { ...data, createdBy, status:'open', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateIncidentInvestig(id, data) {
-  await updateDoc(doc(db, COL.incidentInvestig, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.incidentInvestig, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteIncidentInvestig(id) {
   await deleteDoc(doc(db, COL.incidentInvestig, id));
@@ -3174,14 +3205,14 @@ export async function listSafetyPassport() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getSafetyPassport(id) {
-  const d = await getDoc(doc(db, COL.safetyPassport, id));
+  const d = await _getDoc(doc(db, COL.safetyPassport, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createSafetyPassport(data, createdBy) {
-  return addDoc(collection(db, COL.safetyPassport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyPassport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetyPassport(id, data) {
-  await updateDoc(doc(db, COL.safetyPassport, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyPassport, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetyPassport(id) {
   await deleteDoc(doc(db, COL.safetyPassport, id));
@@ -3229,14 +3260,14 @@ export async function listMoC() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getMoC(id) {
-  const d = await getDoc(doc(db, COL.moc, id));
+  const d = await _getDoc(doc(db, COL.moc, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createMoC(data, createdBy) {
-  return addDoc(collection(db, COL.moc), { ...data, createdBy, status:'draft', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.moc), { ...data, createdBy, status:'draft', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateMoC(id, data) {
-  await updateDoc(doc(db, COL.moc, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.moc, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteMoC(id) {
   await deleteDoc(doc(db, COL.moc, id));
@@ -3272,17 +3303,17 @@ export async function listSafetyStats(year) {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getSafetyStats(id) {
-  const d = await getDoc(doc(db, COL.safetyStats, id));
+  const d = await _getDoc(doc(db, COL.safetyStats, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function upsertSafetyStats(year, month, department, data, createdBy) {
   const docId = `${year}-${String(month).padStart(2,'0')}-${department.replace(/\//g,'_')}`;
   const ref   = doc(db, COL.safetyStats, docId);
-  const snap  = await getDoc(ref);
+  const snap  = await _getDoc(ref);
   if (snap.exists()) {
-    await updateDoc(ref, { ...data, year, month, department, updatedAt: serverTimestamp() });
+    await _updateDoc(ref, { ...data, year, month, department, updatedAt: serverTimestamp() });
   } else {
-    await setDoc(ref, { ...data, year, month, department, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    await _setDoc(ref, { ...data, year, month, department, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }
   return docId;
 }
@@ -3324,17 +3355,17 @@ export async function listTrainingMatrix() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getTrainingMatrix(id) {
-  const d = await getDoc(doc(db, COL.trainingMatrix, id));
+  const d = await _getDoc(doc(db, COL.trainingMatrix, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createTrainingMatrix(data, createdBy) {
-  return addDoc(collection(db, COL.trainingMatrix), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.trainingMatrix), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateTrainingMatrix(id, data) {
-  await updateDoc(doc(db, COL.trainingMatrix), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.trainingMatrix), { ...data, updatedAt: serverTimestamp() });
 }
 export async function updateTrainingMatrixDoc(id, data) {
-  await updateDoc(doc(db, COL.trainingMatrix, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.trainingMatrix, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteTrainingMatrix(id) {
   await deleteDoc(doc(db, COL.trainingMatrix, id));
@@ -3376,17 +3407,17 @@ export async function listScoreCard(year) {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getScoreCard(id) {
-  const d = await getDoc(doc(db, COL.scoreCard, id));
+  const d = await _getDoc(doc(db, COL.scoreCard, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function upsertScoreCard(year, month, department, data, createdBy) {
   const docId = `${year}-${String(month).padStart(2,'0')}-${department.replace(/[\s/]/g,'_')}`;
   const ref   = doc(db, COL.scoreCard, docId);
-  const snap  = await getDoc(ref);
+  const snap  = await _getDoc(ref);
   if (snap.exists()) {
-    await updateDoc(ref, { ...data, year, month, department, updatedAt: serverTimestamp() });
+    await _updateDoc(ref, { ...data, year, month, department, updatedAt: serverTimestamp() });
   } else {
-    await setDoc(ref, { ...data, year, month, department, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    await _setDoc(ref, { ...data, year, month, department, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }
   return docId;
 }
@@ -3424,15 +3455,15 @@ export async function listBulletin(statusFilter) {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getBulletin(id) {
-  const d = await getDoc(doc(db, COL.bulletin, id));
+  const d = await _getDoc(doc(db, COL.bulletin, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createBulletin(data, createdBy) {
   const now = new Date().toISOString().slice(0,10);
-  return addDoc(collection(db, COL.bulletin), { ...data, createdBy, status: data.status||'draft', publishedAt: data.status==='published'?now:null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.bulletin), { ...data, createdBy, status: data.status||'draft', publishedAt: data.status==='published'?now:null, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateBulletin(id, data) {
-  await updateDoc(doc(db, COL.bulletin, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.bulletin, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteBulletin(id) {
   await deleteDoc(doc(db, COL.bulletin, id));
@@ -3474,14 +3505,14 @@ export async function listSafetyProject() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getSafetyProject(id) {
-  const d = await getDoc(doc(db, COL.safetyProject, id));
+  const d = await _getDoc(doc(db, COL.safetyProject, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createSafetyProject(data, createdBy) {
-  return addDoc(collection(db, COL.safetyProject), { ...data, createdBy, status:'planning', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyProject), { ...data, createdBy, status:'planning', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetyProject(id, data) {
-  await updateDoc(doc(db, COL.safetyProject, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyProject, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetyProject(id) {
   await deleteDoc(doc(db, COL.safetyProject, id));
@@ -3517,14 +3548,14 @@ export async function listDailyReport(limit200) {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getDailyReport(id) {
-  const d = await getDoc(doc(db, COL.dailyReport, id));
+  const d = await _getDoc(doc(db, COL.dailyReport, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createDailyReport(data, createdBy) {
-  return addDoc(collection(db, COL.dailyReport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.dailyReport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateDailyReport(id, data) {
-  await updateDoc(doc(db, COL.dailyReport, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.dailyReport, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteDailyReport(id) {
   await deleteDoc(doc(db, COL.dailyReport, id));
@@ -3590,14 +3621,14 @@ export async function listContractorEval(lim) {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getContractorEval(id) {
-  const d = await getDoc(doc(db, COL.contractorEval, id));
+  const d = await _getDoc(doc(db, COL.contractorEval, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createContractorEval(data, createdBy) {
-  return addDoc(collection(db, COL.contractorEval), { ...data, createdBy, approvalStatus:'pending', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.contractorEval), { ...data, createdBy, approvalStatus:'pending', createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateContractorEval(id, data) {
-  await updateDoc(doc(db, COL.contractorEval, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.contractorEval, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteContractorEval(id) {
   await deleteDoc(doc(db, COL.contractorEval, id));
@@ -3636,14 +3667,14 @@ export async function listOccHealth(lim) {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getOccHealth(id) {
-  const d = await getDoc(doc(db, COL.occHealth, id));
+  const d = await _getDoc(doc(db, COL.occHealth, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createOccHealth(data, createdBy) {
-  return addDoc(collection(db, COL.occHealth), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.occHealth), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateOccHealth(id, data) {
-  await updateDoc(doc(db, COL.occHealth, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.occHealth, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteOccHealth(id) {
   await deleteDoc(doc(db, COL.occHealth, id));
@@ -3703,14 +3734,14 @@ export async function listAnnualPlan(year) {
   return year ? all.filter(r => r.planYear === year) : all;
 }
 export async function getAnnualPlan(id) {
-  const d = await getDoc(doc(db, COL.annualPlan, id));
+  const d = await _getDoc(doc(db, COL.annualPlan, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createAnnualPlan(data, createdBy) {
-  return addDoc(collection(db, COL.annualPlan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.annualPlan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateAnnualPlan(id, data) {
-  await updateDoc(doc(db, COL.annualPlan, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.annualPlan, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteAnnualPlan(id) {
   await deleteDoc(doc(db, COL.annualPlan, id));
@@ -3748,14 +3779,14 @@ export async function listMgmtReview() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getMgmtReview(id) {
-  const d = await getDoc(doc(db, COL.mgmtReview, id));
+  const d = await _getDoc(doc(db, COL.mgmtReview, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createMgmtReview(data, createdBy) {
-  return addDoc(collection(db, COL.mgmtReview), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.mgmtReview), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateMgmtReview(id, data) {
-  await updateDoc(doc(db, COL.mgmtReview, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.mgmtReview, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteMgmtReview(id) {
   await deleteDoc(doc(db, COL.mgmtReview, id));
@@ -3786,14 +3817,14 @@ export async function listLegalCompliance() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getLegalCompliance(id) {
-  const d = await getDoc(doc(db, COL.legalCompliance, id));
+  const d = await _getDoc(doc(db, COL.legalCompliance, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createLegalCompliance(data, createdBy) {
-  return addDoc(collection(db, COL.legalCompliance), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.legalCompliance), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateLegalCompliance(id, data) {
-  await updateDoc(doc(db, COL.legalCompliance, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.legalCompliance, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteLegalCompliance(id) {
   await deleteDoc(doc(db, COL.legalCompliance, id));
@@ -3833,14 +3864,14 @@ export async function listInterestedParty() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getInterestedParty(id) {
-  const d = await getDoc(doc(db, COL.interestedParty, id));
+  const d = await _getDoc(doc(db, COL.interestedParty, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createInterestedParty(data, createdBy) {
-  return addDoc(collection(db, COL.interestedParty), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.interestedParty), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateInterestedParty(id, data) {
-  await updateDoc(doc(db, COL.interestedParty, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.interestedParty, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteInterestedParty(id) {
   await deleteDoc(doc(db, COL.interestedParty, id));
@@ -3874,14 +3905,14 @@ export async function listDocControl() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getDocControl(id) {
-  const d = await getDoc(doc(db, COL.docControl, id));
+  const d = await _getDoc(doc(db, COL.docControl, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createDocControl(data, createdBy) {
-  return addDoc(collection(db, COL.docControl), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.docControl), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateDocControl(id, data) {
-  await updateDoc(doc(db, COL.docControl, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.docControl, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteDocControl(id) {
   await deleteDoc(doc(db, COL.docControl, id));
@@ -3912,14 +3943,14 @@ export async function listParticipation() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getParticipation(id) {
-  const d = await getDoc(doc(db, COL.participation, id));
+  const d = await _getDoc(doc(db, COL.participation, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createParticipation(data, createdBy) {
-  return addDoc(collection(db, COL.participation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.participation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateParticipation(id, data) {
-  await updateDoc(doc(db, COL.participation, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.participation, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteParticipation(id) {
   await deleteDoc(doc(db, COL.participation, id));
@@ -3970,14 +4001,14 @@ export async function listImprovement() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getImprovement(id) {
-  const d = await getDoc(doc(db, COL.improvement, id));
+  const d = await _getDoc(doc(db, COL.improvement, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createImprovement(data, createdBy) {
-  return addDoc(collection(db, COL.improvement), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.improvement), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateImprovement(id, data) {
-  await updateDoc(doc(db, COL.improvement, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.improvement, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteImprovement(id) {
   await deleteDoc(doc(db, COL.improvement, id));
@@ -4034,14 +4065,14 @@ export async function listCommPlan() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getCommPlan(id) {
-  const d = await getDoc(doc(db, COL.commPlan, id));
+  const d = await _getDoc(doc(db, COL.commPlan, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createCommPlan(data, createdBy) {
-  return addDoc(collection(db, COL.commPlan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.commPlan), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateCommPlan(id, data) {
-  await updateDoc(doc(db, COL.commPlan, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.commPlan, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteCommPlan(id) {
   await deleteDoc(doc(db, COL.commPlan, id));
@@ -4079,14 +4110,14 @@ export async function listLessons() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getLesson(id) {
-  const d = await getDoc(doc(db, COL.lessons, id));
+  const d = await _getDoc(doc(db, COL.lessons, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createLesson(data, createdBy) {
-  return addDoc(collection(db, COL.lessons), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.lessons), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateLesson(id, data) {
-  await updateDoc(doc(db, COL.lessons, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.lessons, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteLesson(id) {
   await deleteDoc(doc(db, COL.lessons, id));
@@ -4193,14 +4224,14 @@ export async function listObjectives() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getObjective(id) {
-  const d = await getDoc(doc(db, COL.objective, id));
+  const d = await _getDoc(doc(db, COL.objective, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createObjective(data, createdBy) {
-  return addDoc(collection(db, COL.objective), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.objective), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateObjective(id, data) {
-  await updateDoc(doc(db, COL.objective, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.objective, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteObjective(id) {
   await deleteDoc(doc(db, COL.objective, id));
@@ -4444,14 +4475,14 @@ export async function listSafetyRules() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getSafetyRule(id) {
-  const d = await getDoc(doc(db, COL.safetyRule, id));
+  const d = await _getDoc(doc(db, COL.safetyRule, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createSafetyRule(data, createdBy) {
-  return addDoc(collection(db, COL.safetyRule), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyRule), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetyRule(id, data) {
-  await updateDoc(doc(db, COL.safetyRule, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyRule, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetyRule(id) {
   await deleteDoc(doc(db, COL.safetyRule, id));
@@ -4503,14 +4534,14 @@ export async function listSafetyTalks() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getSafetyTalk(id) {
-  const d = await getDoc(doc(db, COL.safetyTalk, id));
+  const d = await _getDoc(doc(db, COL.safetyTalk, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createSafetyTalk(data, createdBy) {
-  return addDoc(collection(db, COL.safetyTalk), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyTalk), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetyTalk(id, data) {
-  await updateDoc(doc(db, COL.safetyTalk, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyTalk, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetyTalk(id) {
   await deleteDoc(doc(db, COL.safetyTalk, id));
@@ -4559,14 +4590,14 @@ export async function listMachineChecks() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getMachineCheck(id) {
-  const d = await getDoc(doc(db, COL.machineCheck, id));
+  const d = await _getDoc(doc(db, COL.machineCheck, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createMachineCheck(data, createdBy) {
-  return addDoc(collection(db, COL.machineCheck), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.machineCheck), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateMachineCheck(id, data) {
-  await updateDoc(doc(db, COL.machineCheck, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.machineCheck, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteMachineCheck(id) {
   await deleteDoc(doc(db, COL.machineCheck, id));
@@ -4598,14 +4629,14 @@ export async function listBBSObs() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getBBSObs(id) {
-  const d = await getDoc(doc(db, COL.bbsObs, id));
+  const d = await _getDoc(doc(db, COL.bbsObs, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createBBSObs(data, createdBy) {
-  return addDoc(collection(db, COL.bbsObs), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.bbsObs), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateBBSObs(id, data) {
-  await updateDoc(doc(db, COL.bbsObs, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.bbsObs, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteBBSObs(id) {
   await deleteDoc(doc(db, COL.bbsObs, id));
@@ -4643,14 +4674,14 @@ export async function listSafetyEvents() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getSafetyEvent(id) {
-  const d = await getDoc(doc(db, COL.safetyEvent, id));
+  const d = await _getDoc(doc(db, COL.safetyEvent, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createSafetyEvent(data, createdBy) {
-  return addDoc(collection(db, COL.safetyEvent), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.safetyEvent), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateSafetyEvent(id, data) {
-  await updateDoc(doc(db, COL.safetyEvent, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.safetyEvent, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteSafetyEvent(id) {
   await deleteDoc(doc(db, COL.safetyEvent, id));
@@ -4711,14 +4742,14 @@ export async function listEnvMeasures() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getEnvMeasure(id) {
-  const d = await getDoc(doc(db, COL.envMeasure, id));
+  const d = await _getDoc(doc(db, COL.envMeasure, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createEnvMeasure(data, createdBy) {
-  return addDoc(collection(db, COL.envMeasure), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.envMeasure), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateEnvMeasure(id, data) {
-  await updateDoc(doc(db, COL.envMeasure, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.envMeasure, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteEnvMeasure(id) {
   await deleteDoc(doc(db, COL.envMeasure, id));
@@ -4729,14 +4760,14 @@ export async function listCampaigns() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getCampaign(id) {
-  const d = await getDoc(doc(db, COL.campaign, id));
+  const d = await _getDoc(doc(db, COL.campaign, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createCampaign(data, createdBy) {
-  return addDoc(collection(db, COL.campaign), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.campaign), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateCampaign(id, data) {
-  await updateDoc(doc(db, COL.campaign, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.campaign, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteCampaign(id) {
   await deleteDoc(doc(db, COL.campaign, id));
@@ -4747,14 +4778,14 @@ export async function listMonitorProgs() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getMonitorProg(id) {
-  const d = await getDoc(doc(db, COL.monitorProg, id));
+  const d = await _getDoc(doc(db, COL.monitorProg, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createMonitorProg(data, createdBy) {
-  return addDoc(collection(db, COL.monitorProg), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.monitorProg), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateMonitorProg(id, data) {
-  await updateDoc(doc(db, COL.monitorProg, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.monitorProg, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteMonitorProg(id) {
   await deleteDoc(doc(db, COL.monitorProg, id));
@@ -4765,14 +4796,14 @@ export async function listOpControls() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getOpControl(id) {
-  const d = await getDoc(doc(db, COL.opControl, id));
+  const d = await _getDoc(doc(db, COL.opControl, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createOpControl(data, createdBy) {
-  return addDoc(collection(db, COL.opControl), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.opControl), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateOpControl(id, data) {
-  await updateDoc(doc(db, COL.opControl, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.opControl, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteOpControl(id) {
   await deleteDoc(doc(db, COL.opControl, id));
@@ -4783,14 +4814,14 @@ export async function listHazards() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getHazard(id) {
-  const d = await getDoc(doc(db, COL.hazard, id));
+  const d = await _getDoc(doc(db, COL.hazard, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createHazard(data, createdBy) {
-  return addDoc(collection(db, COL.hazard), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.hazard), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateHazard(id, data) {
-  await updateDoc(doc(db, COL.hazard, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.hazard, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteHazard(id) {
   await deleteDoc(doc(db, COL.hazard, id));
@@ -4801,14 +4832,14 @@ export async function listContextIssues() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getContextIssue(id) {
-  const d = await getDoc(doc(db, COL.contextIssue, id));
+  const d = await _getDoc(doc(db, COL.contextIssue, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createContextIssue(data, createdBy) {
-  return addDoc(collection(db, COL.contextIssue), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.contextIssue), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateContextIssue(id, data) {
-  await updateDoc(doc(db, COL.contextIssue, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.contextIssue, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteContextIssue(id) {
   await deleteDoc(doc(db, COL.contextIssue, id));
@@ -4842,14 +4873,14 @@ export async function listCompensations() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getCompensation(id) {
-  const d = await getDoc(doc(db, COL.compensation, id));
+  const d = await _getDoc(doc(db, COL.compensation, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createCompensation(data, createdBy) {
-  return addDoc(collection(db, COL.compensation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.compensation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateCompensation(id, data) {
-  await updateDoc(doc(db, COL.compensation, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.compensation, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteCompensation(id) {
   await deleteDoc(doc(db, COL.compensation, id));
@@ -4881,14 +4912,14 @@ export async function listStatutoryEq() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getStatutoryEq(id) {
-  const d = await getDoc(doc(db, COL.statutory, id));
+  const d = await _getDoc(doc(db, COL.statutory, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createStatutoryEq(data, createdBy) {
-  return addDoc(collection(db, COL.statutory), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.statutory), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateStatutoryEq(id, data) {
-  await updateDoc(doc(db, COL.statutory, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.statutory, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteStatutoryEq(id) {
   await deleteDoc(doc(db, COL.statutory, id));
@@ -4920,14 +4951,14 @@ export async function listGovReports() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getGovReport(id) {
-  const d = await getDoc(doc(db, COL.govReport, id));
+  const d = await _getDoc(doc(db, COL.govReport, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createGovReport(data, createdBy) {
-  return addDoc(collection(db, COL.govReport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.govReport), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateGovReport(id, data) {
-  await updateDoc(doc(db, COL.govReport, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.govReport, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteGovReport(id) {
   await deleteDoc(doc(db, COL.govReport, id));
@@ -4963,14 +4994,14 @@ export async function listAidStations() {
   return s.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 export async function getAidStation(id) {
-  const d = await getDoc(doc(db, COL.aidStation, id));
+  const d = await _getDoc(doc(db, COL.aidStation, id));
   return d.exists() ? { id: d.id, ...d.data() } : null;
 }
 export async function createAidStation(data, createdBy) {
-  return addDoc(collection(db, COL.aidStation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  return _addDoc(collection(db, COL.aidStation), { ...data, createdBy, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
 }
 export async function updateAidStation(id, data) {
-  await updateDoc(doc(db, COL.aidStation, id), { ...data, updatedAt: serverTimestamp() });
+  await _updateDoc(doc(db, COL.aidStation, id), { ...data, updatedAt: serverTimestamp() });
 }
 export async function deleteAidStation(id) {
   await deleteDoc(doc(db, COL.aidStation, id));
@@ -5005,14 +5036,14 @@ export async function listLuxMonitor() {
   return s.docs.map(d=>({ id:d.id, ...d.data() }));
 }
 export async function getLuxMonitor(id) {
-  const d = await getDoc(doc(db, COL.luxMonitor, id));
+  const d = await _getDoc(doc(db, COL.luxMonitor, id));
   return d.exists() ? { id:d.id, ...d.data() } : null;
 }
 export async function createLuxMonitor(data, createdBy) {
-  return addDoc(collection(db, COL.luxMonitor), { ...data, createdBy, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
+  return _addDoc(collection(db, COL.luxMonitor), { ...data, createdBy, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
 }
 export async function updateLuxMonitor(id, data) {
-  await updateDoc(doc(db, COL.luxMonitor, id), { ...data, updatedAt:serverTimestamp() });
+  await _updateDoc(doc(db, COL.luxMonitor, id), { ...data, updatedAt:serverTimestamp() });
 }
 export async function deleteLuxMonitor(id) {
   await deleteDoc(doc(db, COL.luxMonitor, id));
