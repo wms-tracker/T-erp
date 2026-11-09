@@ -1,11 +1,5 @@
 // safety-attach.js — Reusable image attachment widget (auto-inject via MutationObserver)
-// Firebase Storage 10.12.0  |  max 5 images per record
-import { app } from "./auth.js";
-import {
-  getStorage, ref, uploadBytes, getDownloadURL,
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-
-const storage  = getStorage(app);
+// เก็บรูปเป็น base64 ใน Firestore (ไม่ใช้ Firebase Storage)
 const MAX      = 5;
 const TARGETS  = new Set(['panel-body','panel-content','panelBody','panelFormBody','modalBody']);
 
@@ -92,18 +86,34 @@ window.__attRmPd = i => {
   _render();
 };
 
-// ── Upload pending → return final URL array ─────────────────
+// ── Resize + compress รูปเป็น base64 JPEG ──────────────────
+function _toBase64(file, maxPx = 1024, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width: w, height: h } = img;
+      if (w > maxPx || h > maxPx) {
+        if (w >= h) { h = Math.round(h * maxPx / w); w = maxPx; }
+        else        { w = Math.round(w * maxPx / h); h = maxPx; }
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// ── Convert pending → base64, return final array ─────────────
 async function commitAttachments() {
   if (!window.__ATTACH) return [];
   const { existing, pending } = window.__ATTACH;
-  const page = location.pathname.split('/').pop().replace('.html', '') || 'safety';
-  const uploaded = await Promise.all(pending.map(async ({ file }) => {
-    const name = `${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name.replace(/[^\w.-]/g, '_')}`;
-    const fileRef = ref(storage, `safety/${page}/${name}`);
-    await uploadBytes(fileRef, file);
-    return getDownloadURL(fileRef);
-  }));
-  return [...existing.map(e => e.url), ...uploaded];
+  const converted = await Promise.all(pending.map(({ file }) => _toBase64(file)));
+  return [...existing.map(e => e.url), ...converted];
 }
 
 export { commitAttachments };
