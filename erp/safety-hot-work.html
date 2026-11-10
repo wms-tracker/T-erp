@@ -231,7 +231,7 @@ window.__saveRecord = async () => {
     window.__closePanel(); await loadAll();
   } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
 };
-window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode('ใบอนุญาตงานร้อน (Hot Work Permit)'); };
 window.__deleteRecord = async id => {
   if(!confirm('ลบบันทึกนี้?')) return;
   await deleteHotWork(id); await loadAll();

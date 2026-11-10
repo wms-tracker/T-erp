@@ -1055,6 +1055,7 @@ export function statusBadge(status) {
 
 // ── โหมดดูเอกสาร (อ่านอย่างเดียว) — ใช้ร่วมกันทุกหน้า Safety ──────────────
 window.__safetyViewMode = (title) => {
+  window.__safetyDocTitle = title || null;
   setTimeout(() => {
     const body = document.getElementById('panel-body') || document.getElementById('panelBody') || document.getElementById('modalBody');
     if (!body) return;
@@ -1092,28 +1093,37 @@ window.__printPanel = () => {
   const body = document.getElementById('panel-body') || document.getElementById('panelBody') || document.getElementById('modalBody');
   const titleEl = document.getElementById('panel-title') || document.getElementById('panelTitle') || document.getElementById('modalTitle');
   if (!body) return;
-  const title = titleEl ? titleEl.textContent.replace('👁 ', '') : document.title;
+  const rawTitle = titleEl ? titleEl.textContent.replace(/^👁 /, '') : document.title;
+  const title = window.__safetyDocTitle || rawTitle.replace(/^(แก้ไข|เพิ่ม|สร้าง|ออก)/, '').trim();
+  window.__safetyDocTitle = null;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>${title}</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
+  @page{size:A4 portrait;margin:1.2cm 1.5cm;}
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;padding:24px 32px;}
-  h2{font-size:16px;font-weight:700;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #1e3a5f;color:#1e3a5f;}
-  label,.form-label,.f{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:2px;margin-top:10px;}
-  input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:4px;padding:5px 8px;font-size:13px;font-family:inherit;background:#f8fafc;color:#1e293b;}
+  body{font-family:'Sarabun',sans-serif;font-size:11px;color:#1e293b;line-height:1.5;}
+  .doc-header{text-align:center;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #1e3a5f;}
+  .doc-header h1{font-size:15px;font-weight:700;color:#1e3a5f;}
+  .form-label{font-size:9.5px;font-weight:600;color:#64748b;display:block;margin-bottom:2px;margin-top:7px;}
+  .form-control,input:not([type=checkbox]):not([type=hidden]),select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:3px;padding:3px 7px;font-size:11px;font-family:inherit;background:#f8fafc;color:#1e293b;}
   textarea{resize:none;}
-  .section-title{font-size:12px;font-weight:700;color:#1e3a5f;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:14px 0 8px;}
-  .__view-banner,button,#f-attach-wrapper,input[type=file],label[for*=attach],label[for*=file]{display:none!important;}
-  .type-chip.on{display:inline-block;border:1px solid #ea580c;background:#fff7ed;color:#ea580c;padding:3px 8px;border-radius:16px;font-size:12px;}
-  .type-chip:not(.on){display:none;}
-  img{max-width:120px;max-height:120px;object-fit:cover;border-radius:4px;}
-  @media print{body{padding:12px;} h2{font-size:14px;}}
+  .form-group{margin-bottom:2px;}
+  .section-title{font-size:9.5px;font-weight:700;color:#1e3a5f;border-bottom:1px solid #e2e8f0;padding-bottom:2px;margin:10px 0 4px;letter-spacing:.4px;}
+  .__view-banner,button,.btn,#f-attach-wrapper,input[type=file],label[for*=attach],label[for*=file],#panel-msg{display:none!important;}
+  .type-chip.on{display:inline-block!important;border:1px solid #ea580c;background:#fff7ed;color:#ea580c;padding:2px 8px;border-radius:12px;font-size:10px;}
+  .type-chip:not(.on){display:none!important;}
+  .type-grid{margin:2px 0 4px;}
+  .checklist-item{display:flex!important;align-items:flex-start;gap:5px;padding:2px 2px;border-bottom:1px dotted #f1f5f9;font-size:10.5px;line-height:1.4;}
+  .checklist-item.checked{background:#f0fdf4;}
+  .checklist-item input[type=checkbox]{display:inline-flex!important;margin-top:2px;flex-shrink:0;width:13px;height:13px;}
+  img{max-width:80px;max-height:80px;object-fit:cover;border-radius:3px;}
+  @media print{body{padding:0;}}
 </style></head><body>
-<h2>${title}</h2>
+<div class="doc-header"><h1>${title}</h1></div>
 ${body.innerHTML}
 <script>window.onload=()=>{window.print();window.close();}<\/script>
 </body></html>`;
-  const w = window.open('', '_blank', 'width=800,height=900');
+  const w = window.open('', '_blank', 'width=820,height=1050');
   if (w) { w.document.write(html); w.document.close(); }
 };
