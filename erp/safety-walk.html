@@ -200,6 +200,7 @@ window.__viewRecord = async id => {
   document.getElementById('walk-panel').classList.add('open');
   document.getElementById('panel-overlay').classList.add('open');
 };
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
 window.__deleteRecord = async id => {
   if(!confirm('ลบ Safety Walk นี้?')) return;
   await deleteSafetyWalk(id);

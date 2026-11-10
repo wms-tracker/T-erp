@@ -97,8 +97,7 @@ function renderPage() {
               </div>
               <div style="display:flex;gap:6px;flex-shrink:0;">
                 <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__viewRecord('${r.id}')">ดูเอกสาร</button><button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
-                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;" onclick="window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
-window.__deleteRecord('${r.id}')">ลบ</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
               </div>
             </div>
             ${r.reason?`<div style="font-size:0.82rem;color:#444;margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f8;">${r.reason}</div>`:''}
@@ -183,6 +182,7 @@ window.__saveRecord = async () => {
     window.__closePanel(); await loadAll();
   } catch(e){ msg.textContent='เกิดข้อผิดพลาด: '+e.message; msg.className='msg error'; }
 };
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
 window.__deleteRecord = async id => {
   if(!confirm('ลบรายการนี้?')) return;
   await deleteRecognition(id); await loadAll();
