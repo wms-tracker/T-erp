@@ -1122,7 +1122,7 @@ window.__printPanel = () => {
 </style></head><body>
 <div class="doc-header"><h1>${title}</h1></div>
 ${body.innerHTML}
-<script>window.onload=()=>{window.print();window.close();}<\/script>
+<script>window.onload=()=>{document.querySelectorAll('textarea').forEach(t=>{t.style.height='auto';t.style.height=t.scrollHeight+'px';t.style.overflow='hidden';});window.print();window.close();}<\/script>
 </body></html>`;
   const w = window.open('', '_blank', 'width=820,height=1050');
   if (w) { w.document.write(html); w.document.close(); }
