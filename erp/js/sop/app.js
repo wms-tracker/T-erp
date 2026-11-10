@@ -463,9 +463,9 @@ async function doAction(act, P) {
         title: "คัดลอกเป็น SOP ใหม่", ok: "สร้างสำเนา",
         body: `<p class="muted small" style="margin-top:0">คัดลอกเนื้อหาทั้งหมดจาก ${esc(sop.sop_number)} ${esc(v.rev)} เป็น SOP ใหม่ (Rev.00 ฉบับร่าง)</p>
           <label class="f">แผนก</label><select class="in" id="cd">${deptOptions(D.isPriv() ? sop.department_id : S.deptId, { onlyCreatable: true })}</select><div style="height:10px"></div>
-          <label class="f">SOP Number ใหม่</label><input class="in mono" id="cn"><div class="help">เว้นว่างเพื่อให้ระบบกำหนดเลขถัดไปอัตโนมัติ</div><div style="height:10px"></div>
+          <label class="f">SOP Number ใหม่</label><input class="in mono" id="cn" readonly placeholder="กำลังโหลด…"><div class="help">ระบบกำหนดอัตโนมัติตามแผนก</div><div style="height:10px"></div>
           <label class="f">ชื่อ SOP</label><input class="in" id="ct" value="${esc(v.title + " (สำเนา)")}">`,
-        onOpen: ov => { const upd = async () => { $("#cn", ov).placeholder = await D.nextNumber($("#cd", ov).value); }; $("#cd", ov).onchange = upd; upd(); },
+        onOpen: ov => { const upd = async () => { const n = await D.nextNumber($("#cd", ov).value); $("#cn", ov).value = n; $("#cn", ov).placeholder = n; }; $("#cd", ov).onchange = upd; upd(); },
         onOk: ov => D.copySop(P, { department_id: $("#cd", ov).value, sop_number: $("#cn", ov).value, title: $("#ct", ov).value.trim() }),
       });
       if (r) { toast("สร้างสำเนาแล้ว: " + esc(r.sop_number), "ok"); location.hash = "#/edit/" + enc(r.version_id); } break;
@@ -513,7 +513,7 @@ function renderEditor(view, P, isNew) {
     ${lastReturn ? `<div class="banner err">${ic("back")}<div><b>ถูกส่งกลับแก้ไขโดย ${esc(lastReturn.user_name)}</b><div style="white-space:pre-wrap">เหตุผล: ${esc(lastReturn.comment)}</div></div></div>` : ""}
     <div class="card ed-sec"><div class="hd"><h3>ข้อมูลเอกสาร</h3></div><div class="bd grid g3">
       <div><label class="f">Department <span class="req">*</span></label><select class="in" data-f="department_id" ${isNew ? "" : "disabled"}>${deptOptions(E.department_id, { onlyCreatable: true })}</select></div>
-      <div><label class="f">SOP Number <span class="req">*</span></label><input class="in mono" data-f="sop_number" value="${esc(E.sop_number)}" ${isNew ? "" : "readonly"} placeholder="กำหนดอัตโนมัติ"><div class="help">${isNew ? "เว้นว่างเพื่อให้ระบบออกเลขถัดไป" : "กำหนดตอนสร้าง เปลี่ยนภายหลังไม่ได้"}</div></div>
+      <div><label class="f">SOP Number</label><input class="in mono" data-f="sop_number" value="${esc(E.sop_number)}" readonly placeholder="กำลังโหลด…"><div class="help">${isNew ? "ระบบกำหนดอัตโนมัติตามแผนก" : "กำหนดตอนสร้าง เปลี่ยนภายหลังไม่ได้"}</div></div>
       <div><label class="f">Revision</label><input class="in" value="${esc(v.rev)}" readonly></div>
       <div style="grid-column:1/-1"><label class="f">SOP Title <span class="req">*</span></label><input class="in" data-f="title" value="${esc(E.title)}" placeholder="เช่น ขั้นตอนการหยิบสินค้า (Picking) ตามใบสั่งจ่าย"></div>
       <div><label class="f">ผู้รับผิดชอบ (Owner) <span class="req">*</span></label><select class="in" data-f="owner_id">${memberOpts(E.owner_id, null, null, "— เลือก —")}</select></div>
@@ -547,7 +547,10 @@ function renderEditor(view, P, isNew) {
   root.addEventListener("change", e => { if (e.target.dataset.f) { E[e.target.dataset.f] = e.target.value; setDirty(); } });
   if (isNew) {
     const numIn = $("[data-f=sop_number]", root);
-    const updNum = async () => { numIn.placeholder = await D.nextNumber(E.department_id).catch(() => ""); };
+    const updNum = async () => {
+      const n = await D.nextNumber(E.department_id).catch(() => "");
+      numIn.value = n; E.sop_number = n; numIn.placeholder = n;
+    };
     $("[data-f=department_id]", root).addEventListener("change", updNum); updNum();
   }
   $("#plus1y", root).onclick = () => { const v2 = addMonths(E.effective_date || todayStr(), Number(S.settings.default_review_months) || 12); E.review_date = v2; $("[data-f=review_date]", root).value = v2; setDirty(); };
