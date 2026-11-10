@@ -342,7 +342,8 @@ function detailHTML(r) {
 
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button class="btn btn-outline" onclick="window.__editFromDetail('${r.id}')">✏️ แก้ไข</button>
-      <button class="btn btn-danger"  onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+      <button class="btn btn-danger"  onclick="window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
+window.__deleteRecord('${r.id}')">ลบ</button>
       <button class="btn btn-outline" onclick="window.__closePanel()">ปิด</button>
     </div>
   `;

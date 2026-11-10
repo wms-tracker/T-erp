@@ -269,6 +269,7 @@ window.__del = async id => { if(!confirm('ลบบันทึกนี้?')) 
 _profile = await requireRole(['safety_officer','kpo','admin','manager']);
 renderShell(_profile,'emergency','แผนฉุกเฉิน / ซ้อมอพยพ');
 loadList();
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
 </script>
 </body>
 </html>

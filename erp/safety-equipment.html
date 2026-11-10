@@ -297,6 +297,7 @@ window.__del = async (id) => {
 _profile = await requireRole(['safety_officer','kpo','admin','manager']);
 renderShell(_profile, 'safety-equipment', 'อุปกรณ์ความปลอดภัย');
 loadList();
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
 </script>
 </body>
 </html>

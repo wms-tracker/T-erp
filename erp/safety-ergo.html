@@ -78,7 +78,8 @@ function renderPage() {
               <td>${r.assessedBy||'—'}</td>
               <td>
                 <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__viewRecord('${r.id}')">ดูเอกสาร</button><button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
-                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
+                <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
+window.__deleteRecord('${r.id}')">ลบ</button>
               </td>
             </tr>`;
           }).join('')}

@@ -273,6 +273,7 @@ window.__openDetail = async id => {
 _profile = await requireRole(['safety_officer','kpo','admin','manager']);
 renderShell(_profile,'safety-meeting','ประชุม คปอ.');
 loadList();
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
 </script>
 </body>
 </html>
