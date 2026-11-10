@@ -178,7 +178,7 @@ function buildCards() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
         <span class="badge" style="background:${s.bg};color:${s.color}">${s.label}</span>
         <div style="display:flex;gap:4px">
-          <button class="btn btn-ghost btn-sm" onclick="__editRecord('${r.id}')">แก้ไข</button>
+          <button class="btn btn-ghost btn-sm" onclick="window.__viewRecord('${r.id}')">ดูเอกสาร</button><button class="btn btn-ghost btn-sm" onclick="__editRecord('${r.id}')">แก้ไข</button>
           <button class="btn btn-red btn-sm" onclick="__del('${r.id}')">ลบ</button>
         </div>
       </div>

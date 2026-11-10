@@ -150,7 +150,7 @@ function renderPage() {
               <td style="text-align:right;font-weight:600;">${thb(r.amount)}</td>
               <td>${r.recordedBy||'—'}</td>
               <td>
-                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
+                <button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;" onclick="window.__viewRecord('${r.id}')">ดูเอกสาร</button><button class="btn btn-outline" style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__editRecord('${r.id}')">แก้ไข</button>
                 <button class="btn btn-danger"  style="padding:4px 10px;font-size:0.78rem;margin-left:4px;" onclick="window.__deleteRecord('${r.id}')">ลบ</button>
               </td>
             </tr>`;

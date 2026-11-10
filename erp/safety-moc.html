@@ -424,6 +424,8 @@ window.__closePanel = () => {
 };
 
 await render();
+
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
 </script>
 </body>
 </html>

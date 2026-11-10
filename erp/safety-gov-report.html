@@ -154,7 +154,9 @@ function formHTML(r) {
     <div class="form-group"><label class="form-label">หมายเหตุ</label>
       <textarea id="f-remarks" class="form-control" rows="2">${r?.remarks||''}</textarea></div>
     <div style="display:flex;gap:10px;margin-top:16px;">
-      ${r?.id?`<button class="btn btn-danger" style="padding:9px 14px;" onclick="window.__deleteRecord('${r.id}')">🗑 ลบ</button>`:''}
+      ${r?.id?`<button class="btn btn-danger" style="padding:9px 14px;" onclick="
+window.__viewRecord = async id => { await window.__editRecord(id); window.__safetyViewMode(); };
+window.__deleteRecord('${r.id}')">🗑 ลบ</button>`:''}
       <button class="btn btn-primary" style="flex:1;" onclick="window.__saveRecord()">💾 บันทึก</button>
       <button class="btn btn-outline" onclick="window.__closePanel()">ยกเลิก</button>
     </div>`;

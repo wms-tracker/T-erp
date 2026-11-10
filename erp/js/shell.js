@@ -1052,3 +1052,37 @@ export function statusBadge(status) {
   };
   return `<span class="badge ${map[status] || 'badge-pending'}">${status}</span>`;
 }
+
+// ── โหมดดูเอกสาร (อ่านอย่างเดียว) — ใช้ร่วมกันทุกหน้า Safety ──────────────
+window.__safetyViewMode = (title) => {
+  setTimeout(() => {
+    const body = document.getElementById('panel-body') || document.getElementById('panelBody') || document.getElementById('modalBody');
+    if (!body) return;
+    // ล็อก input ทั้งหมด
+    body.querySelectorAll('input, select, textarea').forEach(el => {
+      el.disabled = true;
+      el.style.background = '#f8fafc';
+      el.style.cursor = 'default';
+    });
+    // ซ่อนปุ่ม save / delete / action
+    body.querySelectorAll('button').forEach(el => {
+      const t = el.textContent.trim();
+      if (/บันทึก|Save|ส่ง|Submit|ยืนยัน|ปิดงาน|อนุมัติ|สร้าง|เพิ่ม|แนบ/.test(t)) el.style.display = 'none';
+    });
+    // ซ่อน input[file] และ label ที่เป็น upload
+    body.querySelectorAll('input[type=file], label[for*="attach"], label[for*="file"], #f-attach-wrapper').forEach(el => { el.style.display = 'none'; });
+    // แสดง banner แจ้งโหมดดู
+    if (!body.querySelector('.__view-banner')) {
+      const b = document.createElement('div');
+      b.className = '__view-banner';
+      b.style.cssText = 'background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:.82rem;color:#0369a1;display:flex;align-items:center;gap:6px;';
+      b.innerHTML = '👁 <b>โหมดดูเอกสาร</b> — อ่านอย่างเดียว ไม่สามารถแก้ไขได้';
+      body.prepend(b);
+    }
+    // เปลี่ยน title ถ้าส่งมา
+    if (title) {
+      const t = document.getElementById('panel-title') || document.getElementById('panelTitle') || document.getElementById('modalTitle');
+      if (t) t.textContent = '👁 ' + title;
+    }
+  }, 60);
+};
