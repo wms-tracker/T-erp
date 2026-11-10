@@ -1071,12 +1071,13 @@ window.__safetyViewMode = (title) => {
     });
     // ซ่อน input[file] และ label ที่เป็น upload
     body.querySelectorAll('input[type=file], label[for*="attach"], label[for*="file"], #f-attach-wrapper').forEach(el => { el.style.display = 'none'; });
-    // แสดง banner แจ้งโหมดดู
+    // แสดง banner แจ้งโหมดดู + ปุ่มพิมพ์
     if (!body.querySelector('.__view-banner')) {
       const b = document.createElement('div');
       b.className = '__view-banner';
-      b.style.cssText = 'background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:.82rem;color:#0369a1;display:flex;align-items:center;gap:6px;';
-      b.innerHTML = '👁 <b>โหมดดูเอกสาร</b> — อ่านอย่างเดียว ไม่สามารถแก้ไขได้';
+      b.style.cssText = 'background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:8px 14px;margin-bottom:12px;font-size:.82rem;color:#0369a1;display:flex;align-items:center;gap:8px;';
+      b.innerHTML = '👁 <b>โหมดดูเอกสาร</b> — อ่านอย่างเดียว ไม่สามารถแก้ไขได้'
+        + '<button onclick="window.__printPanel()" style="margin-left:auto;padding:5px 14px;border-radius:6px;border:1px solid #0369a1;background:#0369a1;color:#fff;cursor:pointer;font-size:.82rem;white-space:nowrap;">🖨 พิมพ์</button>';
       body.prepend(b);
     }
     // เปลี่ยน title ถ้าส่งมา
@@ -1085,4 +1086,34 @@ window.__safetyViewMode = (title) => {
       if (t) t.textContent = '👁 ' + title;
     }
   }, 60);
+};
+
+window.__printPanel = () => {
+  const body = document.getElementById('panel-body') || document.getElementById('panelBody') || document.getElementById('modalBody');
+  const titleEl = document.getElementById('panel-title') || document.getElementById('panelTitle') || document.getElementById('modalTitle');
+  if (!body) return;
+  const title = titleEl ? titleEl.textContent.replace('👁 ', '') : document.title;
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>${title}</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Sarabun',sans-serif;font-size:13px;color:#1e293b;padding:24px 32px;}
+  h2{font-size:16px;font-weight:700;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #1e3a5f;color:#1e3a5f;}
+  label,.form-label,.f{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:2px;margin-top:10px;}
+  input,select,textarea{width:100%;border:1px solid #cbd5e1;border-radius:4px;padding:5px 8px;font-size:13px;font-family:inherit;background:#f8fafc;color:#1e293b;}
+  textarea{resize:none;}
+  .section-title{font-size:12px;font-weight:700;color:#1e3a5f;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin:14px 0 8px;}
+  .__view-banner,button,#f-attach-wrapper,input[type=file],label[for*=attach],label[for*=file]{display:none!important;}
+  .type-chip.on{display:inline-block;border:1px solid #ea580c;background:#fff7ed;color:#ea580c;padding:3px 8px;border-radius:16px;font-size:12px;}
+  .type-chip:not(.on){display:none;}
+  img{max-width:120px;max-height:120px;object-fit:cover;border-radius:4px;}
+  @media print{body{padding:12px;} h2{font-size:14px;}}
+</style></head><body>
+<h2>${title}</h2>
+${body.innerHTML}
+<script>window.onload=()=>{window.print();window.close();}<\/script>
+</body></html>`;
+  const w = window.open('', '_blank', 'width=800,height=900');
+  if (w) { w.document.write(html); w.document.close(); }
 };
