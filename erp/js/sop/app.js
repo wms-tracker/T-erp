@@ -352,24 +352,24 @@ function docView(P) {
   const logo = S.settings.logo_url ? `<img src="${esc(S.settings.logo_url)}" alt="logo">` : `<b style="color:var(--navy)">${esc((S.settings.company_name_en || S.settings.company_name || "LOGO").split(" ")[0])}</b>`;
   return `<div class="doc"><div class="doc-head"><div class="logo">${logo}</div>
       <div class="mid"><b>${esc(S.settings.company_name || "ตั้งชื่อบริษัทที่ แท็บ ตั้งค่า")}</b><div class="small muted">${esc(S.settings.company_name_en || "")}</div><div style="font-weight:600;margin-top:4px">${esc(v.title)}</div></div>
-      <div class="meta"><div>รหัสเอกสาร: <b class="mono">${esc(sop.sop_number)}</b></div><div>Revision: <b>${esc(v.rev)}</b></div><div>วันที่มีผล: <b>${fmtD(v.effective_date)}</b></div><div>แผนก: <b>${esc(sop.dept_code)}</b></div></div></div>
-    <div class="doc-body"><div class="doc-title"><div class="k">STANDARD OPERATING PROCEDURE</div><h1>${esc(v.title)}</h1></div>
-      <table class="info-t"><tr><th>SOP Number</th><td class="mono">${esc(sop.sop_number)}</td><th>Department</th><td>${esc(sop.dept_code)} – ${esc(sop.dept_name)}</td></tr>
-        <tr><th>Revision</th><td>${esc(v.rev)}</td><th>Status</th><td>${stBadge(v.status)}</td></tr>
-        <tr><th>Effective Date</th><td>${fmtD(v.effective_date)}</td><th>Review Date</th><td>${fmtD(rd)}</td></tr>
-        <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>Keywords</th><td>${esc(c.keywords || "-")}</td></tr></table>
+      <div class="meta"><div>รหัสเอกสาร: <b class="mono">${esc(sop.sop_number)}</b></div><div>ฉบับที่: <b>${esc(v.rev)}</b></div><div>วันที่มีผล: <b>${fmtD(v.effective_date)}</b></div><div>แผนก: <b>${esc(sop.dept_code)}</b></div></div></div>
+    <div class="doc-body"><div class="doc-title"><div class="k">ขั้นตอนการปฏิบัติงานมาตรฐาน</div><h1>${esc(v.title)}</h1></div>
+      <table class="info-t"><tr><th>รหัส SOP</th><td class="mono">${esc(sop.sop_number)}</td><th>แผนก</th><td>${esc(sop.dept_code)} – ${esc(sop.dept_name)}</td></tr>
+        <tr><th>ฉบับที่</th><td>${esc(v.rev)}</td><th>สถานะ</th><td>${stBadge(v.status)}</td></tr>
+        <tr><th>วันที่มีผล</th><td>${fmtD(v.effective_date)}</td><th>วันทบทวน</th><td>${fmtD(rd)}</td></tr>
+        <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>คำสำคัญ</th><td>${esc(c.keywords || "-")}</td></tr></table>
       <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr>
         <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
           <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
-      ${sec(1, "วัตถุประสงค์ (Objective)", c.objective)}${sec(2, "ขอบเขต (Scope)", c.scope)}${sec(3, "ความรับผิดชอบ (Responsibility)", c.responsibility)}
-      ${sec(4, "อุปกรณ์ / เครื่องมือ (Equipment / Tools)", c.equipment)}${sec(5, "ข้อกำหนดด้านความปลอดภัย (Safety Requirements)", c.safety)}
-      <div class="sec-h">6. ขั้นตอนการปฏิบัติงาน (Work Instructions)</div>
+      ${sec(1, "วัตถุประสงค์", c.objective)}${sec(2, "ขอบเขต", c.scope)}${sec(3, "ความรับผิดชอบ", c.responsibility)}
+      ${sec(4, "อุปกรณ์ / เครื่องมือ", c.equipment)}${sec(5, "ข้อกำหนดด้านความปลอดภัย", c.safety)}
+      <div class="sec-h">6. ขั้นตอนการปฏิบัติงาน</div>
       ${c.steps.length ? c.steps.map((s, i) => `<div class="step"><h4>6.${i + 1} ${esc(s.title)}</h4>${s.detail ? `<div class="dt">${esc(s.detail)}</div>` : ""}
         ${s.images.length ? `<div class="imgs">${s.images.map(im => `<img src="${esc(im.url)}" alt="${esc(im.name)}" data-lb loading="lazy">`).join("")}</div>` : ""}</div>`).join("") : '<div class="sec-b none">-</div>'}
-      ${sec(7, "เอกสารที่เกี่ยวข้อง (Related Documents)", c.related_docs)}
+      ${sec(7, "เอกสารที่เกี่ยวข้อง", c.related_docs)}
       ${c.attachments.map(f => `<div class="att">${ic(fileIcon(f.name))}<span class="nm">${esc(f.name)}</span><span class="small muted">${f.size ? fmtSize(f.size) : ""}</span><a class="btn sm" href="${esc(f.url)}" target="_blank" rel="noopener">เปิด / ดาวน์โหลด</a></div>`).join("")}
-      ${sec(8, "ตัวชี้วัด / มาตรฐาน (KPI / Standard)", c.kpi)}
-      <div class="sec-h">9. ประวัติการแก้ไข (Revision History)</div>
+      ${sec(8, "ตัวชี้วัด / มาตรฐาน", c.kpi)}
+      <div class="sec-h">9. ประวัติการแก้ไข</div>
       <div class="table-wrap"><table class="info-t"><tr><th style="width:70px">Rev.</th><th style="width:100px">วันที่มีผล</th><th>รายละเอียดการแก้ไข</th><th>ผู้จัดทำ</th><th>ผู้อนุมัติ / วันที่</th></tr>
         ${P.versions.filter(x => (D.PUBLIC_STATUSES.includes(x.status) || x.id === v.id) && x.revision <= v.revision).sort((a, b) => a.revision - b.revision).map(x => `<tr><td>${esc(x.rev)}</td><td>${fmtD(x.effective_date)}</td><td style="white-space:pre-wrap">${esc(x.change_summary || "-")}</td><td>${esc(x.prepared_name || "-")}</td><td>${esc(x.approved_name || "-")}${x.approved_at ? '<div class="small muted">' + fmtD(x.approved_at) + "</div>" : ""}</td></tr>`).join("")}</table></div>
     </div></div>`;
