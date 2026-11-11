@@ -358,7 +358,7 @@ function docView(P) {
         <tr><th>Revision</th><td>${esc(v.rev)}</td><th>Status</th><td>${stBadge(v.status)}</td></tr>
         <tr><th>Effective Date</th><td>${fmtD(v.effective_date)}</td><th>Review Date</th><td>${fmtD(rd)}</td></tr>
         <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>Keywords</th><td>${esc(c.keywords || "-")}</td></tr></table>
-      <table class="sig-t"><tr><th>ผู้จัดทำ (Prepared By)</th><th>ผู้ตรวจสอบ (Reviewed By)</th><th>ผู้อนุมัติ (Approved By)</th></tr>
+      <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr>
         <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
           <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
       ${sec(1, "วัตถุประสงค์ (Objective)", c.objective)}${sec(2, "ขอบเขต (Scope)", c.scope)}${sec(3, "ความรับผิดชอบ (Responsibility)", c.responsibility)}
