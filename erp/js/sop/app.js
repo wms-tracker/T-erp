@@ -731,7 +731,7 @@ async function pageMembers(view) {
     const users = await D.listErpUsers();
     const mem = id => D.memberById(id);
     const defRole = u => u.role === "admin" ? "admin" : u.role === "manager" ? "manager" : "viewer";
-    view.innerHTML = pageHead("สิทธิ์ SOP", "กำหนดบทบาทในระบบ SOP ให้ผู้ใช้ ERP แต่ละคน (บัญชีผู้ใช้และรหัสผ่านจัดการที่หน้า \"จัดการผู้ใช้งาน & สิทธิ์\" ของ ERP)", `<button class="btn" id="syncAll">${ic("users")} เพิ่มผู้ใช้ที่ยังไม่มีสิทธิ์ SOP ทั้งหมด</button>`)
+    view.innerHTML = pageHead("สิทธิ์ SOP", "กำหนดบทบาทในระบบ SOP ให้ผู้ใช้ ERP แต่ละคน (บัญชีผู้ใช้และรหัสผ่านจัดการที่หน้า \"จัดการผู้ใช้งาน & สิทธิ์\" ของ ERP)", `<button class="btn" id="fixThaiNames">🇹🇭 แก้ชื่อเป็นภาษาไทย</button> <button class="btn" id="syncAll">${ic("users")} เพิ่มผู้ใช้ที่ยังไม่มีสิทธิ์ SOP ทั้งหมด</button>`)
       + `<div class="card" style="margin-bottom:16px"><div class="bd small">
         <b>Warehouse Operations Manager</b> อนุมัติ/ยกเลิก SOP ทุกแผนก · <b>หัวหน้าแผนก</b> จัดทำและตรวจสอบ SOP ของแผนกตน · <b>ผู้จัดทำ</b> สร้าง/แก้ไข SOP ของแผนกตน ·
         <b>ผู้อ่าน</b> ดูเฉพาะ SOP ที่ประกาศใช้แล้ว · แอดมิน ERP เป็นผู้ดูแลระบบ SOP อัตโนมัติ. <span class="muted">ผู้ที่ยังไม่ได้กำหนด: ผู้บริหาร ERP = Manager, คนอื่น = ผู้อ่าน · ทุกบทบาทอนุมัติ SOP ที่ตนจัดทำเองไม่ได้</span></div></div>
@@ -741,6 +741,23 @@ async function pageMembers(view) {
           <td>${esc(D.SOP_ROLES[role])}</td><td>${m?.deptId ? `<span class="tag">${esc(D.deptById(m.deptId)?.code || m.deptId)}</span>` : "-"}</td>
           <td>${u.active === false ? '<span class="badge-st st-obsolete">ปิดใน ERP</span>' : m && m.active === false ? '<span class="badge-st st-obsolete">ปิดสิทธิ์ SOP</span>' : '<span class="badge-st st-published">ใช้งาน</span>'}</td>
           <td><button class="btn sm" data-ed="${esc(u.id)}">${ic("edit")} กำหนดสิทธิ์</button></td></tr>`; }).join("") || '<tr><td colspan="7" class="empty">ไม่พบผู้ใช้</td></tr>'}</tbody></table></div></div>`;
+    const THAI_NAMES = {
+      "Jakapat": "นายจักรภัทร บุญเต็ม",
+      "Jakapat Buntem": "นายจักรภัทร บุญเต็ม",
+      "Teerawat Inpata": "นายธีระวัฒน์ อินปาต๊ะ",
+      "Attaphong Baikhunthod": "นายอรรถพงษ์ ใบขุนทด",
+      "Kitnarong Singla": "นายกฤตณรงค์ สิงห์ลา",
+      "Man Treenai": "นายแมน ตรีนาย",
+      "Naemoh Padoma": "นางสาวนาอีเมาะ ปะดอมะ",
+      "Sirorat Prasertsri": "นางสาวศิโรรัตน์ ประเสริฐสี",
+      "Tao Apanat": "นายอาภณัฐ เกียรติวิบูลย์กิจ",
+    };
+    $("#fixThaiNames", view).onclick = async () => {
+      try {
+        const n = await D.batchFixNames(THAI_NAMES);
+        toast(`อัปเดตชื่อแล้ว ${n} คน`, "ok"); load();
+      } catch (e) { toastErr(e); }
+    };
     $("#syncAll", view).onclick = async () => {
       try {
         let n = 0;
