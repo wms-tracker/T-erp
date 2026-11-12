@@ -373,7 +373,7 @@ function docView(P) {
       ${sec(8, "ตัวชี้วัด / มาตรฐาน", c.kpi)}
       <div class="sec-h">9. ประวัติการแก้ไข</div>
       <div class="table-wrap"><table class="info-t"><tr><th style="width:70px">Rev.</th><th style="width:100px">วันที่มีผล</th><th>รายละเอียดการแก้ไข</th><th>ผู้จัดทำ</th><th>ผู้อนุมัติ / วันที่</th></tr>
-        ${P.versions.filter(x => (D.PUBLIC_STATUSES.includes(x.status) || x.id === v.id) && x.revision <= v.revision).sort((a, b) => a.revision - b.revision).map(x => `<tr><td>${esc(x.rev)}</td><td>${fmtD(x.effective_date)}</td><td style="white-space:pre-wrap">${esc(x.change_summary || "-")}</td><td>${esc(x.prepared_name || "-")}</td><td>${esc(x.approved_name || "-")}${x.approved_at ? '<div class="small muted">' + fmtD(x.approved_at) + "</div>" : ""}</td></tr>`).join("")}</table></div>
+        ${P.versions.filter(x => (D.PUBLIC_STATUSES.includes(x.status) || x.id === v.id) && x.revision <= v.revision).sort((a, b) => a.revision - b.revision).map(x => `<tr><td>${esc(x.rev)}</td><td>${fmtD(x.effective_date)}</td><td style="white-space:pre-wrap">${esc(x.change_summary || "-")}</td><td>${esc(D.memberById(x.prepared_by)?.name || x.prepared_name || "-")}</td><td>${esc(D.memberById(x.approved_by)?.name || x.approved_name || "-")}${x.approved_at ? '<div class="small muted">' + fmtD(x.approved_at) + "</div>" : ""}</td></tr>`).join("")}</table></div>
     </div></div>`;
 }
 function renderVersion(view, P) {

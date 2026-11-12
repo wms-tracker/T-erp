@@ -231,7 +231,7 @@ export async function versionPayload(vid) {
     .sort((a, b) => b.revision - a.revision)
     .map(x => ({
       id: x.id, revision: x.revision, rev: revLabel(x.revision), status: x.status, title: x.title, change_summary: x.change_summary,
-      effective_date: x.effective_date, prepared_name: x.prepared_name, approved_name: x.approved_name || "",
+      effective_date: x.effective_date, prepared_by: x.prepared_by || null, prepared_name: x.prepared_name, approved_by: x.approved_by || null, approved_name: x.approved_name || "",
       approved_at: iso(x.approved_at), updated_at: iso(x.updated_at),
       is_current: x.id === sop.current_version_id, is_working: x.id === sop.working_version_id,
     }));
