@@ -360,11 +360,10 @@ function docView(P) {
         <tr><th>ฉบับที่</th><td>${esc(v.rev)}</td><th>สถานะ</th><td>${stBadge(v.status)}</td></tr>
         <tr><th>วันที่มีผล</th><td>${fmtD(v.effective_date)}</td><th>วันทบทวน</th><td>${fmtD(rd)}</td></tr>
         <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>คำสำคัญ</th><td>${esc(c.keywords || "-")}</td></tr></table>
-      <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้อนุมัติ</th></tr>
+      <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้รับรอง (Certified By)</th><th>ผู้อนุมัติ</th></tr>
         <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
+          <td class="sig-blank"></td>
           <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
-      <table class="sig-t sig-t4"><tr><th>ผู้สอบทาน (Verified By)</th><th>ผู้ทวนสอบ (Validated By)</th><th>ผู้ตรวจทาน (Checked By)</th><th>ผู้รับรอง (Certified By)</th></tr>
-        <tr><td class="sig-blank"></td><td class="sig-blank"></td><td class="sig-blank"></td><td class="sig-blank"></td></tr></table>
       ${sec(1, "วัตถุประสงค์", c.objective)}${sec(2, "ขอบเขต", c.scope)}${sec(3, "ความรับผิดชอบ", c.responsibility)}
       ${sec(4, "อุปกรณ์ / เครื่องมือ", c.equipment)}${sec(5, "ข้อกำหนดด้านความปลอดภัย", c.safety)}
       <div class="sec-h">6. ขั้นตอนการปฏิบัติงาน</div>
