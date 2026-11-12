@@ -116,6 +116,7 @@ export async function start(mainEl, profile) {
 function renderTabs() {
   const tabs = [["#/dashboard", "dash", "Dashboard"], ["#/sops", "list", "ทะเบียน SOP"], ["#/tasks", "task", 'งานของฉัน <span class="badge hidden" id="taskBadge">0</span>'],
     D.canCreateAny() ? ["#/new", "plus", "สร้าง SOP"] : null, ["#/activity", "act", "ประวัติ"],
+    ["#/profile", "user", "โปรไฟล์ของฉัน"],
     S.role === "admin" ? ["#/admin/members", "users", "สิทธิ์ SOP"] : null, S.role === "admin" ? ["#/admin/departments", "dept", "แผนก"] : null,
     S.role === "admin" ? ["#/admin/settings", "gear", "ตั้งค่า"] : null].filter(Boolean);
   $("#sopTabs", ROOT).innerHTML = tabs.map(([h, i, t]) => `<a href="${h}" data-h="${h}">${ic(i)} ${t}</a>`).join("")
@@ -151,7 +152,8 @@ function bindTooltips() {
 const ROUTES = [
   [/^#\/dashboard$/, pageDashboard], [/^#\/sops$/, pageList], [/^#\/sop\/([^/?]+)$/, pageSop], [/^#\/v\/([^/?]+)$/, pageVersion],
   [/^#\/edit\/([^/?]+)$/, pageEdit], [/^#\/new$/, pageNew], [/^#\/compare\/([^/?]+)$/, pageCompare], [/^#\/tasks$/, pageTasks],
-  [/^#\/activity$/, pageActivity], [/^#\/admin\/departments$/, pageDepts], [/^#\/admin\/members$/, pageMembers], [/^#\/admin\/settings$/, pageSettings],
+  [/^#\/activity$/, pageActivity], [/^#\/profile$/, pageProfile],
+  [/^#\/admin\/departments$/, pageDepts], [/^#\/admin\/members$/, pageMembers], [/^#\/admin\/settings$/, pageSettings],
 ];
 let lastHash = location.hash;
 function qs() { const i = location.hash.indexOf("?"); return Object.fromEntries(new URLSearchParams(i >= 0 ? location.hash.slice(i + 1) : "")); }
@@ -766,6 +768,26 @@ async function pageMembers(view) {
     });
   };
   await load();
+}
+
+/* ================= โปรไฟล์ของฉัน ================= */
+async function pageProfile(view) {
+  const m = D.memberById(S.uid) || {};
+  view.innerHTML = pageHead("โปรไฟล์ SOP ของฉัน", "ชื่อและตำแหน่งที่แสดงในเอกสาร SOP เปลี่ยนได้เอง") + `
+    <div class="card" style="max-width:600px"><div class="bd grid g2">
+      <div style="grid-column:1/-1"><label class="f">ชื่อที่แสดงในเอกสาร <span class="req">*</span></label>
+        <input class="in" id="pn" value="${esc(m.name || S.name || "")}" placeholder="เช่น นายธีระวัฒน์ อินปาตี้"></div>
+      <div style="grid-column:1/-1"><label class="f">ตำแหน่ง (แสดงในตารางลงนาม)</label>
+        <input class="in" id="pp" value="${esc(m.position || "")}" placeholder="เช่น หัวหน้าแผนก Outbound"></div>
+      <div><label class="f">บทบาท SOP</label><input class="in" value="${esc(D.SOP_ROLES[m.sopRole] || D.SOP_ROLES[S.role] || "-")}" readonly><div class="help">เปลี่ยนได้โดยผู้ดูแลระบบเท่านั้น</div></div>
+      <div><label class="f">แผนก SOP</label><input class="in" value="${esc(m.deptId ? D.deptById(m.deptId)?.name || m.deptId : "-")}" readonly></div>
+    </div>
+    <div class="bd" style="border-top:1px solid var(--line);padding-top:12px">
+      <button class="btn primary" id="saveProf">${ic("check")} บันทึก</button></div></div>`;
+  $("#saveProf", view).onclick = async () => {
+    try { await D.saveOwnProfile($("#pn", view).value, $("#pp", view).value); toast("บันทึกโปรไฟล์แล้ว — มีผลทันทีเมื่อโหลดหน้าใหม่", "ok"); }
+    catch (e) { toastErr(e); }
+  };
 }
 
 /* ================= Admin: settings ================= */

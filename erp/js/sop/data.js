@@ -622,6 +622,11 @@ export async function saveMember(uid, body) {
     sopRole: body.sopRole, deptId: body.deptId || "", erpRole: body.erpRole || "", active: body.active !== false, updated_at: serverTimestamp(),
   });
 }
+export async function saveOwnProfile(name, position) {
+  const trimName = String(name || "").trim() || fail("กรุณาระบุชื่อที่แสดงในเอกสาร");
+  await setDoc(doc(db, "sopMembers", S.uid), { name: trimName, position: String(position || ""), updated_at: serverTimestamp() }, { merge: true });
+  await loadMeta();
+}
 export async function saveSettings(body) {
   const data = {};
   for (const k of Object.keys(DEFAULT_SETTINGS)) if (body[k] !== undefined) data[k] = typeof DEFAULT_SETTINGS[k] === "number" ? Number(body[k]) || DEFAULT_SETTINGS[k] : String(body[k]).slice(0, 500);
