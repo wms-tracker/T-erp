@@ -74,7 +74,7 @@ export async function loadMeta() {
 const inMyDept = deptId => !!S.deptId && S.deptId === deptId;
 export function canSeeWork(v) {
   if (isPriv()) return true;
-  if (v && [v.prepared_by, v.owner_id, v.reviewer_id, v.approver_id].includes(S.uid)) return true;
+  if (v && [v.prepared_by, v.owner_id, v.reviewer_id, v.approver_id, v.certifier_id].includes(S.uid)) return true;
   return ["author", "dept_head"].includes(S.role) && inMyDept(v?.department_id);
 }
 export const canCreateIn = deptId => isPriv() || (["author", "dept_head"].includes(S.role) && inMyDept(deptId));
@@ -194,7 +194,7 @@ export async function recentActivity(n = 60) {
   return rows.map(mapLog).sort((a, b) => b.at.localeCompare(a.at)).slice(0, n);
 }
 function logEntry(b, { sop, v, action, from = null, to = null, comment = "" }) {
-  const participants = v ? [v.prepared_by, v.owner_id, v.reviewer_id, v.approver_id].filter(Boolean) : [];
+  const participants = v ? [v.prepared_by, v.owner_id, v.reviewer_id, v.certifier_id, v.approver_id].filter(Boolean) : [];
   b.set(doc(collection(db, "sopLog")), {
     sop_id: sop.id, sop_number: sop.sop_number, department_id: sop.department_id,
     version_id: v?.id || null, rev: v ? revLabel(v.revision) : "", title: v?.title || "",
@@ -245,7 +245,7 @@ export async function versionPayload(vid) {
     version: ver,
     people: {
       prepared: person(v.prepared_by, v.prepared_name), owner: person(v.owner_id, v.owner_name),
-      reviewer: person(v.reviewer_id, v.reviewer_name), approver: person(v.approver_id, v.approver_name),
+      reviewer: person(v.reviewer_id, v.reviewer_name), certifier: person(v.certifier_id, v.certifier_name), approver: person(v.approver_id, v.approver_name),
       reviewed_by: person(v.reviewed_by, v.reviewed_by_name), approved_by: person(v.approved_by, v.approved_name),
     },
     versions, log, permissions: permissions(sop, ver),
@@ -369,7 +369,7 @@ function validateAssignees(body, preparedBy) {
   }
 }
 const validDate = d => !d || /^\d{4}-\d{2}-\d{2}$/.test(d);
-const participantsOf = v => [...new Set([v.prepared_by, v.owner_id, v.reviewer_id, v.approver_id].filter(Boolean))];
+const participantsOf = v => [...new Set([v.prepared_by, v.owner_id, v.reviewer_id, v.certifier_id, v.approver_id].filter(Boolean))];
 const searchText = (title, c) => [title, c.keywords, c.objective, c.scope, ...(c.steps || []).map(s => s.title)].join(" ").toLowerCase().slice(0, 3000);
 
 /* ---------- writes ---------- */
@@ -391,6 +391,7 @@ export async function createSop(body, copiedFrom = "") {
     prepared_by: S.uid, prepared_name: S.name,
     owner_id: body.owner_id || null, owner_name: nameOf(body.owner_id),
     reviewer_id: body.reviewer_id || null, reviewer_name: nameOf(body.reviewer_id),
+    certifier_id: body.certifier_id || null, certifier_name: nameOf(body.certifier_id),
     approver_id: body.approver_id || null, approver_name: nameOf(body.approver_id),
     effective_date: body.effective_date || null, review_date: body.review_date || null,
     change_summary: String(body.change_summary || "จัดทำครั้งแรก (Initial issue)"), editors: [], row_ver: 1, locked: false,
@@ -424,8 +425,8 @@ export async function saveVersion(vid, body) {
     const editors = [...(v.editors || [])]; if (S.uid !== v.prepared_by && !editors.includes(S.uid)) editors.push(S.uid);
     const upd = {
       title, content: cleanContent(body.content),
-      owner_id: body.owner_id || null, reviewer_id: body.reviewer_id || null, approver_id: body.approver_id || null,
-      owner_name: nameOf(body.owner_id), reviewer_name: nameOf(body.reviewer_id), approver_name: nameOf(body.approver_id),
+      owner_id: body.owner_id || null, reviewer_id: body.reviewer_id || null, certifier_id: body.certifier_id || null, approver_id: body.approver_id || null,
+      owner_name: nameOf(body.owner_id), reviewer_name: nameOf(body.reviewer_id), certifier_name: nameOf(body.certifier_id), approver_name: nameOf(body.approver_id),
       effective_date: body.effective_date || null, review_date: body.review_date || null,
       change_summary: String(body.change_summary ?? v.change_summary).slice(0, 4000),
       editors, row_ver: v.row_ver + 1, updated_at: serverTimestamp(), updated_by: S.uid,

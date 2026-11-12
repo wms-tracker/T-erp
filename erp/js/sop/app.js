@@ -362,7 +362,7 @@ function docView(P) {
         <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>คำสำคัญ</th><td>${esc(c.keywords || "-")}</td></tr></table>
       <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้รับรอง (Certified By)</th><th>ผู้อนุมัติ</th></tr>
         <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
-          <td class="sig-blank"></td>
+          <td>${people.certifier ? person(people.certifier) : '<div class="e"></div><div class="muted">( ไม่ระบุ )</div>'}</td>
           <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
       ${sec(1, "วัตถุประสงค์", c.objective)}${sec(2, "ขอบเขต", c.scope)}${sec(3, "ความรับผิดชอบ", c.responsibility)}
       ${sec(4, "อุปกรณ์ / เครื่องมือ", c.equipment)}${sec(5, "ข้อกำหนดด้านความปลอดภัย", c.safety)}
@@ -487,7 +487,7 @@ async function pageNew(view) {
   const deptId = D.isPriv() ? (S.depts.find(d => d.active)?.id) : S.deptId;
   renderEditor(view, {
     sop: { id: null, sop_number: "", department_id: deptId, current_version_id: null },
-    version: { id: null, revision: 0, rev: "Rev.00", status: "draft", title: "", row_ver: null, prepared_by: S.uid, owner_id: S.uid, reviewer_id: null, approver_id: null, effective_date: "", review_date: "", change_summary: "จัดทำครั้งแรก (Initial issue)", content: { objective: "", scope: "", responsibility: "", equipment: "", safety: "", related_docs: "", kpi: "", keywords: "", steps: [{ id: crypto.randomUUID(), title: "", detail: "", images: [] }], attachments: [] } },
+    version: { id: null, revision: 0, rev: "Rev.00", status: "draft", title: "", row_ver: null, prepared_by: S.uid, owner_id: S.uid, reviewer_id: null, certifier_id: null, approver_id: null, effective_date: "", review_date: "", change_summary: "จัดทำครั้งแรก (Initial issue)", content: { objective: "", scope: "", responsibility: "", equipment: "", safety: "", related_docs: "", kpi: "", keywords: "", steps: [{ id: crypto.randomUUID(), title: "", detail: "", images: [] }], attachments: [] } },
     log: [],
   }, true);
 }
@@ -498,7 +498,7 @@ async function pageEdit(view, vid) {
 }
 function renderEditor(view, P, isNew) {
   const sop = P.sop, v = P.version;
-  const E = { sop_number: sop.sop_number, department_id: sop.department_id, title: v.title, owner_id: v.owner_id, reviewer_id: v.reviewer_id, approver_id: v.approver_id,
+  const E = { sop_number: sop.sop_number, department_id: sop.department_id, title: v.title, owner_id: v.owner_id, reviewer_id: v.reviewer_id, certifier_id: v.certifier_id || null, approver_id: v.approver_id,
     effective_date: v.effective_date || "", review_date: v.review_date || "", change_summary: v.change_summary || "", row_ver: v.row_ver, content: JSON.parse(JSON.stringify(v.content)) };
   const prep = v.prepared_by;
   const roleName = r => D.SOP_ROLES[r] || r;
@@ -521,6 +521,7 @@ function renderEditor(view, P, isNew) {
       <div style="grid-column:1/-1"><label class="f">SOP Title <span class="req">*</span></label><input class="in" data-f="title" value="${esc(E.title)}" placeholder="เช่น ขั้นตอนการหยิบสินค้า (Picking) ตามใบสั่งจ่าย"></div>
       <div><label class="f">ผู้รับผิดชอบ (Owner) <span class="req">*</span></label><select class="in" data-f="owner_id">${memberOpts(E.owner_id, null, null, "— เลือก —")}</select></div>
       <div><label class="f">ผู้ตรวจสอบ (Reviewer)</label><select class="in" data-f="reviewer_id">${memberOpts(E.reviewer_id, ["dept_head", "manager", "admin"], prep, "— หัวหน้าแผนกคนใดก็ได้ —")}</select></div>
+      <div><label class="f">ผู้รับรอง (Certified By)</label><select class="in" data-f="certifier_id">${memberOpts(E.certifier_id, null, prep, "— ไม่ระบุ —")}</select></div>
       <div><label class="f">ผู้อนุมัติ (Approver)</label><select class="in" data-f="approver_id">${memberOpts(E.approver_id, ["manager", "admin"], prep, "— Manager คนใดก็ได้ —")}</select></div>
       <div><label class="f">Effective Date (วันเริ่มใช้) <span class="req">*</span></label><input class="in" type="date" data-f="effective_date" value="${esc(E.effective_date)}"></div>
       <div><label class="f">Review Date (วันทบทวน) <span class="req">*</span></label><div class="row" style="flex-wrap:nowrap"><input class="in" type="date" data-f="review_date" value="${esc(E.review_date)}"><button class="btn sm" type="button" id="plus1y">+${S.settings.default_review_months} ด.</button></div></div>
