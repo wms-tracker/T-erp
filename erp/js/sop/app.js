@@ -817,7 +817,7 @@ async function pageSettings(view) {
       <div><label class="f">ชื่อบริษัท (ไทย)</label><input class="in" id="s1" value="${esc(st.company_name)}"></div>
       <div><label class="f">ชื่อบริษัท (อังกฤษ)</label><input class="in" id="s2" value="${esc(st.company_name_en)}"></div>
       <div><label class="f">โลโก้ (PNG/JPG)</label><div class="row"><img id="lg" src="${esc(st.logo_url || "")}" alt="" style="height:52px;max-width:140px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff">
-        <label class="btn sm">${ic("img")} เลือกไฟล์<input type="file" accept="image/png,image/jpeg" class="hidden" id="lgIn"></label><button class="btn sm" id="lgRm" type="button">ลบโลโก้</button></div></div>
+        <label class="btn sm">${ic("img")} เลือกไฟล์<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" class="hidden" id="lgIn"></label><button class="btn sm" id="lgRm" type="button">ลบโลโก้</button></div></div>
       <div><label class="f">ฟอนต์ในไฟล์ Word</label><select class="in" id="s6">${["Tahoma", "TH Sarabun New", "TH SarabunPSK", "Leelawadee UI", "Angsana New", "Cordia New"].map(f => `<option ${st.doc_font === f ? "selected" : ""}>${f}</option>`).join("")}</select><div class="help">ฟอนต์ต้องติดตั้งในเครื่องที่เปิดไฟล์</div></div>
       <div><label class="f">แจ้งเตือนก่อนถึงวันทบทวน (วัน)</label><input class="in" type="number" min="1" id="s4" value="${esc(st.review_warn_days)}"></div>
       <div><label class="f">รอบทบทวนเริ่มต้น (เดือน)</label><input class="in" type="number" min="1" id="s5" value="${esc(st.default_review_months)}"></div>
