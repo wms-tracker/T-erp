@@ -72,7 +72,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
     const logo = m.logo_url ? `<img src="${esc(m.logo_url)}" alt="">` : `<b style="color:#1e3a5f">${esc(m.companyShort)}</b>`;
     const sec = (n, t, b) => `<div class="sh">${n}. ${t}</div><div class="sb">${esc(String(b || '').trim() || '-')}</div>`;
     const sig = s => s ? `<td class="e">${esc(s.note || '')}</td>` : '<td class="e"></td>';
-    const roles = [m.prepared, m.reviewed, m.approved];
+    const roles = [m.prepared, m.reviewed, m.certified, m.approved];
     out.innerHTML = `<table class="pg"><thead><tr><td>
         <table class="hdr"><tr><td class="logo">${logo}</td>
           <td class="mid"><b>${esc(m.company)}</b>${m.companyEn ? `<div style="font-size:11.5px;color:#5a6b7f">${esc(m.companyEn)}</div>` : ''}<div style="font-weight:700;margin-top:2px">${esc(m.title)}</div><div style="font-size:11.5px;color:#5a6b7f">แผนก ${esc(m.dept_name)}</div></td>
@@ -85,7 +85,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
           <tr><th>Revision</th><td>${esc(m.revLabel)}</td><th>Status</th><td>${esc(m.statusLabel)}</td></tr>
           <tr><th>Effective Date</th><td>${esc(m.effective_date || '-')}</td><th>Review Date</th><td>${esc(m.review_date || '-')}</td></tr>
           <tr><th>ผู้รับผิดชอบ</th><td>${esc(m.owner || '-')}</td><th>Keywords</th><td>${esc(c.keywords || '-')}</td></tr></table>
-        <table class="sig"><tr><th>ผู้จัดทำ (Prepared By)</th><th>ผู้ตรวจสอบ (Reviewed By)</th><th>ผู้อนุมัติ (Approved By)</th></tr>
+        <table class="sig"><tr><th>ผู้จัดทำ (Prepared By)</th><th>ผู้ตรวจสอบ (Reviewed By)</th><th>ผู้รับรอง (Certified By)</th><th>ผู้อนุมัติ (Approved By)</th></tr>
           <tr>${roles.map(sig).join('')}</tr>
           <tr>${roles.map(s => `<td><b>( ${esc(s?.name || '..............................')} )</b></td>`).join('')}</tr>
           <tr>${roles.map(s => `<td>${esc(s?.position || 'ตำแหน่ง ....................')}</td>`).join('')}</tr>

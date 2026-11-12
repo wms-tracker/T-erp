@@ -149,17 +149,17 @@ export function buildDocx(m) {
   parts.push(p('', { after: 120 }));
 
   // ตารางลงนาม
-  const W3 = [3300, 3300, 3300];
+  const W4 = [2475, 2475, 2475, 2475];
   const sig = (s) => s || {};
   const hd = t => p(run(t, { b: true, sz: 18, color: 'FFFFFF' }), { align: 'center' });
   const sc = (t, o = {}) => p(run(t || ' ', { sz: 18, ...o }), { align: 'center' });
-  const roles = [sig(m.prepared), sig(m.reviewed), sig(m.approved)];
-  parts.push(table(W3, [
-    tr([tc(hd('ผู้จัดทำ (Prepared By)'), W3[0], { shade: '1E3A5F' }), tc(hd('ผู้ตรวจสอบ (Reviewed By)'), W3[1], { shade: '1E3A5F' }), tc(hd('ผู้อนุมัติ (Approved By)'), W3[2], { shade: '1E3A5F' })], { header: true }),
-    tr(roles.map((r, i) => tc(r.note ? sc(r.note, { color: '15803D', i: true }) : sc(' '), W3[i])), { h: 700 }),
-    tr(roles.map((r, i) => tc(sc(r.name ? `( ${r.name} )` : '(                                   )', { b: true }), W3[i]))),
-    tr(roles.map((r, i) => tc(sc(r.position || 'ตำแหน่ง ...........................'), W3[i]))),
-    tr(roles.map((r, i) => tc(sc('วันที่ ' + (r.date || '......../......../............')), W3[i]))),
+  const roles = [sig(m.prepared), sig(m.reviewed), sig(m.certified), sig(m.approved)];
+  parts.push(table(W4, [
+    tr([tc(hd('ผู้จัดทำ (Prepared By)'), W4[0], { shade: '1E3A5F' }), tc(hd('ผู้ตรวจสอบ (Reviewed By)'), W4[1], { shade: '1E3A5F' }), tc(hd('ผู้รับรอง (Certified By)'), W4[2], { shade: '1E3A5F' }), tc(hd('ผู้อนุมัติ (Approved By)'), W4[3], { shade: '1E3A5F' })], { header: true }),
+    tr(roles.map((r, i) => tc(r.note ? sc(r.note, { color: '15803D', i: true }) : sc(' '), W4[i])), { h: 700 }),
+    tr(roles.map((r, i) => tc(sc(r.name ? `( ${r.name} )` : '(                                   )', { b: true }), W4[i]))),
+    tr(roles.map((r, i) => tc(sc(r.position || 'ตำแหน่ง ...........................'), W4[i]))),
+    tr(roles.map((r, i) => tc(sc('วันที่ ' + (r.date || '......../......../............')), W4[i]))),
   ]));
 
   // เนื้อหา
@@ -340,6 +340,7 @@ export async function docModel(P, settings, STATUS, withBytes = true) {
     owner: people.owner?.display_name || '', content: c,
     prepared: person(people.prepared, v.submitted_at || v.created_at),
     reviewed: v.reviewed_by ? person(people.reviewed_by, v.reviewed_at, 'ตรวจสอบผ่านระบบแล้ว') : person(people.reviewer, null),
+    certified: people.certifier ? person(people.certifier, null) : null,
     approved: v.approved_by ? person(people.approved_by, v.approved_at, 'อนุมัติผ่านระบบแล้ว (Electronic Approval)') : person(people.approver, null),
     history: hist.map(h => ({ rev: h.rev, date: fmtD(h.effective_date), summary: (h.change_summary || '') + (isPub(h.status) ? '' : ` [${STATUS[h.status]}]`), prepared: h.prepared_name, approved: h.approved_name, approvedDate: fmtD(h.approved_at) })),
     attachments: (c.attachments || []).map(a => a.name), images, printedAt: fmtDT(new Date().toISOString()), watermark,
