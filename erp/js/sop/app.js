@@ -735,7 +735,7 @@ async function pageMembers(view) {
     const defRole = u => u.role === "admin" ? "admin" : u.role === "manager" ? "manager" : "viewer";
     view.innerHTML = pageHead("สิทธิ์ SOP", "กำหนดบทบาทในระบบ SOP ให้ผู้ใช้ ERP แต่ละคน (บัญชีผู้ใช้และรหัสผ่านจัดการที่หน้า \"จัดการผู้ใช้งาน & สิทธิ์\" ของ ERP)", `<button class="btn" id="fixThaiNames">🇹🇭 แก้ชื่อเป็นภาษาไทย</button> <button class="btn" id="syncAll">${ic("users")} เพิ่มผู้ใช้ที่ยังไม่มีสิทธิ์ SOP ทั้งหมด</button>`)
       + `<div class="card" style="margin-bottom:16px"><div class="bd small">
-        <b>Warehouse Operations Manager</b> อนุมัติ/ยกเลิก SOP ทุกแผนก · <b>หัวหน้าแผนก</b> จัดทำและตรวจสอบ SOP ของแผนกตน · <b>ผู้จัดทำ</b> สร้าง/แก้ไข SOP ของแผนกตน ·
+        <b>Warehouse Operations Manager / Managing Director / Operation Excellence & Loss Prevention Manager</b> อนุมัติ/ยกเลิก SOP ทุกแผนก · <b>หัวหน้าแผนก</b> จัดทำและตรวจสอบ SOP ของแผนกตน · <b>ผู้จัดทำ</b> สร้าง/แก้ไข SOP ของแผนกตน ·
         <b>ผู้อ่าน</b> ดูเฉพาะ SOP ที่ประกาศใช้แล้ว · แอดมิน ERP เป็นผู้ดูแลระบบ SOP อัตโนมัติ. <span class="muted">ผู้ที่ยังไม่ได้กำหนด: ผู้บริหาร ERP = Manager, คนอื่น = ผู้อ่าน · ทุกบทบาทอนุมัติ SOP ที่ตนจัดทำเองไม่ได้</span></div></div>
       <div class="card"><div class="table-wrap"><table class="t"><thead><tr><th>ชื่อ</th><th>อีเมล</th><th>บทบาท ERP</th><th>บทบาท SOP</th><th>แผนก SOP</th><th>สถานะ</th><th></th></tr></thead><tbody>
       ${users.map(u => { const m = mem(u.id); const role = u.role === "admin" ? "admin" : (m?.sopRole || defRole(u));

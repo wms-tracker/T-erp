@@ -294,7 +294,7 @@ service cloud.firestore {
     }
     function sopDept() { return sopMember().get('deptId', ''); }
     function sopActive() { return isSignedIn() && isActive(); }
-    function sopPriv() { return sopActive() && sopRole() in ['admin', 'manager']; }
+    function sopPriv() { return sopActive() && sopRole() in ['admin', 'manager', 'managing_director', 'oel_manager']; }
     function sopWriter(deptId) {
       return sopActive() && (sopPriv() || (sopRole() in ['author', 'dept_head'] && sopDept() == deptId));
     }
@@ -317,7 +317,7 @@ service cloud.firestore {
             : (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id)));
     }
     function sopCanApprove(v) {
-      return sopActive() && sopSeparated(v) && sopRole() in ['manager', 'admin']
+      return sopActive() && sopSeparated(v) && sopRole() in ['manager', 'admin', 'managing_director', 'oel_manager']
         && (v.approver_id == null || v.approver_id == request.auth.uid);
     }
     function sopSubmittable(v) {
@@ -431,7 +431,7 @@ service cloud.firestore {
         return sopActive() && !keys.hasAny(['sop_id', 'department_id', 'revision', 'prepared_by', 'created_at']) && (
           // 1) แก้ไขเนื้อหา (ฉบับร่าง / ถูกส่งกลับ)
           (n.status == o.status && sopCanEdit(o)
-            && keys.hasOnly(['title', 'content', 'owner_id', 'reviewer_id', 'approver_id', 'owner_name', 'reviewer_name', 'approver_name',
+            && keys.hasOnly(['title', 'content', 'owner_id', 'reviewer_id', 'certifier_id', 'approver_id', 'owner_name', 'reviewer_name', 'certifier_name', 'approver_name',
                              'effective_date', 'review_date', 'change_summary', 'editors', 'row_ver', 'updated_at', 'updated_by'])
             && n.row_ver == o.row_ver + 1 && n.updated_by == request.auth.uid
             && n.editors.hasAll(o.editors)

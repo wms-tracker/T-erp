@@ -18,7 +18,7 @@ export const STATUS = {
 };
 export const WORK_STATUSES = ["draft", "submitted", "dept_review", "manager_approval", "revision_required"];
 export const PUBLIC_STATUSES = ["published", "superseded", "obsolete"];
-export const SOP_ROLES = { admin: "ผู้ดูแลระบบ", manager: "Warehouse Operations Manager", dept_head: "หัวหน้าแผนก", author: "ผู้จัดทำ SOP", viewer: "ผู้อ่าน" };
+export const SOP_ROLES = { admin: "ผู้ดูแลระบบ", manager: "Warehouse Operations Manager", managing_director: "Managing Director", oel_manager: "Operation Excellence & Loss Prevention Manager", dept_head: "หัวหน้าแผนก", author: "ผู้จัดทำ SOP", viewer: "ผู้อ่าน" };
 export const revLabel = r => "Rev." + String(r ?? 0).padStart(2, "0");
 const DEFAULT_SETTINGS = { company_name: "", company_name_en: "", logo_url: "", review_warn_days: 30, default_review_months: 12, doc_font: "Tahoma" };
 const SEED_DEPTS = [
