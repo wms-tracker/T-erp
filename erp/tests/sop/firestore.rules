@@ -449,6 +449,9 @@ service cloud.firestore {
           // 5) ส่งกลับแก้ไข — ต้องระบุเหตุผล
           || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
             && ((o.status in ['submitted', 'dept_review'] && sopCanReview(o)) || (o.status == 'manager_approval' && sopCanApprove(o))))
+          // 5b) Admin force-return — ผู้ดูแล/ผู้จัดการบังคับส่งกลับได้ทุกขั้น (ข้าม separation check)
+          || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
+            && o.status in ['submitted', 'dept_review', 'manager_approval'] && sopPriv())
           // 6) อนุมัติและประกาศใช้ (ล็อกถาวร)
           || (o.status == 'manager_approval' && n.status == 'published' && sopCanApprove(o)
             && n.approved_by == request.auth.uid && n.locked == true && newCur == vid
@@ -494,6 +497,18 @@ service cloud.firestore {
     }
     match /kpoRecords/{docId} {
       allow read, write: if isSignedIn() && isActive();
+    }
+
+    // ----- ESG (Environmental, Social, Governance) -----
+    match /esgMonthly/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','oel_manager'];
+    }
+    match /esgConfig/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','oel_manager'];
     }
   }
 }

@@ -118,6 +118,10 @@ const NAV = {
       { key: 'incident-list',    label: 'บันทึกอุบัติเหตุ',     href: 'safety-incident.html' },
       { key: 'capa',             label: 'CAPA Management',       href: 'safety-capa.html' },
     ]},
+    { groupKey: 'esg', icon: '🌿', label: 'ESG', items: [
+      { key: 'esg-dashboard', label: '📊 ESG Dashboard',          href: 'esg-dashboard.html' },
+      { key: 'esg-data',      label: '📝 บันทึกข้อมูล ESG',       href: 'esg-data.html' },
+    ]},
   ],
   sales: [
     { groupKey: 'orders', icon: '📋', label: 'ออเดอร์', items: [
@@ -267,6 +271,10 @@ const NAV = {
       { key: 'safety-action-plan',   label: 'แผนปฏิบัติการประจำปี',       href: 'safety-action-plan.html' },
       { key: 'legal-compliance',     label: 'กฎหมายความปลอดภัย',         href: 'safety-legal.html' },
       { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)',href: 'safety-exec-dashboard.html' },
+    ]},
+    { groupKey: 'esg', icon: '🌿', label: 'ESG', items: [
+      { key: 'esg-dashboard', label: '📊 ESG Dashboard',    href: 'esg-dashboard.html' },
+      { key: 'esg-data',      label: '📝 บันทึกข้อมูล ESG', href: 'esg-data.html' },
     ]},
   ],
   kpo: [
@@ -422,6 +430,9 @@ const NAV = {
     { groupKey: 'safety-home', icon: '🛡', label: 'ความปลอดภัย', items: [
       { key: 'safety-dashboard', label: 'KPO Safety Dashboard', href: 'safety.html' },
     ]},
+    { groupKey: 'esg', icon: '🌿', label: 'ESG', items: [
+      { key: 'esg-dashboard', label: '📊 ESG Dashboard', href: 'esg-dashboard.html' },
+    ]},
   ],
 };
 
@@ -470,6 +481,7 @@ const ICON_PATHS = {
   'safety-training':  '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
   'safety-report':    '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
   'safety-chemical':  '<path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/>',
+  esg: '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
   fallback: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2"/>',
 };
 ICON_PATHS.shipping = ICON_PATHS.freight;

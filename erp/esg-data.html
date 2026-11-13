@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>บันทึกข้อมูล ESG</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <style>
+    .period-bar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1.4rem}
+    .period-bar select{padding:.38rem .7rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.9rem;background:#fff}
+    .period-bar .period-label{font-size:.88rem;color:#64748b}
+
+    .pillar-block{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:1rem}
+    .pillar-block .pb-head{display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;cursor:pointer;user-select:none}
+    .pillar-block .pb-title{font-size:.92rem;font-weight:700}
+    .pillar-block .pb-chev{font-size:.85rem;transition:transform .2s;color:#94a3b8}
+    .pillar-block.open .pb-chev{transform:rotate(180deg)}
+    .pillar-block .pb-body{display:none;padding:.75rem 1rem 1rem;border-top:1px solid #f1f5f9}
+    .pillar-block.open .pb-body{display:block}
+
+    .metric-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.7rem}
+    .metric-item label{display:block;font-size:.8rem;color:#64748b;margin-bottom:.25rem;font-weight:500}
+    .metric-item .m-hint{font-size:.72rem;color:#94a3b8;margin-top:.15rem}
+    .metric-item .inp-wrap{display:flex;align-items:center;gap:.35rem}
+    .metric-item input{flex:1;padding:.38rem .6rem;border-radius:7px;border:1px solid #cbd5e1;font-size:.9rem}
+    .metric-item input:focus{outline:none;border-color:#1e3a5f;box-shadow:0 0 0 2px #dbeafe}
+    .metric-item .unit{font-size:.78rem;color:#64748b;white-space:nowrap}
+
+    .metric-item .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .sd-green{background:#16a34a}
+    .sd-yellow{background:#d97706}
+    .sd-red{background:#dc2626}
+    .sd-none{background:#e2e8f0}
+
+    .save-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid #e2e8f0;padding:.8rem 0;display:flex;gap:.7rem;align-items:center;z-index:10}
+    .save-bar .save-status{font-size:.82rem;color:#64748b}
+  </style>
+</head>
+<body>
+
+<script type="module">
+import { requireRole }   from './js/auth.js';
+import { renderShell }   from './js/shell.js';
+import {
+  PILLARS, getMonthly, saveMonthly, getTargets,
+  metricStatus, MONTH_TH,
+} from './js/esg-data.js';
+
+const _profile = await requireRole(['admin','safety_officer','oel_manager']);
+const main = renderShell(_profile, 'esg-data', 'บันทึกข้อมูล ESG');
+
+// ── Period from URL params ─────────────────────────────────────────────────
+const NOW    = new Date();
+const params = new URLSearchParams(location.search);
+let selYear  = Number(params.get('y') || NOW.getFullYear());
+let selMonth = Number(params.get('m') || NOW.getMonth() + 1);
+
+let targets = {};
+let saved   = {};
+
+// ── Build scaffold ─────────────────────────────────────────────────────────
+const yearOpts = [0,1,2].map(i => {
+  const y = NOW.getFullYear() - i;
+  return `<option value="${y}" ${y===selYear?'selected':''}>${y+543}</option>`;
+}).join('');
+const monthOpts = MONTH_TH.map((lb, i) =>
+  `<option value="${i+1}" ${i+1===selMonth?'selected':''}>${lb}</option>`).join('');
+
+main.innerHTML = `
+<div class="period-bar no-print">
+  <span class="period-label">เดือน/ปี:</span>
+  <select id="sel-month">${monthOpts}</select>
+  <select id="sel-year">${yearOpts}</select>
+  <a href="esg-dashboard.html" style="font-size:.82rem;color:#64748b;text-decoration:none;margin-left:.4rem">← กลับ Dashboard</a>
+</div>
+
+${Object.entries(PILLARS).map(([k, P]) => `
+<div class="pillar-block open" id="pb-${k}">
+  <div class="pb-head" onclick="this.closest('.pillar-block').classList.toggle('open')">
+    <span class="pb-title" style="color:${P.color}">${P.icon} ${P.label}</span>
+    <span class="pb-chev">▼</span>
+  </div>
+  <div class="pb-body">
+    <div class="metric-grid" id="mg-${k}">
+      ${P.metrics.map(m => `
+        <div class="metric-item" id="mi-${k}-${m.key}">
+          <label>${m.label}</label>
+          <div class="inp-wrap">
+            <div class="status-dot sd-none" id="sd-${k}-${m.key}"></div>
+            <input type="number" step="any" min="0" id="inp-${k}-${m.key}" placeholder="ใส่ตัวเลข">
+            <span class="unit">${m.unit}</span>
+          </div>
+          <div class="m-hint">${m.low ? '↓ ยิ่งน้อยยิ่งดี' : '↑ ยิ่งมากยิ่งดี'}</div>
+        </div>`).join('')}
+    </div>
+  </div>
+</div>`).join('')}
+
+<div class="save-bar no-print">
+  <button class="btn" id="btn-save" style="background:#1e3a5f;color:#fff;padding:.45rem 1.4rem;border-radius:8px;font-size:.9rem;border:none;cursor:pointer">💾 บันทึก</button>
+  <span class="save-status" id="save-status"></span>
+</div>`;
+
+// ── Load data ──────────────────────────────────────────────────────────────
+async function load() {
+  targets = await getTargets();
+  const entry = await getMonthly(selYear, selMonth);
+  saved = entry || {};
+
+  for (const [k, P] of Object.entries(PILLARS)) {
+    for (const m of P.metrics) {
+      const inp = document.getElementById(`inp-${k}-${m.key}`);
+      const v = entry?.[k]?.[m.key];
+      inp.value = v != null ? v : '';
+      updateDot(k, m);
+    }
+  }
+  document.getElementById('save-status').textContent =
+    saved.updated_at ? `บันทึกล่าสุด: ${saved.updated_at.toDate?.().toLocaleString('th')||''}` : 'ยังไม่มีข้อมูลเดือนนี้';
+}
+
+function updateDot(k, m) {
+  const inp = document.getElementById(`inp-${k}-${m.key}`);
+  const sd  = document.getElementById(`sd-${k}-${m.key}`);
+  const v   = inp.value === '' ? null : Number(inp.value);
+  const tgt = targets[k]?.[m.key];
+  const st  = metricStatus(v, tgt, m.low);
+  sd.className = `status-dot ${st ? 'sd-'+st : 'sd-none'}`;
+}
+
+// Live dot update
+for (const [k, P] of Object.entries(PILLARS)) {
+  for (const m of P.metrics) {
+    document.getElementById(`inp-${k}-${m.key}`).addEventListener('input', () => updateDot(k, m));
+  }
+}
+
+// Period change
+document.getElementById('sel-month').addEventListener('change', e => { selMonth = Number(e.target.value); load(); });
+document.getElementById('sel-year').addEventListener('change',  e => { selYear  = Number(e.target.value); load(); });
+
+// Save
+document.getElementById('btn-save').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-save');
+  const status = document.getElementById('save-status');
+  btn.disabled = true;
+  status.textContent = 'กำลังบันทึก…';
+  try {
+    const pillars = {};
+    for (const [k, P] of Object.entries(PILLARS)) {
+      pillars[k] = {};
+      for (const m of P.metrics) {
+        const v = document.getElementById(`inp-${k}-${m.key}`).value;
+        if (v !== '') pillars[k][m.key] = Number(v);
+      }
+    }
+    await saveMonthly(selYear, selMonth, pillars);
+    status.textContent = 'บันทึกสำเร็จ ✓ ' + new Date().toLocaleTimeString('th');
+    await load();
+  } catch(e) {
+    status.textContent = 'ผิดพลาด: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+await load();
+</script>
+</body>
+</html>

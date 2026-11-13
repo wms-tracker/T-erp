@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESG Dashboard</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <style>
+    .esg-controls{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1.4rem}
+    .esg-controls select{padding:.35rem .7rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.88rem}
+    .esg-controls button{padding:.35rem .9rem;border-radius:6px;border:none;cursor:pointer;font-size:.85rem}
+    .btn-entry{background:#1e3a5f;color:#fff}
+    .btn-tgt{background:#f1f5f9;color:#374151;border:1px solid #cbd5e1!important}
+
+    /* Pillar score cards */
+    .pillar-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.4rem}
+    @media(max-width:640px){.pillar-row{grid-template-columns:1fr}}
+    .p-card{border-radius:14px;padding:1.1rem 1.2rem;border:2px solid transparent}
+    .p-card .p-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}
+    .p-card .p-title{font-size:.82rem;font-weight:700;color:#374151}
+    .p-card .p-label{font-size:.72rem;opacity:.7}
+    .p-card .p-score{font-size:2.4rem;font-weight:800;line-height:1;margin-bottom:.3rem}
+    .p-card .p-status{display:inline-flex;align-items:center;gap:.3rem;font-size:.75rem;font-weight:600;border-radius:20px;padding:.15rem .6rem}
+    .p-card .p-bar{background:rgba(0,0,0,.12);border-radius:4px;height:6px;margin-top:.6rem;overflow:hidden}
+    .p-card .p-bar-fill{height:6px;border-radius:4px}
+    .st-green .p-status{background:#dcfce7;color:#166534}
+    .st-yellow .p-status{background:#fef3c7;color:#92400e}
+    .st-red .p-status{background:#fee2e2;color:#991b1b}
+    .st-grey .p-status{background:#f1f5f9;color:#64748b}
+
+    /* Monthly table */
+    .month-section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden}
+    .month-section h3{font-size:.9rem;padding:.8rem 1rem;margin:0;border-bottom:1px solid #f1f5f9;color:#1e3a5f;background:#f8fafc}
+    .tbl-wrap{overflow-x:auto}
+    table{width:100%;border-collapse:collapse;font-size:.82rem}
+    th{background:#f8fafc;padding:.5rem .6rem;text-align:center;color:#64748b;font-weight:600;white-space:nowrap;border-bottom:1px solid #e2e8f0}
+    th.left{text-align:left;padding-left:.8rem}
+    td{padding:.45rem .6rem;text-align:center;border-bottom:1px solid #f8fafc;color:#374151}
+    td.left{text-align:left;padding-left:.8rem;font-weight:600}
+    tr:hover td{background:#f8fafc}
+    .dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:3px}
+    .dot-green{background:#16a34a}
+    .dot-yellow{background:#d97706}
+    .dot-red{background:#dc2626}
+    .dot-grey{background:#cbd5e1}
+    .sc-green{color:#16a34a;font-weight:700}
+    .sc-yellow{color:#d97706;font-weight:700}
+    .sc-red{color:#dc2626;font-weight:700}
+    .sc-grey{color:#94a3b8}
+
+    /* Target modal */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+    .modal-overlay.open{display:flex}
+    .modal-box{background:#fff;border-radius:14px;padding:1.5rem;width:min(600px,96vw);max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .modal-head h3{font-size:1rem;color:#1e3a5f;margin:0}
+    .modal-head button{background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b}
+    .tgt-sec{margin-bottom:1rem}
+    .tgt-sec-title{font-size:.8rem;font-weight:700;padding:.4rem .6rem;border-radius:6px;margin-bottom:.5rem}
+    .tgt-row{display:grid;grid-template-columns:1fr 100px;gap:.5rem;align-items:center;margin-bottom:.35rem;padding:.3rem .5rem;border-radius:6px;background:#f8fafc}
+    .tgt-row label{font-size:.82rem;color:#374151}
+    .tgt-row input{padding:.3rem .5rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.85rem;text-align:center;width:100%}
+    .modal-foot{display:flex;justify-content:flex-end;gap:.6rem;margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9}
+  </style>
+</head>
+<body>
+
+<script type="module">
+import { requireRole }   from './js/auth.js';
+import { renderShell }   from './js/shell.js';
+import {
+  PILLARS, listMonthlyYear, getTargets,
+  pillarScore, scoreColor, metricStatus, MONTH_TH,
+} from './js/esg-data.js';
+
+const ROLES = ['admin','manager','managing_director','safety_officer','oel_manager','kpo'];
+const _profile = await requireRole(ROLES);
+const main = renderShell(_profile, 'esg-dashboard', 'ESG Dashboard');
+
+const CAN_EDIT = ['admin','safety_officer','oel_manager'].includes(_profile.role);
+
+const NOW = new Date();
+let selYear = NOW.getFullYear();
+
+// ── State ──────────────────────────────────────────────────────────────────
+let entries = [];
+let targets = {};
+
+// ── Build UI ───────────────────────────────────────────────────────────────
+main.innerHTML = `
+<div class="esg-controls no-print">
+  <select id="sel-year">${[0,1,2].map(i => {
+    const y = NOW.getFullYear() - i;
+    return `<option value="${y}" ${y===selYear?'selected':''}>${y + 543}</option>`;
+  }).join('')}</select>
+  ${CAN_EDIT ? `<a href="esg-data.html" class="btn btn-entry" style="text-decoration:none;padding:.35rem .9rem;border-radius:6px;background:#1e3a5f;color:#fff;font-size:.85rem">+ บันทึกข้อมูล</a>` : ''}
+  <button class="btn-tgt btn" id="btn-tgt">⚙️ เป้าหมาย</button>
+</div>
+
+<div class="pillar-row" id="pillar-row">
+  ${['e','s','g'].map(k => renderPillarCard(k, null)).join('')}
+</div>
+
+<div class="month-section">
+  <h3>ข้อมูลรายเดือน — ปี <span id="yr-label">${selYear + 543}</span></h3>
+  <div class="tbl-wrap"><table id="month-table"><tbody><tr><td colspan="4" style="padding:1.5rem;text-align:center;color:#94a3b8">กำลังโหลด…</td></tr></tbody></table></div>
+</div>
+
+<!-- Target modal -->
+<div class="modal-overlay" id="tgt-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>⚙️ ตั้งค่าเป้าหมาย ESG</h3>
+      <button id="tgt-close">✕</button>
+    </div>
+    <div id="tgt-form"></div>
+    <div class="modal-foot">
+      <button class="btn" id="tgt-cancel" style="background:#f1f5f9;border:1px solid #e2e8f0">ยกเลิก</button>
+      ${CAN_EDIT ? `<button class="btn btn-entry" id="tgt-save">💾 บันทึกเป้าหมาย</button>` : ''}
+    </div>
+  </div>
+</div>`;
+
+function renderPillarCard(k, score) {
+  const P = PILLARS[k];
+  const cl = scoreColor(score);
+  const label = cl === 'green' ? '✅ ดี' : cl === 'yellow' ? '⚠️ พอใช้' : cl === 'red' ? '❌ ต้องปรับปรุง' : '— ยังไม่มีข้อมูล';
+  const pct  = score ?? 0;
+  return `<div class="p-card st-${cl}" style="background:${P.bg};border-color:${P.border}">
+    <div class="p-head">
+      <div>
+        <div class="p-title">${P.icon} ${P.label}</div>
+        <div class="p-label">${P.labelShort}</div>
+      </div>
+      <div style="font-size:1.6rem">${P.icon}</div>
+    </div>
+    <div class="p-score" style="color:${P.color}">${score != null ? score : '—'}</div>
+    <div class="p-status">${label}</div>
+    <div class="p-bar"><div class="p-bar-fill" style="width:${pct}%;background:${P.color}"></div></div>
+  </div>`;
+}
+
+function renderTable(rows) {
+  const months = Array.from({length: 12}, (_, i) => i + 1);
+  const byMonth = Object.fromEntries(rows.map(r => [r.month, r]));
+
+  const thead = `<thead><tr>
+    <th class="left">เดือน</th>
+    <th style="color:${PILLARS.e.color}">🌿 E</th>
+    <th style="color:${PILLARS.s.color}">🤝 S</th>
+    <th style="color:${PILLARS.g.color}">⚖️ G</th>
+    <th>รวม</th>
+    <th></th>
+  </tr></thead>`;
+
+  const trows = months.map(m => {
+    const d = byMonth[m];
+    const es = d ? pillarScore('e', d.e, targets) : null;
+    const ss = d ? pillarScore('s', d.s, targets) : null;
+    const gs = d ? pillarScore('g', d.g, targets) : null;
+    const avg = [es, ss, gs].filter(x => x != null);
+    const total = avg.length ? Math.round(avg.reduce((a,b)=>a+b,0)/avg.length) : null;
+    const sc = v => v != null ? `<span class="sc-${scoreColor(v)}">${v}</span>` : `<span class="sc-grey">—</span>`;
+    return `<tr>
+      <td class="left">${MONTH_TH[m-1]}</td>
+      <td>${sc(es)}</td>
+      <td>${sc(ss)}</td>
+      <td>${sc(gs)}</td>
+      <td>${sc(total)}</td>
+      <td>${d && CAN_EDIT ? `<a href="esg-data.html?y=${d.year}&m=${d.month}" style="font-size:.78rem;color:#1e3a5f">แก้ไข</a>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  return `<table>${thead}<tbody>${trows}</tbody></table>`;
+}
+
+function buildTargetForm(tgt) {
+  return Object.entries(PILLARS).map(([k, P]) => `
+    <div class="tgt-sec">
+      <div class="tgt-sec-title" style="background:${P.bg};color:${P.color}">${P.icon} ${P.label}</div>
+      ${P.metrics.map(m => `
+        <div class="tgt-row">
+          <label>${m.label} (${m.unit}) ${m.low ? '↓ ลดลง' : '↑ เพิ่มขึ้น'}</label>
+          <input type="number" step="any" id="tgt-${k}-${m.key}" value="${tgt[k]?.[m.key] ?? ''}" placeholder="เป้าหมาย" ${!CAN_EDIT?'disabled':''}>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+async function load() {
+  targets = await getTargets();
+  entries = await listMonthlyYear(selYear);
+
+  // Update pillar cards
+  const latest = entries.filter(e => e.e || e.s || e.g).at(-1);
+  document.getElementById('pillar-row').innerHTML = ['e','s','g'].map(k => {
+    const score = latest ? pillarScore(k, latest[k], targets) : null;
+    return renderPillarCard(k, score);
+  }).join('');
+
+  // Update table
+  document.querySelector('.tbl-wrap').innerHTML = renderTable(entries);
+  document.getElementById('yr-label').textContent = selYear + 543;
+}
+
+// Events
+document.getElementById('sel-year').addEventListener('change', e => {
+  selYear = Number(e.target.value);
+  load();
+});
+
+document.getElementById('btn-tgt').addEventListener('click', () => {
+  document.getElementById('tgt-form').innerHTML = buildTargetForm(targets);
+  document.getElementById('tgt-modal').classList.add('open');
+});
+document.getElementById('tgt-close').addEventListener('click', () =>
+  document.getElementById('tgt-modal').classList.remove('open'));
+document.getElementById('tgt-cancel').addEventListener('click', () =>
+  document.getElementById('tgt-modal').classList.remove('open'));
+
+if (CAN_EDIT) {
+  const { saveTargets } = await import('./js/esg-data.js');
+  document.getElementById('tgt-save').addEventListener('click', async () => {
+    const tgt = {};
+    for (const [k, P] of Object.entries(PILLARS)) {
+      tgt[k] = {};
+      for (const m of P.metrics) {
+        const v = document.getElementById(`tgt-${k}-${m.key}`).value;
+        if (v !== '') tgt[k][m.key] = Number(v);
+      }
+    }
+    document.getElementById('tgt-save').disabled = true;
+    try {
+      await saveTargets(tgt);
+      document.getElementById('tgt-modal').classList.remove('open');
+      await load();
+    } catch(e) {
+      alert('บันทึกไม่สำเร็จ: ' + e.message);
+    } finally {
+      document.getElementById('tgt-save').disabled = false;
+    }
+  });
+}
+
+await load();
+</script>
+</body>
+</html>
