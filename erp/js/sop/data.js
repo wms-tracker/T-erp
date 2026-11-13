@@ -89,13 +89,16 @@ export function canEdit(v) {
   return isPriv() || v.prepared_by === S.uid || (S.role === "dept_head" && inMyDept(v.department_id));
 }
 export function canReview(v) {
-  if (separationIssue(v) || S.role === "viewer") return false;
+  if (v.prepared_by === S.uid || S.role === "viewer") return false;
   if (v.reviewer_id) return v.reviewer_id === S.uid;
+  if ((v.editors || []).includes(S.uid)) return false;
   return isPriv() || (S.role === "dept_head" && inMyDept(v.department_id));
 }
 export function canApprove(v) {
-  if (separationIssue(v) || !["manager", "admin", "managing_director", "oel_manager"].includes(S.role)) return false;
-  return v.approver_id ? v.approver_id === S.uid : true;
+  if (v.prepared_by === S.uid || !["manager", "admin", "managing_director", "oel_manager"].includes(S.role)) return false;
+  if (v.approver_id) return v.approver_id === S.uid;
+  if ((v.editors || []).includes(S.uid)) return false;
+  return true;
 }
 function permissions(sop, v) {
   const isWorking = sop.working_version_id === v.id, isCurrent = sop.current_version_id === v.id;
