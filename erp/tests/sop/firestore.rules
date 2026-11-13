@@ -1,4 +1,4 @@
-// ===================================================================
+﻿// ===================================================================
 // ตัวอย่าง Firestore Security Rules — คัดลอกไปวางที่ Firebase Console
 // (Firestore Database -> Rules) แล้วปรับแก้ตามความเหมาะสมก่อน Publish
 // ===================================================================
@@ -312,13 +312,21 @@ service cloud.firestore {
         && (sopPriv() || v.prepared_by == request.auth.uid || (sopRole() == 'dept_head' && sopDept() == v.department_id));
     }
     function sopCanReview(v) {
-      return sopActive() && sopSeparated(v) && sopRole() != 'viewer'
-        && (v.reviewer_id != null ? v.reviewer_id == request.auth.uid
-            : (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id)));
+      // prepared_by ห้ามตรวจสอบเสมอ; editors ห้ามเฉพาะเมื่อไม่มี reviewer_id ระบุไว้
+      return sopActive() && sopRole() != 'viewer'
+        && request.auth.uid != v.prepared_by
+        && (v.reviewer_id != null
+            ? v.reviewer_id == request.auth.uid
+            : (!(request.auth.uid in v.editors)
+               && (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id))));
     }
     function sopCanApprove(v) {
-      return sopActive() && sopSeparated(v) && sopRole() in ['manager', 'admin', 'managing_director', 'oel_manager']
-        && (v.approver_id == null || v.approver_id == request.auth.uid);
+      // prepared_by ห้ามอนุมัติเสมอ; editors ห้ามเฉพาะเมื่อไม่มี approver_id ระบุไว้
+      return sopActive() && sopRole() in ['manager', 'admin', 'managing_director', 'oel_manager']
+        && request.auth.uid != v.prepared_by
+        && (v.approver_id != null
+            ? v.approver_id == request.auth.uid
+            : !(request.auth.uid in v.editors));
     }
     function sopSubmittable(v) {
       return v.title.size() > 0 && v.owner_id != null && v.effective_date is string && v.review_date is string
