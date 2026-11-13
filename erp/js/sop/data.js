@@ -35,7 +35,7 @@ export const S = { profile: null, uid: null, name: "", role: "viewer", deptId: "
 const iso = v => (v && typeof v.toDate === "function") ? v.toDate().toISOString() : (v || null);
 const fail = msg => { throw new Error(msg); };
 export const today = () => new Date().toLocaleDateString("sv-SE");
-export const isPriv = () => S.role === "admin" || S.role === "manager";
+export const isPriv = () => ["admin", "manager", "managing_director", "oel_manager"].includes(S.role);
 export const deptById = id => S.depts.find(d => d.id === id);
 export const memberById = id => S.members.find(m => m.id === id);
 const nameOf = id => (id === S.uid ? S.name : memberById(id)?.name) || "";
@@ -94,7 +94,7 @@ export function canReview(v) {
   return isPriv() || (S.role === "dept_head" && inMyDept(v.department_id));
 }
 export function canApprove(v) {
-  if (separationIssue(v) || !["manager", "admin"].includes(S.role)) return false;
+  if (separationIssue(v) || !["manager", "admin", "managing_director", "oel_manager"].includes(S.role)) return false;
   return v.approver_id ? v.approver_id === S.uid : true;
 }
 function permissions(sop, v) {
@@ -111,7 +111,7 @@ function permissions(sop, v) {
     canObsolete: isCurrent && !sop.is_obsolete && isPriv(),
     canDeleteDraft: isWorking && ["draft", "revision_required"].includes(v.status) && (isPriv() || v.prepared_by === S.uid),
     canSetReviewDate: isCurrent && !sop.is_obsolete && (isPriv() || (S.role === "dept_head" && inMyDept(sop.department_id))),
-    separationNote: ["submitted", "dept_review", "manager_approval"].includes(v.status) && ["dept_head", "manager", "admin"].includes(S.role) ? separationIssue(v) : null,
+    separationNote: ["submitted", "dept_review", "manager_approval"].includes(v.status) && ["dept_head", "manager", "admin", "managing_director", "oel_manager"].includes(S.role) ? separationIssue(v) : null,
   };
 }
 
