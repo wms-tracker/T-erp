@@ -50,7 +50,7 @@ const ICON = {
 const ic = (n, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n] || ""}</svg>`;
 const ACTION_LABEL = {
   create: "สร้าง SOP ใหม่", copy: "คัดลอกเป็น SOP ใหม่", edit: "แก้ไขเนื้อหา", submit: "ส่งตรวจ", start_review: "รับเรื่องตรวจสอบ",
-  review_pass: "ตรวจสอบผ่าน → ส่งผู้จัดการอนุมัติ", approve: "อนุมัติและประกาศใช้", return: "ส่งกลับแก้ไข", comment: "แสดงความคิดเห็น",
+  review_pass: "ตรวจสอบผ่าน → ส่งผู้จัดการอนุมัติ", approve: "อนุมัติและประกาศใช้", return: "ส่งกลับแก้ไข", force_return: "ผู้ดูแล: บังคับส่งกลับแก้ไข", comment: "แสดงความคิดเห็น",
   obsolete: "ยกเลิกใช้งาน SOP", revise: "สร้างฉบับแก้ไข", supersede: "ถูกแทนที่ด้วยฉบับใหม่", cancel: "ยกเลิกฉบับร่าง",
   delete: "ลบฉบับร่าง", review_date: "ทบทวน / กำหนดวันทบทวนใหม่",
 };
@@ -386,8 +386,8 @@ function renderVersion(view, P) {
   else if (v.status === "obsolete") banner = `<div class="banner err">${ic("ban")}<div><b>SOP นี้ถูกยกเลิกใช้งานแล้ว</b> — ห้ามนำไปใช้ปฏิบัติงาน</div></div>`;
   else if (v.status === "cancelled") banner = `<div class="banner info">${ic("info")}<div>ฉบับร่างนี้ถูกยกเลิก</div></div>`;
   else if (v.status === "published") banner = `<div class="banner ok">${ic("shield")}<div><b>ฉบับใช้งานจริง (Current Version)</b> — อนุมัติโดย ${esc(P.people.approved_by?.display_name || "-")} เมื่อ ${fmtDT(v.approved_at)}${working ? ` · มีฉบับแก้ไข <a href="#/v/${enc(working.id)}">${esc(working.rev)}</a> ${stBadge(working.status)} อยู่ระหว่างดำเนินการ` : ""}</div></div>`;
-  const lastReturn = v.status === "revision_required" ? P.log.find(l => l.version_id === v.id && l.action === "return") : null;
-  if (lastReturn) banner += `<div class="banner err">${ic("back")}<div><b>ถูกส่งกลับแก้ไขโดย ${esc(lastReturn.user_name)}</b> (${fmtDT(lastReturn.at)})<div style="white-space:pre-wrap;margin-top:4px">เหตุผล: ${esc(lastReturn.comment)}</div></div></div>`;
+  const lastReturn = v.status === "revision_required" ? P.log.find(l => l.version_id === v.id && ["return", "force_return"].includes(l.action)) : null;
+  if (lastReturn) banner += `<div class="banner err">${ic("back")}<div><b>ถูกส่งกลับแก้ไขโดย ${esc(lastReturn.user_name)}</b>${lastReturn.action === "force_return" ? " <span style=\"font-size:11px;opacity:.7\">(Admin Override)</span>" : ""} (${fmtDT(lastReturn.at)})<div style="white-space:pre-wrap;margin-top:4px">เหตุผล: ${esc(lastReturn.comment)}</div></div></div>`;
   if (pm.separationNote) banner += `<div class="banner info">${ic("info")}<div>${esc(pm.separationNote)}</div></div>`;
   const A = [];
   if (pm.canEdit) A.push(`<a class="btn primary" href="#/edit/${enc(v.id)}">${ic("edit")} แก้ไขเนื้อหา</a>`);
@@ -396,6 +396,7 @@ function renderVersion(view, P) {
   if (pm.canReviewPass) A.push(`<button class="btn green" data-act="review_pass">${ic("check")} ตรวจสอบผ่าน → ส่งผู้จัดการ</button>`);
   if (pm.canApprove) A.push(`<button class="btn green" data-act="approve">${ic("shield")} อนุมัติและประกาศใช้</button>`);
   if (pm.canReturn) A.push(`<button class="btn danger" data-act="return">${ic("back")} ส่งกลับแก้ไข</button>`);
+  if (pm.canForceReturn && !pm.canReturn) A.push(`<button class="btn danger" data-act="force_return">${ic("back")} บังคับส่งกลับแก้ไข (Admin)</button>`);
   if (pm.canRevise) A.push(`<button class="btn primary" data-act="revise">${ic("edit")} สร้างฉบับแก้ไข (Rev. ใหม่)</button>`);
   if (pm.canSetReviewDate) A.push(`<button class="btn" data-act="review_date">${ic("cal")} บันทึกผลทบทวน / วันทบทวนถัดไป</button>`);
   if (pm.canComment) A.push(`<button class="btn" data-act="comment">${ic("msg")} แสดงความคิดเห็น</button>`);
@@ -438,6 +439,7 @@ async function doAction(act, P) {
     case "review_pass": { const c = await askText("ตรวจสอบผ่าน", "ความคิดเห็นของผู้ตรวจสอบ", { required: false, ok: "ยืนยันตรวจสอบผ่าน", okClass: "green" }); if (c !== null) await wf("review_pass", c); break; }
     case "approve": { const c = await askText("อนุมัติและประกาศใช้", "ความคิดเห็นของผู้อนุมัติ", { required: false, ok: "อนุมัติและประกาศใช้", okClass: "green", extra: `<div class="banner info">${ic("info")}<div>เมื่ออนุมัติ ${esc(v.rev)} จะกลายเป็น <b>Current Version</b> ${sop.current_version_id ? "และฉบับเดิมจะถูกเก็บเป็นประวัติ (Superseded)" : ""} และจะถูกล็อกห้ามแก้ไข</div></div>` }); if (c !== null) await wf("approve", c); break; }
     case "return": { const c = await askText("ส่งกลับเพื่อแก้ไข", "เหตุผลที่ส่งกลับ", { ok: "ส่งกลับแก้ไข", okClass: "red", placeholder: "ระบุสิ่งที่ต้องแก้ไข…" }); if (c !== null) await wf("return", c); break; }
+    case "force_return": { const c = await askText("บังคับส่งกลับแก้ไข (Admin Override)", "เหตุผลที่บังคับส่งกลับ", { ok: "บังคับส่งกลับ", okClass: "red", placeholder: "ระบุเหตุผล…", extra: `<div class="banner err">${ic("alert")}<div>การดำเนินการนี้จะยกเลิกสถานะการตรวจสอบ/อนุมัติปัจจุบัน และส่งเอกสารกลับให้ผู้จัดทำแก้ไข</div></div>` }); if (c !== null) await wf("force_return", c); break; }
     case "comment": { const c = await askText("แสดงความคิดเห็น", "ความคิดเห็น", { ok: "บันทึกความคิดเห็น" }); if (c !== null) await wf("comment", c); break; }
     case "obsolete": { const c = await askText("ยกเลิกใช้งาน SOP", "เหตุผลที่ยกเลิกใช้งาน", { ok: "ยกเลิกใช้งาน", okClass: "red", extra: `<div class="banner err">${ic("alert")}<div>SOP ${esc(sop.sop_number)} จะไม่ถูกแสดงเป็นฉบับใช้งานอีกต่อไป (ข้อมูลทุกเวอร์ชันยังถูกเก็บไว้)</div></div>` }); if (c !== null) await wf("obsolete", c); break; }
     case "revise": {

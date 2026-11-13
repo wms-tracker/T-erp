@@ -109,6 +109,7 @@ function permissions(sop, v) {
     canReviewPass: isWorking && ["submitted", "dept_review"].includes(v.status) && canReview(v),
     canApprove: isWorking && v.status === "manager_approval" && canApprove(v),
     canReturn: isWorking && ((["submitted", "dept_review"].includes(v.status) && canReview(v)) || (v.status === "manager_approval" && canApprove(v))),
+    canForceReturn: isWorking && ["submitted", "dept_review", "manager_approval"].includes(v.status) && isPriv(),
     canComment: S.role !== "viewer" && canSeeWork(v),
     canRevise: isCurrent && !sop.is_obsolete && !sop.working_version_id && canCreateIn(sop.department_id),
     canObsolete: isCurrent && !sop.is_obsolete && isPriv(),
@@ -521,6 +522,12 @@ export async function action(vid, act, comment = "") {
         if (sop.working_version_id) tx.update(doc(db, "sopVersions", sop.working_version_id), { status: "cancelled", updated_at: serverTimestamp(), updated_by: S.uid });
         extraSop = { is_obsolete: true, working_version_id: null, working_title: null, working_status: null, working_rev: null };
         break;
+      }
+      case "force_return": {
+        if (!isWorking || !["submitted", "dept_review", "manager_approval"].includes(v.status)) fail("สถานะเอกสารไม่ถูกต้อง");
+        if (!isPriv()) fail("เฉพาะผู้ดูแลระบบ/ผู้จัดการเท่านั้น");
+        if (!comment) fail("กรุณาระบุเหตุผลที่บังคับส่งกลับแก้ไข");
+        to = "revision_required"; tx.update(vRef, wf(to)); break;
       }
       case "comment":
         if (!canSeeWork(v) || S.role === "viewer") fail("ไม่มีสิทธิ์");
