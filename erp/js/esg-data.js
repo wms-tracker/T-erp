@@ -1,5 +1,6 @@
 // esg-data.js — Firestore data layer for ESG (Environmental, Social, Governance)
-import { db, uid } from "./auth.js";
+import { db, auth } from "./auth.js";
+const uid = () => auth.currentUser?.uid ?? '';
 import {
   doc, getDoc, setDoc, getDocs,
   collection, query, where, orderBy,
