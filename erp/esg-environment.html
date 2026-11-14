@@ -1,0 +1,683 @@
+<title>Module E — สิ่งแวดล้อม</title>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  C, FUEL_TYPES, DEPTS, WASTE_DISPOSAL,
+  getEmissionFactors, saveEmissionFactors, deleteRec,
+  saveEnergy,    listEnergy,
+  saveWater,     listWater,
+  saveWaste,     listWaste,
+  savePackaging, listPackaging,
+  saveCarbon,    listCarbon,
+} from "./js/esg-env.js";
+
+const _profile = await requireRole(['admin','safety_officer','manager']);
+const _isAdmin  = _profile.role === 'admin';
+const main = renderShell(_profile, 'esg-environment', 'Module E — สิ่งแวดล้อม');
+
+const now   = new Date();
+let _year   = now.getFullYear();
+let _month  = now.getMonth() + 1;
+let _tab    = 'energy';
+let _efMap  = {};
+let _editId = { energy: null, water: null, waste: null, packaging: null, carbon: null };
+
+// ── Pre-computed option strings (string concat, zero backticks) ───────────────
+const DEPT_OPT = '<option value="">-- หน่วยงาน --</option>'
+  + DEPTS.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+
+const FUEL_OPT = '<option value="">-- ประเภทเชื้อเพลิง --</option>'
+  + FUEL_TYPES.map(f => '<option value="' + f.key + '">' + f.label + '</option>').join('');
+
+const DISPOSAL_OPT = '<option value="">-- วิธีกำจัด --</option>'
+  + WASTE_DISPOSAL.map(d => '<option value="' + d + '">' + d + '</option>').join('');
+
+const THIS_Y = now.getFullYear();
+const YEAR_OPT = [0,1,2].map(i => {
+  const y = THIS_Y - i;
+  return '<option value="' + y + '"' + (y === _year ? ' selected' : '') + '>' + y + '</option>';
+}).join('');
+
+const TH_M = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const MONTH_OPT = TH_M.map((m, i) => {
+  const v = i + 1;
+  return '<option value="' + v + '"' + (v === _month ? ' selected' : '') + '>' + v + '. ' + m + '</option>';
+}).join('');
+
+const TODAY    = now.toISOString().slice(0, 10);
+const EF_SHOW  = _isAdmin ? '' : 'display:none';
+const DEL_SHOW = _isAdmin ? '' : 'display:none';
+
+// ── Main render (only 2 backticks in this file) ───────────────────────────────
+main.innerHTML = `
+<style>
+.env-page{padding:16px 20px;max-width:1200px;}
+.env-hdr{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+.env-hdr-title{display:flex;align-items:center;gap:10px;flex:1;}
+.env-hdr-title h2{font-size:1.2rem;font-weight:700;color:#14532d;margin:0;}
+.env-hdr-title .sub{font-size:0.75rem;color:#6b7280;}
+.env-icon{font-size:1.8rem;line-height:1;}
+.env-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.env-controls select{padding:6px 10px;border:1.5px solid #d1fae5;border-radius:8px;font-family:inherit;font-size:0.85rem;background:#f0fdf4;cursor:pointer;}
+.btn-ef{padding:7px 14px;border:1.5px solid #16a34a;border-radius:8px;background:#f0fdf4;color:#166534;font-family:inherit;font-size:0.82rem;cursor:pointer;font-weight:600;}
+.btn-ef:hover{background:#dcfce7;}
+.kpi-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.kpi-card{flex:1;min-width:140px;background:#fff;border-radius:12px;padding:12px 14px;box-shadow:0 2px 6px rgba(0,0,0,.07);border-left:4px solid #22c55e;}
+.kpi-card.red{border-left-color:#ef4444;}
+.kpi-card.amber{border-left-color:#f59e0b;}
+.kpi-card.blue{border-left-color:#3b82f6;}
+.kpi-card .kv{font-size:1.4rem;font-weight:700;color:#15803d;line-height:1.2;}
+.kpi-card.red .kv{color:#b91c1c;}
+.kpi-card.amber .kv{color:#b45309;}
+.kpi-card.blue .kv{color:#1d4ed8;}
+.kpi-card .kl{font-size:0.75rem;color:#6b7280;margin-top:3px;}
+.env-tabs{display:flex;gap:4px;border-bottom:2px solid #e5e7eb;margin-bottom:14px;flex-wrap:wrap;}
+.tab-btn{padding:9px 16px;border:none;background:none;font-family:inherit;font-size:0.85rem;cursor:pointer;color:#6b7280;border-bottom:3px solid transparent;margin-bottom:-2px;border-radius:4px 4px 0 0;transition:color .15s,border-color .15s;}
+.tab-btn:hover{color:#15803d;background:#f0fdf4;}
+.tab-btn.active{color:#15803d;font-weight:700;border-bottom-color:#22c55e;background:#f0fdf4;}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+.form-card{background:#fff;border-radius:14px;padding:18px 20px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+.form-card h3{font-size:1rem;font-weight:700;color:#14532d;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:12px;}
+.fg label{display:block;font-size:0.78rem;color:#374151;font-weight:600;margin-bottom:4px;}
+.fg input,.fg select,.fg textarea{width:100%;padding:7px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-family:inherit;font-size:0.85rem;transition:border-color .15s;}
+.fg input:focus,.fg select:focus,.fg textarea:focus{outline:none;border-color:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.15);}
+.fg textarea{resize:vertical;min-height:60px;}
+.fg-full{grid-column:1/-1;}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:8px;border:none;cursor:pointer;font-size:0.85rem;font-family:inherit;}
+.btn-primary{background:#16a34a;color:#fff;}
+.btn-primary:hover{background:#15803d;}
+.btn-outline{background:#fff;border:1.5px solid #d1d5db;color:#374151;}
+.btn-outline:hover{background:#f9fafb;}
+.btn-danger{background:#ef4444;color:#fff;}
+.btn-danger:hover{background:#dc2626;}
+.btn-sm{padding:4px 9px;font-size:0.78rem;}
+.records-card{background:#fff;border-radius:14px;padding:18px 20px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+.records-card h3{font-size:1rem;font-weight:700;color:#14532d;margin-bottom:12px;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+thead th{background:#f0fdf4;color:#14532d;padding:9px 10px;text-align:left;border-bottom:2px solid #d1fae5;font-weight:700;white-space:nowrap;}
+tbody td{padding:8px 10px;border-bottom:1px solid #f3f4f6;vertical-align:middle;}
+tbody tr:hover{background:#f9fafb;}
+.empty-row td{text-align:center;color:#9ca3af;padding:24px;}
+.badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:0.72rem;font-weight:600;}
+.badge-green{background:#dcfce7;color:#166534;}
+.badge-red{background:#fee2e2;color:#991b1b;}
+.badge-amber{background:#fef3c7;color:#92400e;}
+.co2e-row{margin-top:4px;background:#f0fdf4;border-radius:8px;padding:10px 14px;border:1px solid #d1fae5;}
+.co2e-row .ef-info{font-size:0.75rem;color:#6b7280;margin-top:4px;}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding-top:60px;}
+.modal-box{background:#fff;border-radius:16px;padding:24px;max-width:580px;width:92%;max-height:80vh;overflow-y:auto;}
+.modal-box h3{font-size:1.05rem;font-weight:700;color:#14532d;margin-bottom:6px;}
+.modal-box .sub{font-size:0.75rem;color:#6b7280;margin-bottom:16px;}
+.ef-grid{display:grid;gap:10px;margin-bottom:16px;}
+.ef-row{display:grid;grid-template-columns:1fr 100px 1fr;gap:8px;align-items:end;}
+.ef-row label{font-size:0.78rem;font-weight:600;color:#374151;}
+.ef-row input{padding:7px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-family:inherit;font-size:0.85rem;width:100%;}
+.ef-row .unit{font-size:0.75rem;color:#6b7280;padding:7px 0;}
+.env-toast{position:fixed;bottom:20px;right:20px;z-index:300;background:#1f2937;color:#fff;padding:12px 18px;border-radius:10px;font-size:0.85rem;display:none;box-shadow:0 4px 16px rgba(0,0,0,.3);}
+.env-toast.show{display:block;animation:fadeup .3s ease;}
+.env-toast.success{background:#15803d;}
+.env-toast.error{background:#b91c1c;}
+@keyframes fadeup{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(max-width:600px){.env-hdr{gap:8px;}.kpi-card{min-width:120px;}.tab-btn{padding:7px 11px;font-size:0.8rem;}}
+</style>
+
+<div id="env-toast" class="env-toast"></div>
+<div class="env-page">
+
+  <!-- Header -->
+  <div class="env-hdr">
+    <div class="env-hdr-title">
+      <span class="env-icon">🌿</span>
+      <div>
+        <h2>Module E — สิ่งแวดล้อม</h2>
+        <div class="sub">Environmental Management · ISO 14001</div>
+      </div>
+    </div>
+    <div class="env-controls">
+      <select id="sel-year" onchange="onYearMonth()">${YEAR_OPT}</select>
+      <select id="sel-month" onchange="onYearMonth()">${MONTH_OPT}</select>
+      <button class="btn-ef" onclick="openEF()" style="${EF_SHOW}">⚙️ Emission Factors</button>
+    </div>
+  </div>
+
+  <!-- Tab nav -->
+  <div class="env-tabs">
+    <button class="tab-btn active" data-tab="energy"    onclick="switchTab('energy')">⚡ พลังงาน</button>
+    <button class="tab-btn"        data-tab="water"     onclick="switchTab('water')">💧 น้ำ</button>
+    <button class="tab-btn"        data-tab="waste"     onclick="switchTab('waste')">♻️ ของเสีย</button>
+    <button class="tab-btn"        data-tab="packaging" onclick="switchTab('packaging')">📦 บรรจุภัณฑ์</button>
+    <button class="tab-btn"        data-tab="carbon"    onclick="switchTab('carbon')">🏭 เชื้อเพลิง & CO₂</button>
+  </div>
+
+  <!-- ── Tab: Energy ── -->
+  <div id="panel-energy" class="tab-panel active">
+    <div id="kpi-energy" class="kpi-strip"></div>
+    <div class="form-card">
+      <h3>⚡ บันทึกข้อมูลพลังงาน</h3>
+      <form id="form-energy" onsubmit="submitForm(event,'energy')">
+        <input type="hidden" id="edit-energy">
+        <div class="fg">
+          <div><label>วันที่ *</label><input type="date" name="date" value="${TODAY}" required></div>
+          <div><label>หน่วยงาน</label><select name="dept">${DEPT_OPT}</select></div>
+        </div>
+        <div class="fg">
+          <div><label>ไฟฟ้ารวม (kWh)</label><input type="number" name="electricity_kwh" min="0" step="0.01" placeholder="0"></div>
+          <div><label>ค่าไฟฟ้า (บาท)</label><input type="number" name="electricity_cost" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>เครื่องจักร (kWh)</label><input type="number" name="machine_kwh" min="0" step="0.01" placeholder="0"></div>
+          <div><label>รถยก / EV (kWh)</label><input type="number" name="forklift_kwh" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg"><div class="fg-full"><label>หมายเหตุ</label><textarea name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div></div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="clearForm('energy')">ล้าง</button>
+          <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="records-card">
+      <h3>รายการบันทึก</h3>
+      <div id="records-energy" class="tbl-wrap"><p style="color:#9ca3af;text-align:center;padding:20px">กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Water ── -->
+  <div id="panel-water" class="tab-panel">
+    <div id="kpi-water" class="kpi-strip"></div>
+    <div class="form-card">
+      <h3>💧 บันทึกข้อมูลน้ำ</h3>
+      <form id="form-water" onsubmit="submitForm(event,'water')">
+        <input type="hidden" id="edit-water">
+        <div class="fg">
+          <div><label>วันที่ *</label><input type="date" name="date" value="${TODAY}" required></div>
+          <div><label>หน่วยงาน</label><select name="dept">${DEPT_OPT}</select></div>
+        </div>
+        <div class="fg">
+          <div><label>ปริมาณน้ำใช้ (ลบ.ม.)</label><input type="number" name="water_m3" min="0" step="0.001" placeholder="0"></div>
+          <div><label>ค่าน้ำ (บาท)</label><input type="number" name="water_cost" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>น้ำรั่วไหล (ลบ.ม.)</label><input type="number" name="leak_m3" min="0" step="0.001" placeholder="0"></div>
+          <div><label>น้ำที่ประหยัดได้ (ลบ.ม.)</label><input type="number" name="saved_m3" min="0" step="0.001" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>แหล่งน้ำ</label>
+            <select name="water_source">
+              <option value="">-- เลือก --</option>
+              <option>ประปา</option>
+              <option>บ่อบาดาล</option>
+              <option>น้ำรีไซเคิล</option>
+              <option>น้ำฝน</option>
+            </select>
+          </div>
+          <div><label>หมายเหตุ</label><input type="text" name="notes" placeholder="หมายเหตุ..."></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="clearForm('water')">ล้าง</button>
+          <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="records-card">
+      <h3>รายการบันทึก</h3>
+      <div id="records-water" class="tbl-wrap"><p style="color:#9ca3af;text-align:center;padding:20px">กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Waste ── -->
+  <div id="panel-waste" class="tab-panel">
+    <div id="kpi-waste" class="kpi-strip"></div>
+    <div class="form-card">
+      <h3>♻️ บันทึกข้อมูลของเสีย</h3>
+      <form id="form-waste" onsubmit="submitForm(event,'waste')">
+        <input type="hidden" id="edit-waste">
+        <div class="fg">
+          <div><label>วันที่ *</label><input type="date" name="date" value="${TODAY}" required></div>
+          <div><label>หน่วยงาน</label><select name="dept">${DEPT_OPT}</select></div>
+        </div>
+        <div class="fg">
+          <div><label>ขยะทั่วไป (kg)</label><input type="number" name="general_kg" min="0" step="0.01" placeholder="0"></div>
+          <div><label>รีไซเคิลรวม (kg)</label><input type="number" name="recyclable_kg" min="0" step="0.01" placeholder="0"></div>
+          <div><label>กระดาษ (kg)</label><input type="number" name="paper_kg" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>พลาสติก (kg)</label><input type="number" name="plastic_kg" min="0" step="0.01" placeholder="0"></div>
+          <div><label>บรรจุภัณฑ์ (kg)</label><input type="number" name="packaging_kg" min="0" step="0.01" placeholder="0"></div>
+          <div><label>ของเสียอันตราย (kg)</label><input type="number" name="hazardous_kg" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>วิธีกำจัด</label><select name="disposal_method">${DISPOSAL_OPT}</select></div>
+          <div><label>หมายเหตุ</label><input type="text" name="notes" placeholder="หมายเหตุ..."></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="clearForm('waste')">ล้าง</button>
+          <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="records-card">
+      <h3>รายการบันทึก</h3>
+      <div id="records-waste" class="tbl-wrap"><p style="color:#9ca3af;text-align:center;padding:20px">กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Packaging ── -->
+  <div id="panel-packaging" class="tab-panel">
+    <div id="kpi-packaging" class="kpi-strip"></div>
+    <div class="form-card">
+      <h3>📦 บันทึกข้อมูลบรรจุภัณฑ์</h3>
+      <form id="form-packaging" onsubmit="submitForm(event,'packaging')">
+        <input type="hidden" id="edit-packaging">
+        <div class="fg">
+          <div><label>วันที่ *</label><input type="date" name="date" value="${TODAY}" required></div>
+          <div><label>หน่วยงาน</label><select name="dept">${DEPT_OPT}</select></div>
+        </div>
+        <div class="fg">
+          <div><label>กล่องกระดาษ (ใบ)</label><input type="number" name="boxes" min="0" placeholder="0"></div>
+          <div><label>พลาสติกห่อหุ้ม (kg)</label><input type="number" name="plastic_kg" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>เทปกาว (ม้วน)</label><input type="number" name="tape_rolls" min="0" placeholder="0"></div>
+          <div><label>วัสดุกันกระแทก (kg)</label><input type="number" name="cushion_kg" min="0" step="0.01" placeholder="0"></div>
+        </div>
+        <div class="fg">
+          <div><label>วัสดุ Reuse (ชิ้น)</label><input type="number" name="reuse_pcs" min="0" placeholder="0"></div>
+          <div><label>หมายเหตุ</label><input type="text" name="notes" placeholder="หมายเหตุ..."></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="clearForm('packaging')">ล้าง</button>
+          <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="records-card">
+      <h3>รายการบันทึก</h3>
+      <div id="records-packaging" class="tbl-wrap"><p style="color:#9ca3af;text-align:center;padding:20px">กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Carbon ── -->
+  <div id="panel-carbon" class="tab-panel">
+    <div id="kpi-carbon" class="kpi-strip"></div>
+    <div class="form-card">
+      <h3>🏭 บันทึกเชื้อเพลิง &amp; คาร์บอนฟุตพริ้นท์</h3>
+      <form id="form-carbon" onsubmit="submitForm(event,'carbon')">
+        <input type="hidden" id="edit-carbon">
+        <div class="fg">
+          <div><label>วันที่ *</label><input type="date" name="date" value="${TODAY}" required></div>
+          <div><label>หน่วยงาน</label><select name="dept">${DEPT_OPT}</select></div>
+        </div>
+        <div class="fg">
+          <div><label>ประเภทเชื้อเพลิง *</label><select name="fuel_type" id="sel-fuel" onchange="calcCO2e()" required>${FUEL_OPT}</select></div>
+          <div><label>ปริมาณ (ลิตร/kg/m3/kWh)</label><input type="number" id="inp-vol" name="fuel_volume" min="0" step="0.01" placeholder="0" oninput="calcCO2e()"></div>
+        </div>
+        <div class="fg">
+          <div><label>ประเภทรถ / เครื่องจักร</label><input type="text" name="vehicle_type" placeholder="เช่น Forklift, รถบรรทุก 10 ล้อ"></div>
+          <div><label>ระยะทาง (km)</label><input type="number" name="distance_km" min="0" step="0.1" placeholder="ถ้าไม่มีใส่ 0"></div>
+        </div>
+        <div class="co2e-row">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:0.78rem;font-weight:700;color:#374151;">CO₂e ที่คำนวณได้</div>
+              <div id="co2e-display" style="font-size:1.3rem;font-weight:700;color:#15803d;">— kgCO₂e</div>
+            </div>
+            <div>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;cursor:pointer;">
+                <input type="checkbox" id="chk-manual" onchange="toggleManual()"> ป้อน CO₂e เอง
+              </label>
+              <input type="number" id="inp-co2e" name="co2e_kg" min="0" step="0.001" placeholder="kgCO₂e" style="display:none;margin-top:4px;width:140px;padding:6px 10px;border:1.5px solid #d1d5db;border-radius:8px;font-family:inherit;" disabled>
+            </div>
+          </div>
+          <div id="ef-display" class="ef-info"></div>
+        </div>
+        <div class="fg" style="margin-top:10px;">
+          <div class="fg-full"><label>หมายเหตุ</label><textarea name="notes" rows="2" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="clearForm('carbon')">ล้าง</button>
+          <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="records-card">
+      <h3>รายการบันทึก</h3>
+      <div id="records-carbon" class="tbl-wrap"><p style="color:#9ca3af;text-align:center;padding:20px">กำลังโหลด...</p></div>
+    </div>
+  </div>
+
+  <!-- Emission Factor Modal -->
+  <div id="modal-ef" class="modal-bg" style="display:none">
+    <div class="modal-box">
+      <h3>⚙️ ค่าสัมประสิทธิ์การปล่อยก๊าซ (Emission Factors)</h3>
+      <p class="sub">แหล่งอ้างอิง TGO Thailand 2022 / IPCC 2006 — ปรับค่าได้ตามฐานข้อมูลบริษัท</p>
+      <div id="ef-fields" class="ef-grid"></div>
+      <div class="form-actions">
+        <button class="btn btn-outline" onclick="closeEF()">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="saveEF()">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+`;
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function toast(msg, type) {
+  const el = document.getElementById('env-toast');
+  el.textContent = msg;
+  el.className = 'env-toast show ' + (type || '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function fmt(n, dec) {
+  if (n == null || n === '') return '—';
+  return Number(n).toLocaleString('th-TH', { maximumFractionDigits: dec ?? 2 });
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  const p = String(d).split('-');
+  if (p.length === 3) return p[2] + '/' + p[1] + '/' + (Number(p[0]) + 543);
+  return d;
+}
+
+function sum(arr, k) { return arr.reduce((s, r) => s + (Number(r[k]) || 0), 0); }
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  _tab = tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
+  loadTab(tab);
+}
+window.switchTab = switchTab;
+
+// ── Year/month change ─────────────────────────────────────────────────────────
+function onYearMonth() {
+  _year  = Number(document.getElementById('sel-year').value);
+  _month = Number(document.getElementById('sel-month').value);
+  loadTab(_tab);
+}
+window.onYearMonth = onYearMonth;
+
+// ── Load tab data ─────────────────────────────────────────────────────────────
+async function loadTab(tab) {
+  try {
+    if (tab === 'energy')    { const r = await listEnergy(_year, _month);    renderKPI_energy(r);    renderEnergy(r); }
+    if (tab === 'water')     { const r = await listWater(_year, _month);     renderKPI_water(r);     renderWater(r); }
+    if (tab === 'waste')     { const r = await listWaste(_year, _month);     renderKPI_waste(r);     renderWaste(r); }
+    if (tab === 'packaging') { const r = await listPackaging(_year, _month); renderKPI_packaging(r); renderPackaging(r); }
+    if (tab === 'carbon')    { const r = await listCarbon(_year, _month);    renderKPI_carbon(r);    renderCarbon(r); }
+  } catch(e) { toast('โหลดข้อมูลไม่สำเร็จ: ' + e.message, 'error'); }
+}
+
+// ── KPI renderers ─────────────────────────────────────────────────────────────
+function kpiCard(val, lbl, cls) {
+  return '<div class="kpi-card ' + (cls||'') + '"><div class="kv">' + val + '</div><div class="kl">' + lbl + '</div></div>';
+}
+
+function renderKPI_energy(r) {
+  const el  = sum(r,'electricity_kwh');
+  const cost = sum(r,'electricity_cost');
+  const mk  = sum(r,'machine_kwh') + sum(r,'forklift_kwh');
+  document.getElementById('kpi-energy').innerHTML =
+    kpiCard(fmt(el,0) + ' kWh', 'ไฟฟ้ารวม', 'amber') +
+    kpiCard('฿' + fmt(cost,0), 'ค่าไฟฟ้า', 'red') +
+    kpiCard(fmt(mk,0) + ' kWh', 'เครื่องจักร+รถยก', 'blue');
+}
+
+function renderKPI_water(r) {
+  const m3   = sum(r,'water_m3');
+  const cost = sum(r,'water_cost');
+  const lk   = sum(r,'leak_m3');
+  document.getElementById('kpi-water').innerHTML =
+    kpiCard(fmt(m3,2) + ' ลบ.ม.', 'น้ำใช้รวม', 'blue') +
+    kpiCard('฿' + fmt(cost,0), 'ค่าน้ำ', 'red') +
+    kpiCard(fmt(lk,2) + ' ลบ.ม.', 'น้ำรั่วไหล', lk > 0 ? 'red' : '');
+}
+
+function renderKPI_waste(r) {
+  const total = sum(r,'total_kg');
+  const haz   = sum(r,'hazardous_kg');
+  const rate  = r.length ? (r.reduce((s,x)=>s+(x.recycle_rate||0),0)/r.length) : 0;
+  document.getElementById('kpi-waste').innerHTML =
+    kpiCard(fmt(total,1) + ' kg', 'ของเสียรวม', 'amber') +
+    kpiCard(fmt(rate,1) + '%', 'อัตรา Recycle', rate >= 30 ? '' : 'red') +
+    kpiCard(fmt(haz,2) + ' kg', 'ของเสียอันตราย', haz > 0 ? 'red' : '');
+}
+
+function renderKPI_packaging(r) {
+  const boxes = sum(r,'boxes');
+  const plas  = sum(r,'plastic_kg');
+  const reuse = sum(r,'reuse_pcs');
+  document.getElementById('kpi-packaging').innerHTML =
+    kpiCard(fmt(boxes,0) + ' ใบ', 'กล่องกระดาษ', 'amber') +
+    kpiCard(fmt(plas,2) + ' kg', 'พลาสติก', 'red') +
+    kpiCard(fmt(reuse,0) + ' ชิ้น', 'วัสดุ Reuse', '');
+}
+
+function renderKPI_carbon(r) {
+  const co2 = sum(r,'co2e_kg');
+  const vol = sum(r,'fuel_volume');
+  document.getElementById('kpi-carbon').innerHTML =
+    kpiCard(fmt(co2,2) + ' kg', 'CO₂e รวม', co2 > 1000 ? 'red' : 'amber') +
+    kpiCard(fmt(co2/1000,3) + ' t', 'CO₂e (ตัน)', '') +
+    kpiCard(fmt(vol,2), 'ปริมาณเชื้อเพลิงรวม', 'blue');
+}
+
+// ── Table renderers ───────────────────────────────────────────────────────────
+function actionBtns(tab, row) {
+  return '<button class="btn btn-outline btn-sm" onclick="editRow(\'' + tab + '\',' + JSON.stringify(row).replace(/'/g,"\\'") + ')">✏️</button>'
+    + ' <button class="btn btn-danger btn-sm" onclick="delRow(\'' + tab + '\',\'' + row.id + '\')" style="' + DEL_SHOW + '">🗑</button>';
+}
+
+function renderEnergy(rows) {
+  if (!rows.length) { document.getElementById('records-energy').innerHTML = '<table><tbody><tr class="empty-row"><td colspan="8">ยังไม่มีข้อมูลเดือนนี้</td></tr></tbody></table>'; return; }
+  let h = '<table><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>ไฟฟ้า (kWh)</th><th>ค่าไฟ (฿)</th><th>เครื่องจักร</th><th>รถยก</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(r) {
+    h += '<tr><td>' + fmtDate(r.date) + '</td><td>' + (r.dept||'—') + '</td><td>' + fmt(r.electricity_kwh,2) + '</td><td>' + fmt(r.electricity_cost,2) + '</td><td>' + fmt(r.machine_kwh,2) + '</td><td>' + fmt(r.forklift_kwh,2) + '</td><td>' + (r.notes||'') + '</td><td style="white-space:nowrap">' + actionBtns('energy', r) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('records-energy').innerHTML = h;
+}
+
+function renderWater(rows) {
+  if (!rows.length) { document.getElementById('records-water').innerHTML = '<table><tbody><tr class="empty-row"><td colspan="7">ยังไม่มีข้อมูลเดือนนี้</td></tr></tbody></table>'; return; }
+  let h = '<table><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>น้ำ (ลบ.ม.)</th><th>ค่าน้ำ (฿)</th><th>รั่วไหล</th><th>แหล่งน้ำ</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(r) {
+    h += '<tr><td>' + fmtDate(r.date) + '</td><td>' + (r.dept||'—') + '</td><td>' + fmt(r.water_m3,3) + '</td><td>' + fmt(r.water_cost,2) + '</td><td>' + fmt(r.leak_m3,3) + '</td><td>' + (r.water_source||'—') + '</td><td style="white-space:nowrap">' + actionBtns('water', r) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('records-water').innerHTML = h;
+}
+
+function renderWaste(rows) {
+  if (!rows.length) { document.getElementById('records-waste').innerHTML = '<table><tbody><tr class="empty-row"><td colspan="8">ยังไม่มีข้อมูลเดือนนี้</td></tr></tbody></table>'; return; }
+  let h = '<table><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>รวม (kg)</th><th>Recycle%</th><th>อันตราย (kg)</th><th>วิธีกำจัด</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(r) {
+    const rateBadge = (r.recycle_rate||0) >= 30
+      ? '<span class="badge badge-green">' + fmt(r.recycle_rate,1) + '%</span>'
+      : '<span class="badge badge-amber">' + fmt(r.recycle_rate,1) + '%</span>';
+    h += '<tr><td>' + fmtDate(r.date) + '</td><td>' + (r.dept||'—') + '</td><td>' + fmt(r.total_kg,2) + '</td><td>' + rateBadge + '</td><td>' + fmt(r.hazardous_kg,2) + '</td><td>' + (r.disposal_method||'—') + '</td><td>' + (r.notes||'') + '</td><td style="white-space:nowrap">' + actionBtns('waste', r) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('records-waste').innerHTML = h;
+}
+
+function renderPackaging(rows) {
+  if (!rows.length) { document.getElementById('records-packaging').innerHTML = '<table><tbody><tr class="empty-row"><td colspan="7">ยังไม่มีข้อมูลเดือนนี้</td></tr></tbody></table>'; return; }
+  let h = '<table><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>กล่อง (ใบ)</th><th>พลาสติก (kg)</th><th>เทปกาว (ม้วน)</th><th>Reuse (ชิ้น)</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(r) {
+    h += '<tr><td>' + fmtDate(r.date) + '</td><td>' + (r.dept||'—') + '</td><td>' + fmt(r.boxes,0) + '</td><td>' + fmt(r.plastic_kg,2) + '</td><td>' + fmt(r.tape_rolls,0) + '</td><td>' + fmt(r.reuse_pcs,0) + '</td><td style="white-space:nowrap">' + actionBtns('packaging', r) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('records-packaging').innerHTML = h;
+}
+
+function renderCarbon(rows) {
+  if (!rows.length) { document.getElementById('records-carbon').innerHTML = '<table><tbody><tr class="empty-row"><td colspan="7">ยังไม่มีข้อมูลเดือนนี้</td></tr></tbody></table>'; return; }
+  const fuelLabel = {};
+  FUEL_TYPES.forEach(function(f) { fuelLabel[f.key] = f.label; });
+  let h = '<table><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>เชื้อเพลิง</th><th>ปริมาณ</th><th>CO₂e (kg)</th><th>รถ/เครื่องจักร</th><th></th></tr></thead><tbody>';
+  rows.forEach(function(r) {
+    h += '<tr><td>' + fmtDate(r.date) + '</td><td>' + (r.dept||'—') + '</td><td>' + (fuelLabel[r.fuel_type]||r.fuel_type||'—') + '</td><td>' + fmt(r.fuel_volume,2) + '</td><td><strong>' + fmt(r.co2e_kg,3) + '</strong></td><td>' + (r.vehicle_type||'—') + '</td><td style="white-space:nowrap">' + actionBtns('carbon', r) + '</td></tr>';
+  });
+  h += '</tbody></table>';
+  document.getElementById('records-carbon').innerHTML = h;
+}
+
+// ── Form helpers ──────────────────────────────────────────────────────────────
+function getForm(tab) {
+  const f = document.getElementById('form-' + tab);
+  const g = function(n) { const el = f.querySelector('[name="' + n + '"]'); return el ? el.value : ''; };
+  const gn = function(n) { return Number(g(n)) || 0; };
+  const base = { id: document.getElementById('edit-' + tab).value || null, date: g('date'), year: _year, month: _month, dept: g('dept'), notes: g('notes') };
+  if (tab === 'energy')    return Object.assign(base, { electricity_kwh: gn('electricity_kwh'), electricity_cost: gn('electricity_cost'), machine_kwh: gn('machine_kwh'), forklift_kwh: gn('forklift_kwh') });
+  if (tab === 'water')     return Object.assign(base, { water_m3: gn('water_m3'), water_cost: gn('water_cost'), leak_m3: gn('leak_m3'), saved_m3: gn('saved_m3'), water_source: g('water_source') });
+  if (tab === 'waste')     return Object.assign(base, { general_kg: gn('general_kg'), recyclable_kg: gn('recyclable_kg'), paper_kg: gn('paper_kg'), plastic_kg: gn('plastic_kg'), packaging_kg: gn('packaging_kg'), hazardous_kg: gn('hazardous_kg'), disposal_method: g('disposal_method') });
+  if (tab === 'packaging') return Object.assign(base, { boxes: gn('boxes'), plastic_kg: gn('plastic_kg'), tape_rolls: gn('tape_rolls'), cushion_kg: gn('cushion_kg'), reuse_pcs: gn('reuse_pcs') });
+  if (tab === 'carbon')    return Object.assign(base, { fuel_type: g('fuel_type'), fuel_volume: gn('fuel_volume'), vehicle_type: g('vehicle_type'), distance_km: gn('distance_km'), co2e_manual: document.getElementById('chk-manual').checked, co2e_kg: gn('co2e_kg') });
+  return base;
+}
+
+function clearForm(tab) {
+  const f = document.getElementById('form-' + tab);
+  f.reset();
+  f.querySelector('[name="date"]').value = TODAY;
+  document.getElementById('edit-' + tab).value = '';
+  if (tab === 'carbon') {
+    document.getElementById('co2e-display').textContent = '— kgCO₂e';
+    document.getElementById('ef-display').textContent = '';
+    document.getElementById('chk-manual').checked = false;
+    document.getElementById('inp-co2e').style.display = 'none';
+    document.getElementById('inp-co2e').disabled = true;
+  }
+}
+window.clearForm = clearForm;
+
+function fillForm(tab, row) {
+  const f = document.getElementById('form-' + tab);
+  const set = function(n, v) { const el = f.querySelector('[name="' + n + '"]'); if (el) el.value = v || ''; };
+  document.getElementById('edit-' + tab).value = row.id || '';
+  set('date', row.date); set('dept', row.dept); set('notes', row.notes);
+  if (tab === 'energy')    { set('electricity_kwh', row.electricity_kwh); set('electricity_cost', row.electricity_cost); set('machine_kwh', row.machine_kwh); set('forklift_kwh', row.forklift_kwh); }
+  if (tab === 'water')     { set('water_m3', row.water_m3); set('water_cost', row.water_cost); set('leak_m3', row.leak_m3); set('saved_m3', row.saved_m3); set('water_source', row.water_source); }
+  if (tab === 'waste')     { set('general_kg', row.general_kg); set('recyclable_kg', row.recyclable_kg); set('paper_kg', row.paper_kg); set('plastic_kg', row.plastic_kg); set('packaging_kg', row.packaging_kg); set('hazardous_kg', row.hazardous_kg); set('disposal_method', row.disposal_method); }
+  if (tab === 'packaging') { set('boxes', row.boxes); set('plastic_kg', row.plastic_kg); set('tape_rolls', row.tape_rolls); set('cushion_kg', row.cushion_kg); set('reuse_pcs', row.reuse_pcs); }
+  if (tab === 'carbon')    { set('fuel_type', row.fuel_type); set('fuel_volume', row.fuel_volume); set('vehicle_type', row.vehicle_type); set('distance_km', row.distance_km); if (row.co2e_manual) { document.getElementById('chk-manual').checked = true; toggleManual(); } set('co2e_kg', row.co2e_kg); calcCO2e(); }
+  f.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function editRow(tab, row) { fillForm(tab, row); }
+window.editRow = editRow;
+
+async function delRow(tab, id) {
+  if (!confirm('ลบรายการนี้?')) return;
+  try {
+    await deleteRec(C[tab.toUpperCase()], id);
+    toast('ลบแล้ว', 'success');
+    loadTab(tab);
+  } catch(e) { toast('ลบไม่สำเร็จ: ' + e.message, 'error'); }
+}
+window.delRow = delRow;
+
+async function submitForm(e, tab) {
+  e.preventDefault();
+  const data = getForm(tab);
+  if (!data.date) { toast('กรุณาเลือกวันที่', 'error'); return; }
+  try {
+    if (tab === 'energy')    await saveEnergy(data);
+    if (tab === 'water')     await saveWater(data);
+    if (tab === 'waste')     await saveWaste(data);
+    if (tab === 'packaging') await savePackaging(data);
+    if (tab === 'carbon')    await saveCarbon(data, _efMap);
+    toast(data.id ? 'อัปเดตแล้ว ✓' : 'บันทึกแล้ว ✓', 'success');
+    clearForm(tab);
+    loadTab(tab);
+  } catch(err) { toast('บันทึกไม่สำเร็จ: ' + err.message, 'error'); }
+}
+window.submitForm = submitForm;
+
+// ── CO2e auto-calc ────────────────────────────────────────────────────────────
+function calcCO2e() {
+  const ft  = document.getElementById('sel-fuel').value;
+  const vol = parseFloat(document.getElementById('inp-vol').value) || 0;
+  const ef  = _efMap[ft];
+  const manual = document.getElementById('chk-manual').checked;
+  if (!manual && ef && vol > 0) {
+    const co2e = Math.round(vol * ef.value * 1000) / 1000;
+    document.getElementById('co2e-display').textContent = co2e.toFixed(3) + ' kgCO₂e';
+    document.getElementById('inp-co2e').value = co2e;
+    document.getElementById('ef-display').textContent = 'EF: ' + ef.value + ' ' + ef.unit + ' (' + ef.source + ')';
+  } else if (!manual) {
+    document.getElementById('co2e-display').textContent = '— kgCO₂e';
+    document.getElementById('ef-display').textContent = '';
+  }
+}
+window.calcCO2e = calcCO2e;
+
+function toggleManual() {
+  const on = document.getElementById('chk-manual').checked;
+  const inp = document.getElementById('inp-co2e');
+  inp.style.display = on ? 'block' : 'none';
+  inp.disabled = !on;
+  if (!on) calcCO2e();
+}
+window.toggleManual = toggleManual;
+
+// ── Emission Factor modal ─────────────────────────────────────────────────────
+function openEF() {
+  const EF_LABELS = {
+    electricity_grid: 'ไฟฟ้า (Grid)',
+    diesel:           'ดีเซล',
+    gasoline:         'เบนซิน',
+    lpg:              'LPG',
+    natural_gas:      'ก๊าซธรรมชาติ',
+  };
+  let html = '';
+  Object.keys(EF_LABELS).forEach(function(k) {
+    const ef = _efMap[k] || {};
+    html += '<div class="ef-row">'
+      + '<div><label>' + EF_LABELS[k] + '</label><input type="number" id="ef-' + k + '" value="' + (ef.value||'') + '" step="0.0001" min="0"></div>'
+      + '<div class="unit">' + (ef.unit || '') + '</div>'
+      + '<div><label>แหล่งอ้างอิง</label><input type="text" id="efsrc-' + k + '" value="' + (ef.source||'') + '"></div>'
+      + '</div>';
+  });
+  document.getElementById('ef-fields').innerHTML = html;
+  document.getElementById('modal-ef').style.display = 'flex';
+}
+window.openEF = openEF;
+
+function closeEF() { document.getElementById('modal-ef').style.display = 'none'; }
+window.closeEF = closeEF;
+
+async function saveEF() {
+  const EF_KEYS = ['electricity_grid','diesel','gasoline','lpg','natural_gas'];
+  const data = {};
+  EF_KEYS.forEach(function(k) {
+    const v = parseFloat(document.getElementById('ef-' + k).value);
+    const src = document.getElementById('efsrc-' + k).value;
+    if (!isNaN(v)) data[k] = { value: v, unit: (_efMap[k]||{}).unit || '', source: src };
+  });
+  try {
+    await saveEmissionFactors(data);
+    _efMap = Object.assign(_efMap, data);
+    toast('บันทึก Emission Factors แล้ว ✓', 'success');
+    closeEF();
+  } catch(e) { toast('บันทึกไม่สำเร็จ: ' + e.message, 'error'); }
+}
+window.saveEF = saveEF;
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  _efMap = await getEmissionFactors();
+  loadTab('energy');
+}
+init();
+</script>
