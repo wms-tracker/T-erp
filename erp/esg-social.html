@@ -1,0 +1,494 @@
+<title>Module S — Social</title>
+<style>
+.esgs-wrap{max-width:1100px;margin:0 auto;padding:1rem}
+.filter-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.filter-bar select{padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem}
+.tab-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.tab-btn{padding:.5rem 1rem;border:2px solid #d1d5db;border-radius:8px;background:none;cursor:pointer;font-size:.88rem;color:#374151}
+.tab-btn.active{border-color:#2563eb;background:#eff6ff;color:#1d4ed8;font-weight:600}
+.kpi-row{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.kpi-card{flex:1;min-width:150px;background:#fff;border-radius:10px;padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.kpi-val{font-size:1.8rem;font-weight:700;color:#111}
+.kpi-lbl{font-size:.78rem;color:#6b7280;margin-top:.2rem}
+.form-card{background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:1.5rem}
+.form-card h3{margin:0 0 1rem;font-size:1rem;color:#111}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem 1rem;margin-bottom:.75rem}
+.form-grid-3{grid-template-columns:1fr 1fr 1fr}
+.fg{display:flex;flex-direction:column;gap:.3rem}
+.fg label{font-size:.82rem;font-weight:500;color:#374151}
+.fg input,.fg select,.fg textarea{padding:.45rem .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem;font-family:inherit}
+.fg textarea{resize:vertical;min-height:60px}
+.form-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem}
+.btn-pri{background:#2563eb;color:#fff;border:none;padding:.5rem 1.4rem;border-radius:8px;font-size:.9rem;cursor:pointer;font-weight:600}
+.btn-pri:hover{background:#1d4ed8}
+.btn-pri:disabled{opacity:.6;cursor:not-allowed}
+.btn-sec{background:#fff;color:#374151;border:1px solid #d1d5db;padding:.5rem 1.2rem;border-radius:8px;font-size:.9rem;cursor:pointer}
+.tbl-wrap{overflow-x:auto;margin-bottom:1.5rem}
+.data-table{width:100%;border-collapse:collapse;font-size:.85rem;min-width:600px}
+.data-table th{background:#f3f4f6;padding:.6rem .75rem;text-align:left;color:#374151;font-weight:600;border-bottom:2px solid #e5e7eb}
+.data-table td{padding:.55rem .75rem;border-bottom:1px solid #f3f4f6;color:#111}
+.data-table tr:hover td{background:#f9fafb}
+.action-cell{white-space:nowrap}
+.btn-edit{background:#fff;border:1px solid #3b82f6;color:#2563eb;padding:.25rem .6rem;border-radius:5px;font-size:.78rem;cursor:pointer;margin-right:.3rem}
+.btn-del{background:#fff;border:1px solid #ef4444;color:#dc2626;padding:.25rem .6rem;border-radius:5px;font-size:.78rem;cursor:pointer}
+.no-data{color:#9ca3af;text-align:center;padding:1.5rem;font-size:.9rem}
+.loading{color:#6b7280;padding:.5rem 0;display:block}
+.err{color:#ef4444;font-size:.9rem}
+@media(max-width:640px){
+  .form-grid,.form-grid-3{grid-template-columns:1fr}
+  .kpi-card{min-width:calc(50% - .5rem)}
+}
+</style>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  C, DEPTS, INCIDENT_TYPES, TRAINING_TYPES,
+  saveWorkforce, listWorkforce,
+  saveAccident,  listAccident,
+  saveTraining,  listTraining,
+  saveWelfare,   listWelfare,
+  deleteRec,
+} from "./js/esg-social.js";
+
+// ── Pre-compute option strings (no backticks allowed inside template) ─────────
+const DEPT_OPT     = DEPTS.map(d => '<option value="'+d+'">'+d+'</option>').join('');
+const INCIDENT_OPT = INCIDENT_TYPES.map(t => '<option value="'+t.key+'">'+t.label+'</option>').join('');
+const TRAIN_OPT    = TRAINING_TYPES.map(t => '<option value="'+t.key+'">'+t.label+'</option>').join('');
+const NOW = new Date();
+const CY = NOW.getFullYear(), CM = NOW.getMonth() + 1;
+let YEAR_OPT = '';
+for (let y = CY; y >= CY - 4; y--)
+  YEAR_OPT += '<option value="'+y+'"'+(y===CY?' selected':'')+'>'+y+'</option>';
+const MN = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+let MONTH_OPT = '';
+MN.forEach((m, i) => { MONTH_OPT += '<option value="'+(i+1)+'"'+((i+1)===CM?' selected':'')+'>'+m+'</option>'; });
+const TODAY = NOW.toISOString().split('T')[0];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _profile, _isAdmin, _year = CY, _month = CM, _tab = 'workforce', _editId = null;
+let DEL_SHOW = '';
+const _data = { workforce: [], accident: [], training: [], welfare: [] };
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function init() {
+  _profile = await requireRole(['admin','safety_officer','manager','oel_manager','warehouse']);
+  _isAdmin  = _profile.role === 'admin';
+  DEL_SHOW  = _isAdmin ? '' : 'display:none';
+
+  const main = renderShell(_profile, 'esg-social', 'Module S — Social');
+  main.innerHTML = `<div class="esgs-wrap">
+  <div class="filter-bar">
+    <label style="font-size:.88rem;font-weight:600">ปี</label>
+    <select id="sel-year">${YEAR_OPT}</select>
+    <label style="font-size:.88rem;font-weight:600">เดือน</label>
+    <select id="sel-month">${MONTH_OPT}</select>
+  </div>
+  <div class="tab-bar">
+    <button id="tab-workforce" class="tab-btn active" onclick="switchTab('workforce')">👥 แรงงาน</button>
+    <button id="tab-accident"  class="tab-btn"        onclick="switchTab('accident')">⚠️ ความปลอดภัย</button>
+    <button id="tab-training"  class="tab-btn"        onclick="switchTab('training')">📚 การฝึกอบรม</button>
+    <button id="tab-welfare"   class="tab-btn"        onclick="switchTab('welfare')">❤️ สวัสดิการ</button>
+  </div>
+
+  <!-- ======= WORKFORCE ======= -->
+  <div id="panel-workforce" class="tab-panel">
+    <div id="kpi-workforce" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>👥 บันทึกข้อมูลแรงงาน</h3>
+      <form id="form-workforce">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="wf-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="wf-dept"><option value="">-- หน่วยงาน --</option>${DEPT_OPT}</select></div>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="fg"><label>พนักงานรวม *</label><input id="wf-total" type="number" min="0" required placeholder="0"></div>
+          <div class="fg"><label>ชาย (คน)</label><input id="wf-male" type="number" min="0" placeholder="0"></div>
+          <div class="fg"><label>หญิง (คน)</label><input id="wf-female" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="fg"><label>พนักงานถาวร</label><input id="wf-perm" type="number" min="0" placeholder="0"></div>
+          <div class="fg"><label>สัญญาจ้าง</label><input id="wf-contract" type="number" min="0" placeholder="0"></div>
+          <div class="fg"><label>Outsource</label><input id="wf-outsource" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>พนักงานใหม่</label><input id="wf-newhire" type="number" min="0" placeholder="0"></div>
+          <div class="fg"><label>ลาออก</label><input id="wf-resigned" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="wf-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('workforce')">ล้าง</button>
+          <button type="submit" id="btn-submit-workforce" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-workforce"></div></div>
+  </div>
+
+  <!-- ======= ACCIDENT ======= -->
+  <div id="panel-accident" class="tab-panel" hidden>
+    <div id="kpi-accident" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>⚠️ บันทึกเหตุการณ์ความปลอดภัย</h3>
+      <form id="form-accident">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="ac-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="ac-dept"><option value="">-- หน่วยงาน --</option>${DEPT_OPT}</select></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg">
+            <label>ประเภทเหตุการณ์ *</label>
+            <select id="inc-type" required onchange="toggleLostDays()">
+              <option value="">-- ประเภท --</option>${INCIDENT_OPT}
+            </select>
+          </div>
+          <div class="fg" id="lost-row" style="display:none">
+            <label>วันสูญเสีย (วัน)</label>
+            <input id="ac-lost" type="number" min="0" placeholder="0">
+          </div>
+        </div>
+        <div class="fg"><label>คำอธิบายเหตุการณ์ *</label><input id="ac-desc" type="text" required placeholder="อธิบายเหตุการณ์ที่เกิดขึ้น"></div>
+        <div class="fg"><label>การแก้ไข / ป้องกัน</label><input id="ac-corrective" type="text" placeholder="มาตรการแก้ไขหรือป้องกัน"></div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="ac-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('accident')">ล้าง</button>
+          <button type="submit" id="btn-submit-accident" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-accident"></div></div>
+  </div>
+
+  <!-- ======= TRAINING ======= -->
+  <div id="panel-training" class="tab-panel" hidden>
+    <div id="kpi-training" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>📚 บันทึกการฝึกอบรม</h3>
+      <form id="form-training">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="tr-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="tr-dept"><option value="">-- หน่วยงาน --</option>${DEPT_OPT}</select></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>หัวข้อการอบรม *</label><input id="tr-topic" type="text" required placeholder="เช่น Safety Induction, First Aid"></div>
+          <div class="fg"><label>วิทยากร / ผู้สอน</label><input id="tr-trainer" type="text" placeholder="ชื่อวิทยากร"></div>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="fg"><label>จำนวนผู้เข้าอบรม *</label><input id="tr-trainees" type="number" min="1" required placeholder="0"></div>
+          <div class="fg"><label>ชั่วโมงอบรม *</label><input id="tr-hours" type="number" min="0.5" step="0.5" required placeholder="0.0"></div>
+          <div class="fg"><label>ประเภทการอบรม</label><select id="tr-type"><option value="">-- ประเภท --</option>${TRAIN_OPT}</select></div>
+        </div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="tr-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('training')">ล้าง</button>
+          <button type="submit" id="btn-submit-training" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-training"></div></div>
+  </div>
+
+  <!-- ======= WELFARE ======= -->
+  <div id="panel-welfare" class="tab-panel" hidden>
+    <div id="kpi-welfare" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>❤️ บันทึกสวัสดิการ &amp; CSR</h3>
+      <form id="form-welfare">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="wl-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="wl-dept"><option value="">-- หน่วยงาน --</option>${DEPT_OPT}</select></div>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="fg"><label>ตรวจสุขภาพ (คน)</label><input id="wl-checkup" type="number" min="0" placeholder="0"></div>
+          <div class="fg"><label>งบสวัสดิการ (บาท)</label><input id="wl-budget" type="number" min="0" placeholder="0"></div>
+          <div class="fg"><label>CSR กิจกรรม (ครั้ง)</label><input id="wl-csr" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="wl-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('welfare')">ล้าง</button>
+          <button type="submit" id="btn-submit-welfare" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-welfare"></div></div>
+  </div>
+</div>`;
+
+  document.getElementById('sel-year').addEventListener('change', onYearMonth);
+  document.getElementById('sel-month').addEventListener('change', onYearMonth);
+  ['workforce','accident','training','welfare'].forEach(tab => {
+    document.getElementById('form-'+tab).addEventListener('submit', e => submitForm(e, tab));
+  });
+
+  switchTab('workforce');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  _tab = tab; _editId = null;
+  ['workforce','accident','training','welfare'].forEach(t => {
+    document.getElementById('panel-'+t).hidden = t !== tab;
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+  });
+  loadTab(tab);
+}
+
+function onYearMonth() {
+  _year  = Number(document.getElementById('sel-year').value);
+  _month = Number(document.getElementById('sel-month').value);
+  loadTab(_tab);
+}
+
+// ── Load & render ─────────────────────────────────────────────────────────────
+async function loadTab(tab) {
+  const kpiEl = document.getElementById('kpi-'+tab);
+  const tblEl = document.getElementById('tbl-'+tab);
+  kpiEl.innerHTML = '<span class="loading">กำลังโหลด...</span>';
+  tblEl.innerHTML = '';
+  try {
+    let rows;
+    if      (tab === 'workforce') rows = await listWorkforce(_year, _month);
+    else if (tab === 'accident')  rows = await listAccident(_year, _month);
+    else if (tab === 'training')  rows = await listTraining(_year, _month);
+    else                          rows = await listWelfare(_year, _month);
+    _data[tab] = rows;
+    if (tab === 'workforce') { renderKPI_workforce(rows, kpiEl); renderWorkforce(rows, tblEl); }
+    else if (tab === 'accident') { renderKPI_accident(rows, kpiEl); renderAccident(rows, tblEl); }
+    else if (tab === 'training') { renderKPI_training(rows, kpiEl); renderTraining(rows, tblEl); }
+    else { renderKPI_welfare(rows, kpiEl); renderWelfare(rows, tblEl); }
+  } catch (err) {
+    kpiEl.innerHTML = '<span class="err">โหลดข้อมูลไม่สำเร็จ: '+err.message+'</span>';
+  }
+}
+
+// ── KPI helpers ───────────────────────────────────────────────────────────────
+const sum = (arr, k) => arr.reduce((s, r) => s + (Number(r[k]) || 0), 0);
+const kpi = (val, lbl, color) =>
+  '<div class="kpi-card" style="border-left:4px solid '+color+'">'
+  +'<div class="kpi-val">'+val+'</div><div class="kpi-lbl">'+lbl+'</div></div>';
+
+function renderKPI_workforce(rows, el) {
+  const total    = sum(rows, 'total_emp');
+  const resigned = sum(rows, 'resigned');
+  const turnover = total > 0 ? (resigned / total * 100).toFixed(1) + '%' : '—';
+  el.innerHTML = kpi(total, 'พนักงานรวม (คน)', '#3b82f6')
+    + kpi(turnover, 'อัตราหมุนเวียน', '#f59e0b')
+    + kpi(sum(rows,'new_hire'), 'พนักงานใหม่', '#10b981');
+}
+function renderKPI_accident(rows, el) {
+  const lti = rows.filter(r => ['lti','fatality'].includes(r.incident_type)).length;
+  el.innerHTML = kpi(rows.length, 'เหตุการณ์ทั้งหมด', '#ef4444')
+    + kpi(lti, 'LTI / เสียชีวิต', '#dc2626')
+    + kpi(sum(rows,'lost_days'), 'วันสูญเสีย (วัน)', '#f97316');
+}
+function renderKPI_training(rows, el) {
+  const hrs = sum(rows, 'hours');
+  el.innerHTML = kpi(rows.length, 'Session ทั้งหมด', '#8b5cf6')
+    + kpi(sum(rows,'trainees'), 'ผู้เข้าอบรมรวม (คน)', '#6366f1')
+    + kpi(hrs % 1 === 0 ? hrs : hrs.toFixed(1), 'ชั่วโมงอบรมรวม (ชม.)', '#06b6d4');
+}
+function renderKPI_welfare(rows, el) {
+  const budget = sum(rows,'welfare_budget');
+  el.innerHTML = kpi(sum(rows,'health_checkup'), 'ตรวจสุขภาพ (คน)', '#ec4899')
+    + kpi(budget.toLocaleString(), 'งบสวัสดิการ (บาท)', '#14b8a6')
+    + kpi(sum(rows,'activities'), 'CSR กิจกรรม (ครั้ง)', '#84cc16');
+}
+
+// ── Table renderers ───────────────────────────────────────────────────────────
+const eBtn = (tab, id) => '<button class="btn-edit" onclick="editRow(\''+tab+'\',\''+id+'\')">แก้ไข</button>';
+const dBtn = (tab, id) => '<button class="btn-del" style="'+DEL_SHOW+'" onclick="delRow(\''+tab+'\',\''+id+'\')">ลบ</button>';
+
+function renderWorkforce(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>รวม</th><th>ชาย</th><th>หญิง</th><th>ใหม่</th><th>ลาออก</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+(r.total_emp||0)+'</td><td>'+(r.male||0)+'</td><td>'+(r.female||0)+'</td><td>'+(r.new_hire||0)+'</td><td>'+(r.resigned||0)+'</td><td class="action-cell">'+eBtn('workforce',r.id)+dBtn('workforce',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+function renderAccident(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  const tl = t => { const f = INCIDENT_TYPES.find(x => x.key === t); return f ? f.label : (t||'—'); };
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>ประเภท</th><th>คำอธิบาย</th><th>วันสูญเสีย</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+tl(r.incident_type)+'</td><td>'+(r.description||'—')+'</td><td>'+(r.lost_days||0)+'</td><td class="action-cell">'+eBtn('accident',r.id)+dBtn('accident',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+function renderTraining(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>หัวข้อ</th><th>วิทยากร</th><th>ผู้อบรม</th><th>ชม.</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+(r.topic||'—')+'</td><td>'+(r.trainer||'—')+'</td><td>'+(r.trainees||0)+'</td><td>'+(r.hours||0)+'</td><td class="action-cell">'+eBtn('training',r.id)+dBtn('training',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+function renderWelfare(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>ตรวจสุขภาพ</th><th>งบสวัสดิการ (บ.)</th><th>CSR</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+(r.health_checkup||0)+'</td><td>'+Number(r.welfare_budget||0).toLocaleString()+'</td><td>'+(r.activities||0)+'</td><td class="action-cell">'+eBtn('welfare',r.id)+dBtn('welfare',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+// ── Form helpers ──────────────────────────────────────────────────────────────
+function getForm(tab) {
+  if (tab === 'workforce') return {
+    id: _editId, year: _year, month: _month,
+    date:      document.getElementById('wf-date').value,
+    dept:      document.getElementById('wf-dept').value,
+    total_emp: Number(document.getElementById('wf-total').value)   || 0,
+    male:      Number(document.getElementById('wf-male').value)    || 0,
+    female:    Number(document.getElementById('wf-female').value)  || 0,
+    permanent: Number(document.getElementById('wf-perm').value)    || 0,
+    contract:  Number(document.getElementById('wf-contract').value)|| 0,
+    outsource: Number(document.getElementById('wf-outsource').value)||0,
+    new_hire:  Number(document.getElementById('wf-newhire').value) || 0,
+    resigned:  Number(document.getElementById('wf-resigned').value)|| 0,
+    notes:     document.getElementById('wf-notes').value,
+  };
+  if (tab === 'accident') return {
+    id: _editId, year: _year, month: _month,
+    date:             document.getElementById('ac-date').value,
+    dept:             document.getElementById('ac-dept').value,
+    incident_type:    document.getElementById('inc-type').value,
+    description:      document.getElementById('ac-desc').value,
+    lost_days:        Number(document.getElementById('ac-lost').value)       || 0,
+    corrective_action:document.getElementById('ac-corrective').value,
+    notes:            document.getElementById('ac-notes').value,
+  };
+  if (tab === 'training') return {
+    id: _editId, year: _year, month: _month,
+    date:          document.getElementById('tr-date').value,
+    dept:          document.getElementById('tr-dept').value,
+    topic:         document.getElementById('tr-topic').value,
+    trainer:       document.getElementById('tr-trainer').value,
+    trainees:      Number(document.getElementById('tr-trainees').value) || 0,
+    hours:         Number(document.getElementById('tr-hours').value)    || 0,
+    training_type: document.getElementById('tr-type').value,
+    notes:         document.getElementById('tr-notes').value,
+  };
+  return {
+    id: _editId, year: _year, month: _month,
+    date:           document.getElementById('wl-date').value,
+    dept:           document.getElementById('wl-dept').value,
+    health_checkup: Number(document.getElementById('wl-checkup').value) || 0,
+    welfare_budget: Number(document.getElementById('wl-budget').value)  || 0,
+    activities:     Number(document.getElementById('wl-csr').value)     || 0,
+    notes:          document.getElementById('wl-notes').value,
+  };
+}
+
+function clearForm(tab) {
+  _editId = null;
+  const ids = {
+    workforce: ['wf-date','wf-dept','wf-total','wf-male','wf-female','wf-perm','wf-contract','wf-outsource','wf-newhire','wf-resigned','wf-notes'],
+    accident:  ['ac-date','ac-dept','inc-type','ac-desc','ac-lost','ac-corrective','ac-notes'],
+    training:  ['tr-date','tr-dept','tr-topic','tr-trainer','tr-trainees','tr-hours','tr-type','tr-notes'],
+    welfare:   ['wl-date','wl-dept','wl-checkup','wl-budget','wl-csr','wl-notes'],
+  };
+  ids[tab].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id.endsWith('-date')) el.value = TODAY;
+    else el.value = '';
+  });
+  if (tab === 'accident') document.getElementById('lost-row').style.display = 'none';
+  document.getElementById('btn-submit-'+tab).textContent = '💾 บันทึก';
+}
+
+function fillForm(tab, row) {
+  _editId = row.id;
+  if (tab === 'workforce') {
+    document.getElementById('wf-date').value     = row.date     || TODAY;
+    document.getElementById('wf-dept').value     = row.dept     || '';
+    document.getElementById('wf-total').value    = row.total_emp|| '';
+    document.getElementById('wf-male').value     = row.male     || '';
+    document.getElementById('wf-female').value   = row.female   || '';
+    document.getElementById('wf-perm').value     = row.permanent|| '';
+    document.getElementById('wf-contract').value = row.contract || '';
+    document.getElementById('wf-outsource').value= row.outsource|| '';
+    document.getElementById('wf-newhire').value  = row.new_hire || '';
+    document.getElementById('wf-resigned').value = row.resigned || '';
+    document.getElementById('wf-notes').value    = row.notes    || '';
+  } else if (tab === 'accident') {
+    document.getElementById('ac-date').value      = row.date              || TODAY;
+    document.getElementById('ac-dept').value      = row.dept              || '';
+    document.getElementById('inc-type').value     = row.incident_type     || '';
+    document.getElementById('ac-desc').value      = row.description       || '';
+    document.getElementById('ac-lost').value      = row.lost_days         || '';
+    document.getElementById('ac-corrective').value= row.corrective_action || '';
+    document.getElementById('ac-notes').value     = row.notes             || '';
+    toggleLostDays();
+  } else if (tab === 'training') {
+    document.getElementById('tr-date').value     = row.date          || TODAY;
+    document.getElementById('tr-dept').value     = row.dept          || '';
+    document.getElementById('tr-topic').value    = row.topic         || '';
+    document.getElementById('tr-trainer').value  = row.trainer       || '';
+    document.getElementById('tr-trainees').value = row.trainees      || '';
+    document.getElementById('tr-hours').value    = row.hours         || '';
+    document.getElementById('tr-type').value     = row.training_type || '';
+    document.getElementById('tr-notes').value    = row.notes         || '';
+  } else {
+    document.getElementById('wl-date').value    = row.date           || TODAY;
+    document.getElementById('wl-dept').value    = row.dept           || '';
+    document.getElementById('wl-checkup').value = row.health_checkup || '';
+    document.getElementById('wl-budget').value  = row.welfare_budget || '';
+    document.getElementById('wl-csr').value     = row.activities     || '';
+    document.getElementById('wl-notes').value   = row.notes          || '';
+  }
+  document.getElementById('btn-submit-'+tab).textContent = '💾 อัปเดต';
+  document.getElementById('form-'+tab).scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitForm(e, tab) {
+  e.preventDefault();
+  const data = getForm(tab);
+  const btn  = document.getElementById('btn-submit-'+tab);
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if      (tab === 'workforce') await saveWorkforce(data);
+    else if (tab === 'accident')  await saveAccident(data);
+    else if (tab === 'training')  await saveTraining(data);
+    else                          await saveWelfare(data);
+    clearForm(tab);
+    await loadTab(tab);
+  } catch (err) {
+    alert('บันทึกไม่สำเร็จ: ' + err.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+// ── Edit / Delete ─────────────────────────────────────────────────────────────
+function editRow(tab, id) {
+  const row = _data[tab].find(r => r.id === id);
+  if (!row) return;
+  ['workforce','accident','training','welfare'].forEach(t => {
+    document.getElementById('panel-'+t).hidden = t !== tab;
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+  });
+  _tab = tab;
+  fillForm(tab, row);
+}
+
+async function delRow(tab, id) {
+  if (!_isAdmin) return;
+  if (!confirm('ลบรายการนี้?')) return;
+  try {
+    await deleteRec(C[tab.toUpperCase()], id);
+    await loadTab(tab);
+  } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
+}
+
+function toggleLostDays() {
+  const t = document.getElementById('inc-type').value;
+  document.getElementById('lost-row').style.display = (t === 'lti' || t === 'fatality') ? '' : 'none';
+}
+
+// ── Expose to global (called from inline onclick) ─────────────────────────────
+window.switchTab     = switchTab;
+window.clearForm     = clearForm;
+window.editRow       = editRow;
+window.delRow        = delRow;
+window.toggleLostDays= toggleLostDays;
+
+init().catch(console.error);
+</script>

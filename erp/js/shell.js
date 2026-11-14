@@ -123,6 +123,7 @@ const NAV = {
       { key: 'esg-data',         label: '📝 บันทึกข้อมูล ESG',       href: 'esg-data.html' },
       { key: 'esg-monitoring',   label: '📋 แบบฟอร์มตรวจสอบ',        href: 'esg-monitoring.html' },
       { key: 'esg-environment', label: '🌿 Module E — สิ่งแวดล้อม',  href: 'esg-environment.html' },
+      { key: 'esg-social',      label: '🤝 Module S — สังคม',         href: 'esg-social.html' },
     ]},
   ],
   sales: [
@@ -279,6 +280,7 @@ const NAV = {
       { key: 'esg-data',       label: '📝 บันทึกข้อมูล ESG', href: 'esg-data.html' },
       { key: 'esg-monitoring', label: '📋 แบบฟอร์มตรวจสอบ',  href: 'esg-monitoring.html' },
       { key: 'esg-environment', label: '🌿 Module E — สิ่งแวดล้อม', href: 'esg-environment.html' },
+      { key: 'esg-social',      label: '🤝 Module S — สังคม',        href: 'esg-social.html' },
     ]},
   ],
   kpo: [
@@ -438,6 +440,7 @@ const NAV = {
       { key: 'esg-dashboard',  label: '📊 ESG Dashboard',   href: 'esg-dashboard.html' },
       { key: 'esg-monitoring',  label: '📋 แบบฟอร์มตรวจสอบ',  href: 'esg-monitoring.html' },
       { key: 'esg-environment', label: '🌿 Module E — สิ่งแวดล้อม', href: 'esg-environment.html' },
+      { key: 'esg-social',      label: '🤝 Module S — สังคม',        href: 'esg-social.html' },
     ]},
   ],
 };

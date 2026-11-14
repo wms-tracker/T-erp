@@ -553,5 +553,31 @@ service cloud.firestore {
         && myRole() in ['admin','safety_officer','manager','oel_manager'];
       allow delete: if isAdmin();
     }
+
+    // ----- Module S — Social (4 sub-module collections) -----
+    match /socWorkforce/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /socAccident/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /socTraining/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /socWelfare/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
   }
 }
