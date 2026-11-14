@@ -1,4 +1,4 @@
-﻿// ===================================================================
+// ===================================================================
 // ตัวอย่าง Firestore Security Rules — คัดลอกไปวางที่ Firebase Console
 // (Firestore Database -> Rules) แล้วปรับแก้ตามความเหมาะสมก่อน Publish
 // ===================================================================
@@ -517,6 +517,41 @@ service cloud.firestore {
       allow read: if isSignedIn() && isActive();
       allow write: if isSignedIn() && isActive()
         && myRole() in ['admin','safety_officer','oel_manager'];
+    }
+
+    // ----- Module E — Environmental (5 sub-module collections) -----
+    // read: ทุก role ที่ login และ active (dashboard/manager ต้องดูได้)
+    // create/update: admin, safety_officer, manager, oel_manager
+    // delete: admin เท่านั้น
+    match /envEnergy/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envWater/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envWaste/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envPackaging/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envCarbon/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
     }
   }
 }
