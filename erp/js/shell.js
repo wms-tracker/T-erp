@@ -119,8 +119,9 @@ const NAV = {
       { key: 'capa',             label: 'CAPA Management',       href: 'safety-capa.html' },
     ]},
     { groupKey: 'esg', icon: '🌿', label: 'ESG', items: [
-      { key: 'esg-dashboard', label: '📊 ESG Dashboard',          href: 'esg-dashboard.html' },
-      { key: 'esg-data',      label: '📝 บันทึกข้อมูล ESG',       href: 'esg-data.html' },
+      { key: 'esg-dashboard',    label: '📊 ESG Dashboard',          href: 'esg-dashboard.html' },
+      { key: 'esg-data',         label: '📝 บันทึกข้อมูล ESG',       href: 'esg-data.html' },
+      { key: 'esg-monitoring',   label: '📋 แบบฟอร์มตรวจสอบ',        href: 'esg-monitoring.html' },
     ]},
   ],
   sales: [
@@ -273,8 +274,9 @@ const NAV = {
       { key: 'safety-exec-dashboard',label: 'สรุปผู้บริหาร (Exec Dashboard)',href: 'safety-exec-dashboard.html' },
     ]},
     { groupKey: 'esg', icon: '🌿', label: 'ESG', items: [
-      { key: 'esg-dashboard', label: '📊 ESG Dashboard',    href: 'esg-dashboard.html' },
-      { key: 'esg-data',      label: '📝 บันทึกข้อมูล ESG', href: 'esg-data.html' },
+      { key: 'esg-dashboard',  label: '📊 ESG Dashboard',    href: 'esg-dashboard.html' },
+      { key: 'esg-data',       label: '📝 บันทึกข้อมูล ESG', href: 'esg-data.html' },
+      { key: 'esg-monitoring', label: '📋 แบบฟอร์มตรวจสอบ',  href: 'esg-monitoring.html' },
     ]},
   ],
   kpo: [
@@ -431,7 +433,8 @@ const NAV = {
       { key: 'safety-dashboard', label: 'KPO Safety Dashboard', href: 'safety.html' },
     ]},
     { groupKey: 'esg', icon: '🌿', label: 'ESG', items: [
-      { key: 'esg-dashboard', label: '📊 ESG Dashboard', href: 'esg-dashboard.html' },
+      { key: 'esg-dashboard',  label: '📊 ESG Dashboard',   href: 'esg-dashboard.html' },
+      { key: 'esg-monitoring', label: '📋 แบบฟอร์มตรวจสอบ', href: 'esg-monitoring.html' },
     ]},
   ],
 };
@@ -574,6 +577,7 @@ const PAGE_DEPARTMENT = {
   "safety-noise.html":          "safety_officer",
   "safety-lux.html":            "safety_officer",
   "safety-exec-dashboard.html": "safety_officer",
+  "esg-monitoring.html":        "safety_officer",
   "safety-passport.html":       "safety_officer",
   "safety-moc.html":            "safety_officer",
   "safety-stats.html":          "safety_officer",

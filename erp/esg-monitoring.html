@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แบบฟอร์มตรวจสอบ Monitoring</title>
+  <link rel="stylesheet" href="./css/main.css">
+  <style>
+    .period-bar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1.2rem}
+    .period-bar select,.period-bar input{padding:.35rem .65rem;border-radius:6px;border:1px solid #cbd5e1;font-size:.88rem;background:#fff}
+
+    .mon-section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:1rem}
+    .mon-sec-head{display:flex;align-items:center;gap:.6rem;padding:.65rem 1rem;background:#f8fafc;border-bottom:1px solid #e2e8f0}
+    .mon-sec-num{width:24px;height:24px;border-radius:50%;background:#1e3a5f;color:#fff;font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .mon-sec-title{font-size:.9rem;font-weight:700;color:#1e3a5f}
+    .mon-sec-en{font-size:.74rem;color:#94a3b8;margin-left:auto}
+    .mon-sec-body{padding:.9rem 1rem}
+
+    .info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.65rem}
+    .f-label{font-size:.76rem;color:#64748b;font-weight:600;margin-bottom:.22rem}
+    .f-input{width:100%;padding:.38rem .6rem;border:1px solid #cbd5e1;border-radius:7px;background:#f8faff;color:#1e293b;font-family:'Sarabun',sans-serif;font-size:.88rem}
+    .f-input:focus{outline:none;border-color:#1e3a5f;box-shadow:0 0 0 2px #dbeafe}
+
+    /* Equipment table */
+    .eq-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+    .eq-tbl th{background:#f1f5f9;color:#334155;padding:.45rem .65rem;text-align:left;font-weight:700;border-bottom:2px solid #e2e8f0;white-space:nowrap}
+    .eq-tbl td{padding:.5rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    .eq-tbl tr:last-child td{border-bottom:none}
+    .eq-tbl tr:hover td{background:#f8fafc}
+    .eq-name{font-weight:600;color:#1e293b}
+    .eq-model{font-size:.76rem;color:#94a3b8}
+    .eq-qty{font-weight:700;color:#1e3a5f;text-align:center;font-variant-numeric:tabular-nums}
+    .radio-grp{display:flex;gap:.4rem;align-items:center}
+    .radio-grp label{display:flex;align-items:center;gap:.2rem;font-size:.8rem;cursor:pointer;white-space:nowrap}
+    .radio-grp input[type=radio]{accent-color:#1e3a5f}
+    .num-inp{width:60px;padding:.28rem .4rem;border:1px solid #cbd5e1;border-radius:6px;background:#f8faff;color:#1e293b;font-size:.82rem;text-align:center}
+    .num-inp:focus{outline:none;border-color:#1e3a5f}
+    .note-inp{padding:.28rem .5rem;border:1px solid #cbd5e1;border-radius:6px;background:#f8faff;color:#1e293b;font-size:.78rem;width:100%}
+    .note-inp:focus{outline:none;border-color:#1e3a5f}
+
+    /* KPI table */
+    .kpi-tbl{width:100%;border-collapse:collapse;font-size:.81rem}
+    .kpi-tbl th{background:#f1f5f9;color:#334155;padding:.42rem .65rem;font-weight:700;border-bottom:2px solid #e2e8f0}
+    .kpi-tbl th:first-child{text-align:left}
+    .kpi-tbl td{padding:.48rem .65rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;text-align:center}
+    .kpi-tbl td.left{text-align:left}
+    .kpi-tbl tr:last-child td{border-bottom:none}
+    .kpi-tbl tr:hover td{background:#f8fafc}
+    .kpi-domain{padding:.38rem .65rem;font-size:.78rem;font-weight:700;background:#1e3a5f;color:#fff;text-transform:uppercase;letter-spacing:.04em}
+    .tgt-badge{display:inline-block;background:#fdf3dc;color:#c8972a;padding:.08rem .45rem;border-radius:20px;font-size:.73rem;font-weight:600;white-space:nowrap}
+    .kpi-inp{width:85px;padding:.28rem .45rem;border:1px solid #cbd5e1;border-radius:6px;background:#f8faff;color:#1e293b;font-size:.85rem;text-align:center}
+    .kpi-inp:focus{outline:none;border-color:#1e3a5f}
+    .live-dot{width:9px;height:9px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:3px;background:#e2e8f0}
+    .dot-ok{background:#16a34a}
+    .dot-warn{background:#d97706}
+    .dot-fail{background:#dc2626}
+
+    /* Checklist */
+    .cl-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media(max-width:600px){.cl-grid{grid-template-columns:1fr}}
+    .cl-title{font-size:.77rem;font-weight:700;color:#1e3a5f;margin-bottom:.45rem;text-transform:uppercase;letter-spacing:.04em}
+    .cl-list{list-style:none}
+    .cl-list li{display:flex;align-items:center;gap:.5rem;padding:.38rem 0;border-bottom:1px solid #f1f5f9}
+    .cl-list li:last-child{border-bottom:none}
+    .cl-list input[type=checkbox]{width:15px;height:15px;accent-color:#1e3a5f;flex-shrink:0}
+    .cl-list .cl-lbl{flex:1;font-size:.85rem;color:#334155}
+    .cl-note{width:160px;flex-shrink:0}
+
+    /* Corrective action */
+    .ca-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.65rem}
+    @media(max-width:640px){.ca-grid{grid-template-columns:1fr}}
+    .ca-box{background:#f8fafc;border-radius:8px;padding:.65rem .8rem}
+    .ca-step-label{font-size:.75rem;font-weight:700;color:#1e3a5f;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.04em}
+    .ca-ta{width:100%;padding:.4rem .55rem;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#1e293b;font-family:'Sarabun',sans-serif;font-size:.85rem;resize:vertical;min-height:60px}
+    .ca-ta:focus{outline:none;border-color:#1e3a5f}
+
+    /* Signature */
+    .sig-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.9rem}
+    @media(max-width:580px){.sig-row{grid-template-columns:1fr}}
+    .sig-box{border:1px solid #e2e8f0;border-radius:8px;padding:.65rem .8rem}
+    .sig-role{font-size:.73rem;font-weight:700;color:#94a3b8;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.04em}
+    .sig-name{border:none;border-bottom:1px dashed #cbd5e1;background:none;color:#1e293b;font-family:'Sarabun',sans-serif;font-size:.86rem;width:100%;padding:.28rem 0}
+    .sig-name:focus{outline:none;border-bottom-color:#1e3a5f}
+
+    /* Action bar */
+    .action-bar{display:flex;gap:.5rem;justify-content:flex-end;margin-bottom:1rem}
+    .btn-reset{padding:.38rem .9rem;border-radius:7px;border:1px solid #e2e8f0;background:#fff;color:#64748b;font-family:'Sarabun',sans-serif;font-size:.84rem;cursor:pointer}
+    .btn-reset:hover{background:#f1f5f9}
+
+    @media(max-width:640px){
+      .info-grid{grid-template-columns:1fr 1fr}
+      .eq-tbl{font-size:.76rem}
+      .kpi-tbl{font-size:.76rem}
+      .kpi-inp{width:68px}
+    }
+  </style>
+</head>
+<body>
+
+<script type="module">
+import { requireRole } from './js/auth.js';
+import { renderShell } from './js/shell.js';
+
+const _profile = await requireRole(['admin','safety_officer','oel_manager','manager','managing_director','kpo']);
+const main = renderShell(_profile, 'esg-monitoring', 'แบบฟอร์มตรวจสอบ Monitoring');
+
+main.innerHTML = `
+<div class="action-bar no-print">
+  <button class="btn-reset" onclick="resetForm()">↺ ล้างข้อมูล</button>
+  <button class="btn btn-primary no-print" onclick="window.print()" style="font-size:.84rem;padding:.38rem 1rem">🖨 พิมพ์</button>
+</div>
+
+<!-- 1 ข้อมูลทั่วไป -->
+<div class="mon-section">
+  <div class="mon-sec-head">
+    <div class="mon-sec-num">1</div>
+    <div class="mon-sec-title">ข้อมูลทั่วไป</div>
+    <span class="mon-sec-en">General Information</span>
+  </div>
+  <div class="mon-sec-body">
+    <div class="info-grid">
+      <div><div class="f-label">วันที่ตรวจสอบ</div><input type="date" class="f-input" id="f-date"></div>
+      <div><div class="f-label">ประเภทการตรวจสอบ</div>
+        <select class="f-input" id="f-type">
+          <option value="">-- เลือก --</option>
+          <option>ตรวจสอบประจำวัน (Daily Check)</option>
+          <option>ตรวจสอบประจำเดือน (Monthly Inspection)</option>
+          <option>ตรวจสอบประจำปี (Annual Audit)</option>
+        </select>
+      </div>
+      <div><div class="f-label">ผู้ตรวจสอบ</div><input type="text" class="f-input" id="f-inspector" placeholder="ชื่อ-สกุล"></div>
+      <div><div class="f-label">แผนก / ตำแหน่ง</div><input type="text" class="f-input" id="f-dept" placeholder="แผนก"></div>
+      <div><div class="f-label">สถานที่</div>
+        <select class="f-input" id="f-loc">
+          <option>โกดัง D — TPY Estate</option>
+          <option>โกดัง F — TPY Estate</option>
+          <option>โกดัง D &amp; F</option>
+        </select>
+      </div>
+      <div><div class="f-label">รอบปี (พ.ศ.)</div><input type="number" class="f-input" id="f-year" value="2569" min="2560" max="2600"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 2 Pre-shift check -->
+<div class="mon-section">
+  <div class="mon-sec-head">
+    <div class="mon-sec-num">2</div>
+    <div class="mon-sec-title">ตรวจสอบสภาพเครื่องจักรก่อนใช้งาน</div>
+    <span class="mon-sec-en">Equipment Pre-shift Check</span>
+  </div>
+  <div class="mon-sec-body" style="overflow-x:auto">
+    <table class="eq-tbl">
+      <colgroup><col style="width:28px"><col><col style="width:50px"><col style="width:55px"><col style="width:160px"><col></colgroup>
+      <thead><tr>
+        <th>#</th><th>เครื่องจักร / อุปกรณ์</th>
+        <th style="text-align:center">จำนวน</th><th style="text-align:center">ตรวจได้</th>
+        <th style="text-align:center">สภาพ</th><th>หมายเหตุ</th>
+      </tr></thead>
+      <tbody>
+        ${[
+          [1,'เครื่องบรรจุสุญญากาศ','Vacuum Packing Machine รุ่น NG-01M',1],
+          [2,'รถโฟล์คลิฟท์','Forklift HELI รุ่น G2 Series CQD16-GB2SLi-ZSM630-SS',1],
+          [3,'รถลากพาเลท Hand Pallet Truck','ยี่ห้อ HELI ขนาด 3 ตัน',12],
+          [4,'รถยกไฟฟ้าแบบยืนขับ STACKER','ยี่ห้อ HELI รุ่น CDD15J-RE-M300',2],
+          [5,'รถยกไฟฟ้าแบบลากขับ STACKER','ยี่ห้อ HELI รุ่น CDD15J',3],
+        ].map(([n,name,model,qty])=>`
+          <tr>
+            <td style="color:#94a3b8;font-size:.78rem;text-align:center">${n}</td>
+            <td><div class="eq-name">${name}</div><div class="eq-model">${model}</div></td>
+            <td class="eq-qty">${qty}</td>
+            <td style="text-align:center"><input type="number" class="num-inp" min="0" max="${qty}" placeholder="0"></td>
+            <td><div class="radio-grp">
+              <label><input type="radio" name="eq${n}" value="ok"> ปกติ</label>
+              <label><input type="radio" name="eq${n}" value="warn"> บกพร่อง</label>
+              <label><input type="radio" name="eq${n}" value="na"> N/A</label>
+            </div></td>
+            <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 3 KPI -->
+<div class="mon-section">
+  <div class="mon-sec-head">
+    <div class="mon-sec-num">3</div>
+    <div class="mon-sec-title">ตัวชี้วัด KPI (Risk &amp; KPI Monitoring)</div>
+    <span class="mon-sec-en">Monitoring Plan — รอบปี 2569</span>
+  </div>
+  <div class="mon-sec-body" style="overflow-x:auto">
+    <table class="kpi-tbl">
+      <colgroup><col><col style="width:85px"><col style="width:95px"><col style="width:150px"><col style="width:85px"><col style="width:120px"></colgroup>
+      <thead><tr>
+        <th class="left">ตัวชี้วัด (KPI)</th>
+        <th>เป้าหมาย</th><th>ค่าที่วัดได้</th>
+        <th>วิธีตรวจสอบ</th><th>สถานะ</th><th>หมายเหตุ</th>
+      </tr></thead>
+      <tbody>
+        <tr><td colspan="6" class="kpi-domain">🛡 ความปลอดภัย (Safety)</td></tr>
+        <tr>
+          <td class="left">อัตราการเกิดอุบัติเหตุถึงขั้นหยุดงาน (LTI)</td>
+          <td><span class="tgt-badge">0 ครั้ง</span></td>
+          <td><input type="number" class="kpi-inp" min="0" placeholder="0" id="kpi-lti"></td>
+          <td style="font-size:.76rem;color:#94a3b8">บันทึกสถิติอุบัติเหตุรายเดือน</td>
+          <td><span class="live-dot" id="dot-lti"></span><span id="st-lti" style="font-size:.76rem;color:#94a3b8">—</span></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+        </tr>
+        <tr>
+          <td class="left">จำนวนครั้งที่พบความเสี่ยงจากไฟฟ้า / อัคคีภัย</td>
+          <td><span class="tgt-badge">&lt; 2 ครั้ง/ปี</span></td>
+          <td><input type="number" class="kpi-inp" min="0" placeholder="0" id="kpi-fire"></td>
+          <td style="font-size:.76rem;color:#94a3b8">Check-list ทุก 15 วัน</td>
+          <td><span class="live-dot" id="dot-fire"></span><span id="st-fire" style="font-size:.76rem;color:#94a3b8">—</span></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+        </tr>
+        <tr><td colspan="6" class="kpi-domain">🌿 สิ่งแวดล้อม (Environment)</td></tr>
+        <tr>
+          <td class="left">ปริมาณขยะพลาสติก / กระดาษที่ถูกรีไซเคิล</td>
+          <td><span class="tgt-badge">&gt; 90%</span></td>
+          <td><input type="number" class="kpi-inp" min="0" max="100" placeholder="%" id="kpi-recycle"></td>
+          <td style="font-size:.76rem;color:#94a3b8">ตราชั่ง + ใบเสร็จจากบริษัทรับซื้อ</td>
+          <td><span class="live-dot" id="dot-recycle"></span><span id="st-recycle" style="font-size:.76rem;color:#94a3b8">—</span></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+        </tr>
+        <tr>
+          <td class="left">ระดับเสียงรบกวนจากการขนส่ง (หน้าคลัง)</td>
+          <td><span class="tgt-badge">&lt; 70 dB(A)</span></td>
+          <td><input type="number" class="kpi-inp" min="0" placeholder="dB" id="kpi-noise"></td>
+          <td style="font-size:.76rem;color:#94a3b8">เครื่องวัดเสียง ตรวจสุ่มช่วง peak</td>
+          <td><span class="live-dot" id="dot-noise"></span><span id="st-noise" style="font-size:.76rem;color:#94a3b8">—</span></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+        </tr>
+        <tr><td colspan="6" class="kpi-domain">🤝 สังคม (Social)</td></tr>
+        <tr>
+          <td class="left">จำนวนข้อร้องเรียนจากชุมชนที่ยังไม่ได้รับการแก้ไข</td>
+          <td><span class="tgt-badge">0 ข้อ</span></td>
+          <td><input type="number" class="kpi-inp" min="0" placeholder="0" id="kpi-complaint"></td>
+          <td style="font-size:.76rem;color:#94a3b8">สมุดทะเบียนรับเรื่องร้องเรียน</td>
+          <td><span class="live-dot" id="dot-complaint"></span><span id="st-complaint" style="font-size:.76rem;color:#94a3b8">—</span></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+        </tr>
+        <tr>
+          <td class="left">คะแนนความพึงพอใจของชุมชนรอบข้าง</td>
+          <td><span class="tgt-badge">&gt; 80%</span></td>
+          <td><input type="number" class="kpi-inp" min="0" max="100" placeholder="%" id="kpi-sat"></td>
+          <td style="font-size:.76rem;color:#94a3b8">แบบสำรวจความเห็นรายปี</td>
+          <td><span class="live-dot" id="dot-sat"></span><span id="st-sat" style="font-size:.76rem;color:#94a3b8">—</span></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 4 Checklist -->
+<div class="mon-section">
+  <div class="mon-sec-head">
+    <div class="mon-sec-num">4</div>
+    <div class="mon-sec-title">รายการตรวจสอบ</div>
+    <span class="mon-sec-en">Inspection Checklist</span>
+  </div>
+  <div class="mon-sec-body">
+    <div class="cl-grid">
+      <div>
+        <div class="cl-title">ประจำวัน (Daily)</div>
+        <ul class="cl-list">
+          <li><input type="checkbox" id="cl1"><label for="cl1" class="cl-lbl">เส้นทางจราจรและสิ่งกีดขวางทางหนีไฟ</label><input type="text" class="note-inp cl-note" placeholder="หมายเหตุ"></li>
+          <li><input type="checkbox" id="cl2"><label for="cl2" class="cl-lbl">ความพร้อมของรถยก (Forklift Pre-shift check)</label><input type="text" class="note-inp cl-note" placeholder="หมายเหตุ"></li>
+        </ul>
+      </div>
+      <div>
+        <div class="cl-title">ประจำเดือน (Monthly)</div>
+        <ul class="cl-list">
+          <li><input type="checkbox" id="cl3"><label for="cl3" class="cl-lbl">สภาพถังดับเพลิงและระบบไฟสำรอง</label><input type="text" class="note-inp cl-note" placeholder="หมายเหตุ"></li>
+          <li><input type="checkbox" id="cl4"><label for="cl4" class="cl-lbl">การคัดแยกขยะในพื้นที่จัดเก็บ</label><input type="text" class="note-inp cl-note" placeholder="หมายเหตุ"></li>
+        </ul>
+      </div>
+      <div style="grid-column:1/-1">
+        <div class="cl-title">ประจำปี (Annual)</div>
+        <ul class="cl-list">
+          <li><input type="checkbox" id="cl5"><label for="cl5" class="cl-lbl">ตรวจสอบอาคารตามกฎหมาย (โดยผู้เชี่ยวชาญภายนอก)</label><input type="text" class="note-inp cl-note" placeholder="หมายเหตุ"></li>
+          <li><input type="checkbox" id="cl6"><label for="cl6" class="cl-lbl">ซ้อมดับเพลิงและหนีไฟร่วมกับหน่วยงานท้องถิ่น</label><input type="text" class="note-inp cl-note" placeholder="หมายเหตุ"></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 5 Corrective Action -->
+<div class="mon-section">
+  <div class="mon-sec-head">
+    <div class="mon-sec-num">5</div>
+    <div class="mon-sec-title">การดำเนินการแก้ไข (เมื่อไม่เป็นไปตามเป้าหมาย)</div>
+    <span class="mon-sec-en">Corrective Action</span>
+  </div>
+  <div class="mon-sec-body">
+    <div class="ca-grid">
+      <div class="ca-box">
+        <div class="ca-step-label">1 · Root Cause Analysis</div>
+        <textarea class="ca-ta" placeholder="ระบุสาเหตุที่แท้จริง..."></textarea>
+      </div>
+      <div class="ca-box">
+        <div class="ca-step-label">2 · Corrective Action</div>
+        <textarea class="ca-ta" placeholder="แนวทางแก้ไขทันที..."></textarea>
+      </div>
+      <div class="ca-box">
+        <div class="ca-step-label">3 · Follow-up (15–30 วัน)</div>
+        <textarea class="ca-ta" placeholder="ผลการติดตาม..."></textarea>
+      </div>
+    </div>
+    <div style="margin-top:.65rem">
+      <div class="f-label">วันที่กำหนดแก้ไขเสร็จ</div>
+      <input type="date" class="f-input" style="max-width:200px">
+    </div>
+  </div>
+</div>
+
+<!-- 6 Signatures -->
+<div class="mon-section">
+  <div class="mon-sec-head">
+    <div class="mon-sec-num">6</div>
+    <div class="mon-sec-title">ลายเซ็นผู้เกี่ยวข้อง</div>
+    <span class="mon-sec-en">Signatures</span>
+  </div>
+  <div class="mon-sec-body">
+    <div class="sig-row">
+      <div class="sig-box">
+        <div class="sig-role">ผู้ตรวจสอบ / Inspector</div>
+        <input class="sig-name" type="text" placeholder="ชื่อ-สกุล">
+        <input class="sig-name" type="date" style="margin-top:.35rem">
+      </div>
+      <div class="sig-box">
+        <div class="sig-role">ผู้ควบคุมงาน / Supervisor</div>
+        <input class="sig-name" type="text" placeholder="ชื่อ-สกุล">
+        <input class="sig-name" type="date" style="margin-top:.35rem">
+      </div>
+      <div class="sig-box">
+        <div class="sig-role">ผู้จัดการคลังสินค้า / WH Manager</div>
+        <input class="sig-name" type="text" placeholder="ชื่อ-สกุล">
+        <input class="sig-name" type="date" style="margin-top:.35rem">
+      </div>
+    </div>
+    <div style="margin-top:.7rem;font-size:.73rem;color:#94a3b8;text-align:center;line-height:1.6">
+      Horizon Group (Thailand) Co., Ltd. · TPY Estate (Warehouse D&amp;F) 12/1, Moo 2, Setthakij 1 Rd., Na Di, Mueang Samut Sakhon 74000
+    </div>
+  </div>
+</div>`;
+
+// Set today
+document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
+
+// Live KPI dots
+const KPI_RULES = [
+  { id:'kpi-lti',      dot:'dot-lti',      st:'st-lti',      ok:v=>v===0,    warn:v=>false,  labels:['ผ่าน','—','เกินเป้า'] },
+  { id:'kpi-fire',     dot:'dot-fire',     st:'st-fire',     ok:v=>v<2,      warn:v=>v===2,  labels:['ผ่าน','ใกล้เป้า','เกินเป้า'] },
+  { id:'kpi-recycle',  dot:'dot-recycle',  st:'st-recycle',  ok:v=>v>90,     warn:v=>v>=75,  labels:['ผ่าน','ใกล้เป้า','ต่ำกว่าเป้า'] },
+  { id:'kpi-noise',    dot:'dot-noise',    st:'st-noise',    ok:v=>v<70,     warn:v=>v<=75,  labels:['ผ่าน','ใกล้เป้า','เกินเป้า'] },
+  { id:'kpi-complaint',dot:'dot-complaint',st:'st-complaint',ok:v=>v===0,    warn:v=>false,  labels:['ผ่าน','—','เกินเป้า'] },
+  { id:'kpi-sat',      dot:'dot-sat',      st:'st-sat',      ok:v=>v>80,     warn:v=>v>=65,  labels:['ผ่าน','ใกล้เป้า','ต่ำกว่าเป้า'] },
+];
+function updateDot(r) {
+  const inp = document.getElementById(r.id);
+  const dot = document.getElementById(r.dot);
+  const st  = document.getElementById(r.st);
+  if (!inp || !inp.value) { dot.className='live-dot'; st.textContent='—'; st.style.color='#94a3b8'; return; }
+  const v = Number(inp.value);
+  if (r.ok(v)) { dot.className='live-dot dot-ok'; st.textContent=r.labels[0]; st.style.color='#16a34a'; }
+  else if (r.warn(v)) { dot.className='live-dot dot-warn'; st.textContent=r.labels[1]; st.style.color='#d97706'; }
+  else { dot.className='live-dot dot-fail'; st.textContent=r.labels[2]; st.style.color='#dc2626'; }
+}
+KPI_RULES.forEach(r => document.getElementById(r.id)?.addEventListener('input', ()=>updateDot(r)));
+
+window.resetForm = function() {
+  if (!confirm('ล้างข้อมูลในแบบฟอร์มทั้งหมดหรือไม่?')) return;
+  document.querySelectorAll('input:not([type=radio]):not([type=checkbox]),select,textarea').forEach(el => {
+    if (el.id === 'f-date') el.value = new Date().toISOString().slice(0,10);
+    else if (el.id === 'f-year') el.value = '2569';
+    else el.value = '';
+  });
+  document.querySelectorAll('input[type=radio],input[type=checkbox]').forEach(el => el.checked = false);
+  KPI_RULES.forEach(r => updateDot(r));
+};
+</script>
+</body>
+</html>
