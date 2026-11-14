@@ -214,35 +214,56 @@ main.innerHTML = `
         <th style="text-align:center">รูป</th><th></th>
       </tr></thead>
       <tbody id="eq-tbody">
-        ${[
-          [1,'เครื่องบรรจุสุญญากาศ','Vacuum Packing Machine รุ่น NG-01M',1],
-          [2,'รถโฟล์คลิฟท์','Forklift HELI รุ่น G2 Series CQD16-GB2SLi-ZSM630-SS',1],
-          [3,'รถลากพาเลท Hand Pallet Truck','ยี่ห้อ HELI ขนาด 3 ตัน',12],
-          [4,'รถยกไฟฟ้าแบบยืนขับ STACKER','ยี่ห้อ HELI รุ่น CDD15J-RE-M300',2],
-          [5,'รถยกไฟฟ้าแบบลากขับ STACKER','ยี่ห้อ HELI รุ่น CDD15J',3],
-        ].map(([n,name,model,qty])=>`
-          <tr data-eq-row>
-            <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">${n}</td>
-            <td>
-              <div class="eq-name" contenteditable="false">${name}</div>
-              <div class="eq-model" contenteditable="false">${model}</div>
-            </td>
-            <td class="eq-qty">${qty}</td>
-            <td style="text-align:center"><input type="number" class="num-inp" min="0" max="${qty}" placeholder="0"></td>
-            <td><div class="radio-grp">
-              <label><input type="radio" name="eq${n}" value="ok"> ปกติ</label>
-              <label><input type="radio" name="eq${n}" value="warn"> บกพร่อง</label>
-              <label><input type="radio" name="eq${n}" value="na"> N/A</label>
-            </div></td>
-            <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
-            <td style="text-align:center;padding:.35rem .3rem">
-              <div class="photo-cell">
-                <input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)">
-                <div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div>
-              </div>
-            </td>
-            <td style="text-align:center;padding:.25rem 0"></td>
-          </tr>`).join('')}
+        <tr data-eq-row>
+          <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">1</td>
+          <td><div class="eq-name">เครื่องบรรจุสุญญากาศ</div><div class="eq-model">Vacuum Packing Machine รุ่น NG-01M</div></td>
+          <td class="eq-qty">1</td>
+          <td style="text-align:center"><input type="number" class="num-inp" min="0" max="1" placeholder="0"></td>
+          <td><div class="radio-grp"><label><input type="radio" name="eq1" value="ok"> ปกติ</label><label><input type="radio" name="eq1" value="warn"> บกพร่อง</label><label><input type="radio" name="eq1" value="na"> N/A</label></div></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+          <td style="text-align:center;padding:.35rem .3rem"><div class="photo-cell"><input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)"><div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div></div></td>
+          <td style="text-align:center;padding:.25rem 0"></td>
+        </tr>
+        <tr data-eq-row>
+          <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">2</td>
+          <td><div class="eq-name">รถโฟล์คลิฟท์</div><div class="eq-model">Forklift HELI รุ่น G2 Series CQD16-GB2SLi-ZSM630-SS</div></td>
+          <td class="eq-qty">1</td>
+          <td style="text-align:center"><input type="number" class="num-inp" min="0" max="1" placeholder="0"></td>
+          <td><div class="radio-grp"><label><input type="radio" name="eq2" value="ok"> ปกติ</label><label><input type="radio" name="eq2" value="warn"> บกพร่อง</label><label><input type="radio" name="eq2" value="na"> N/A</label></div></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+          <td style="text-align:center;padding:.35rem .3rem"><div class="photo-cell"><input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)"><div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div></div></td>
+          <td style="text-align:center;padding:.25rem 0"></td>
+        </tr>
+        <tr data-eq-row>
+          <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">3</td>
+          <td><div class="eq-name">รถลากพาเลท Hand Pallet Truck</div><div class="eq-model">ยี่ห้อ HELI ขนาด 3 ตัน</div></td>
+          <td class="eq-qty">12</td>
+          <td style="text-align:center"><input type="number" class="num-inp" min="0" max="12" placeholder="0"></td>
+          <td><div class="radio-grp"><label><input type="radio" name="eq3" value="ok"> ปกติ</label><label><input type="radio" name="eq3" value="warn"> บกพร่อง</label><label><input type="radio" name="eq3" value="na"> N/A</label></div></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+          <td style="text-align:center;padding:.35rem .3rem"><div class="photo-cell"><input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)"><div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div></div></td>
+          <td style="text-align:center;padding:.25rem 0"></td>
+        </tr>
+        <tr data-eq-row>
+          <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">4</td>
+          <td><div class="eq-name">รถยกไฟฟ้าแบบยืนขับ STACKER</div><div class="eq-model">ยี่ห้อ HELI รุ่น CDD15J-RE-M300</div></td>
+          <td class="eq-qty">2</td>
+          <td style="text-align:center"><input type="number" class="num-inp" min="0" max="2" placeholder="0"></td>
+          <td><div class="radio-grp"><label><input type="radio" name="eq4" value="ok"> ปกติ</label><label><input type="radio" name="eq4" value="warn"> บกพร่อง</label><label><input type="radio" name="eq4" value="na"> N/A</label></div></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+          <td style="text-align:center;padding:.35rem .3rem"><div class="photo-cell"><input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)"><div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div></div></td>
+          <td style="text-align:center;padding:.25rem 0"></td>
+        </tr>
+        <tr data-eq-row>
+          <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">5</td>
+          <td><div class="eq-name">รถยกไฟฟ้าแบบลากขับ STACKER</div><div class="eq-model">ยี่ห้อ HELI รุ่น CDD15J</div></td>
+          <td class="eq-qty">3</td>
+          <td style="text-align:center"><input type="number" class="num-inp" min="0" max="3" placeholder="0"></td>
+          <td><div class="radio-grp"><label><input type="radio" name="eq5" value="ok"> ปกติ</label><label><input type="radio" name="eq5" value="warn"> บกพร่อง</label><label><input type="radio" name="eq5" value="na"> N/A</label></div></td>
+          <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+          <td style="text-align:center;padding:.35rem .3rem"><div class="photo-cell"><input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)"><div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div></div></td>
+          <td style="text-align:center;padding:.25rem 0"></td>
+        </tr>
       </tbody>
     </table>
     <div class="add-eq-row">
