@@ -129,6 +129,24 @@
     .btn-add-eq:hover{background:#eff6ff}
     .btn-del-eq{background:none;border:none;color:#ef4444;cursor:pointer;font-size:.9rem;padding:.1rem .3rem;border-radius:4px;line-height:1}
     .btn-del-eq:hover{background:#fef2f2}
+
+    @media print {
+      /* ซ่อน shell nav และ UI controls */
+      .nav-primary,.nav-secondary,.nav-drawer,.no-print,.action-bar { display:none !important; }
+      /* content เต็มหน้ากระดาษ */
+      .erp-shell,.erp-main { display:block !important; overflow:visible !important; height:auto !important; }
+      .erp-main-inner { padding:0 !important; max-width:100% !important; }
+      body { background:#fff !important; }
+      /* ซ่อนเงาและ border-radius ที่ไม่จำเป็น */
+      .form-card,.monitoring-section { box-shadow:none !important; border:1px solid #ccc !important; border-radius:4px !important; page-break-inside:avoid; }
+      /* หัวเอกสาร */
+      .doc-header { border:1.5px solid #1e3a5f !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      /* ตาราง */
+      table { page-break-inside:auto; }
+      tr { page-break-inside:avoid; }
+      /* ซ่อนปุ่มลบแถวเครื่องจักร */
+      .btn-del-eq,.add-eq-row,.photo-btn { display:none !important; }
+    }
   </style>
 </head>
 <body>
