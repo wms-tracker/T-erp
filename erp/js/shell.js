@@ -577,7 +577,6 @@ const PAGE_DEPARTMENT = {
   "safety-noise.html":          "safety_officer",
   "safety-lux.html":            "safety_officer",
   "safety-exec-dashboard.html": "safety_officer",
-  "esg-monitoring.html":        "safety_officer",
   "safety-passport.html":       "safety_officer",
   "safety-moc.html":            "safety_officer",
   "safety-stats.html":          "safety_officer",

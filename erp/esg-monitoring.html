@@ -168,7 +168,7 @@ main.innerHTML = `
     <div class="doc-meta-row"><span class="doc-meta-label">หน้าที่</span><span class="doc-meta-val">1 / 1</span></div>
   </div>
   <button id="btn-edit-company" class="no-print" title="แก้ไขข้อมูลบริษัท" onclick="openCompanyModal()"
-    style="position:absolute;top:6px;right:6px;background:none;border:1px solid #e2e8f0;border-radius:6px;padding:.18rem .45rem;font-size:.72rem;color:#94a3b8;cursor:pointer;display:none">✏️ แก้ไข</button>
+    style="position:absolute;top:6px;right:6px;background:none;border:1px solid #e2e8f0;border-radius:6px;padding:.18rem .45rem;font-size:.72rem;color:#94a3b8;cursor:pointer;${_isAdmin ? '' : 'display:none'}">✏️ แก้ไข</button>
 </div>
 
 <!-- Company settings modal -->
@@ -520,7 +520,6 @@ async function loadCompany() {
     const snap = await getDoc(doc(db, 'settings', 'company'));
     if (snap.exists()) applyCompany(snap.data());
   } catch(e) { console.warn('loadCompany:', e); }
-  if (_isAdmin) document.getElementById('btn-edit-company').style.display = '';
 }
 loadCompany();
 
