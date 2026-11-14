@@ -438,29 +438,27 @@ window.addEquipmentRow = function() {
   const n = tbody.querySelectorAll('tr[data-eq-row]').length + 1;
   const tr = document.createElement('tr');
   tr.setAttribute('data-eq-row', '');
-  tr.innerHTML = \`
-    <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">\${n}</td>
-    <td>
-      <div class="eq-name" contenteditable="true" style="border-bottom:1px dashed #cbd5e1;min-width:120px;outline:none;padding:.1rem 0" data-placeholder="ชื่อเครื่องจักร">ชื่อเครื่องจักร</div>
-      <div class="eq-model" contenteditable="true" style="border-bottom:1px dashed #e2e8f0;min-width:120px;outline:none;padding:.1rem 0" data-placeholder="รุ่น / ยี่ห้อ">รุ่น / ยี่ห้อ</div>
-    </td>
-    <td class="eq-qty"><input type="number" class="num-inp" min="1" value="1" style="width:50px"></td>
-    <td style="text-align:center"><input type="number" class="num-inp" min="0" placeholder="0"></td>
-    <td><div class="radio-grp">
-      <label><input type="radio" name="eq\${n}" value="ok"> ปกติ</label>
-      <label><input type="radio" name="eq\${n}" value="warn"> บกพร่อง</label>
-      <label><input type="radio" name="eq\${n}" value="na"> N/A</label>
-    </div></td>
-    <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
-    <td style="text-align:center;padding:.35rem .3rem">
-      <div class="photo-cell">
-        <input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)">
-        <div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div>
-      </div>
-    </td>
-    <td style="text-align:center;padding:.25rem 0">
-      <button class="btn-del-eq" title="ลบแถวนี้" onclick="this.closest('tr').remove();renumberEq()">✕</button>
-    </td>\`;
+  tr.innerHTML = '<td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">' + n + '</td>'
+    + '<td>'
+    + '<div class="eq-name" contenteditable="true" style="border-bottom:1px dashed #cbd5e1;min-width:120px;outline:none;padding:.1rem 0">ชื่อเครื่องจักร</div>'
+    + '<div class="eq-model" contenteditable="true" style="border-bottom:1px dashed #e2e8f0;min-width:120px;outline:none;padding:.1rem 0">รุ่น / ยี่ห้อ</div>'
+    + '</td>'
+    + '<td class="eq-qty"><input type="number" class="num-inp" min="1" value="1" style="width:50px"></td>'
+    + '<td style="text-align:center"><input type="number" class="num-inp" min="0" placeholder="0"></td>'
+    + '<td><div class="radio-grp">'
+    + '<label><input type="radio" name="eq' + n + '" value="ok"> ปกติ</label>'
+    + '<label><input type="radio" name="eq' + n + '" value="warn"> บกพร่อง</label>'
+    + '<label><input type="radio" name="eq' + n + '" value="na"> N/A</label>'
+    + '</div></td>'
+    + '<td><input type="text" class="note-inp" placeholder="ระบุ..."></td>'
+    + '<td style="text-align:center;padding:.35rem .3rem">'
+    + '<div class="photo-cell">'
+    + '<input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)">'
+    + '<div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div>'
+    + '</div></td>'
+    + '<td style="text-align:center;padding:.25rem 0">'
+    + '<button class="btn-del-eq" title="ลบแถวนี้" onclick="this.closest(\'tr\').remove();renumberEq()">✕</button>'
+    + '</td>';
   tbody.appendChild(tr);
   tr.querySelector('[contenteditable]').focus();
 };
