@@ -93,6 +93,42 @@
       .kpi-tbl{font-size:.76rem}
       .kpi-inp{width:68px}
     }
+
+    /* Document header */
+    .doc-header{display:grid;grid-template-columns:auto 1fr auto;gap:0;border:2px solid #1e3a5f;border-radius:10px;overflow:hidden;margin-bottom:1rem;background:#fff}
+    .doc-hd-logo{padding:.7rem 1rem;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #1e3a5f;min-width:110px}
+    .doc-hd-logo-circle{width:52px;height:52px;border-radius:50%;background:#1e3a5f;display:flex;align-items:center;justify-content:center;color:#c8972a;font-size:1.3rem;font-weight:900;letter-spacing:-.03em;margin-bottom:.25rem}
+    .doc-hd-logo-name{font-size:.62rem;font-weight:700;color:#1e3a5f;text-align:center;line-height:1.3}
+    .doc-hd-center{padding:.55rem .9rem;display:flex;flex-direction:column;justify-content:center;border-right:1px solid #1e3a5f}
+    .doc-hd-title-th{font-size:1rem;font-weight:800;color:#1e3a5f;line-height:1.3}
+    .doc-hd-title-en{font-size:.74rem;color:#64748b;margin-top:.1rem}
+    .doc-hd-addr{font-size:.68rem;color:#94a3b8;margin-top:.25rem}
+    .doc-hd-meta{padding:.4rem .8rem;display:grid;grid-template-rows:repeat(4,1fr);gap:.1rem;min-width:155px}
+    .doc-meta-row{display:flex;align-items:center;gap:.35rem;font-size:.72rem;padding:.1rem 0;border-bottom:1px solid #f1f5f9}
+    .doc-meta-row:last-child{border-bottom:none}
+    .doc-meta-label{color:#94a3b8;white-space:nowrap;width:75px;flex-shrink:0}
+    .doc-meta-val{color:#1e3a5f;font-weight:700}
+    .doc-meta-input{border:none;border-bottom:1px dashed #cbd5e1;background:none;color:#1e3a5f;font-size:.72rem;font-weight:700;width:70px;padding:0;font-family:'Sarabun',sans-serif}
+    .doc-meta-input:focus{outline:none;border-bottom-color:#1e3a5f}
+    @media(max-width:580px){
+      .doc-header{grid-template-columns:1fr;border-radius:8px}
+      .doc-hd-logo{flex-direction:row;gap:.6rem;border-right:none;border-bottom:1px solid #1e3a5f;padding:.5rem .8rem}
+      .doc-hd-center{border-right:none;border-bottom:1px solid #1e3a5f}
+      .doc-hd-meta{grid-template-rows:unset;grid-template-columns:1fr 1fr}
+    }
+
+    /* Photo per equipment row */
+    .photo-cell{display:flex;flex-direction:column;align-items:center;gap:.25rem}
+    .photo-btn{width:34px;height:34px;border-radius:7px;border:1.5px dashed #cbd5e1;background:#f8faff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.95rem;flex-shrink:0;transition:border-color .15s}
+    .photo-btn:hover{border-color:#1e3a5f;background:#eff6ff}
+    .photo-thumb{width:34px;height:34px;border-radius:6px;object-fit:cover;border:1.5px solid #1e3a5f;cursor:pointer}
+
+    /* Add equipment button */
+    .add-eq-row{padding:.5rem .65rem;background:#f8fafc;border-top:1px dashed #cbd5e1;text-align:center}
+    .btn-add-eq{background:none;border:1.5px dashed #1e3a5f;color:#1e3a5f;border-radius:7px;padding:.3rem .9rem;font-family:'Sarabun',sans-serif;font-size:.8rem;cursor:pointer;transition:background .15s}
+    .btn-add-eq:hover{background:#eff6ff}
+    .btn-del-eq{background:none;border:none;color:#ef4444;cursor:pointer;font-size:.9rem;padding:.1rem .3rem;border-radius:4px;line-height:1}
+    .btn-del-eq:hover{background:#fef2f2}
   </style>
 </head>
 <body>
@@ -108,6 +144,25 @@ main.innerHTML = `
 <div class="action-bar no-print">
   <button class="btn-reset" onclick="resetForm()">↺ ล้างข้อมูล</button>
   <button class="btn btn-primary no-print" onclick="window.print()" style="font-size:.84rem;padding:.38rem 1rem">🖨 พิมพ์</button>
+</div>
+
+<!-- Document Header -->
+<div class="doc-header">
+  <div class="doc-hd-logo">
+    <div class="doc-hd-logo-circle">HG</div>
+    <div class="doc-hd-logo-name">HORIZON GROUP<br>(THAILAND)</div>
+  </div>
+  <div class="doc-hd-center">
+    <div class="doc-hd-title-th">แบบฟอร์มตรวจสอบและรายงานผล</div>
+    <div class="doc-hd-title-en">Monitoring &amp; Reporting Form — ESG</div>
+    <div class="doc-hd-addr">TPY Estate (Warehouse D &amp; F) · 12/1 Moo 2, Setthakij 1 Rd., Na Di, Mueang Samut Sakhon 74000</div>
+  </div>
+  <div class="doc-hd-meta">
+    <div class="doc-meta-row"><span class="doc-meta-label">เลขที่เอกสาร</span><input class="doc-meta-input" value="HG-ESG-M-01"></div>
+    <div class="doc-meta-row"><span class="doc-meta-label">แก้ไขครั้งที่</span><input class="doc-meta-input" value="00" style="width:35px"></div>
+    <div class="doc-meta-row"><span class="doc-meta-label">วันที่บังคับใช้</span><input class="doc-meta-input" id="hd-effdate" style="width:90px"></div>
+    <div class="doc-meta-row"><span class="doc-meta-label">หน้าที่</span><span class="doc-meta-val">1 / 1</span></div>
+  </div>
 </div>
 
 <!-- 1 ข้อมูลทั่วไป -->
@@ -149,15 +204,16 @@ main.innerHTML = `
     <div class="mon-sec-title">ตรวจสอบสภาพเครื่องจักรก่อนใช้งาน</div>
     <span class="mon-sec-en">Equipment Pre-shift Check</span>
   </div>
-  <div class="mon-sec-body" style="overflow-x:auto">
-    <table class="eq-tbl">
-      <colgroup><col style="width:28px"><col><col style="width:50px"><col style="width:55px"><col style="width:160px"><col></colgroup>
+  <div class="mon-sec-body" style="overflow-x:auto;padding:0">
+    <table class="eq-tbl" id="eq-table">
+      <colgroup><col style="width:28px"><col><col style="width:50px"><col style="width:55px"><col style="width:160px"><col><col style="width:46px"><col style="width:30px"></colgroup>
       <thead><tr>
         <th>#</th><th>เครื่องจักร / อุปกรณ์</th>
         <th style="text-align:center">จำนวน</th><th style="text-align:center">ตรวจได้</th>
         <th style="text-align:center">สภาพ</th><th>หมายเหตุ</th>
+        <th style="text-align:center">รูป</th><th></th>
       </tr></thead>
-      <tbody>
+      <tbody id="eq-tbody">
         ${[
           [1,'เครื่องบรรจุสุญญากาศ','Vacuum Packing Machine รุ่น NG-01M',1],
           [2,'รถโฟล์คลิฟท์','Forklift HELI รุ่น G2 Series CQD16-GB2SLi-ZSM630-SS',1],
@@ -165,9 +221,12 @@ main.innerHTML = `
           [4,'รถยกไฟฟ้าแบบยืนขับ STACKER','ยี่ห้อ HELI รุ่น CDD15J-RE-M300',2],
           [5,'รถยกไฟฟ้าแบบลากขับ STACKER','ยี่ห้อ HELI รุ่น CDD15J',3],
         ].map(([n,name,model,qty])=>`
-          <tr>
-            <td style="color:#94a3b8;font-size:.78rem;text-align:center">${n}</td>
-            <td><div class="eq-name">${name}</div><div class="eq-model">${model}</div></td>
+          <tr data-eq-row>
+            <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">${n}</td>
+            <td>
+              <div class="eq-name" contenteditable="false">${name}</div>
+              <div class="eq-model" contenteditable="false">${model}</div>
+            </td>
             <td class="eq-qty">${qty}</td>
             <td style="text-align:center"><input type="number" class="num-inp" min="0" max="${qty}" placeholder="0"></td>
             <td><div class="radio-grp">
@@ -176,9 +235,19 @@ main.innerHTML = `
               <label><input type="radio" name="eq${n}" value="na"> N/A</label>
             </div></td>
             <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+            <td style="text-align:center;padding:.35rem .3rem">
+              <div class="photo-cell">
+                <input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)">
+                <div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div>
+              </div>
+            </td>
+            <td style="text-align:center;padding:.25rem 0"></td>
           </tr>`).join('')}
       </tbody>
     </table>
+    <div class="add-eq-row">
+      <button class="btn-add-eq" onclick="addEquipmentRow()">＋ เพิ่มเครื่องจักร / อุปกรณ์</button>
+    </div>
   </div>
 </div>
 
@@ -349,7 +418,74 @@ main.innerHTML = `
 </div>`;
 
 // Set today
-document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
+const today = new Date().toISOString().slice(0, 10);
+document.getElementById('f-date').value = today;
+document.getElementById('hd-effdate').value = today;
+
+// Renumber equipment rows
+function renumberEq() {
+  document.querySelectorAll('#eq-tbody tr[data-eq-row]').forEach((tr, i) => {
+    tr.querySelector('.eq-num').textContent = i + 1;
+    tr.querySelectorAll('input[type=radio]').forEach(r => {
+      r.name = 'eq' + (i + 1);
+    });
+  });
+}
+
+// Add equipment row
+window.addEquipmentRow = function() {
+  const tbody = document.getElementById('eq-tbody');
+  const n = tbody.querySelectorAll('tr[data-eq-row]').length + 1;
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-eq-row', '');
+  tr.innerHTML = \`
+    <td style="color:#94a3b8;font-size:.78rem;text-align:center" class="eq-num">\${n}</td>
+    <td>
+      <div class="eq-name" contenteditable="true" style="border-bottom:1px dashed #cbd5e1;min-width:120px;outline:none;padding:.1rem 0" data-placeholder="ชื่อเครื่องจักร">ชื่อเครื่องจักร</div>
+      <div class="eq-model" contenteditable="true" style="border-bottom:1px dashed #e2e8f0;min-width:120px;outline:none;padding:.1rem 0" data-placeholder="รุ่น / ยี่ห้อ">รุ่น / ยี่ห้อ</div>
+    </td>
+    <td class="eq-qty"><input type="number" class="num-inp" min="1" value="1" style="width:50px"></td>
+    <td style="text-align:center"><input type="number" class="num-inp" min="0" placeholder="0"></td>
+    <td><div class="radio-grp">
+      <label><input type="radio" name="eq\${n}" value="ok"> ปกติ</label>
+      <label><input type="radio" name="eq\${n}" value="warn"> บกพร่อง</label>
+      <label><input type="radio" name="eq\${n}" value="na"> N/A</label>
+    </div></td>
+    <td><input type="text" class="note-inp" placeholder="ระบุ..."></td>
+    <td style="text-align:center;padding:.35rem .3rem">
+      <div class="photo-cell">
+        <input type="file" accept="image/*" style="display:none" onchange="previewPhoto(this)">
+        <div class="photo-btn" title="แนบรูป" onclick="this.previousElementSibling.click()">📷</div>
+      </div>
+    </td>
+    <td style="text-align:center;padding:.25rem 0">
+      <button class="btn-del-eq" title="ลบแถวนี้" onclick="this.closest('tr').remove();renumberEq()">✕</button>
+    </td>\`;
+  tbody.appendChild(tr);
+  tr.querySelector('[contenteditable]').focus();
+};
+
+// Photo preview
+window.previewPhoto = function(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const cell = input.closest('.photo-cell');
+    let thumb = cell.querySelector('.photo-thumb');
+    if (!thumb) {
+      thumb = document.createElement('img');
+      thumb.className = 'photo-thumb';
+      thumb.title = 'คลิกเพื่อดูรูปใหญ่';
+      thumb.onclick = () => window.open(thumb.src, '_blank');
+      cell.appendChild(thumb);
+      const btn = cell.querySelector('.photo-btn');
+      btn.textContent = '🔄';
+      btn.title = 'เปลี่ยนรูป';
+    }
+    thumb.src = e.target.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+};
 
 // Live KPI dots
 const KPI_RULES = [
