@@ -3,7 +3,7 @@ import { db, auth } from "./auth.js";
 const uid = () => auth.currentUser?.uid ?? '';
 import {
   doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, getDocs,
-  collection, query, where, orderBy, limit, serverTimestamp,
+  collection, query, where, limit, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ── Collection names ─────────────────────────────────────────────────────────
@@ -82,11 +82,12 @@ async function listByMonth(col, year, month, maxRows = 50) {
     collection(db, col),
     where('year', '==', Number(year)),
     where('month', '==', Number(month)),
-    orderBy('date', 'desc'),
     limit(maxRows),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return rows;
 }
 
 // ── Energy ────────────────────────────────────────────────────────────────────
