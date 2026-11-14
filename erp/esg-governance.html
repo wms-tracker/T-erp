@@ -1,0 +1,547 @@
+<title>Module G — Governance</title>
+<style>
+.esgg-wrap{max-width:1100px;margin:0 auto;padding:1rem}
+.filter-bar{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.filter-bar select{padding:.4rem .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem}
+.tab-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.tab-btn{padding:.5rem 1rem;border:2px solid #d1d5db;border-radius:8px;background:none;cursor:pointer;font-size:.88rem;color:#374151}
+.tab-btn.active{border-color:#7c3aed;background:#f5f3ff;color:#6d28d9;font-weight:600}
+.kpi-row{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.kpi-card{flex:1;min-width:150px;background:#fff;border-radius:10px;padding:1rem 1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.kpi-val{font-size:1.8rem;font-weight:700;color:#111}
+.kpi-lbl{font-size:.78rem;color:#6b7280;margin-top:.2rem}
+.form-card{background:#fff;border-radius:12px;padding:1.5rem;box-shadow:0 1px 4px rgba(0,0,0,.08);margin-bottom:1.5rem}
+.form-card h3{margin:0 0 1rem;font-size:1rem;color:#111}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem 1rem;margin-bottom:.75rem}
+.form-grid-3{grid-template-columns:1fr 1fr 1fr}
+.fg{display:flex;flex-direction:column;gap:.3rem}
+.fg label{font-size:.82rem;font-weight:500;color:#374151}
+.fg input,.fg select,.fg textarea{padding:.45rem .6rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem;font-family:inherit}
+.fg textarea{resize:vertical;min-height:60px}
+.score-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem 1rem;display:flex;align-items:center;gap:.5rem}
+.score-box label{font-size:.82rem;font-weight:500;color:#374151;margin:0}
+.form-actions{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1rem}
+.btn-pri{background:#7c3aed;color:#fff;border:none;padding:.5rem 1.4rem;border-radius:8px;font-size:.9rem;cursor:pointer;font-weight:600}
+.btn-pri:hover{background:#6d28d9}
+.btn-pri:disabled{opacity:.6;cursor:not-allowed}
+.btn-sec{background:#fff;color:#374151;border:1px solid #d1d5db;padding:.5rem 1.2rem;border-radius:8px;font-size:.9rem;cursor:pointer}
+.tbl-wrap{overflow-x:auto;margin-bottom:1.5rem}
+.data-table{width:100%;border-collapse:collapse;font-size:.85rem;min-width:600px}
+.data-table th{background:#f3f4f6;padding:.6rem .75rem;text-align:left;color:#374151;font-weight:600;border-bottom:2px solid #e5e7eb}
+.data-table td{padding:.55rem .75rem;border-bottom:1px solid #f3f4f6;color:#111;vertical-align:top}
+.data-table tr:hover td{background:#f9fafb}
+.action-cell{white-space:nowrap}
+.btn-edit{background:#fff;border:1px solid #7c3aed;color:#6d28d9;padding:.25rem .6rem;border-radius:5px;font-size:.78rem;cursor:pointer;margin-right:.3rem}
+.btn-del{background:#fff;border:1px solid #ef4444;color:#dc2626;padding:.25rem .6rem;border-radius:5px;font-size:.78rem;cursor:pointer}
+.badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.78rem;font-weight:600}
+.no-data{color:#9ca3af;text-align:center;padding:1.5rem;font-size:.9rem}
+.loading{color:#6b7280;padding:.5rem 0;display:block}
+.err{color:#ef4444;font-size:.9rem}
+@media(max-width:640px){
+  .form-grid,.form-grid-3{grid-template-columns:1fr}
+  .kpi-card{min-width:calc(50% - .5rem)}
+}
+</style>
+<script type="module">
+import { requireRole } from "./js/auth.js";
+import { renderShell } from "./js/shell.js";
+import {
+  C, DEPTS, AUDIT_TYPES, SEVERITIES, AUDIT_STATUSES,
+  LEGAL_CATS, LEGAL_STATUSES, RISK_CATS, RISK_STATUSES, ETHICS_TYPES,
+  saveAudit,  listAudit,
+  saveLegal,  listLegal,
+  saveRisk,   listRisk,
+  saveEthics, listEthics,
+  deleteRec,
+} from "./js/esg-gov.js";
+
+// ── Pre-compute option strings ─────────────────────────────────────────────
+const opt = (arr) => arr.map(t => '<option value="'+t.key+'">'+t.label+'</option>').join('');
+const dopt = DEPTS.map(d => '<option value="'+d+'">'+d+'</option>').join('');
+const AUDIT_TYPE_OPT   = opt(AUDIT_TYPES);
+const SEVERITY_OPT     = opt(SEVERITIES);
+const AUDIT_STATUS_OPT = opt(AUDIT_STATUSES);
+const LEGAL_CAT_OPT    = opt(LEGAL_CATS);
+const LEGAL_STATUS_OPT = opt(LEGAL_STATUSES);
+const RISK_CAT_OPT     = opt(RISK_CATS);
+const RISK_STATUS_OPT  = opt(RISK_STATUSES);
+const ETHICS_TYPE_OPT  = opt(ETHICS_TYPES);
+const LVL_OPT = [1,2,3,4,5].map(n => '<option value="'+n+'">'+n+'</option>').join('');
+const NOW = new Date();
+const CY = NOW.getFullYear(), CM = NOW.getMonth() + 1;
+let YEAR_OPT = '';
+for (let y = CY; y >= CY - 4; y--)
+  YEAR_OPT += '<option value="'+y+'"'+(y===CY?' selected':'')+'>'+y+'</option>';
+const MN = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+let MONTH_OPT = '';
+MN.forEach((m, i) => { MONTH_OPT += '<option value="'+(i+1)+'"'+((i+1)===CM?' selected':'')+'>'+m+'</option>'; });
+const TODAY = NOW.toISOString().split('T')[0];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _profile, _isAdmin, _year = CY, _month = CM, _tab = 'audit', _editId = null;
+let DEL_SHOW = '';
+const _data = { audit: [], legal: [], risk: [], ethics: [] };
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function init() {
+  _profile = await requireRole(['admin','safety_officer','manager','oel_manager']);
+  _isAdmin  = _profile.role === 'admin';
+  DEL_SHOW  = _isAdmin ? '' : 'display:none';
+
+  const main = renderShell(_profile, 'esg-governance', 'Module G — Governance');
+  main.innerHTML = `<div class="esgg-wrap">
+  <div class="filter-bar">
+    <label style="font-size:.88rem;font-weight:600">ปี</label>
+    <select id="sel-year">${YEAR_OPT}</select>
+    <label style="font-size:.88rem;font-weight:600">เดือน</label>
+    <select id="sel-month">${MONTH_OPT}</select>
+  </div>
+  <div class="tab-bar">
+    <button id="tab-audit"  class="tab-btn active" onclick="switchTab('audit')">📋 Audit</button>
+    <button id="tab-legal"  class="tab-btn"        onclick="switchTab('legal')">⚖️ กฎหมาย</button>
+    <button id="tab-risk"   class="tab-btn"        onclick="switchTab('risk')">🔐 ความเสี่ยง</button>
+    <button id="tab-ethics" class="tab-btn"        onclick="switchTab('ethics')">🤝 จริยธรรม</button>
+  </div>
+
+  <!-- ======= AUDIT ======= -->
+  <div id="panel-audit" class="tab-panel">
+    <div id="kpi-audit" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>📋 บันทึกผลการตรวจสอบ</h3>
+      <form id="form-audit">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="au-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="au-dept"><option value="">-- หน่วยงาน --</option>${dopt}</select></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>ประเภทการตรวจ *</label><select id="au-type" required><option value="">-- ประเภท --</option>${AUDIT_TYPE_OPT}</select></div>
+          <div class="fg"><label>ผู้ตรวจ / หน่วยงานตรวจ</label><input id="au-auditor" type="text" placeholder="ชื่อผู้ตรวจหรือหน่วยงาน"></div>
+        </div>
+        <div class="fg" style="margin-bottom:.75rem"><label>ข้อค้นพบ / ประเด็น *</label><textarea id="au-finding" required placeholder="อธิบายสิ่งที่พบจากการตรวจ..."></textarea></div>
+        <div class="form-grid form-grid-3">
+          <div class="fg"><label>ความรุนแรง</label><select id="au-severity"><option value="">-- ระดับ --</option>${SEVERITY_OPT}</select></div>
+          <div class="fg"><label>กำหนดแล้วเสร็จ</label><input id="au-target" type="date"></div>
+          <div class="fg"><label>สถานะ</label><select id="au-status"><option value="">-- สถานะ --</option>${AUDIT_STATUS_OPT}</select></div>
+        </div>
+        <div class="fg" style="margin-bottom:.75rem"><label>การแก้ไข / มาตรการ</label><input id="au-corrective" type="text" placeholder="แผนการแก้ไขหรือมาตรการที่ดำเนินการ"></div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="au-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('audit')">ล้าง</button>
+          <button type="submit" id="btn-submit-audit" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-audit"></div></div>
+  </div>
+
+  <!-- ======= LEGAL ======= -->
+  <div id="panel-legal" class="tab-panel" hidden>
+    <div id="kpi-legal" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>⚖️ บันทึกกฎหมาย &amp; ข้อกำหนด</h3>
+      <form id="form-legal">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ทบทวน *</label><input id="lg-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงานรับผิดชอบ</label><select id="lg-dept"><option value="">-- หน่วยงาน --</option>${dopt}</select></div>
+        </div>
+        <div class="fg" style="margin-bottom:.75rem"><label>ชื่อกฎหมาย / ข้อกำหนด *</label><input id="lg-law" type="text" required placeholder="เช่น พ.ร.บ.ความปลอดภัยฯ 2554, ISO 14001"></div>
+        <div class="form-grid">
+          <div class="fg"><label>หมวดหมู่</label><select id="lg-cat"><option value="">-- หมวด --</option>${LEGAL_CAT_OPT}</select></div>
+          <div class="fg"><label>สถานะการปฏิบัติตาม *</label><select id="lg-status" required><option value="">-- สถานะ --</option>${LEGAL_STATUS_OPT}</select></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>กำหนดแล้วเสร็จ</label><input id="lg-due" type="date"></div>
+          <div class="fg"></div>
+        </div>
+        <div class="fg"><label>หมายเหตุ / แผนดำเนินการ</label><textarea id="lg-notes" placeholder="หมายเหตุหรือแผนการดำเนินการ..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('legal')">ล้าง</button>
+          <button type="submit" id="btn-submit-legal" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-legal"></div></div>
+  </div>
+
+  <!-- ======= RISK ======= -->
+  <div id="panel-risk" class="tab-panel" hidden>
+    <div id="kpi-risk" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>🔐 บันทึกความเสี่ยง (Risk Register)</h3>
+      <form id="form-risk">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="rk-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="rk-dept"><option value="">-- หน่วยงาน --</option>${dopt}</select></div>
+        </div>
+        <div class="fg" style="margin-bottom:.75rem"><label>คำอธิบายความเสี่ยง *</label><textarea id="rk-desc" required placeholder="อธิบายความเสี่ยงที่พบหรือประเมิน..."></textarea></div>
+        <div class="form-grid">
+          <div class="fg"><label>หมวดหมู่ความเสี่ยง</label><select id="rk-cat"><option value="">-- หมวด --</option>${RISK_CAT_OPT}</select></div>
+          <div class="fg"><label>เจ้าของความเสี่ยง</label><input id="rk-owner" type="text" placeholder="ชื่อผู้รับผิดชอบ"></div>
+        </div>
+        <div class="form-grid form-grid-3">
+          <div class="fg"><label>โอกาสเกิด (1-5) *</label><select id="rk-l" required onchange="updateRiskScore()" onblur="updateRiskScore()"><option value="">—</option>${LVL_OPT}</select></div>
+          <div class="fg"><label>ผลกระทบ (1-5) *</label><select id="rk-i" required onchange="updateRiskScore()" onblur="updateRiskScore()"><option value="">—</option>${LVL_OPT}</select></div>
+          <div class="fg"><label>คะแนนความเสี่ยง</label><div class="score-box"><div id="risk-score-display"><span style="color:#9ca3af">—</span></div></div></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>แผนลดความเสี่ยง</label><input id="rk-mitigation" type="text" placeholder="มาตรการหรือแผนการดำเนินการ"></div>
+          <div class="fg"><label>สถานะ</label><select id="rk-status"><option value="">-- สถานะ --</option>${RISK_STATUS_OPT}</select></div>
+        </div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="rk-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('risk')">ล้าง</button>
+          <button type="submit" id="btn-submit-risk" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-risk"></div></div>
+  </div>
+
+  <!-- ======= ETHICS ======= -->
+  <div id="panel-ethics" class="tab-panel" hidden>
+    <div id="kpi-ethics" class="kpi-row"></div>
+    <div class="form-card">
+      <h3>🤝 บันทึกจริยธรรม &amp; ต่อต้านทุจริต</h3>
+      <form id="form-ethics">
+        <div class="form-grid">
+          <div class="fg"><label>วันที่ *</label><input id="et-date" type="date" value="${TODAY}" required></div>
+          <div class="fg"><label>หน่วยงาน</label><select id="et-dept"><option value="">-- หน่วยงาน --</option>${dopt}</select></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>หัวข้อ / เรื่อง *</label><input id="et-topic" type="text" required placeholder="เช่น Anti-Corruption Training, Code of Conduct Review"></div>
+          <div class="fg"><label>ประเภทกิจกรรม</label><select id="et-type"><option value="">-- ประเภท --</option>${ETHICS_TYPE_OPT}</select></div>
+        </div>
+        <div class="form-grid">
+          <div class="fg"><label>จำนวนผู้เข้าร่วม (คน)</label><input id="et-participants" type="number" min="0" placeholder="0"></div>
+          <div class="fg"></div>
+        </div>
+        <div class="fg"><label>หมายเหตุ</label><textarea id="et-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-sec" onclick="clearForm('ethics')">ล้าง</button>
+          <button type="submit" id="btn-submit-ethics" class="btn-pri">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+    <div class="tbl-wrap"><div id="tbl-ethics"></div></div>
+  </div>
+</div>`;
+
+  document.getElementById('sel-year').addEventListener('change', onYearMonth);
+  document.getElementById('sel-month').addEventListener('change', onYearMonth);
+  ['audit','legal','risk','ethics'].forEach(tab => {
+    document.getElementById('form-'+tab).addEventListener('submit', e => submitForm(e, tab));
+  });
+
+  switchTab('audit');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  _tab = tab; _editId = null;
+  ['audit','legal','risk','ethics'].forEach(t => {
+    document.getElementById('panel-'+t).hidden = t !== tab;
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+  });
+  loadTab(tab);
+}
+
+function onYearMonth() {
+  _year  = Number(document.getElementById('sel-year').value);
+  _month = Number(document.getElementById('sel-month').value);
+  loadTab(_tab);
+}
+
+// ── Load & render ─────────────────────────────────────────────────────────────
+async function loadTab(tab) {
+  const kpiEl = document.getElementById('kpi-'+tab);
+  const tblEl = document.getElementById('tbl-'+tab);
+  kpiEl.innerHTML = '<span class="loading">กำลังโหลด...</span>';
+  tblEl.innerHTML = '';
+  try {
+    let rows;
+    if      (tab === 'audit')  rows = await listAudit(_year, _month);
+    else if (tab === 'legal')  rows = await listLegal(_year, _month);
+    else if (tab === 'risk')   rows = await listRisk(_year, _month);
+    else                       rows = await listEthics(_year, _month);
+    _data[tab] = rows;
+    if (tab === 'audit')  { renderKPI_audit(rows, kpiEl);  renderAudit(rows, tblEl); }
+    else if (tab === 'legal')  { renderKPI_legal(rows, kpiEl);  renderLegal(rows, tblEl); }
+    else if (tab === 'risk')   { renderKPI_risk(rows, kpiEl);   renderRisk(rows, tblEl); }
+    else { renderKPI_ethics(rows, kpiEl); renderEthics(rows, tblEl); }
+  } catch (err) {
+    kpiEl.innerHTML = '<span class="err">โหลดข้อมูลไม่สำเร็จ: '+err.message+'</span>';
+  }
+}
+
+// ── KPI helpers ───────────────────────────────────────────────────────────────
+const sum = (arr, k) => arr.reduce((s, r) => s + (Number(r[k]) || 0), 0);
+const kpi = (val, lbl, color) =>
+  '<div class="kpi-card" style="border-left:4px solid '+color+'">'
+  +'<div class="kpi-val">'+val+'</div><div class="kpi-lbl">'+lbl+'</div></div>';
+
+function renderKPI_audit(rows, el) {
+  const open = rows.filter(r => r.audit_status !== 'closed').length;
+  const crit = rows.filter(r => r.severity === 'critical' || r.severity === 'high').length;
+  el.innerHTML = kpi(rows.length,'ข้อค้นพบทั้งหมด','#7c3aed')
+    + kpi(open,'ยังเปิด / In Progress','#f59e0b')
+    + kpi(crit,'High / Critical','#ef4444');
+}
+function renderKPI_legal(rows, el) {
+  const comp = rows.filter(r => r.compliance_status === 'compliant').length;
+  const nc   = rows.filter(r => r.compliance_status === 'non_compliant').length;
+  el.innerHTML = kpi(rows.length,'กฎหมายที่ทบทวน','#2563eb')
+    + kpi(comp,'Compliant ✅','#16a34a')
+    + kpi(nc,'Non-Compliant ❌','#dc2626');
+}
+function renderKPI_risk(rows, el) {
+  const active = rows.filter(r => r.risk_status === 'active').length;
+  const high   = rows.filter(r => (r.risk_score || 0) >= 10).length;
+  const avg    = rows.length ? (sum(rows,'risk_score') / rows.length).toFixed(1) : '—';
+  el.innerHTML = kpi(active,'Active Risks','#f97316')
+    + kpi(high,'High Risk (≥10)','#dc2626')
+    + kpi(avg,'คะแนนเฉลี่ย','#6366f1');
+}
+function renderKPI_ethics(rows, el) {
+  el.innerHTML = kpi(rows.length,'กิจกรรมทั้งหมด','#0891b2')
+    + kpi(sum(rows,'participants'),'ผู้เข้าร่วมรวม (คน)','#059669')
+    + kpi('—','—','#d1d5db');
+}
+
+// ── Risk score badge ──────────────────────────────────────────────────────────
+function riskBadge(score) {
+  let bg = '#e5e7eb', fg = '#374151';
+  if (score >= 15) { bg = '#fee2e2'; fg = '#dc2626'; }
+  else if (score >= 10) { bg = '#ffedd5'; fg = '#ea580c'; }
+  else if (score >= 5)  { bg = '#fef9c3'; fg = '#ca8a04'; }
+  else if (score > 0)   { bg = '#dcfce7'; fg = '#16a34a'; }
+  return '<span class="badge" style="background:'+bg+';color:'+fg+'">'+score+'</span>';
+}
+
+function severityBadge(s) {
+  const map = { low:'#dcfce7|#16a34a', medium:'#fef9c3|#ca8a04', high:'#ffedd5|#ea580c', critical:'#fee2e2|#dc2626' };
+  const p = (map[s] || '#e5e7eb|#374151').split('|');
+  const labels = { low:'Low', medium:'Medium', high:'High', critical:'Critical' };
+  return '<span class="badge" style="background:'+p[0]+';color:'+p[1]+'">'+(labels[s]||s||'—')+'</span>';
+}
+
+function statusBadge(s) {
+  const map = { open:'#fee2e2|#dc2626', in_progress:'#fef9c3|#ca8a04', closed:'#dcfce7|#16a34a', compliant:'#dcfce7|#16a34a', non_compliant:'#fee2e2|#dc2626', na:'#e5e7eb|#6b7280', active:'#ffedd5|#ea580c', mitigated:'#dbeafe|#1d4ed8', accepted:'#e5e7eb|#374151' };
+  const p = (map[s] || '#e5e7eb|#374151').split('|');
+  const labels = { open:'Open', in_progress:'In Progress', closed:'Closed', compliant:'Compliant', non_compliant:'Non-Compliant', na:'N/A', active:'Active', mitigated:'Mitigated', accepted:'Accepted' };
+  return '<span class="badge" style="background:'+p[0]+';color:'+p[1]+'">'+(labels[s]||s||'—')+'</span>';
+}
+
+// ── Table renderers ───────────────────────────────────────────────────────────
+const eBtn = (tab, id) => '<button class="btn-edit" onclick="editRow(\''+tab+'\',\''+id+'\')">แก้ไข</button>';
+const dBtn = (tab, id) => '<button class="btn-del" style="'+DEL_SHOW+'" onclick="delRow(\''+tab+'\',\''+id+'\')">ลบ</button>';
+
+function renderAudit(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  const tl = t => { const f = AUDIT_TYPES.find(x => x.key === t); return f ? f.label : (t||'—'); };
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>ประเภท</th><th>ข้อค้นพบ</th><th>ระดับ</th><th>สถานะ</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+tl(r.audit_type)+'</td><td style="max-width:200px">'+(r.finding||'—')+'</td><td>'+severityBadge(r.severity)+'</td><td>'+statusBadge(r.audit_status)+'</td><td class="action-cell">'+eBtn('audit',r.id)+dBtn('audit',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+function renderLegal(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  const cl = k => { const f = LEGAL_CATS.find(x => x.key === k); return f ? f.label : (k||'—'); };
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>กฎหมาย / ข้อกำหนด</th><th>หมวด</th><th>สถานะ</th><th>กำหนด</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+(r.law_name||'—')+'</td><td>'+cl(r.legal_cat)+'</td><td>'+statusBadge(r.compliance_status)+'</td><td>'+(r.due_date||'—')+'</td><td class="action-cell">'+eBtn('legal',r.id)+dBtn('legal',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+function renderRisk(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>ความเสี่ยง</th><th>L</th><th>I</th><th>Score</th><th>สถานะ</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td style="max-width:200px">'+(r.risk_description||'—')+'</td><td>'+(r.likelihood||'—')+'</td><td>'+(r.impact||'—')+'</td><td>'+riskBadge(r.risk_score||0)+'</td><td>'+statusBadge(r.risk_status)+'</td><td class="action-cell">'+eBtn('risk',r.id)+dBtn('risk',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+function renderEthics(rows, el) {
+  if (!rows.length) { el.innerHTML = '<p class="no-data">ไม่มีข้อมูลในเดือนนี้</p>'; return; }
+  const tl = t => { const f = ETHICS_TYPES.find(x => x.key === t); return f ? f.label : (t||'—'); };
+  let h = '<table class="data-table"><thead><tr><th>วันที่</th><th>หน่วยงาน</th><th>หัวข้อ</th><th>ประเภท</th><th>ผู้เข้าร่วม</th><th></th></tr></thead><tbody>';
+  rows.forEach(r => { h += '<tr><td>'+r.date+'</td><td>'+(r.dept||'—')+'</td><td>'+(r.topic||'—')+'</td><td>'+tl(r.ethics_type)+'</td><td>'+(r.participants||0)+'</td><td class="action-cell">'+eBtn('ethics',r.id)+dBtn('ethics',r.id)+'</td></tr>'; });
+  el.innerHTML = h + '</tbody></table>';
+}
+
+// ── Risk score calculator ─────────────────────────────────────────────────────
+function updateRiskScore() {
+  const l = Number(document.getElementById('rk-l').value) || 0;
+  const i = Number(document.getElementById('rk-i').value) || 0;
+  const score = l * i;
+  const el = document.getElementById('risk-score-display');
+  if (!el) return;
+  let color = '#9ca3af';
+  if (score >= 15) color = '#dc2626';
+  else if (score >= 10) color = '#ea580c';
+  else if (score >= 5)  color = '#ca8a04';
+  else if (score > 0)   color = '#16a34a';
+  el.innerHTML = score > 0
+    ? '<span style="font-size:1.5rem;font-weight:700;color:'+color+'">'+score+'</span> <span style="font-size:.78rem;color:#6b7280">/ 25</span>'
+    : '<span style="color:#9ca3af">—</span>';
+}
+
+// ── Form helpers ──────────────────────────────────────────────────────────────
+function getForm(tab) {
+  if (tab === 'audit') return {
+    id: _editId, year: _year, month: _month,
+    date:             document.getElementById('au-date').value,
+    dept:             document.getElementById('au-dept').value,
+    audit_type:       document.getElementById('au-type').value,
+    auditor:          document.getElementById('au-auditor').value,
+    finding:          document.getElementById('au-finding').value,
+    severity:         document.getElementById('au-severity').value,
+    target_date:      document.getElementById('au-target').value,
+    audit_status:     document.getElementById('au-status').value,
+    corrective_action:document.getElementById('au-corrective').value,
+    notes:            document.getElementById('au-notes').value,
+  };
+  if (tab === 'legal') return {
+    id: _editId, year: _year, month: _month,
+    date:               document.getElementById('lg-date').value,
+    dept:               document.getElementById('lg-dept').value,
+    law_name:           document.getElementById('lg-law').value,
+    legal_cat:          document.getElementById('lg-cat').value,
+    compliance_status:  document.getElementById('lg-status').value,
+    due_date:           document.getElementById('lg-due').value,
+    notes:              document.getElementById('lg-notes').value,
+  };
+  if (tab === 'risk') return {
+    id: _editId, year: _year, month: _month,
+    date:             document.getElementById('rk-date').value,
+    dept:             document.getElementById('rk-dept').value,
+    risk_description: document.getElementById('rk-desc').value,
+    risk_category:    document.getElementById('rk-cat').value,
+    risk_owner:       document.getElementById('rk-owner').value,
+    likelihood:       Number(document.getElementById('rk-l').value) || 0,
+    impact:           Number(document.getElementById('rk-i').value) || 0,
+    mitigation:       document.getElementById('rk-mitigation').value,
+    risk_status:      document.getElementById('rk-status').value,
+    notes:            document.getElementById('rk-notes').value,
+  };
+  return {
+    id: _editId, year: _year, month: _month,
+    date:         document.getElementById('et-date').value,
+    dept:         document.getElementById('et-dept').value,
+    topic:        document.getElementById('et-topic').value,
+    ethics_type:  document.getElementById('et-type').value,
+    participants: Number(document.getElementById('et-participants').value) || 0,
+    notes:        document.getElementById('et-notes').value,
+  };
+}
+
+function clearForm(tab) {
+  _editId = null;
+  const ids = {
+    audit:  ['au-date','au-dept','au-type','au-auditor','au-finding','au-severity','au-target','au-status','au-corrective','au-notes'],
+    legal:  ['lg-date','lg-dept','lg-law','lg-cat','lg-status','lg-due','lg-notes'],
+    risk:   ['rk-date','rk-dept','rk-desc','rk-cat','rk-owner','rk-l','rk-i','rk-mitigation','rk-status','rk-notes'],
+    ethics: ['et-date','et-dept','et-topic','et-type','et-participants','et-notes'],
+  };
+  ids[tab].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id.endsWith('-date')) el.value = TODAY;
+    else el.value = '';
+  });
+  if (tab === 'risk') updateRiskScore();
+  document.getElementById('btn-submit-'+tab).textContent = '💾 บันทึก';
+}
+
+function fillForm(tab, row) {
+  _editId = row.id;
+  if (tab === 'audit') {
+    document.getElementById('au-date').value      = row.date              || TODAY;
+    document.getElementById('au-dept').value      = row.dept              || '';
+    document.getElementById('au-type').value      = row.audit_type        || '';
+    document.getElementById('au-auditor').value   = row.auditor           || '';
+    document.getElementById('au-finding').value   = row.finding           || '';
+    document.getElementById('au-severity').value  = row.severity          || '';
+    document.getElementById('au-target').value    = row.target_date       || '';
+    document.getElementById('au-status').value    = row.audit_status      || '';
+    document.getElementById('au-corrective').value= row.corrective_action || '';
+    document.getElementById('au-notes').value     = row.notes             || '';
+  } else if (tab === 'legal') {
+    document.getElementById('lg-date').value   = row.date              || TODAY;
+    document.getElementById('lg-dept').value   = row.dept              || '';
+    document.getElementById('lg-law').value    = row.law_name          || '';
+    document.getElementById('lg-cat').value    = row.legal_cat         || '';
+    document.getElementById('lg-status').value = row.compliance_status || '';
+    document.getElementById('lg-due').value    = row.due_date          || '';
+    document.getElementById('lg-notes').value  = row.notes             || '';
+  } else if (tab === 'risk') {
+    document.getElementById('rk-date').value       = row.date             || TODAY;
+    document.getElementById('rk-dept').value       = row.dept             || '';
+    document.getElementById('rk-desc').value       = row.risk_description || '';
+    document.getElementById('rk-cat').value        = row.risk_category    || '';
+    document.getElementById('rk-owner').value      = row.risk_owner       || '';
+    document.getElementById('rk-l').value          = row.likelihood       || '';
+    document.getElementById('rk-i').value          = row.impact           || '';
+    document.getElementById('rk-mitigation').value = row.mitigation       || '';
+    document.getElementById('rk-status').value     = row.risk_status      || '';
+    document.getElementById('rk-notes').value      = row.notes            || '';
+    updateRiskScore();
+  } else {
+    document.getElementById('et-date').value         = row.date         || TODAY;
+    document.getElementById('et-dept').value         = row.dept         || '';
+    document.getElementById('et-topic').value        = row.topic        || '';
+    document.getElementById('et-type').value         = row.ethics_type  || '';
+    document.getElementById('et-participants').value = row.participants || '';
+    document.getElementById('et-notes').value        = row.notes        || '';
+  }
+  document.getElementById('btn-submit-'+tab).textContent = '💾 อัปเดต';
+  document.getElementById('form-'+tab).scrollIntoView({ behavior: 'smooth' });
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitForm(e, tab) {
+  e.preventDefault();
+  const data = getForm(tab);
+  const btn  = document.getElementById('btn-submit-'+tab);
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+  try {
+    if      (tab === 'audit')  await saveAudit(data);
+    else if (tab === 'legal')  await saveLegal(data);
+    else if (tab === 'risk')   await saveRisk(data);
+    else                       await saveEthics(data);
+    clearForm(tab);
+    await loadTab(tab);
+  } catch (err) {
+    alert('บันทึกไม่สำเร็จ: ' + err.message);
+    btn.disabled = false; btn.textContent = orig;
+  }
+}
+
+// ── Edit / Delete ─────────────────────────────────────────────────────────────
+function editRow(tab, id) {
+  const row = _data[tab].find(r => r.id === id);
+  if (!row) return;
+  ['audit','legal','risk','ethics'].forEach(t => {
+    document.getElementById('panel-'+t).hidden = t !== tab;
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+  });
+  _tab = tab;
+  fillForm(tab, row);
+}
+
+async function delRow(tab, id) {
+  if (!_isAdmin) return;
+  if (!confirm('ลบรายการนี้?')) return;
+  try {
+    await deleteRec(C[tab.toUpperCase()], id);
+    await loadTab(tab);
+  } catch (err) { alert('ลบไม่สำเร็จ: ' + err.message); }
+}
+
+// ── Expose to global ──────────────────────────────────────────────────────────
+window.switchTab       = switchTab;
+window.clearForm       = clearForm;
+window.editRow         = editRow;
+window.delRow          = delRow;
+window.updateRiskScore = updateRiskScore;
+
+init().catch(console.error);
+</script>

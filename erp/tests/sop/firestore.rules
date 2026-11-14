@@ -579,5 +579,31 @@ service cloud.firestore {
         && myRole() in ['admin','safety_officer','manager','oel_manager'];
       allow delete: if isAdmin();
     }
+
+    // ----- Module G — Governance (4 sub-module collections) -----
+    match /govAudit/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /govLegal/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /govRisk/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /govEthics/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
   }
 }
