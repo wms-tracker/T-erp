@@ -134,11 +134,13 @@
 <body>
 
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
+import { doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const _profile = await requireRole(['admin','safety_officer','oel_manager','manager','managing_director','kpo']);
 const main = renderShell(_profile, 'esg-monitoring', 'แบบฟอร์มตรวจสอบ Monitoring');
+const _isAdmin = _profile.role === 'admin';
 
 main.innerHTML = `
 <div class="action-bar no-print">
@@ -147,21 +149,71 @@ main.innerHTML = `
 </div>
 
 <!-- Document Header -->
-<div class="doc-header">
+<div class="doc-header" style="position:relative">
   <div class="doc-hd-logo">
-    <div class="doc-hd-logo-circle">HG</div>
-    <div class="doc-hd-logo-name">HORIZON GROUP<br>(THAILAND)</div>
+    <div id="hd-logo-wrap">
+      <div class="doc-hd-logo-circle" id="hd-logo-abbr">HG</div>
+    </div>
+    <div class="doc-hd-logo-name" id="hd-company-short">HORIZON GROUP<br>(THAILAND)</div>
   </div>
   <div class="doc-hd-center">
-    <div class="doc-hd-title-th">แบบฟอร์มตรวจสอบและรายงานผล</div>
-    <div class="doc-hd-title-en">Monitoring &amp; Reporting Form — ESG</div>
-    <div class="doc-hd-addr">TPY Estate (Warehouse D &amp; F) · 12/1 Moo 2, Setthakij 1 Rd., Na Di, Mueang Samut Sakhon 74000</div>
+    <div class="doc-hd-title-th" id="hd-company-th">แบบฟอร์มตรวจสอบและรายงานผล</div>
+    <div class="doc-hd-title-en" id="hd-company-en">Monitoring &amp; Reporting Form — ESG</div>
+    <div class="doc-hd-addr" id="hd-company-addr">TPY Estate (Warehouse D &amp; F) · 12/1 Moo 2, Setthakij 1 Rd., Na Di, Mueang Samut Sakhon 74000</div>
   </div>
   <div class="doc-hd-meta">
     <div class="doc-meta-row"><span class="doc-meta-label">เลขที่เอกสาร</span><input class="doc-meta-input" value="HG-ESG-M-01"></div>
     <div class="doc-meta-row"><span class="doc-meta-label">แก้ไขครั้งที่</span><input class="doc-meta-input" value="00" style="width:35px"></div>
     <div class="doc-meta-row"><span class="doc-meta-label">วันที่บังคับใช้</span><input class="doc-meta-input" id="hd-effdate" style="width:90px"></div>
     <div class="doc-meta-row"><span class="doc-meta-label">หน้าที่</span><span class="doc-meta-val">1 / 1</span></div>
+  </div>
+  <button id="btn-edit-company" class="no-print" title="แก้ไขข้อมูลบริษัท" onclick="openCompanyModal()"
+    style="position:absolute;top:6px;right:6px;background:none;border:1px solid #e2e8f0;border-radius:6px;padding:.18rem .45rem;font-size:.72rem;color:#94a3b8;cursor:pointer;display:none">✏️ แก้ไข</button>
+</div>
+
+<!-- Company settings modal -->
+<div id="company-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:14px;padding:1.3rem 1.5rem;width:min(480px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="font-size:.95rem;font-weight:800;color:#1e3a5f;margin-bottom:1rem">⚙️ ตั้งค่าข้อมูลบริษัท / หน่วยงาน</div>
+
+    <div style="margin-bottom:.65rem">
+      <div class="f-label">โลโก้ (อัปโหลดรูป หรือใส่ตัวย่อ)</div>
+      <div style="display:flex;gap:.6rem;align-items:center;margin-top:.3rem">
+        <div id="logo-preview-wrap">
+          <div class="doc-hd-logo-circle" id="logo-preview-abbr" style="cursor:default">HG</div>
+        </div>
+        <div style="flex:1">
+          <input type="file" id="logo-file" accept="image/*" style="display:none" onchange="onLogoFile(this)">
+          <button onclick="document.getElementById('logo-file').click()" style="padding:.3rem .7rem;border:1px solid #cbd5e1;border-radius:6px;background:#f8faff;font-size:.8rem;cursor:pointer;margin-bottom:.35rem">📁 อัปโหลดโลโก้</button>
+          <div class="f-label" style="margin-top:.3rem">ตัวย่อ (ถ้าไม่มีรูป)</div>
+          <input type="text" id="cm-abbr" class="f-input" placeholder="เช่น HG" maxlength="4" style="max-width:80px">
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.65rem">
+      <div>
+        <div class="f-label">ชื่อบริษัท (ไทย)</div>
+        <input type="text" id="cm-name-th" class="f-input" placeholder="ชื่อภาษาไทย">
+      </div>
+      <div>
+        <div class="f-label">ชื่อบริษัท (อังกฤษ)</div>
+        <input type="text" id="cm-name-en" class="f-input" placeholder="Company Name">
+      </div>
+    </div>
+    <div style="margin-bottom:.65rem">
+      <div class="f-label">ที่อยู่ / สถานที่</div>
+      <input type="text" id="cm-addr" class="f-input" placeholder="ที่อยู่โกดัง / สถานที่">
+    </div>
+    <div style="margin-bottom:.65rem">
+      <div class="f-label">ชื่อย่อใต้โลโก้</div>
+      <input type="text" id="cm-short" class="f-input" placeholder="เช่น HORIZON GROUP (THAILAND)">
+    </div>
+
+    <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.9rem">
+      <button onclick="closeCompanyModal()" style="padding:.38rem .9rem;border:1px solid #e2e8f0;border-radius:7px;background:#fff;color:#64748b;cursor:pointer;font-size:.84rem">ยกเลิก</button>
+      <button onclick="saveCompany()" style="padding:.38rem 1.1rem;border:none;border-radius:7px;background:#1e3a5f;color:#fff;cursor:pointer;font-size:.84rem;font-weight:700">💾 บันทึก</button>
+    </div>
   </div>
 </div>
 
@@ -442,6 +494,85 @@ main.innerHTML = `
 const today = new Date().toISOString().slice(0, 10);
 document.getElementById('f-date').value = today;
 document.getElementById('hd-effdate').value = today;
+
+// --- Company settings ---
+let _logoData = null; // base64 string or null
+
+function applyCompany(c) {
+  if (!c) return;
+  const logoWrap = document.getElementById('hd-logo-wrap');
+  if (c.logoImg) {
+    logoWrap.innerHTML = '<img src="' + c.logoImg + '" style="width:52px;height:52px;border-radius:50%;object-fit:contain;border:2px solid #1e3a5f">';
+    _logoData = c.logoImg;
+  } else {
+    const abbr = c.abbr || 'HG';
+    logoWrap.innerHTML = '<div class="doc-hd-logo-circle" id="hd-logo-abbr">' + abbr + '</div>';
+    _logoData = null;
+  }
+  if (c.shortName) document.getElementById('hd-company-short').innerHTML = c.shortName.replace(/\n/g, '<br>');
+  if (c.nameTh)    document.getElementById('hd-company-th').textContent = c.nameTh;
+  if (c.nameEn)    document.getElementById('hd-company-en').textContent = c.nameEn;
+  if (c.addr)      document.getElementById('hd-company-addr').textContent = c.addr;
+}
+
+async function loadCompany() {
+  try {
+    const snap = await getDoc(doc(db, 'settings', 'company'));
+    if (snap.exists()) applyCompany(snap.data());
+  } catch(e) { console.warn('loadCompany:', e); }
+  if (_isAdmin) document.getElementById('btn-edit-company').style.display = '';
+}
+loadCompany();
+
+window.openCompanyModal = function() {
+  const modal = document.getElementById('company-modal');
+  modal.style.display = 'flex';
+  const abbr = document.getElementById('hd-logo-abbr');
+  document.getElementById('cm-abbr').value = abbr ? abbr.textContent : 'HG';
+  document.getElementById('cm-name-th').value = document.getElementById('hd-company-th').textContent;
+  document.getElementById('cm-name-en').value = document.getElementById('hd-company-en').textContent;
+  document.getElementById('cm-addr').value = document.getElementById('hd-company-addr').textContent;
+  document.getElementById('cm-short').value = document.getElementById('hd-company-short').innerText;
+  const prev = document.getElementById('logo-preview-abbr');
+  if (prev) prev.textContent = document.getElementById('cm-abbr').value;
+};
+
+window.closeCompanyModal = function() {
+  document.getElementById('company-modal').style.display = 'none';
+  _logoData = _logoData; // keep existing
+};
+
+window.onLogoFile = function(input) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    _logoData = e.target.result;
+    const wrap = document.getElementById('logo-preview-wrap');
+    wrap.innerHTML = '<img src="' + _logoData + '" style="width:52px;height:52px;border-radius:50%;object-fit:contain;border:2px solid #1e3a5f">';
+  };
+  reader.readAsDataURL(input.files[0]);
+};
+
+window.saveCompany = async function() {
+  const btn = document.querySelector('#company-modal button[onclick="saveCompany()"]');
+  btn.textContent = 'กำลังบันทึก...'; btn.disabled = true;
+  const data = {
+    abbr:      document.getElementById('cm-abbr').value.trim(),
+    nameTh:    document.getElementById('cm-name-th').value.trim(),
+    nameEn:    document.getElementById('cm-name-en').value.trim(),
+    addr:      document.getElementById('cm-addr').value.trim(),
+    shortName: document.getElementById('cm-short').value.trim(),
+  };
+  if (_logoData) data.logoImg = _logoData;
+  try {
+    await setDoc(doc(db, 'settings', 'company'), data, { merge: true });
+    applyCompany(data);
+    document.getElementById('company-modal').style.display = 'none';
+  } catch(e) {
+    alert('บันทึกไม่สำเร็จ: ' + e.message);
+  }
+  btn.textContent = '💾 บันทึก'; btn.disabled = false;
+};
 
 // Renumber equipment rows
 function renumberEq() {
