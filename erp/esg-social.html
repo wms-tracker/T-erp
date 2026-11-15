@@ -34,6 +34,17 @@
 .no-data{color:#9ca3af;text-align:center;padding:1.5rem;font-size:.9rem}
 .loading{color:#6b7280;padding:.5rem 0;display:block}
 .err{color:#ef4444;font-size:.9rem}
+.step-wrap{border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;background:#f9fafb;margin-bottom:.75rem}
+.step-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+.step-title{font-size:.85rem;font-weight:600;color:#374151}
+.step-row{display:flex;gap:.4rem;align-items:center;margin-bottom:.35rem}
+.snum{font-size:.82rem;font-weight:600;color:#6b7280;min-width:1.5rem;flex-shrink:0}
+.sinp{padding:.35rem .5rem;border:1px solid #d1d5db;border-radius:5px;font-size:.85rem;font-family:inherit}
+.sdesc{flex:3;min-width:120px}
+.sassign{flex:1.5;min-width:80px}
+.sdue{flex:1.2;min-width:100px}
+.btn-add-step{background:#fff;padding:.25rem .7rem;border-radius:5px;font-size:.82rem;cursor:pointer;font-weight:500}
+.btn-remove-step{background:none;border:none;color:#ef4444;cursor:pointer;font-size:.9rem;padding:.2rem .4rem;flex-shrink:0}
 @media(max-width:640px){
   .form-grid,.form-grid-3{grid-template-columns:1fr}
   .kpi-card{min-width:calc(50% - .5rem)}
@@ -42,6 +53,7 @@
 <script type="module">
 import { requireRole } from "./js/auth.js";
 import { renderShell } from "./js/shell.js";
+import { initStepEditor, esgAddStep, esgRemoveStep, getSteps, setSteps, clearSteps } from "./js/esg-steps.js";
 import {
   C, DEPTS, INCIDENT_TYPES, TRAINING_TYPES,
   saveWorkforce, listWorkforce,
@@ -149,6 +161,7 @@ async function init() {
         </div>
         <div class="fg"><label>คำอธิบายเหตุการณ์ *</label><input id="ac-desc" type="text" required placeholder="อธิบายเหตุการณ์ที่เกิดขึ้น"></div>
         <div class="fg"><label>การแก้ไข / ป้องกัน</label><input id="ac-corrective" type="text" placeholder="มาตรการแก้ไขหรือป้องกัน"></div>
+        <div id="step-editor-accident"></div>
         <div class="fg"><label>หมายเหตุ</label><textarea id="ac-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
         <div class="form-actions">
           <button type="button" class="btn-sec" onclick="clearForm('accident')">ล้าง</button>
@@ -213,6 +226,8 @@ async function init() {
     <div class="tbl-wrap"><div id="tbl-welfare"></div></div>
   </div>
 </div>`;
+
+  initStepEditor('step-editor-accident', '#2563eb');
 
   document.getElementById('sel-year').addEventListener('change', onYearMonth);
   document.getElementById('sel-month').addEventListener('change', onYearMonth);
@@ -352,6 +367,7 @@ function getForm(tab) {
     lost_days:        Number(document.getElementById('ac-lost').value)       || 0,
     corrective_action:document.getElementById('ac-corrective').value,
     notes:            document.getElementById('ac-notes').value,
+    steps:            getSteps('step-editor-accident'),
   };
   if (tab === 'training') return {
     id: _editId, year: _year, month: _month,
@@ -390,6 +406,7 @@ function clearForm(tab) {
     else el.value = '';
   });
   if (tab === 'accident') document.getElementById('lost-row').style.display = 'none';
+  if (tab === 'accident') clearSteps('step-editor-accident');
   document.getElementById('btn-submit-'+tab).textContent = '💾 บันทึก';
 }
 
@@ -415,6 +432,7 @@ function fillForm(tab, row) {
     document.getElementById('ac-lost').value      = row.lost_days         || '';
     document.getElementById('ac-corrective').value= row.corrective_action || '';
     document.getElementById('ac-notes').value     = row.notes             || '';
+    setSteps('step-editor-accident', row.steps || []);
     toggleLostDays();
   } else if (tab === 'training') {
     document.getElementById('tr-date').value     = row.date          || TODAY;
@@ -489,6 +507,8 @@ window.clearForm     = clearForm;
 window.editRow       = editRow;
 window.delRow        = delRow;
 window.toggleLostDays= toggleLostDays;
+window.esgAddStep    = esgAddStep;
+window.esgRemoveStep = esgRemoveStep;
 
 init().catch(console.error);
 </script>
