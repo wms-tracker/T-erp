@@ -96,6 +96,7 @@ export function canReview(v) {
 }
 export function canApprove(v) {
   if (v.prepared_by === S.uid || !["manager", "admin", "managing_director", "oel_manager"].includes(S.role)) return false;
+  if (S.role === "admin") return true; // admin override — ข้าม approver_id lock เหมือน force_return
   if (v.approver_id) return v.approver_id === S.uid;
   if ((v.editors || []).includes(S.uid)) return false;
   return true;
