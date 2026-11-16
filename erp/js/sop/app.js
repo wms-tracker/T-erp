@@ -399,7 +399,6 @@ function renderVersion(view, P) {
   if (pm.canCertify) A.push(`<button class="btn green" data-act="certify_pass">${ic("check")} รับรองผ่าน → ส่งผู้จัดการอนุมัติ</button>`);
   if (pm.canApprove) A.push(`<button class="btn green" data-act="approve">${ic("shield")} อนุมัติและประกาศใช้</button>`);
   if (pm.canReturn) A.push(`<button class="btn danger" data-act="return">${ic("back")} ส่งกลับแก้ไข</button>`);
-  if (pm.canReturnToCertifier) A.push(`<button class="btn danger" data-act="return_to_certifier">${ic("back")} ส่งกลับผู้รับรอง (Admin)</button>`);
   if (pm.canForceReturn && !pm.canReturn) A.push(`<button class="btn danger" data-act="force_return">${ic("back")} บังคับส่งกลับแก้ไข (Admin)</button>`);
   if (pm.canRevise) A.push(`<button class="btn primary" data-act="revise">${ic("edit")} สร้างฉบับแก้ไข (Rev. ใหม่)</button>`);
   if (pm.canSetReviewDate) A.push(`<button class="btn" data-act="review_date">${ic("cal")} บันทึกผลทบทวน / วันทบทวนถัดไป</button>`);
