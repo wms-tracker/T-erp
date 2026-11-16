@@ -337,8 +337,7 @@ async function pageSop(view, id) {
 async function pageVersion(view, vid) { renderVersion(view, await D.versionPayload(vid)); }
 const WF_STEPS = [["draft", "Draft", "ผู้จัดทำสร้าง SOP"], ["submitted", "Submitted", "ส่งให้หัวหน้าแผนกตรวจสอบ"], ["dept_review", "Department Review", "หัวหน้าแผนกตรวจสอบ"], ["certifier_review", "Certifier Review", "ผู้รับรองรับรองเอกสาร"], ["manager_approval", "Manager Approval", "Warehouse Operations Manager อนุมัติ"], ["published", "Published", "ประกาศใช้"]];
 function stepper(v) {
-  // ซ่อน certifier_review เมื่อ SOP ไม่มี certifier_id ระบุไว้
-  const steps = v.certifier_id ? WF_STEPS : WF_STEPS.filter(s => s[0] !== "certifier_review");
+  const steps = WF_STEPS;
   const order = steps.map(s => s[0]); let idx = order.indexOf(v.status);
   const bad = v.status === "revision_required"; if (bad) idx = 0;
   const pubIdx = steps.length - 1;

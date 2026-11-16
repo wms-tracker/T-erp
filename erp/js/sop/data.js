@@ -500,7 +500,7 @@ export async function action(vid, act, comment = "") {
       case "review_pass":
         if (!isWorking || !["submitted", "dept_review"].includes(v.status)) fail("สถานะเอกสารไม่ถูกต้อง");
         if (!canReview(v)) fail(separationIssue(v) || "คุณไม่ใช่ผู้ตรวจสอบของเอกสารนี้");
-        to = v.certifier_id ? "certifier_review" : "manager_approval";
+        to = "certifier_review";
         tx.update(vRef, wf(to, { reviewed_by: S.uid, reviewed_by_name: S.name, reviewed_at: serverTimestamp() })); break;
       case "certify_pass":
         if (!isWorking || v.status !== "certifier_review") fail("สถานะเอกสารไม่ถูกต้อง");

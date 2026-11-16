@@ -461,8 +461,8 @@ service cloud.firestore {
             && keys.hasOnly(wf.concat(['submitted_at'])) && sopSubmittable(o))
           // 3) รับเรื่องตรวจสอบ
           || (o.status == 'submitted' && n.status == 'dept_review' && sopCanReview(o) && keys.hasOnly(wf))
-          // 4) ตรวจสอบผ่าน -> รอผู้รับรอง (ถ้ามี certifier_id) หรือรอผู้จัดการอนุมัติ
-          || (o.status in ['submitted', 'dept_review'] && n.status in ['certifier_review', 'manager_approval'] && sopCanReview(o)
+          // 4) ตรวจสอบผ่าน -> รอผู้รับรอง (บังคับทุก SOP)
+          || (o.status in ['submitted', 'dept_review'] && n.status == 'certifier_review' && sopCanReview(o)
             && n.reviewed_by == request.auth.uid && keys.hasOnly(wf.concat(['reviewed_by', 'reviewed_at', 'reviewed_by_name'])))
           // 4b) รับรองผ่าน -> รอผู้จัดการอนุมัติ
           || (o.status == 'certifier_review' && n.status == 'manager_approval' && sopCanCertify(o)
