@@ -167,6 +167,7 @@ async function init() {
           <div class="fg"></div>
         </div>
         <div class="fg"><label>หมายเหตุ / แผนดำเนินการ</label><textarea id="lg-notes" placeholder="หมายเหตุหรือแผนการดำเนินการ..."></textarea></div>
+        <div id="step-editor-legal"></div>
         <div class="form-actions">
           <button type="button" class="btn-sec" onclick="clearForm('legal')">ล้าง</button>
           <button type="submit" id="btn-submit-legal" class="btn-pri">💾 บันทึก</button>
@@ -230,6 +231,7 @@ async function init() {
           <div class="fg"></div>
         </div>
         <div class="fg"><label>หมายเหตุ</label><textarea id="et-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div id="step-editor-ethics"></div>
         <div class="form-actions">
           <button type="button" class="btn-sec" onclick="clearForm('ethics')">ล้าง</button>
           <button type="submit" id="btn-submit-ethics" class="btn-pri">💾 บันทึก</button>
@@ -240,8 +242,7 @@ async function init() {
   </div>
 </div>`;
 
-  initStepEditor('step-editor-audit', '#7c3aed');
-  initStepEditor('step-editor-risk',  '#7c3aed');
+  ['audit','legal','risk','ethics'].forEach(t => initStepEditor('step-editor-'+t, '#7c3aed'));
 
   document.getElementById('sel-year').addEventListener('change', onYearMonth);
   document.getElementById('sel-month').addEventListener('change', onYearMonth);
@@ -425,6 +426,7 @@ function getForm(tab) {
     compliance_status:  document.getElementById('lg-status').value,
     due_date:           document.getElementById('lg-due').value,
     notes:              document.getElementById('lg-notes').value,
+    steps:              getSteps('step-editor-legal'),
   };
   if (tab === 'risk') return {
     id: _editId, year: _year, month: _month,
@@ -448,6 +450,7 @@ function getForm(tab) {
     ethics_type:  document.getElementById('et-type').value,
     participants: Number(document.getElementById('et-participants').value) || 0,
     notes:        document.getElementById('et-notes').value,
+    steps:        getSteps('step-editor-ethics'),
   };
 }
 
@@ -466,8 +469,7 @@ function clearForm(tab) {
     else el.value = '';
   });
   if (tab === 'risk') updateRiskScore();
-  if (tab === 'audit') clearSteps('step-editor-audit');
-  if (tab === 'risk')  clearSteps('step-editor-risk');
+  clearSteps('step-editor-' + tab);
   document.getElementById('btn-submit-'+tab).textContent = '💾 บันทึก';
 }
 
@@ -493,6 +495,7 @@ function fillForm(tab, row) {
     document.getElementById('lg-status').value = row.compliance_status || '';
     document.getElementById('lg-due').value    = row.due_date          || '';
     document.getElementById('lg-notes').value  = row.notes             || '';
+    setSteps('step-editor-legal', row.steps || []);
   } else if (tab === 'risk') {
     document.getElementById('rk-date').value       = row.date             || TODAY;
     document.getElementById('rk-dept').value       = row.dept             || '';
@@ -513,6 +516,7 @@ function fillForm(tab, row) {
     document.getElementById('et-type').value         = row.ethics_type  || '';
     document.getElementById('et-participants').value = row.participants || '';
     document.getElementById('et-notes').value        = row.notes        || '';
+    setSteps('step-editor-ethics', row.steps || []);
   }
   document.getElementById('btn-submit-'+tab).textContent = '💾 อัปเดต';
   document.getElementById('form-'+tab).scrollIntoView({ behavior: 'smooth' });

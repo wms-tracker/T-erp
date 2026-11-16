@@ -128,6 +128,7 @@ async function init() {
           <div class="fg"><label>ลาออก</label><input id="wf-resigned" type="number" min="0" placeholder="0"></div>
         </div>
         <div class="fg"><label>หมายเหตุ</label><textarea id="wf-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div id="step-editor-workforce"></div>
         <div class="form-actions">
           <button type="button" class="btn-sec" onclick="clearForm('workforce')">ล้าง</button>
           <button type="submit" id="btn-submit-workforce" class="btn-pri">💾 บันทึก</button>
@@ -192,6 +193,7 @@ async function init() {
           <div class="fg"><label>ประเภทการอบรม</label><select id="tr-type"><option value="">-- ประเภท --</option>${TRAIN_OPT}</select></div>
         </div>
         <div class="fg"><label>หมายเหตุ</label><textarea id="tr-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div id="step-editor-training"></div>
         <div class="form-actions">
           <button type="button" class="btn-sec" onclick="clearForm('training')">ล้าง</button>
           <button type="submit" id="btn-submit-training" class="btn-pri">💾 บันทึก</button>
@@ -217,6 +219,7 @@ async function init() {
           <div class="fg"><label>CSR กิจกรรม (ครั้ง)</label><input id="wl-csr" type="number" min="0" placeholder="0"></div>
         </div>
         <div class="fg"><label>หมายเหตุ</label><textarea id="wl-notes" placeholder="หมายเหตุเพิ่มเติม..."></textarea></div>
+        <div id="step-editor-welfare"></div>
         <div class="form-actions">
           <button type="button" class="btn-sec" onclick="clearForm('welfare')">ล้าง</button>
           <button type="submit" id="btn-submit-welfare" class="btn-pri">💾 บันทึก</button>
@@ -227,7 +230,7 @@ async function init() {
   </div>
 </div>`;
 
-  initStepEditor('step-editor-accident', '#2563eb');
+  ['workforce','accident','training','welfare'].forEach(t => initStepEditor('step-editor-'+t, '#2563eb'));
 
   document.getElementById('sel-year').addEventListener('change', onYearMonth);
   document.getElementById('sel-month').addEventListener('change', onYearMonth);
@@ -357,6 +360,7 @@ function getForm(tab) {
     new_hire:  Number(document.getElementById('wf-newhire').value) || 0,
     resigned:  Number(document.getElementById('wf-resigned').value)|| 0,
     notes:     document.getElementById('wf-notes').value,
+    steps:     getSteps('step-editor-workforce'),
   };
   if (tab === 'accident') return {
     id: _editId, year: _year, month: _month,
@@ -379,6 +383,7 @@ function getForm(tab) {
     hours:         Number(document.getElementById('tr-hours').value)    || 0,
     training_type: document.getElementById('tr-type').value,
     notes:         document.getElementById('tr-notes').value,
+    steps:         getSteps('step-editor-training'),
   };
   return {
     id: _editId, year: _year, month: _month,
@@ -388,6 +393,7 @@ function getForm(tab) {
     welfare_budget: Number(document.getElementById('wl-budget').value)  || 0,
     activities:     Number(document.getElementById('wl-csr').value)     || 0,
     notes:          document.getElementById('wl-notes').value,
+    steps:          getSteps('step-editor-welfare'),
   };
 }
 
@@ -406,7 +412,7 @@ function clearForm(tab) {
     else el.value = '';
   });
   if (tab === 'accident') document.getElementById('lost-row').style.display = 'none';
-  if (tab === 'accident') clearSteps('step-editor-accident');
+  clearSteps('step-editor-' + tab);
   document.getElementById('btn-submit-'+tab).textContent = '💾 บันทึก';
 }
 
@@ -424,6 +430,7 @@ function fillForm(tab, row) {
     document.getElementById('wf-newhire').value  = row.new_hire || '';
     document.getElementById('wf-resigned').value = row.resigned || '';
     document.getElementById('wf-notes').value    = row.notes    || '';
+    setSteps('step-editor-workforce', row.steps || []);
   } else if (tab === 'accident') {
     document.getElementById('ac-date').value      = row.date              || TODAY;
     document.getElementById('ac-dept').value      = row.dept              || '';
@@ -443,6 +450,7 @@ function fillForm(tab, row) {
     document.getElementById('tr-hours').value    = row.hours         || '';
     document.getElementById('tr-type').value     = row.training_type || '';
     document.getElementById('tr-notes').value    = row.notes         || '';
+    setSteps('step-editor-training', row.steps || []);
   } else {
     document.getElementById('wl-date').value    = row.date           || TODAY;
     document.getElementById('wl-dept').value    = row.dept           || '';
@@ -450,6 +458,7 @@ function fillForm(tab, row) {
     document.getElementById('wl-budget').value  = row.welfare_budget || '';
     document.getElementById('wl-csr').value     = row.activities     || '';
     document.getElementById('wl-notes').value   = row.notes          || '';
+    setSteps('step-editor-welfare', row.steps || []);
   }
   document.getElementById('btn-submit-'+tab).textContent = '💾 อัปเดต';
   document.getElementById('form-'+tab).scrollIntoView({ behavior: 'smooth' });
