@@ -486,6 +486,7 @@ export async function action(vid, act, comment = "") {
         if (!c.responsibility?.trim()) miss.push("Responsibility");
         if (!(c.steps || []).some(s => s.title?.trim())) miss.push("Work Instructions (อย่างน้อย 1 ขั้นตอน)");
         if (!v.owner_id) miss.push("ผู้รับผิดชอบ");
+        if (!v.certifier_id) miss.push("ผู้รับรอง");
         if (!v.effective_date) miss.push("Effective Date");
         if (!v.review_date) miss.push("Review Date");
         if (v.effective_date && v.review_date && v.review_date <= v.effective_date) miss.push("Review Date ต้องหลัง Effective Date");
