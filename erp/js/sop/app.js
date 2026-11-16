@@ -50,15 +50,15 @@ const ICON = {
 const ic = (n, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n] || ""}</svg>`;
 const ACTION_LABEL = {
   create: "สร้าง SOP ใหม่", copy: "คัดลอกเป็น SOP ใหม่", edit: "แก้ไขเนื้อหา", submit: "ส่งตรวจ", start_review: "รับเรื่องตรวจสอบ",
-  review_pass: "ตรวจสอบผ่าน → ส่งผู้จัดการอนุมัติ", approve: "อนุมัติและประกาศใช้", return: "ส่งกลับแก้ไข", force_return: "ผู้ดูแล: บังคับส่งกลับแก้ไข", comment: "แสดงความคิดเห็น",
+  review_pass: "ตรวจสอบผ่าน → ส่งผู้รับรอง/ผู้จัดการ", certify_pass: "รับรองผ่าน → ส่งผู้จัดการอนุมัติ", approve: "อนุมัติและประกาศใช้", return: "ส่งกลับแก้ไข", force_return: "ผู้ดูแล: บังคับส่งกลับแก้ไข", comment: "แสดงความคิดเห็น",
   obsolete: "ยกเลิกใช้งาน SOP", revise: "สร้างฉบับแก้ไข", supersede: "ถูกแทนที่ด้วยฉบับใหม่", cancel: "ยกเลิกฉบับร่าง",
   delete: "ลบฉบับร่าง", review_date: "ทบทวน / กำหนดวันทบทวนใหม่",
 };
-const ACTION_ICON = { create: "plus", copy: "copy", edit: "edit", submit: "send", start_review: "eye", review_pass: "check", approve: "shield", return: "back", comment: "msg", obsolete: "ban", revise: "edit", supersede: "file", cancel: "x", delete: "trash", review_date: "cal" };
+const ACTION_ICON = { create: "plus", copy: "copy", edit: "edit", submit: "send", start_review: "eye", review_pass: "check", certify_pass: "check", approve: "shield", return: "back", comment: "msg", obsolete: "ban", revise: "edit", supersede: "file", cancel: "x", delete: "trash", review_date: "cal" };
 const stLabel = s => STATUS[s] || s;
 const stBadge = s => `<span class="badge-st st-${esc(s)}">${esc(stLabel(s))}</span>`;
 const RV_LABEL = { overdue: "เลยกำหนดทบทวน", due_soon: "ใกล้ถึงกำหนดทบทวน", ok: "", none: "" };
-const WORK_UI = ["draft", "submitted", "dept_review", "manager_approval", "revision_required"];
+const WORK_UI = ["draft", "submitted", "dept_review", "certifier_review", "manager_approval", "revision_required"];
 
 /* ================= root, toast, modal ================= */
 let ROOT, VIEW;
@@ -184,7 +184,7 @@ function deptOptions(sel, { all = false, onlyActive = true, onlyCreatable = fals
   if (onlyCreatable && !D.isPriv()) ds = ds.filter(d => d.id === S.deptId);
   return (all ? '<option value="">ทุกแผนก</option>' : "") + ds.map(d => `<option value="${esc(d.id)}" ${sel === d.id ? "selected" : ""}>${esc(d.code)} – ${esc(d.name)}${d.active ? "" : " (ปิดใช้งาน)"}</option>`).join("");
 }
-const STATUS_FILTERS = [["", "ทุกสถานะ"], ["active", "ใช้งานอยู่ (มีฉบับประกาศใช้)"], ["draft", "ฉบับร่าง"], ["pending", "รออนุมัติ (ทุกขั้น)"], ["submitted", "ส่งตรวจ"], ["dept_review", "หัวหน้าแผนกตรวจสอบ"], ["manager_approval", "รอผู้จัดการอนุมัติ"], ["revision_required", "ส่งกลับแก้ไข"], ["overdue", "เลยกำหนดทบทวน"], ["due_soon", "ใกล้ถึงกำหนดทบทวน"], ["obsolete", "ยกเลิกใช้งาน"]];
+const STATUS_FILTERS = [["", "ทุกสถานะ"], ["active", "ใช้งานอยู่ (มีฉบับประกาศใช้)"], ["draft", "ฉบับร่าง"], ["pending", "รออนุมัติ (ทุกขั้น)"], ["submitted", "ส่งตรวจ"], ["dept_review", "หัวหน้าแผนกตรวจสอบ"], ["certifier_review", "รอผู้รับรอง"], ["manager_approval", "รอผู้จัดการอนุมัติ"], ["revision_required", "ส่งกลับแก้ไข"], ["overdue", "เลยกำหนดทบทวน"], ["due_soon", "ใกล้ถึงกำหนดทบทวน"], ["obsolete", "ยกเลิกใช้งาน"]];
 const statusOptions = sel => STATUS_FILTERS.map(([v, l]) => `<option value="${v}" ${sel === v ? "selected" : ""}>${l}</option>`).join("");
 function reviewCell(s) {
   if (!s.next_review_date) return '<span class="muted">-</span>';
@@ -335,7 +335,7 @@ async function pageSop(view, id) {
   renderVersion(view, P);
 }
 async function pageVersion(view, vid) { renderVersion(view, await D.versionPayload(vid)); }
-const WF_STEPS = [["draft", "Draft", "ผู้จัดทำสร้าง SOP"], ["submitted", "Submitted", "ส่งให้หัวหน้าแผนกตรวจสอบ"], ["dept_review", "Department Review", "หัวหน้าแผนกตรวจสอบ"], ["manager_approval", "Manager Approval", "Warehouse Operations Manager อนุมัติ"], ["published", "Published", "ประกาศใช้"]];
+const WF_STEPS = [["draft", "Draft", "ผู้จัดทำสร้าง SOP"], ["submitted", "Submitted", "ส่งให้หัวหน้าแผนกตรวจสอบ"], ["dept_review", "Department Review", "หัวหน้าแผนกตรวจสอบ"], ["certifier_review", "Certifier Review", "ผู้รับรองรับรองเอกสาร"], ["manager_approval", "Manager Approval", "Warehouse Operations Manager อนุมัติ"], ["published", "Published", "ประกาศใช้"]];
 function stepper(v) {
   const order = WF_STEPS.map(s => s[0]); let idx = order.indexOf(v.status);
   const bad = v.status === "revision_required"; if (bad) idx = 0;
@@ -393,7 +393,8 @@ function renderVersion(view, P) {
   if (pm.canEdit) A.push(`<a class="btn primary" href="#/edit/${enc(v.id)}">${ic("edit")} แก้ไขเนื้อหา</a>`);
   if (pm.canSubmit) A.push(`<button class="btn accent" data-act="submit">${ic("send")} ส่งตรวจ (Submit)</button>`);
   if (pm.canStartReview) A.push(`<button class="btn" data-act="start_review">${ic("eye")} รับเรื่องตรวจสอบ</button>`);
-  if (pm.canReviewPass) A.push(`<button class="btn green" data-act="review_pass">${ic("check")} ตรวจสอบผ่าน → ส่งผู้จัดการ</button>`);
+  if (pm.canReviewPass) A.push(`<button class="btn green" data-act="review_pass">${ic("check")} ตรวจสอบผ่าน → ส่งผู้รับรอง/ผู้จัดการ</button>`);
+  if (pm.canCertify) A.push(`<button class="btn green" data-act="certify_pass">${ic("check")} รับรองผ่าน → ส่งผู้จัดการอนุมัติ</button>`);
   if (pm.canApprove) A.push(`<button class="btn green" data-act="approve">${ic("shield")} อนุมัติและประกาศใช้</button>`);
   if (pm.canReturn) A.push(`<button class="btn danger" data-act="return">${ic("back")} ส่งกลับแก้ไข</button>`);
   if (pm.canForceReturn && !pm.canReturn) A.push(`<button class="btn danger" data-act="force_return">${ic("back")} บังคับส่งกลับแก้ไข (Admin)</button>`);
@@ -437,6 +438,7 @@ async function doAction(act, P) {
     case "submit": { const c = await askText("ส่ง SOP ให้ตรวจสอบ", "หมายเหตุถึงผู้ตรวจสอบ (ถ้ามี)", { required: false, ok: "ส่งตรวจ", okClass: "accent", extra: '<p class="muted small" style="margin-top:0">หลังส่งตรวจ จะแก้ไขเนื้อหาไม่ได้จนกว่าจะถูกส่งกลับ</p>' }); if (c !== null) await wf("submit", c); break; }
     case "start_review": await wf("start_review", ""); break;
     case "review_pass": { const c = await askText("ตรวจสอบผ่าน", "ความคิดเห็นของผู้ตรวจสอบ", { required: false, ok: "ยืนยันตรวจสอบผ่าน", okClass: "green" }); if (c !== null) await wf("review_pass", c); break; }
+    case "certify_pass": { const c = await askText("รับรองเอกสาร (Certifier)", "ความคิดเห็นของผู้รับรอง", { required: false, ok: "ยืนยันรับรองผ่าน", okClass: "green" }); if (c !== null) await wf("certify_pass", c); break; }
     case "approve": { const c = await askText("อนุมัติและประกาศใช้", "ความคิดเห็นของผู้อนุมัติ", { required: false, ok: "อนุมัติและประกาศใช้", okClass: "green", extra: `<div class="banner info">${ic("info")}<div>เมื่ออนุมัติ ${esc(v.rev)} จะกลายเป็น <b>Current Version</b> ${sop.current_version_id ? "และฉบับเดิมจะถูกเก็บเป็นประวัติ (Superseded)" : ""} และจะถูกล็อกห้ามแก้ไข</div></div>` }); if (c !== null) await wf("approve", c); break; }
     case "return": { const c = await askText("ส่งกลับเพื่อแก้ไข", "เหตุผลที่ส่งกลับ", { ok: "ส่งกลับแก้ไข", okClass: "red", placeholder: "ระบุสิ่งที่ต้องแก้ไข…" }); if (c !== null) await wf("return", c); break; }
     case "force_return": { const c = await askText("บังคับส่งกลับแก้ไข (Admin Override)", "เหตุผลที่บังคับส่งกลับ", { ok: "บังคับส่งกลับ", okClass: "red", placeholder: "ระบุเหตุผล…", extra: `<div class="banner err">${ic("alert")}<div>การดำเนินการนี้จะยกเลิกสถานะการตรวจสอบ/อนุมัติปัจจุบัน และส่งเอกสารกลับให้ผู้จัดทำแก้ไข</div></div>` }); if (c !== null) await wf("force_return", c); break; }

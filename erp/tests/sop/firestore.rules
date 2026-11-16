@@ -321,13 +321,22 @@ service cloud.firestore {
                && (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id))));
     }
     function sopCanApprove(v) {
-      // prepared_by ห้ามอนุมัติเสมอ; admin override ข้าม approver_id lock
-      return sopActive() && sopRole() in ['manager', 'admin', 'managing_director', 'oel_manager']
+      // prepared_by ห้ามอนุมัติเสมอ
+      // admin override / designated approver อนุมัติได้ไม่พึ่ง sopRole
+      return sopActive()
         && request.auth.uid != v.prepared_by
         && (sopRole() == 'admin'
-            || (v.approver_id != null
-                ? v.approver_id == request.auth.uid
-                : !(request.auth.uid in v.editors)));
+            || (v.approver_id != null && v.approver_id == request.auth.uid)
+            || (sopRole() in ['manager', 'managing_director', 'oel_manager']
+                && v.approver_id == null
+                && !(request.auth.uid in v.editors)));
+    }
+    function sopCanCertify(v) {
+      return sopActive()
+        && request.auth.uid != v.prepared_by
+        && (v.certifier_id != null
+            ? v.certifier_id == request.auth.uid
+            : sopPriv() && !(request.auth.uid in v.editors));
     }
     function sopSubmittable(v) {
       return v.title.size() > 0 && v.owner_id != null && v.effective_date is string && v.review_date is string
@@ -452,15 +461,20 @@ service cloud.firestore {
             && keys.hasOnly(wf.concat(['submitted_at'])) && sopSubmittable(o))
           // 3) รับเรื่องตรวจสอบ
           || (o.status == 'submitted' && n.status == 'dept_review' && sopCanReview(o) && keys.hasOnly(wf))
-          // 4) ตรวจสอบผ่าน -> รอผู้จัดการอนุมัติ
-          || (o.status in ['submitted', 'dept_review'] && n.status == 'manager_approval' && sopCanReview(o)
+          // 4) ตรวจสอบผ่าน -> รอผู้รับรอง (ถ้ามี certifier_id) หรือรอผู้จัดการอนุมัติ
+          || (o.status in ['submitted', 'dept_review'] && n.status in ['certifier_review', 'manager_approval'] && sopCanReview(o)
             && n.reviewed_by == request.auth.uid && keys.hasOnly(wf.concat(['reviewed_by', 'reviewed_at', 'reviewed_by_name'])))
+          // 4b) รับรองผ่าน -> รอผู้จัดการอนุมัติ
+          || (o.status == 'certifier_review' && n.status == 'manager_approval' && sopCanCertify(o)
+            && n.certified_by == request.auth.uid && keys.hasOnly(wf.concat(['certified_by', 'certified_at', 'certified_by_name'])))
           // 5) ส่งกลับแก้ไข — ต้องระบุเหตุผล
           || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
-            && ((o.status in ['submitted', 'dept_review'] && sopCanReview(o)) || (o.status == 'manager_approval' && sopCanApprove(o))))
+            && ((o.status in ['submitted', 'dept_review'] && sopCanReview(o))
+                || (o.status == 'certifier_review' && sopCanCertify(o))
+                || (o.status == 'manager_approval' && sopCanApprove(o))))
           // 5b) Admin force-return — ผู้ดูแล/ผู้จัดการบังคับส่งกลับได้ทุกขั้น (ข้าม separation check)
           || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
-            && o.status in ['submitted', 'dept_review', 'manager_approval'] && sopPriv())
+            && o.status in ['submitted', 'dept_review', 'certifier_review', 'manager_approval'] && sopPriv())
           // 6) อนุมัติและประกาศใช้ (ล็อกถาวร)
           || (o.status == 'manager_approval' && n.status == 'published' && sopCanApprove(o)
             && n.approved_by == request.auth.uid && n.locked == true && newCur == vid
@@ -475,7 +489,7 @@ service cloud.firestore {
           // 9) ยกเลิกฉบับที่กำลังทำ
           || (n.status == 'cancelled' && keys.hasOnly(['status', 'updated_at', 'updated_by'])
             && ((o.status in ['draft', 'revision_required'] && o.prepared_by == request.auth.uid)
-                || (o.status in ['draft', 'submitted', 'dept_review', 'manager_approval', 'revision_required'] && sopPriv())))
+                || (o.status in ['draft', 'submitted', 'dept_review', 'certifier_review', 'manager_approval', 'revision_required'] && sopPriv())))
         );
       }
     }

@@ -12,11 +12,11 @@ import { cloudinaryConfig } from "../cloudinary-config.js";
 
 export const STATUS = {
   draft: "ฉบับร่าง (Draft)", submitted: "ส่งตรวจ (Submitted)", dept_review: "หัวหน้าแผนกตรวจสอบ (Department Review)",
-  manager_approval: "รอผู้จัดการอนุมัติ (Manager Approval)", published: "ประกาศใช้ (Published)",
+  certifier_review: "รอผู้รับรอง (Certifier Review)", manager_approval: "รอผู้จัดการอนุมัติ (Manager Approval)", published: "ประกาศใช้ (Published)",
   revision_required: "ส่งกลับแก้ไข (Revision Required)", obsolete: "ยกเลิกใช้งาน (Obsolete)",
   superseded: "ถูกแทนที่ด้วยฉบับใหม่ (Superseded)", cancelled: "ยกเลิกร่าง (Cancelled)",
 };
-export const WORK_STATUSES = ["draft", "submitted", "dept_review", "manager_approval", "revision_required"];
+export const WORK_STATUSES = ["draft", "submitted", "dept_review", "certifier_review", "manager_approval", "revision_required"];
 export const PUBLIC_STATUSES = ["published", "superseded", "obsolete"];
 export const SOP_ROLES = { admin: "ผู้ดูแลระบบ", manager: "Warehouse Operations Manager", managing_director: "Managing Director", oel_manager: "Operation Excellence & Loss Prevention Manager", dept_head: "หัวหน้าแผนก", author: "ผู้จัดทำ SOP", viewer: "ผู้อ่าน" };
 export const revLabel = r => "Rev." + String(r ?? 0).padStart(2, "0");
@@ -95,11 +95,18 @@ export function canReview(v) {
   return isPriv() || (S.role === "dept_head" && inMyDept(v.department_id));
 }
 export function canApprove(v) {
-  if (v.prepared_by === S.uid || !["manager", "admin", "managing_director", "oel_manager"].includes(S.role)) return false;
-  if (S.role === "admin") return true; // admin override — ข้าม approver_id lock เหมือน force_return
-  if (v.approver_id) return v.approver_id === S.uid;
+  if (v.prepared_by === S.uid) return false; // separation of duties เสมอ
+  if (S.role === "admin") return true; // admin override
+  if (v.approver_id) return v.approver_id === S.uid; // designated approver อนุมัติได้เสมอ ไม่พึ่ง sopRole
+  if (!["manager", "managing_director", "oel_manager"].includes(S.role)) return false;
   if ((v.editors || []).includes(S.uid)) return false;
   return true;
+}
+export function canCertify(v) {
+  if (v.prepared_by === S.uid) return false;
+  if (v.certifier_id) return v.certifier_id === S.uid; // designated certifier ไม่พึ่ง sopRole
+  if ((v.editors || []).includes(S.uid)) return false;
+  return isPriv();
 }
 function permissions(sop, v) {
   const isWorking = sop.working_version_id === v.id, isCurrent = sop.current_version_id === v.id;
@@ -108,15 +115,19 @@ function permissions(sop, v) {
     canSubmit: isWorking && canEdit(v),
     canStartReview: isWorking && v.status === "submitted" && canReview(v),
     canReviewPass: isWorking && ["submitted", "dept_review"].includes(v.status) && canReview(v),
+    canCertify: isWorking && v.status === "certifier_review" && canCertify(v),
     canApprove: isWorking && v.status === "manager_approval" && canApprove(v),
-    canReturn: isWorking && ((["submitted", "dept_review"].includes(v.status) && canReview(v)) || (v.status === "manager_approval" && canApprove(v))),
-    canForceReturn: isWorking && ["submitted", "dept_review", "manager_approval"].includes(v.status) && isPriv(),
+    canReturn: isWorking && (
+      (["submitted", "dept_review"].includes(v.status) && canReview(v)) ||
+      (v.status === "certifier_review" && canCertify(v)) ||
+      (v.status === "manager_approval" && canApprove(v))),
+    canForceReturn: isWorking && ["submitted", "dept_review", "certifier_review", "manager_approval"].includes(v.status) && isPriv(),
     canComment: S.role !== "viewer" && canSeeWork(v),
     canRevise: isCurrent && !sop.is_obsolete && !sop.working_version_id && canCreateIn(sop.department_id),
     canObsolete: isCurrent && !sop.is_obsolete && isPriv(),
     canDeleteDraft: isWorking && ["draft", "revision_required"].includes(v.status) && (isPriv() || v.prepared_by === S.uid),
     canSetReviewDate: isCurrent && !sop.is_obsolete && (isPriv() || (S.role === "dept_head" && inMyDept(sop.department_id))),
-    separationNote: ["submitted", "dept_review", "manager_approval"].includes(v.status) && ["dept_head", "manager", "admin", "managing_director", "oel_manager"].includes(S.role) ? separationIssue(v) : null,
+    separationNote: ["submitted", "dept_review", "certifier_review", "manager_approval"].includes(v.status) && ["dept_head", "manager", "admin", "managing_director", "oel_manager"].includes(S.role) ? separationIssue(v) : null,
   };
 }
 
@@ -489,10 +500,17 @@ export async function action(vid, act, comment = "") {
       case "review_pass":
         if (!isWorking || !["submitted", "dept_review"].includes(v.status)) fail("สถานะเอกสารไม่ถูกต้อง");
         if (!canReview(v)) fail(separationIssue(v) || "คุณไม่ใช่ผู้ตรวจสอบของเอกสารนี้");
-        to = "manager_approval"; tx.update(vRef, wf(to, { reviewed_by: S.uid, reviewed_by_name: S.name, reviewed_at: serverTimestamp() })); break;
+        to = v.certifier_id ? "certifier_review" : "manager_approval";
+        tx.update(vRef, wf(to, { reviewed_by: S.uid, reviewed_by_name: S.name, reviewed_at: serverTimestamp() })); break;
+      case "certify_pass":
+        if (!isWorking || v.status !== "certifier_review") fail("สถานะเอกสารไม่ถูกต้อง");
+        if (!canCertify(v)) fail(separationIssue(v) || "คุณไม่ใช่ผู้รับรองของเอกสารนี้");
+        to = "manager_approval"; tx.update(vRef, wf(to, { certified_by: S.uid, certified_by_name: S.name, certified_at: serverTimestamp() })); break;
       case "return": {
         if (!isWorking) fail("สถานะเอกสารไม่ถูกต้อง");
-        const ok = (["submitted", "dept_review"].includes(v.status) && canReview(v)) || (v.status === "manager_approval" && canApprove(v));
+        const ok = (["submitted", "dept_review"].includes(v.status) && canReview(v)) ||
+                   (v.status === "certifier_review" && canCertify(v)) ||
+                   (v.status === "manager_approval" && canApprove(v));
         if (!ok) fail(separationIssue(v) || "คุณไม่มีสิทธิ์ส่งกลับเอกสารนี้");
         if (!comment) fail("กรุณาระบุเหตุผลที่ส่งกลับแก้ไข");
         to = "revision_required"; tx.update(vRef, wf(to)); break;
@@ -525,7 +543,7 @@ export async function action(vid, act, comment = "") {
         break;
       }
       case "force_return": {
-        if (!isWorking || !["submitted", "dept_review", "manager_approval"].includes(v.status)) fail("สถานะเอกสารไม่ถูกต้อง");
+        if (!isWorking || !["submitted", "dept_review", "certifier_review", "manager_approval"].includes(v.status)) fail("สถานะเอกสารไม่ถูกต้อง");
         if (!isPriv()) fail("เฉพาะผู้ดูแลระบบ/ผู้จัดการเท่านั้น");
         if (!comment) fail("กรุณาระบุเหตุผลที่บังคับส่งกลับแก้ไข");
         to = "revision_required"; tx.update(vRef, wf(to)); break;
