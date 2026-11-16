@@ -121,6 +121,7 @@ function permissions(sop, v) {
       (["submitted", "dept_review"].includes(v.status) && canReview(v)) ||
       (v.status === "certifier_review" && canCertify(v)) ||
       (v.status === "manager_approval" && canApprove(v))),
+    canReturnToCertifier: isWorking && v.status === "manager_approval" && !v.certified_at && isPriv(),
     canForceReturn: isWorking && ["submitted", "dept_review", "certifier_review", "manager_approval"].includes(v.status) && isPriv(),
     canComment: S.role !== "viewer" && canSeeWork(v),
     canRevise: isCurrent && !sop.is_obsolete && !sop.working_version_id && canCreateIn(sop.department_id),
@@ -541,6 +542,11 @@ export async function action(vid, act, comment = "") {
         if (sop.working_version_id) tx.update(doc(db, "sopVersions", sop.working_version_id), { status: "cancelled", updated_at: serverTimestamp(), updated_by: S.uid });
         extraSop = { is_obsolete: true, working_version_id: null, working_title: null, working_status: null, working_rev: null };
         break;
+      }
+      case "return_to_certifier": {
+        if (!isWorking || v.status !== "manager_approval") fail("สถานะเอกสารไม่ถูกต้อง");
+        if (!isPriv()) fail("เฉพาะผู้ดูแลระบบ/ผู้จัดการเท่านั้น");
+        to = "certifier_review"; tx.update(vRef, wf(to)); break;
       }
       case "force_return": {
         if (!isWorking || !["submitted", "dept_review", "certifier_review", "manager_approval"].includes(v.status)) fail("สถานะเอกสารไม่ถูกต้อง");
