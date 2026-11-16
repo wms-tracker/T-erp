@@ -364,7 +364,7 @@ function docView(P) {
         <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>คำสำคัญ</th><td>${esc(c.keywords || "-")}</td></tr></table>
       <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้รับรอง</th><th>ผู้อนุมัติ</th></tr>
         <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
-          <td>${people.certifier ? person(people.certifier) : '<div class="e"></div><div class="muted">( ไม่ระบุ )</div>'}</td>
+          <td>${person(people.certified_by || people.certifier, v.certified_at, v.certified_by ? "รับรองผ่านระบบแล้ว" : "")}</td>
           <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
       ${sec(1, "วัตถุประสงค์", c.objective)}${sec(2, "ขอบเขต", c.scope)}${sec(3, "ความรับผิดชอบ", c.responsibility)}
       ${sec(4, "อุปกรณ์ / เครื่องมือ", c.equipment)}${sec(5, "ข้อกำหนดด้านความปลอดภัย", c.safety)}
@@ -419,8 +419,9 @@ function renderVersion(view, P) {
       <div class="card"><div class="hd"><h3>การดำเนินการ</h3></div><div class="bd"><div class="actions">${A.join("") || '<div class="muted small">ไม่มีรายการที่คุณดำเนินการได้ในสถานะนี้</div>'}</div></div></div>
       <div class="card"><div class="hd"><h3>Workflow การอนุมัติ</h3></div><div class="bd">${stepper(v)}
         <dl class="kv" style="margin-top:6px"><dt>ผู้จัดทำ</dt><dd>${esc(P.people.prepared?.display_name || "-")}</dd><dt>ผู้ตรวจสอบ</dt><dd>${esc(P.people.reviewer?.display_name || "หัวหน้าแผนก " + sop.dept_code + " (คนใดก็ได้)")}</dd>
+        <dt>ผู้รับรอง</dt><dd>${esc(P.people.certifier?.display_name || "— ไม่ระบุ —")}</dd>
         <dt>ผู้อนุมัติ</dt><dd>${esc(P.people.approver?.display_name || "Warehouse Operations Manager")}</dd>${v.submitted_at ? `<dt>ส่งตรวจเมื่อ</dt><dd>${fmtDT(v.submitted_at)}</dd>` : ""}
-        ${v.reviewed_at ? `<dt>ตรวจผ่านเมื่อ</dt><dd>${fmtDT(v.reviewed_at)}</dd>` : ""}${v.approved_at ? `<dt>อนุมัติเมื่อ</dt><dd>${fmtDT(v.approved_at)}</dd>` : ""}</dl></div></div>
+        ${v.reviewed_at ? `<dt>ตรวจผ่านเมื่อ</dt><dd>${fmtDT(v.reviewed_at)}</dd>` : ""}${v.certified_at ? `<dt>รับรองเมื่อ</dt><dd>${fmtDT(v.certified_at)}</dd>` : ""}${v.approved_at ? `<dt>อนุมัติเมื่อ</dt><dd>${fmtDT(v.approved_at)}</dd>` : ""}</dl></div></div>
       <div class="card"><div class="hd"><h3>ส่งออก / อื่น ๆ</h3></div><div class="bd"><div class="actions">${EX.join("")}</div></div></div>
       <div class="card"><div class="hd"><h3>ประวัติเวอร์ชัน</h3><span class="spacer"></span>${other ? `<a class="btn sm" href="#/compare/${enc(sop.id)}?a=${enc(other.id)}&b=${enc(v.id)}">${ic("diff")} เปรียบเทียบ</a>` : ""}</div>
         <div class="table-wrap"><table class="t"><tbody>${verRows}</tbody></table></div></div>

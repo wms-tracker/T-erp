@@ -262,7 +262,7 @@ export async function versionPayload(vid) {
     people: {
       prepared: person(v.prepared_by, v.prepared_name), owner: person(v.owner_id, v.owner_name),
       reviewer: person(v.reviewer_id, v.reviewer_name), certifier: person(v.certifier_id, v.certifier_name), approver: person(v.approver_id, v.approver_name),
-      reviewed_by: person(v.reviewed_by, v.reviewed_by_name), approved_by: person(v.approved_by, v.approved_name),
+      reviewed_by: person(v.reviewed_by, v.reviewed_by_name), certified_by: person(v.certified_by, v.certified_by_name), approved_by: person(v.approved_by, v.approved_name),
     },
     versions, log, permissions: permissions(sop, ver),
   };
