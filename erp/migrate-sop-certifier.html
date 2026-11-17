@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>SOP Migration — Fix Certifier Step</title>
+<style>
+  body { font-family: system-ui; padding: 24px; max-width: 700px; margin: 0 auto; background: #f8f9fa; }
+  h2 { color: #1a1a2e; }
+  .card { background: #fff; border-radius: 8px; padding: 20px; margin: 16px 0; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  button { padding: 10px 20px; background: #1a56db; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 15px; }
+  button:disabled { background: #9ca3af; cursor: not-allowed; }
+  button.red { background: #dc2626; }
+  #log { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; font-family: monospace; font-size: 13px; min-height: 100px; white-space: pre-wrap; }
+  .ok { color: #4ade80; } .err { color: #f87171; } .warn { color: #fbbf24; }
+</style>
+</head>
+<body>
+<h2>🔧 SOP Migration — บังคับโฟล certifier_review</h2>
+<div class="card">
+  <p>Script นี้ค้นหา sopVersions ที่ <b>status = manager_approval</b> แต่ <b>ไม่มี certified_at</b> แล้วย้ายกลับไป <b>certifier_review</b> เพื่อให้ผู้รับรองรับรองก่อน</p>
+  <p><b>⚠️ ต้องล็อกอินด้วย admin ก่อนเรียกใช้</b></p>
+  <button id="scanBtn" onclick="scan()">1. สแกนดูเอกสารที่ต้องแก้ไข</button>
+  &nbsp;
+  <button id="migrateBtn" class="red" onclick="migrate()" disabled>2. แก้ไขทั้งหมด</button>
+</div>
+<div id="log">รอคำสั่ง...</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, query, where, getDocs, writeBatch, doc, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { firebaseConfig } from "./js/firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const log = (msg, cls = "") => {
+  const el = document.getElementById("log");
+  el.innerHTML += `<span class="${cls}">${msg}</span>\n`;
+  el.scrollTop = el.scrollHeight;
+};
+
+let toFix = [];
+
+onAuthStateChanged(auth, u => {
+  if (u) log(`✓ ล็อกอินเป็น ${u.email}`, "ok");
+  else log("✗ ยังไม่ได้ล็อกอิน — กรุณาล็อกอินก่อน", "err");
+});
+
+window.scan = async () => {
+  document.getElementById("scanBtn").disabled = true;
+  document.getElementById("log").innerHTML = "";
+  log("กำลังสแกน sopVersions...");
+  try {
+    const snap = await getDocs(query(collection(db, "sopVersions"), where("status", "==", "manager_approval")));
+    toFix = snap.docs.filter(d => !d.data().certified_at);
+    if (toFix.length === 0) {
+      log("✓ ไม่พบเอกสารที่ต้องแก้ไข — ทุก SOP ถูกต้องแล้ว", "ok");
+    } else {
+      log(`⚠ พบ ${toFix.length} เอกสารที่ข้าม certifier_review:`, "warn");
+      toFix.forEach(d => {
+        const v = d.data();
+        log(`  • ${v.sop_id}  rev ${v.rev}  (${v.title || "ไม่มีชื่อ"})`, "warn");
+      });
+      log(`\nกด "แก้ไขทั้งหมด" เพื่อย้ายกลับไป certifier_review`, "warn");
+      document.getElementById("migrateBtn").disabled = false;
+    }
+  } catch (e) {
+    log("✗ Error: " + e.message, "err");
+  }
+  document.getElementById("scanBtn").disabled = false;
+};
+
+window.migrate = async () => {
+  if (!toFix.length) return;
+  document.getElementById("migrateBtn").disabled = true;
+  log("\nกำลังแก้ไข...");
+  try {
+    // batch write (max 500 ops per batch, 2 ops per doc = safe up to 250 docs)
+    const batch = writeBatch(db);
+    for (const vDoc of toFix) {
+      const v = vDoc.data();
+      batch.update(doc(db, "sopVersions", vDoc.id), {
+        status: "certifier_review",
+        row_ver: (v.row_ver || 0) + 1,
+        updated_at: serverTimestamp(),
+        updated_by: auth.currentUser?.uid || "migration",
+      });
+      batch.update(doc(db, "sops", v.sop_id), {
+        working_status: "certifier_review",
+        updated_at: serverTimestamp(),
+      });
+      log(`  ✓ ย้าย ${v.sop_id} → certifier_review`, "ok");
+    }
+    await batch.commit();
+    log(`\n✓ เสร็จสิ้น — ย้ายแล้ว ${toFix.length} เอกสาร`, "ok");
+    log("ผู้รับรองสามารถเปิดเอกสารและกดรับรองได้ทันที", "ok");
+    toFix = [];
+  } catch (e) {
+    log("✗ Error: " + e.message, "err");
+    document.getElementById("migrateBtn").disabled = false;
+  }
+};
+</script>
+</body>
+</html>
