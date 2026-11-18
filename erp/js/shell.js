@@ -498,6 +498,17 @@ const ICON_PATHS = {
 };
 ICON_PATHS.shipping = ICON_PATHS.freight;
 ICON_PATHS.sop = '<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/><path d="M8 7h8"/><path d="M8 11h6"/>';
+ICON_PATHS.home = '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>';
+
+const HOME_HREF = {
+  warehouse:      'dashboard-warehouse.html',
+  admin:          'dashboard-admin.html',
+  sales:          'dashboard-sales.html',
+  accounting:     'dashboard-accounting.html',
+  manager:        'dashboard-manager.html',
+  safety_officer: 'safety.html',
+  kpo:            'safety-kpo-dashboard.html',
+};
 function navIcon(key, size = 24) {
   const p = ICON_PATHS[key] || ICON_PATHS.fallback;
   return `<svg class="nav-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -657,6 +668,7 @@ export function renderShell(profile, activeKey, title) {
   const activeGroup = groups.find(g => g.items.some(i => i.key === activeKey)) || groups[0];
 
   const isAdminViewing = profile.role === 'admin' && navKey !== 'admin';
+  const homeHref = HOME_HREF[profile.role] || '#';
 
   // ---- CSS inline สำหรับ 2-panel ----
   const css = `
@@ -706,6 +718,14 @@ export function renderShell(profile, activeKey, title) {
       padding:5px 8px;cursor:pointer;width:52px;text-align:center;
     }
     .nav-logout-btn:hover{background:rgba(255,255,255,0.2);color:#fff;}
+    .nav-home-btn{
+      display:flex;align-items:center;justify-content:center;
+      width:42px;height:42px;border-radius:10px;
+      color:#fff;text-decoration:none;
+      transition:background .15s;margin-bottom:4px;
+    }
+    .nav-home-btn:hover{background:rgba(255,255,255,0.2);}
+    .nav-home-btn .nav-svg{width:22px;height:22px;}
 
     /* === Secondary panel === */
     .nav-secondary{
@@ -839,6 +859,7 @@ export function renderShell(profile, activeKey, title) {
         <nav class="nav-primary">
           <div class="nav-brand">${navIcon('brand', 30)}</div>
           <div class="nav-brand-label">Web<br>ERP</div>
+          <a href="${homeHref}" class="nav-home-btn" title="หน้าหลัก">${navIcon('home', 22)}</a>
           <div id="nav-primary-items" style="display:flex;flex-direction:column;align-items:center;width:100%;padding:0 7px;gap:2px;">
             ${groups.map(g => `
               <button class="nav-group-btn ${g.groupKey === initGroupKey ? 'active' : ''}"
