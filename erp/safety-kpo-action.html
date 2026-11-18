@@ -130,13 +130,16 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
   <button id="lb-next" onclick="event.stopPropagation();window._lbNav(1)">&#8250;</button>
 </div>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listCapaRecords, createCapa, updateCapa,
   CAPA_STATUS, DEPARTMENTS
 } from './js/safety-data.js';
 import { commitAttachments } from './js/safety-attach.js';
+import {
+  getDoc, doc as fsDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-action', 'Module 09 — ติดตามผลดำเนินงาน');
@@ -591,68 +594,201 @@ function fmtSteps(text) {
   return `<span style="white-space:pre-wrap;font-size:.82rem;color:#374151">${esc(text)}</span>`;
 }
 
-/* ───── PRINT DETAIL ───── */
-window._printDetail = (id) => {
+/* ───── PRINT DETAIL (SOP style) ───── */
+window._printDetail = async (id) => {
   const r = allRecs.find(x => x.id === id);
   if (!r) return;
-  const esc = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const prio = PRIORITIES.find(p => p.key === r.priority) || { label:'-', color:'#6b7280' };
-  const st   = CAPA_STATUS[r.status] || { label: r.status, color:'#6b7280' };
+
+  /* open window immediately (must be in click context to avoid popup blocker) */
+  const w = window.open('', '_blank', 'width=980,height=820');
+  if (!w) return;
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+<title>กำลังโหลด...</title></head><body>
+<p style="font-family:Sarabun,sans-serif;padding:28px;color:#64748b;font-size:14px">กำลังโหลดข้อมูล...</p>
+</body></html>`);
+
+  /* load company settings */
+  let compName   = 'บริษัท ฮอไรซัน กรุ๊ป (ประเทศไทย) จำกัด';
+  let compNameEn = 'Horizon Group (Thailand) Co.,Ltd.';
+  let logoUrl    = '';
+  try {
+    const snap = await getDoc(fsDoc(db, 'sopSettings', 'main'));
+    if (snap.exists()) {
+      const d = snap.data();
+      if (d.company_name)    compName   = d.company_name;
+      if (d.company_name_en) compNameEn = d.company_name_en;
+      if (d.logo_url)        logoUrl    = d.logo_url;
+    }
+  } catch(_) { /* fall back to defaults */ }
+
+  const esc  = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const today = new Date().toLocaleDateString('th-TH', { dateStyle: 'long' });
+  const prio  = PRIORITIES.find(p => p.key === r.priority) || { label: '-', color: '#6b7280' };
+  const st    = CAPA_STATUS[r.status] || { label: r.status, color: '#6b7280' };
+  const preparer = profile.displayName || profile.name || profile.email || '-';
+
   const stepsHtml = (() => {
-    if (!r.action) return '';
+    if (!r.action) return '-';
     const parts = r.action.split(/(?=\s*\d+\.\s*)/).map(s => s.trim()).filter(Boolean);
     if (parts.length > 1 && /^\d+\./.test(parts[0]))
-      return `<ol>${parts.map(p=>`<li>${esc(p.replace(/^\d+\.\s*/,''))}</li>`).join('')}</ol>`;
-    return `<p>${esc(r.action)}</p>`;
+      return `<ol style="padding-left:20px;margin:4px 0;line-height:1.9">
+        ${parts.map(p => `<li style="margin-bottom:3px">${esc(p.replace(/^\d+\.\s*/,''))}</li>`).join('')}
+      </ol>`;
+    return `<span style="white-space:pre-wrap">${esc(r.action)}</span>`;
   })();
-  const imgs = (r.attachments||[]).map(url =>
-    `<div class="p-img"><img src="${url}"></div>`).join('');
 
-  const w = window.open('','_blank','width=900,height=700');
+  const logoHtml = logoUrl
+    ? `<img src="${esc(logoUrl)}" style="max-height:56px;max-width:120px;object-fit:contain">`
+    : `<div style="width:52px;height:52px;background:#1e3a5f;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;font-weight:800;margin:auto">HRZ</div>`;
+
+  const sectionNum = { root:2, action:3, remark:0, photo:0 };
+  let secIdx = 3;
+  if (r.remark)                    sectionNum.remark = ++secIdx;
+  if ((r.attachments||[]).length)  sectionNum.photo  = ++secIdx;
+
+  const imgs = (r.attachments||[]).map(url =>
+    `<div style="break-inside:avoid">
+      <img src="${url}" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;border:1px solid #d1d5db">
+    </div>`).join('');
+
+  w.document.open();
   w.document.write(`<!DOCTYPE html><html lang="th"><head>
 <meta charset="UTF-8">
-<title>${esc(r.title)}</title>
+<title>CAPA — ${esc(r.title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Sarabun',sans-serif;color:#1e293b;padding:28px 36px;font-size:13px;line-height:1.6}
-h1{font-size:1.1rem;font-weight:700;margin-bottom:4px}
-.sub{font-size:.75rem;color:#64748b;margin-bottom:16px}
-.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:${st.color}18;color:${st.color};border:1px solid ${st.color}44;margin-bottom:14px}
-.section{font-size:.7rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
-table.info{width:100%;border-collapse:collapse;margin-bottom:4px}
-table.info td{padding:5px 8px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:top}
-table.info td:first-child{color:#64748b;width:38%;white-space:nowrap}
-table.info td:last-child{font-weight:600}
-.box{background:#f8fafc;border-radius:6px;padding:10px 12px;margin-bottom:4px}
-.box ol{padding-left:18px}
-.box ol li{margin-bottom:4px;font-size:.82rem}
-.img-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
-.p-img img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}
-.footer{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:.72rem;color:#94a3b8;display:flex;justify-content:space-between}
-@media print{body{padding:14px 20px}@page{margin:14mm 16mm}}
+body{font-family:'Sarabun',sans-serif;color:#1e293b;font-size:13px;line-height:1.65;background:#fff;padding:24px 28px}
+/* ── header table ── */
+table.hdr{width:100%;border-collapse:collapse;border:1.5px solid #1e3a5f}
+table.hdr td{padding:8px 10px;border:1px solid #1e3a5f;vertical-align:middle}
+.hdr-logo{width:100px;text-align:center}
+.hdr-mid{text-align:center}
+.hdr-mid .co{font-size:.95rem;font-weight:700;color:#1e3a5f}
+.hdr-mid .en{font-size:.72rem;color:#64748b;margin-top:1px}
+.hdr-mid .doc-title{font-size:1rem;font-weight:700;margin-top:5px;color:#0f172a;padding:3px 0}
+.hdr-meta{width:200px;font-size:.75rem}
+.hdr-meta table{width:100%;border-collapse:collapse}
+.hdr-meta td{padding:3px 5px;border-bottom:1px solid #e2e8f0;vertical-align:middle}
+.hdr-meta td:first-child{color:#64748b;width:55%}
+.hdr-meta td:last-child{font-weight:600}
+.st-badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:700;background:${st.color}18;color:${st.color};border:1px solid ${st.color}44}
+/* ── section heading ── */
+.sh{background:#1e3a5f;color:#fff;padding:5px 10px;font-size:.8rem;font-weight:700;margin-top:10px;letter-spacing:.04em}
+/* ── info / metadata table ── */
+table.info{width:100%;border-collapse:collapse;border:1px solid #d1d5db}
+table.info td{padding:5px 10px;font-size:.82rem;border:1px solid #d1d5db;vertical-align:top}
+table.info td.lbl{color:#374151;background:#f8fafc;width:22%;font-weight:600;white-space:nowrap}
+/* ── section body ── */
+.sb{border:1px solid #d1d5db;border-top:none;padding:9px 11px;font-size:.82rem;line-height:1.75;min-height:44px}
+/* ── signature table ── */
+table.sig{width:100%;border-collapse:collapse;margin-top:14px;border:1px solid #d1d5db}
+table.sig th{background:#f1f5f9;color:#1e3a5f;font-size:.75rem;text-align:center;padding:6px 8px;border:1px solid #d1d5db;font-weight:700}
+table.sig td{text-align:center;border:1px solid #d1d5db;font-size:.78rem;color:#374151;padding:4px 8px}
+table.sig td.space{height:40px;vertical-align:bottom}
+/* ── images ── */
+.img-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px;border:1px solid #d1d5db;border-top:none}
+@media print{
+  body{padding:0}
+  @page{margin:12mm 14mm;size:A4}
+  .sh{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  table.hdr,.hdr-meta td,table.info td,table.sig td,table.sig th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style></head><body>
-<h1>${esc(r.title)}</h1>
-<div class="sub">Module 09 — ติดตามผลดำเนินงาน &nbsp;·&nbsp; พิมพ์เมื่อ ${new Date().toLocaleDateString('th-TH',{dateStyle:'long'})}</div>
-<div class="badge">${esc(st.label)}</div>
-<div class="section">ข้อมูล</div>
-<table class="info">
-  <tr><td>ประเภท</td><td>${esc(typeLabel(r.capaType))}</td></tr>
-  <tr><td>แหล่งที่มา</td><td>${esc(sourceLabel(r.source))}</td></tr>
-  <tr><td>แผนก</td><td>${esc(r.department||'-')}</td></tr>
-  <tr><td>ผู้รับผิดชอบ</td><td>${esc(r.assignedTo||'-')}</td></tr>
-  <tr><td>กำหนดเสร็จ</td><td>${esc(fmtDate(r.dueDate))}</td></tr>
-  <tr><td>ระดับความสำคัญ</td><td style="color:${prio.color}">${esc(prio.label)}</td></tr>
-  ${r.closedDate?`<tr><td>วันที่ปิด</td><td style="color:#059669">${esc(fmtDate(r.closedDate))}</td></tr>`:''}
+
+<table class="hdr">
+  <tr>
+    <td class="hdr-logo">${logoHtml}</td>
+    <td class="hdr-mid">
+      <div class="co">${esc(compName)}</div>
+      <div class="en">${esc(compNameEn)}</div>
+      <div class="doc-title">บันทึกการแก้ไขและป้องกัน (Corrective &amp; Preventive Action)</div>
+    </td>
+    <td class="hdr-meta">
+      <table>
+        <tr><td>รหัสเอกสาร</td><td>${esc(r.id.slice(0,8).toUpperCase())}</td></tr>
+        <tr><td>สถานะ</td><td><span class="st-badge">${esc(st.label)}</span></td></tr>
+        <tr><td>วันที่พิมพ์</td><td>${today}</td></tr>
+      </table>
+    </td>
+  </tr>
 </table>
-${r.rootCause?`<div class="section">สาเหตุ</div><div class="box">${esc(r.rootCause)}</div>`:''}
-${r.action?`<div class="section">แนวทางดำเนินการ</div><div class="box">${stepsHtml}</div>`:''}
-${r.remark?`<div class="section">หมายเหตุ</div><div class="box">${esc(r.remark)}</div>`:''}
-${imgs?`<div class="section">รูปภาพแนบ (${r.attachments.length} รูป)</div><div class="img-grid">${imgs}</div>`:''}
-<div class="footer"><span>T-ERP Safety Module 09</span><span>พิมพ์โดย: ${esc(profile.displayName||profile.email||'-')}</span></div>
+
+<div class="sh">1. ข้อมูลทั่วไป</div>
+<table class="info">
+  <tr>
+    <td class="lbl">หัวข้อ / เรื่อง</td>
+    <td colspan="3">${esc(r.title)}</td>
+  </tr>
+  <tr>
+    <td class="lbl">ประเภท CAPA</td>
+    <td>${esc(typeLabel(r.capaType))}</td>
+    <td class="lbl">แหล่งที่มา</td>
+    <td>${esc(sourceLabel(r.source))}</td>
+  </tr>
+  <tr>
+    <td class="lbl">แผนก</td>
+    <td>${esc(r.department||'-')}</td>
+    <td class="lbl">ผู้รับผิดชอบ</td>
+    <td>${esc(r.assignedTo||'-')}</td>
+  </tr>
+  <tr>
+    <td class="lbl">กำหนดแล้วเสร็จ</td>
+    <td>${esc(fmtDate(r.dueDate))}</td>
+    <td class="lbl">ระดับความสำคัญ</td>
+    <td style="color:${prio.color};font-weight:700">${esc(prio.label)}</td>
+  </tr>
+  ${r.closedDate?`<tr><td class="lbl">วันที่ปิดรายการ</td><td colspan="3" style="color:#059669;font-weight:700">${esc(fmtDate(r.closedDate))}</td></tr>`:''}
+</table>
+
+<div class="sh">${sectionNum.root}. สาเหตุ / ที่มาของปัญหา (Root Cause)</div>
+<div class="sb">${r.rootCause ? esc(r.rootCause) : '-'}</div>
+
+<div class="sh">${sectionNum.action}. แนวทางดำเนินการแก้ไข (Action Plan)</div>
+<div class="sb">${r.action ? stepsHtml : '-'}</div>
+
+${r.remark ? `<div class="sh">${sectionNum.remark}. หมายเหตุ</div><div class="sb">${esc(r.remark)}</div>` : ''}
+
+${imgs ? `<div class="sh">${sectionNum.photo}. รูปภาพประกอบ (${r.attachments.length} รูป)</div><div class="img-grid">${imgs}</div>` : ''}
+
+<table class="sig">
+  <tr>
+    <th>ผู้จัดทำ</th>
+    <th>ผู้ตรวจสอบ</th>
+    <th>ผู้รับรอง</th>
+    <th>ผู้อนุมัติ</th>
+  </tr>
+  <tr>
+    <td class="space"></td>
+    <td class="space"></td>
+    <td class="space"></td>
+    <td class="space"></td>
+  </tr>
+  <tr>
+    <td style="font-weight:700;font-size:.82rem">${esc(preparer)}</td>
+    <td>……………………………</td>
+    <td>……………………………</td>
+    <td>……………………………</td>
+  </tr>
+  <tr>
+    <td style="color:#9ca3af;font-size:.75rem">ตำแหน่ง: ……………………</td>
+    <td style="color:#9ca3af;font-size:.75rem">ตำแหน่ง: ……………………</td>
+    <td style="color:#9ca3af;font-size:.75rem">ตำแหน่ง: ……………………</td>
+    <td style="color:#9ca3af;font-size:.75rem">ตำแหน่ง: ……………………</td>
+  </tr>
+  <tr>
+    <td style="color:#9ca3af;font-size:.75rem">วันที่: ${today}</td>
+    <td style="color:#9ca3af;font-size:.75rem">วันที่: ……………………</td>
+    <td style="color:#9ca3af;font-size:.75rem">วันที่: ……………………</td>
+    <td style="color:#9ca3af;font-size:.75rem">วันที่: ……………………</td>
+  </tr>
+</table>
+
 </body></html>`);
   w.document.close();
   w.focus();
-  setTimeout(() => w.print(), 600);
+  setTimeout(() => w.print(), 900);
 };
 
 /* ───── LIGHTBOX ───── */
