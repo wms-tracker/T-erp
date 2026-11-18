@@ -80,16 +80,19 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listTrainings, getTraining, createTraining, updateTraining, deleteTraining,
   TRAINING_STATUS, TRAINING_TYPES, DEPARTMENTS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-training', 'Module 07 — แผนฝึกอบรมความปลอดภัย');
+initLightbox();
 
 const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const NOW     = new Date();
@@ -414,6 +417,7 @@ window._save = async () => {
   const date    = document.getElementById('f-date')?.value;
   if (!course || !date) { alert('กรุณากรอก ชื่อหลักสูตร และ วันที่อบรม'); return; }
 
+  const attachments = await commitAttachments();
   const payload = {
     courseName:          course,
     trainingType:        document.getElementById('f-type2')?.value  || '',
@@ -429,6 +433,7 @@ window._save = async () => {
     status:              document.getElementById('f-status2')?.value || 'planned',
     remark:              document.getElementById('f-remark')?.value?.trim() || '',
     kpoDuty:             'duty7',
+    attachments,
   };
 
   try {
@@ -496,12 +501,41 @@ window._view = async (id) => {
     <div class="dl-row"><span>ผ่านทดสอบ</span><span style="font-weight:700;color:#7c3aed">${r.passCount||0} คน</span></div>
     <div class="dl-row"><span>งบประมาณ</span><span>${r.budget?r.budget.toLocaleString()+' บาท':'-'}</span></div>
     ${r.remark?`<div style="margin-top:12px;background:#f8fafc;border-radius:8px;padding:10px;font-size:.8rem;color:#374151">${r.remark}</div>`:''}
+    ${renderThumbs(r.attachments||[])}
     <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨 พิมพ์</button>
       <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._editForm('${r.id}')">✏️ แก้ไข</button>
     </div>`;
+    bindLightbox(r.attachments||[], document.getElementById('panelDetailBody'));
   } catch(e) {
     document.getElementById('panelDetailBody').innerHTML = `<div style="color:#991b1b">โหลดไม่ได้: ${e?.message||e}</div>`;
   }
+};
+
+window._printDoc = async (id) => {
+  const r = allTrainings.find(x => x.id === id) || await getTraining(id);
+  if (!r) return;
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 07 — แผนฝึกอบรมความปลอดภัย',
+    infoRows: [
+      ['ชื่อหลักสูตร', r.courseName, 'full'],
+      ['ประเภท', typeLabel(r.trainingType)],
+      ['สถานะ', TRAINING_STATUS[r.status]?.label || r.status],
+      ['วันที่อบรม', fmtDate(r.trainingDate)],
+      ['วันที่สิ้นสุด', fmtDate(r.endDate)],
+      ['สถานที่', r.venue || '-'],
+      ['วิทยากร', r.trainer || '-'],
+      ['แผนก', r.department || '-'],
+      ['เป้าหมาย (คน)', String(r.targetParticipants || 0)],
+      ['จริง (คน)', String(r.actualParticipants || 0)],
+      ['ผ่านทดสอบ (คน)', String(r.passCount || 0)],
+      ['งบประมาณ (บาท)', r.budget ? r.budget.toLocaleString() : '-'],
+    ],
+    textSections: [
+      { title: 'หมายเหตุ', content: r.remark },
+    ],
+  });
 };
 
 /* ───── LOAD ───── */

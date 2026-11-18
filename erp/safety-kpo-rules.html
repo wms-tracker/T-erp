@@ -57,17 +57,20 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listLegalRegisters, getLegalRegister,
   createLegalRegister, updateLegalRegister, deleteLegalRegister,
   LEGAL_CATEGORIES, LEGAL_STATUS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-rules', 'Module 05 — กฎระเบียบและเอกสาร');
+initLightbox();
 
 const TODAY = new Date().toISOString().slice(0,10);
 function fmtDate(iso) {
@@ -215,10 +218,13 @@ window._view = (id) => {
   <div class="section-title">มาตรการ / การดำเนินการ</div>
   <p style="font-size:.85rem;line-height:1.7">${r.action||'(ไม่มี)'}</p>
   ${r.docUrl?`<div style="margin-top:16px"><a href="${r.docUrl}" target="_blank" class="btn btn-ghost btn-sm">📎 ดูเอกสาร</a></div>`:''}
+  ${renderThumbs(r.attachments||[])}
   <div style="margin-top:20px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨 พิมพ์</button>
     <button class="btn btn-primary btn-sm" onclick="window._edit('${r.id}')">✏️ แก้ไข</button>
     <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">ปิด</button>
   </div>`;
+  bindLightbox(r.attachments||[], document.getElementById('panel-body'));
   openPanel();
 };
 
@@ -283,6 +289,7 @@ window._save = async () => {
   const name = document.getElementById('f-name')?.value?.trim();
   const cat  = document.getElementById('f-cat')?.value;
   if (!name || !cat) { alert('กรุณากรอก ชื่อกฎหมาย และ หมวด'); return; }
+  const attachments = await commitAttachments();
   const payload = {
     lawName:       name,
     lawCode:       document.getElementById('f-code')?.value?.trim()   || '',
@@ -295,6 +302,7 @@ window._save = async () => {
     action:        document.getElementById('f-action')?.value?.trim() || '',
     docUrl:        document.getElementById('f-url')?.value?.trim()    || '',
     kpoDuty:       'duty5',
+    attachments,
   };
   try {
     if (editId) await updateLegalRegister(editId, payload);
@@ -310,6 +318,28 @@ window._del = async (id) => {
   if (!confirm('ลบรายการนี้?')) return;
   try { await deleteLegalRegister(id); records=records.filter(x=>x.id!==id); renderKPIs(records); window._filter(); }
   catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+window._printDoc = async (id) => {
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 05 — กฎระเบียบและเอกสาร',
+    infoRows: [
+      ['ชื่อกฎหมาย/ข้อกำหนด', r.lawName, 'full'],
+      ['รหัส/เลขที่', r.lawCode || '-'],
+      ['หมวด', r.category || '-'],
+      ['สถานะ', LEGAL_STATUS[r.status]?.label || r.status || '-'],
+      ['วันบังคับใช้', fmtDate(r.effectiveDate)],
+      ['ทบทวนถัดไป', fmtDate(r.reviewDate)],
+      ['ผู้รับผิดชอบ', r.responsible || '-'],
+    ],
+    textSections: [
+      { title: 'สาระสำคัญ / ข้อกำหนด', content: r.description },
+      { title: 'มาตรการ / การดำเนินการ', content: r.action },
+    ],
+  });
 };
 
 /* ───── LOAD ───── */

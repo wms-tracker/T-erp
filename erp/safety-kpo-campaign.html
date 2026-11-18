@@ -53,7 +53,7 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listTalks, createTalk, updateTalk, deleteTalk,
@@ -61,10 +61,13 @@ import {
   listDrills, createDrill, updateDrill, deleteDrill,
   DRILL_TYPES, DRILL_STATUS, DEPARTMENTS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-campaign', 'Module 04 — ส่งเสริมกิจกรรมความปลอดภัย');
+initLightbox();
 
 const TODAY  = new Date().toISOString().slice(0,10);
 const NOW_CE = new Date().getFullYear();
@@ -141,6 +144,7 @@ function renderTalks() {
         <td style="font-size:.76rem">${r.department||'-'}</td>
         <td style="text-align:center;font-weight:700;color:#7c3aed">${r.participants||'-'}</td>
         <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="window._viewTalk('${r.id}')">ดู</button>
           <button class="btn btn-ghost btn-sm" onclick="window._editTalk('${r.id}')">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="window._delTalk('${r.id}')">🗑</button>
         </td>
@@ -217,6 +221,7 @@ window._saveTalk = async () => {
   const date  = document.getElementById('f-date')?.value;
   const topic = document.getElementById('f-topic')?.value || document.getElementById('f-title')?.value?.trim();
   if (!date || !topic) { alert('กรุณากรอก วันที่ และ หัวข้อ'); return; }
+  const attachments = await commitAttachments();
   const payload = {
     talkDate:    date,
     talkType:    document.getElementById('f-type')?.value  || 'safety_talk',
@@ -227,6 +232,7 @@ window._saveTalk = async () => {
     speaker:     document.getElementById('f-speaker')?.value?.trim() || '',
     remark:      document.getElementById('f-remark')?.value?.trim() || '',
     kpoDuty:     'duty4',
+    attachments,
   };
   try {
     if (editId) await updateTalk(editId, payload);
@@ -273,6 +279,7 @@ function renderDrills() {
         <td style="text-align:center">${r.duration||'-'}</td>
         <td>${statusBadge(r.status||'planned')}</td>
         <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="window._viewDrill('${r.id}')">ดู</button>
           <button class="btn btn-ghost btn-sm" onclick="window._editDrill('${r.id}')">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="window._delDrill('${r.id}')">🗑</button>
         </td>
@@ -349,6 +356,7 @@ window._saveDrill = async () => {
   const date = document.getElementById('f-date')?.value;
   const type = document.getElementById('f-type')?.value;
   if (!date || !type) { alert('กรุณากรอก วันที่ และ ประเภท'); return; }
+  const attachments = await commitAttachments();
   const payload = {
     drillDate:   date,
     drillType:   type,
@@ -359,6 +367,7 @@ window._saveDrill = async () => {
     coordinator: document.getElementById('f-coord')?.value?.trim() || '',
     remark:      document.getElementById('f-remark')?.value?.trim()|| '',
     kpoDuty:     'duty4',
+    attachments,
   };
   try {
     if (editId) await updateDrill(editId, payload);
@@ -373,6 +382,101 @@ window._delDrill = async (id) => {
   if (!confirm('ลบรายการนี้?')) return;
   try { await deleteDrill(id); drills=drills.filter(x=>x.id!==id); renderDrills(); }
   catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+/* ───── VIEW TALK ───── */
+window._viewTalk = (id) => {
+  const r = talks.find(x => x.id === id);
+  if (!r) return;
+  const tl = TALK_TYPES_LEGACY[r.talkType]?.label || r.talkType || '-';
+  document.getElementById('panel-title').textContent = '📋 รายละเอียด Safety Talk';
+  document.getElementById('panel-body').innerHTML = `
+  <div style="font-size:1rem;font-weight:700;margin-bottom:8px">${r.topic||r.title||'-'}</div>
+  <div style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>วันที่</span><span>${fmtDate(r.talkDate)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>ประเภท</span><span>${tl}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>แผนก</span><span>${r.department||'-'}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>วิทยากร</span><strong>${r.speaker||'-'}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>ผู้เข้าร่วม (คน)</span><strong style="color:#7c3aed">${r.participants||0}</strong></div>
+  </div>
+  ${r.remark?`<div style="margin-top:12px;font-size:.78rem;font-weight:700;color:#64748b">สรุปเนื้อหา</div>
+  <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6;margin-top:4px">${r.remark}</div>`:''}
+  ${renderThumbs(r.attachments||[])}
+  <div style="margin-top:16px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="window._printDocTalk('${r.id}')">🖨 พิมพ์</button>
+    <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._editTalk('${r.id}')">✏️ แก้ไข</button>
+  </div>`;
+  bindLightbox(r.attachments||[], document.getElementById('panel-body'));
+  openPanel();
+};
+
+window._printDocTalk = async (id) => {
+  const r = talks.find(x => x.id === id);
+  if (!r) return;
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 04 — ส่งเสริมกิจกรรมความปลอดภัย (Safety Talk)',
+    infoRows: [
+      ['หัวข้อ', r.topic||r.title, 'full'],
+      ['ประเภท', TALK_TYPES_LEGACY[r.talkType]?.label||r.talkType||'-'],
+      ['วันที่', fmtDate(r.talkDate)],
+      ['แผนก', r.department||'-'],
+      ['วิทยากร', r.speaker||'-'],
+      ['ผู้เข้าร่วม (คน)', String(r.participants||0)],
+    ],
+    textSections: [
+      { title: 'สรุปเนื้อหา', content: r.remark },
+    ],
+  });
+};
+
+/* ───── VIEW DRILL ───── */
+window._viewDrill = (id) => {
+  const r = drills.find(x => x.id === id);
+  if (!r) return;
+  const dt = DRILL_TYPES.find(t=>t.key===r.drillType)?.label||r.drillType||'-';
+  const st = DRILL_STATUS[r.status]||{label:r.status||'-',color:'#6b7280',bg:'#f9fafb'};
+  document.getElementById('panel-title').textContent = '📋 รายละเอียดการซ้อม';
+  document.getElementById('panel-body').innerHTML = `
+  <div style="font-size:1rem;font-weight:700;margin-bottom:8px">${dt}</div>
+  <span class="badge" style="background:${st.bg};color:${st.color}">${st.label}</span>
+  <div style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>วันที่ซ้อม</span><span>${fmtDate(r.drillDate)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>สถานที่</span><span>${r.location||'-'}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>ผู้เข้าร่วม (คน)</span><strong style="color:#7c3aed">${r.participants||0}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>เวลาที่ใช้ (นาที)</span><span>${r.duration||'-'}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>ผู้ประสานงาน</span><strong>${r.coordinator||'-'}</strong></div>
+  </div>
+  ${r.remark?`<div style="margin-top:12px;font-size:.78rem;font-weight:700;color:#64748b">สรุปผลการซ้อม / ข้อสังเกต</div>
+  <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6;margin-top:4px">${r.remark}</div>`:''}
+  ${renderThumbs(r.attachments||[])}
+  <div style="margin-top:16px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="window._printDocDrill('${r.id}')">🖨 พิมพ์</button>
+    <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._editDrill('${r.id}')">✏️ แก้ไข</button>
+  </div>`;
+  bindLightbox(r.attachments||[], document.getElementById('panel-body'));
+  openPanel();
+};
+
+window._printDocDrill = async (id) => {
+  const r = drills.find(x => x.id === id);
+  if (!r) return;
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 04 — ส่งเสริมกิจกรรมความปลอดภัย (ซ้อมแผนฉุกเฉิน)',
+    infoRows: [
+      ['ประเภทการซ้อม', DRILL_TYPES.find(t=>t.key===r.drillType)?.label||r.drillType||'-', 'full'],
+      ['สถานะ', DRILL_STATUS[r.status]?.label||r.status||'-'],
+      ['วันที่ซ้อม', fmtDate(r.drillDate)],
+      ['สถานที่', r.location||'-'],
+      ['ผู้เข้าร่วม (คน)', String(r.participants||0)],
+      ['เวลาที่ใช้ (นาที)', String(r.duration||0)],
+      ['ผู้ประสานงาน', r.coordinator||'-'],
+    ],
+    textSections: [
+      { title: 'สรุปผลการซ้อม / ข้อสังเกต', content: r.remark },
+    ],
+  });
 };
 
 /* ───── LOAD ───── */

@@ -78,16 +78,19 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listNearMiss, createNearMiss, updateNearMiss, getNearMiss,
   NEAR_MISS_TYPES, RISK_LEVELS_NM, NM_STATUS, DEPARTMENTS, OBS_CATEGORIES
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-prevention', 'Module 02 — ป้องกันและลดอุบัติเหตุ');
+initLightbox();
 
 const TODAY = new Date().toISOString().split('T')[0];
 const STATUS_FLOW = ['open','assessed','assigned','in_progress','closed'];
@@ -380,6 +383,7 @@ window._save = async () => {
   const date  = document.getElementById('f-date')?.value;
   if (!title || !date) { alert('กรุณากรอก หัวข้อ และ วันที่รายงาน'); return; }
 
+  const attachments = await commitAttachments();
   const payload = {
     title,
     nmType:          document.getElementById('f-type2')?.value    || 'near_miss',
@@ -394,6 +398,7 @@ window._save = async () => {
     correctiveAction:document.getElementById('f-action')?.value?.trim() || '',
     assignedTo:      document.getElementById('f-assign')?.value?.trim() || '',
     kpoDuty:         'duty2',
+    attachments,
     ...(editingId ? {
       status:  document.getElementById('f-status2')?.value || 'open',
       dueDate: document.getElementById('f-due')?.value     || '',
@@ -465,11 +470,43 @@ window._view = (id) => {
   ${r.correctiveAction?`<div class="section-title">แนวทางแก้ไข / ป้องกัน</div>
   <div style="background:#f0fdf4;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6">${r.correctiveAction}</div>`:''}
 
-  <div style="margin-top:16px">
+  ${renderThumbs(r.attachments||[])}
+
+  <div style="margin-top:16px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨 พิมพ์</button>
     <button class="btn btn-ghost btn-sm" onclick="window._closePanel();window._editPanel('${r.id}')">✏️ แก้ไข</button>
   </div>`;
 
+  bindLightbox(r.attachments||[], document.getElementById('panelDetailBody'));
   openPanel('panelDetail');
+};
+
+window._printDoc = async (id) => {
+  const r = allRecs.find(x => x.id === id);
+  if (!r) return;
+  const rl = RISK_LEVELS_NM[r.riskLevel] || {};
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 02 — ป้องกันและลดอุบัติเหตุ',
+    infoRows: [
+      ['หัวข้อ', r.title, 'full'],
+      ['ประเภท', typeLabel(r.nmType)],
+      ['หมวดหมู่', r.category || '-'],
+      ['แผนก', r.department || '-'],
+      ['สถานที่เกิดเหตุ', r.location || '-'],
+      ['วันที่รายงาน', fmtDate(r.reportDate)],
+      ['ผู้รายงาน', r.reportedBy || '-'],
+      ['ระดับความเสี่ยง', rl.label || r.riskLevel || '-'],
+      ['สถานะ', NM_STATUS[r.status]?.label || r.status || '-'],
+      ['ผู้ติดตาม', r.assignedTo || '-'],
+      ['กำหนดเสร็จ', fmtDate(r.dueDate)],
+    ],
+    textSections: [
+      { title: 'รายละเอียดเหตุการณ์', content: r.description },
+      { title: 'สาเหตุ', content: r.rootCause },
+      { title: 'แนวทางแก้ไข / ป้องกัน', content: r.correctiveAction },
+    ],
+  });
 };
 
 /* ───── LOAD ───── */

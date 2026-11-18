@@ -94,7 +94,7 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listInspections, createInspection, getInspection,
@@ -102,10 +102,13 @@ import {
   computeSafetyKPIs, monthlyTrend, listIncidents, incidentsByDept,
   INCIDENT_TYPES, DEPARTMENTS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-inspection', 'Module 06 — สำรวจความปลอดภัย & สถิติ');
+initLightbox();
 
 const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const THIS_YEAR_CE = new Date().getFullYear(); // Gregorian for incident queries
@@ -361,6 +364,7 @@ window._saveInspect = async () => {
   const assessed  = items.length - naCount;
   const passRate  = assessed > 0 ? Math.round(passCount / assessed * 100) : 100;
 
+  const attachments = await commitAttachments();
   const payload = {
     inspectionDate: date,
     area,
@@ -374,6 +378,7 @@ window._saveInspect = async () => {
     remark,
     status,
     kpoDuty: 'duty6',
+    attachments,
   };
 
   try {
@@ -432,10 +437,38 @@ window._viewInspect = async (id) => {
     <div class="detail-section">
       <h3>รายการตรวจ</h3>
       ${itemsHtml}
+    </div>
+    ${renderThumbs(r.attachments||[])}
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨 พิมพ์</button>
     </div>`;
+    bindLightbox(r.attachments||[], document.getElementById('panelDetailBody'));
   } catch(e) {
     document.getElementById('panelDetailBody').innerHTML = `<div style="color:#991b1b">โหลดไม่ได้: ${e?.message||e}</div>`;
   }
+};
+
+window._printDoc = async (id) => {
+  const r = inspections.find(x => x.id === id) || await getInspection(id);
+  if (!r) return;
+  const inspectorStr = Array.isArray(r.inspectors) ? r.inspectors.join(', ') : (r.inspectors || '-');
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 06 — สำรวจความปลอดภัย & สถิติ',
+    infoRows: [
+      ['วันที่ตรวจ', fmtDate(r.inspectionDate)],
+      ['พื้นที่', r.area || '-'],
+      ['ผู้ตรวจ', inspectorStr],
+      ['สถานะ', INSPECTION_STATUS[r.status]?.label || r.status || '-'],
+      ['รายการผ่าน', String(r.passCount ?? '-')],
+      ['รายการไม่ผ่าน', String(r.failCount ?? '-')],
+      ['N/A', String(r.naCount ?? '-')],
+      ['% ผ่าน', (r.passRate ?? '-') + '%'],
+    ],
+    textSections: [
+      { title: 'หมายเหตุ / สรุปผล', content: r.remark },
+    ],
+  });
 };
 
 /* ════════════════════════════════════════════

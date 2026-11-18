@@ -55,16 +55,19 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listActionPlan, createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
   SAP_CATEGORIES, SAP_STATUS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-improvement', 'Module 03 — เสนอแนะปรับปรุงสภาพแวดล้อม');
+initLightbox();
 
 const TODAY    = new Date().toISOString().slice(0,10);
 const NOW_CE   = new Date().getFullYear();
@@ -122,10 +125,17 @@ main.innerHTML = `
     <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
   </div>
   <div class="panel-body" id="panel-body"></div>
+</div>
+<div class="panel" id="panelDetail">
+  <div class="panel-head">
+    <h2>📋 รายละเอียด</h2>
+    <button class="btn btn-ghost btn-sm" onclick="window._closePanel()">✕ ปิด</button>
+  </div>
+  <div class="panel-body" id="panelDetailBody"></div>
 </div>`;
 
-function openPanel(){document.getElementById('overlay').classList.add('open');document.getElementById('panel').classList.add('open');}
-window._closePanel=()=>{document.getElementById('overlay').classList.remove('open');document.getElementById('panel').classList.remove('open');editId=null;};
+function openPanel(id='panel'){document.getElementById('overlay').classList.add('open');document.getElementById(id).classList.add('open');}
+window._closePanel=()=>{document.getElementById('overlay').classList.remove('open');document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'));editId=null;};
 
 window._filter = () => {
   filterYear   = document.getElementById('f-year')?.value   || '';
@@ -186,6 +196,7 @@ function renderTable(data) {
         <td style="text-align:right;font-size:.8rem">${r.budget?(+r.budget).toLocaleString():'-'}</td>
         <td>${statusBadge(r.status||'planned')}</td>
         <td style="display:flex;gap:4px">
+          <button class="btn btn-ghost btn-sm" onclick="window._view('${r.id}')">ดู</button>
           <button class="btn btn-ghost btn-sm" onclick="window._edit('${r.id}')">✏️</button>
           <button class="btn btn-danger btn-sm" onclick="window._del('${r.id}')">🗑</button>
         </td>
@@ -279,6 +290,7 @@ window._save = async () => {
   const title = document.getElementById('f-title')?.value?.trim();
   const cat   = document.getElementById('f-cat')?.value;
   if (!title || !cat) { alert('กรุณากรอก หัวข้อ และ หมวด'); return; }
+  const attachments = await commitAttachments();
   const payload = {
     year:        parseInt(document.getElementById('f-year')?.value) || NOW_CE,
     category:    cat,
@@ -292,6 +304,7 @@ window._save = async () => {
     actualCost:  Number(document.getElementById('f-actual-cost')?.value) || 0,
     remark:      document.getElementById('f-remark')?.value?.trim()      || '',
     kpoDuty:     'duty3',
+    attachments,
   };
   try {
     if (editId) await updateActionPlanItem(editId, payload);
@@ -306,6 +319,60 @@ window._del = async (id) => {
   if (!confirm('ลบรายการนี้?')) return;
   try { await deleteActionPlanItem(id); records=records.filter(x=>x.id!==id); window._filter(); }
   catch(e) { alert('ลบไม่ได้: '+(e?.message||e)); }
+};
+
+window._view = (id) => {
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+  const cat = catInfo(r.category);
+  document.getElementById('panelDetailBody').innerHTML = `
+  <div style="font-size:1rem;font-weight:700;margin-bottom:12px">${r.title||'-'}</div>
+  ${statusBadge(r.status||'planned')}
+  <div style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>ปี</span><span>${(r.year||NOW_CE)+543}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>หมวด</span><span>${cat.icon} ${cat.label}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>ผู้รับผิดชอบ</span><strong>${r.assignedTo||'-'}</strong></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>กำหนดเสร็จ</span><span>${fmtDate(r.targetDate)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>เสร็จจริง</span><span>${fmtDate(r.actualDate)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>งบประมาณ</span><span>${r.budget?(+r.budget).toLocaleString()+' บาท':'-'}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:.82rem"><span>งบใช้จริง</span><span>${r.actualCost?(+r.actualCost).toLocaleString()+' บาท':'-'}</span></div>
+  </div>
+  ${r.description?`<div style="margin-top:12px;font-size:.78rem;font-weight:700;color:#64748b">รายละเอียด</div>
+  <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6;margin-top:4px">${r.description}</div>`:''}
+  ${r.remark?`<div style="margin-top:12px;font-size:.78rem;font-weight:700;color:#64748b">หมายเหตุ</div>
+  <div style="background:#fffbeb;border-radius:8px;padding:10px;font-size:.82rem;line-height:1.6;margin-top:4px">${r.remark}</div>`:''}
+  ${renderThumbs(r.attachments||[])}
+  <div style="margin-top:16px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨 พิมพ์</button>
+    <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._edit('${r.id}')">✏️ แก้ไข</button>
+  </div>`;
+  bindLightbox(r.attachments||[], document.getElementById('panelDetailBody'));
+  openPanel('panelDetail');
+};
+
+window._printDoc = async (id) => {
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+  const cat = catInfo(r.category);
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 03 — เสนอแนะปรับปรุงสภาพแวดล้อม',
+    infoRows: [
+      ['หัวข้อ', r.title, 'full'],
+      ['ปี', String((r.year||NOW_CE)+543)],
+      ['หมวด', cat.icon+' '+cat.label],
+      ['ผู้รับผิดชอบ', r.assignedTo || '-'],
+      ['สถานะ', SAP_STATUS[r.status]?.label || r.status || '-'],
+      ['กำหนดเสร็จ', fmtDate(r.targetDate)],
+      ['เสร็จจริง', fmtDate(r.actualDate)],
+      ['งบประมาณ (บาท)', r.budget ? (+r.budget).toLocaleString() : '-'],
+      ['งบใช้จริง (บาท)', r.actualCost ? (+r.actualCost).toLocaleString() : '-'],
+    ],
+    textSections: [
+      { title: 'รายละเอียด/ข้อเสนอแนะ', content: r.description },
+      { title: 'หมายเหตุ / ผลที่ได้', content: r.remark },
+    ],
+  });
 };
 
 /* ───── LOAD ───── */

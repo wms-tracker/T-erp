@@ -78,16 +78,19 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listObservations, createObservation, updateObservation, getObservation,
   OBS_TYPES, OBS_CATEGORIES, OBS_STATUS, DEPARTMENTS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-report-channel', 'Module 08 — ระบบรายงานความไม่ปลอดภัย');
+initLightbox();
 
 const TODAY = new Date().toISOString().split('T')[0];
 const canClose = ['safety_officer','kpo','admin'].includes(profile.role);
@@ -341,6 +344,7 @@ window._save = async () => {
   if (!title || !date) { alert('กรุณากรอก หัวข้อ และ วันที่พบ'); return; }
 
   const isPositive = type === 'safe' || type === 'positive';
+  const attachments = await commitAttachments();
   const payload = {
     obsType:         type,
     title,
@@ -355,6 +359,7 @@ window._save = async () => {
       ? (document.getElementById('f-status2')?.value || 'open')
       : (isPositive ? 'na' : 'open'),
     kpoDuty:         'duty8',
+    attachments,
   };
 
   try {
@@ -408,12 +413,42 @@ window._view = (id) => {
 
   ${r.closedDate?`<div style="margin-top:10px;font-size:.78rem;color:#059669">✅ ปิดเมื่อ ${fmtDate(r.closedDate)}</div>`:''}
 
+  ${renderThumbs(r.attachments||[])}
+
   <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
     ${canClose && r.status==='open'?`<button class="btn btn-success btn-sm" onclick="window._close('${r.id}')">✅ ดำเนินการแล้ว</button>`:''}
+    <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨 พิมพ์</button>
     <button class="btn btn-ghost btn-sm" onclick="window._closePanel();window._editFormPanel('${r.id}')">✏️ แก้ไข</button>
   </div>`;
 
+  bindLightbox(r.attachments||[], document.getElementById('panelDetailBody'));
   openPanel('panelDetail');
+};
+
+/* ───── PRINT ───── */
+window._printDoc = async (id) => {
+  const r = allRecs.find(x => x.id === id);
+  if (!r) return;
+  const tp = OBS_TYPES[r.obsType]||{label:r.obsType||'-'};
+  const st = OBS_STATUS[r.status]||{label:r.status||'-'};
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 08 — ระบบรายงานความไม่ปลอดภัย',
+    infoRows: [
+      ['หัวข้อ', r.title, 'full'],
+      ['ประเภท', tp.label],
+      ['สถานะ', st.label],
+      ['วันที่พบ', fmtDate(r.observationDate)],
+      ['หมวดหมู่', r.category||'-'],
+      ['แผนก', r.department||'-'],
+      ['สถานที่', r.location||'-'],
+      ['ผู้รายงาน', r.reportedBy||'-'],
+    ],
+    textSections: [
+      { title: 'รายละเอียด', content: r.description },
+      { title: 'แนวทางแก้ไข', content: r.correctiveAction },
+    ],
+  });
 };
 
 /* ───── LOAD ───── */
