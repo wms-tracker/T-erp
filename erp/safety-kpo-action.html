@@ -533,7 +533,7 @@ window._view = (id) => {
 
   ${r.action?`
   <div class="section-title">แนวทางดำเนินการ</div>
-  <div style="background:#f0fdf4;border-radius:8px;padding:10px;font-size:.82rem;color:#374151">${r.action}</div>`:''}
+  <div style="background:#f0fdf4;border-radius:8px;padding:10px 12px">${fmtSteps(r.action)}</div>`:''}
 
   ${r.remark?`
   <div class="section-title">หมายเหตุ</div>
@@ -550,8 +550,9 @@ window._view = (id) => {
     `).join('')}
   </div>`:''}
 
-  <div style="margin-top:16px;display:flex;gap:8px">
-    <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._editForm('${r.id}')">✏️ แก้ไข</button>
+  <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-ghost" style="flex:1;min-width:100px" onclick="window._closePanel();window._editForm('${r.id}')">✏️ แก้ไข</button>
+    <button class="btn btn-ghost btn-sm" onclick="window._printDetail('${r.id}')" title="พิมพ์เอกสาร">🖨 พิมพ์</button>
     ${r.status!=='closed'?`<button class="btn btn-primary btn-sm" onclick="window._quickStatus('${r.id}','closed')">✅ ปิดรายการ</button>`:''}
   </div>`;
 
@@ -575,6 +576,83 @@ window._quickStatus = async (id, status) => {
       window._view(id);
     }
   } catch(e) { alert('อัปเดตไม่ได้: ' + (e?.message||e)); }
+};
+
+/* ───── FORMAT NUMBERED STEPS ───── */
+function fmtSteps(text) {
+  if (!text) return '';
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const parts = text.split(/(?=\s*\d+\.\s*)/).map(s => s.trim()).filter(Boolean);
+  if (parts.length > 1 && /^\d+\./.test(parts[0])) {
+    return `<ol style="margin:6px 0 0;padding-left:20px;line-height:1.85;font-size:.82rem;color:#374151">
+      ${parts.map(p => `<li style="margin-bottom:3px">${esc(p.replace(/^\d+\.\s*/,''))}</li>`).join('')}
+    </ol>`;
+  }
+  return `<span style="white-space:pre-wrap;font-size:.82rem;color:#374151">${esc(text)}</span>`;
+}
+
+/* ───── PRINT DETAIL ───── */
+window._printDetail = (id) => {
+  const r = allRecs.find(x => x.id === id);
+  if (!r) return;
+  const esc = t => String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const prio = PRIORITIES.find(p => p.key === r.priority) || { label:'-', color:'#6b7280' };
+  const st   = CAPA_STATUS[r.status] || { label: r.status, color:'#6b7280' };
+  const stepsHtml = (() => {
+    if (!r.action) return '';
+    const parts = r.action.split(/(?=\s*\d+\.\s*)/).map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1 && /^\d+\./.test(parts[0]))
+      return `<ol>${parts.map(p=>`<li>${esc(p.replace(/^\d+\.\s*/,''))}</li>`).join('')}</ol>`;
+    return `<p>${esc(r.action)}</p>`;
+  })();
+  const imgs = (r.attachments||[]).map(url =>
+    `<div class="p-img"><img src="${url}"></div>`).join('');
+
+  const w = window.open('','_blank','width=900,height=700');
+  w.document.write(`<!DOCTYPE html><html lang="th"><head>
+<meta charset="UTF-8">
+<title>${esc(r.title)}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;color:#1e293b;padding:28px 36px;font-size:13px;line-height:1.6}
+h1{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.sub{font-size:.75rem;color:#64748b;margin-bottom:16px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:700;background:${st.color}18;color:${st.color};border:1px solid ${st.color}44;margin-bottom:14px}
+.section{font-size:.7rem;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;margin:14px 0 6px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}
+table.info{width:100%;border-collapse:collapse;margin-bottom:4px}
+table.info td{padding:5px 8px;font-size:.82rem;border-bottom:1px solid #f1f5f9;vertical-align:top}
+table.info td:first-child{color:#64748b;width:38%;white-space:nowrap}
+table.info td:last-child{font-weight:600}
+.box{background:#f8fafc;border-radius:6px;padding:10px 12px;margin-bottom:4px}
+.box ol{padding-left:18px}
+.box ol li{margin-bottom:4px;font-size:.82rem}
+.img-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.p-img img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0}
+.footer{margin-top:28px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:.72rem;color:#94a3b8;display:flex;justify-content:space-between}
+@media print{body{padding:14px 20px}@page{margin:14mm 16mm}}
+</style></head><body>
+<h1>${esc(r.title)}</h1>
+<div class="sub">Module 09 — ติดตามผลดำเนินงาน &nbsp;·&nbsp; พิมพ์เมื่อ ${new Date().toLocaleDateString('th-TH',{dateStyle:'long'})}</div>
+<div class="badge">${esc(st.label)}</div>
+<div class="section">ข้อมูล</div>
+<table class="info">
+  <tr><td>ประเภท</td><td>${esc(typeLabel(r.capaType))}</td></tr>
+  <tr><td>แหล่งที่มา</td><td>${esc(sourceLabel(r.source))}</td></tr>
+  <tr><td>แผนก</td><td>${esc(r.department||'-')}</td></tr>
+  <tr><td>ผู้รับผิดชอบ</td><td>${esc(r.assignedTo||'-')}</td></tr>
+  <tr><td>กำหนดเสร็จ</td><td>${esc(fmtDate(r.dueDate))}</td></tr>
+  <tr><td>ระดับความสำคัญ</td><td style="color:${prio.color}">${esc(prio.label)}</td></tr>
+  ${r.closedDate?`<tr><td>วันที่ปิด</td><td style="color:#059669">${esc(fmtDate(r.closedDate))}</td></tr>`:''}
+</table>
+${r.rootCause?`<div class="section">สาเหตุ</div><div class="box">${esc(r.rootCause)}</div>`:''}
+${r.action?`<div class="section">แนวทางดำเนินการ</div><div class="box">${stepsHtml}</div>`:''}
+${r.remark?`<div class="section">หมายเหตุ</div><div class="box">${esc(r.remark)}</div>`:''}
+${imgs?`<div class="section">รูปภาพแนบ (${r.attachments.length} รูป)</div><div class="img-grid">${imgs}</div>`:''}
+<div class="footer"><span>T-ERP Safety Module 09</span><span>พิมพ์โดย: ${esc(profile.displayName||profile.email||'-')}</span></div>
+</body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 600);
 };
 
 /* ───── LIGHTBOX ───── */
