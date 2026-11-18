@@ -119,16 +119,6 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </style>
 </head>
 <body>
-<div id="lb-overlay" onclick="window._lbClose()">
-  <button id="lb-close" onclick="window._lbClose()">✕</button>
-  <button id="lb-prev" onclick="event.stopPropagation();window._lbNav(-1)">&#8249;</button>
-  <div id="lb-stage" onclick="event.stopPropagation()">
-    <img id="lb-img" src="" alt="">
-    <div id="lb-caption"></div>
-    <div id="lb-dots"></div>
-  </div>
-  <button id="lb-next" onclick="event.stopPropagation();window._lbNav(1)">&#8250;</button>
-</div>
 <script type="module">
 import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
@@ -143,6 +133,19 @@ import {
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-action', 'Module 09 — ติดตามผลดำเนินงาน');
+
+/* inject lightbox after renderShell (which rewrites body) */
+document.body.insertAdjacentHTML('beforeend', `
+<div id="lb-overlay" onclick="window._lbClose()">
+  <button id="lb-close" onclick="window._lbClose()">✕</button>
+  <button id="lb-prev" onclick="event.stopPropagation();window._lbNav(-1)">&#8249;</button>
+  <div id="lb-stage" onclick="event.stopPropagation()">
+    <img id="lb-img" src="" alt="">
+    <div id="lb-caption"></div>
+    <div id="lb-dots"></div>
+  </div>
+  <button id="lb-next" onclick="event.stopPropagation();window._lbNav(1)">&#8250;</button>
+</div>`);
 
 const TODAY = new Date().toISOString().split('T')[0];
 const NOW_BE = new Date().getFullYear() + 543;
