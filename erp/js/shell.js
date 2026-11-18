@@ -901,16 +901,9 @@ export function renderShell(profile, activeKey, title) {
   function renderSecondary(group) {
     if (!group) return;
     const sec = document.getElementById('nav-secondary');
-    const adminBadge = isAdminViewing
-      ? `<div class="nav-admin-badge">
-           <div style="font-weight:700;">👁 กำลังดูแผนก:<br>${ROLE_LABEL[navKey] || navKey}</div>
-           <a href="dashboard-admin.html">⬅ กลับแอดมิน</a>
-         </div>`
-      : '';
     sec.innerHTML = `
       <div class="nav-sec-header">${navIcon(group.groupKey, 20)}<span>${group.label}</span></div>
       <div class="nav-sec-role">${ROLE_LABEL[profile.role] || profile.role}</div>
-      ${adminBadge}
       <div class="nav-sec-items">
         ${group.items.map(item => `
           <a href="${item.href}"
