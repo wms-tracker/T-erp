@@ -540,12 +540,13 @@ window._view = (id) => {
   <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;color:#374151">${r.remark}</div>`:''}
 
   ${(r.attachments||[]).length?`
-  <div class="section-title">รูปภาพแนบ (${r.attachments.length} รูป)</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;" id="lb-thumb-row">
+  <div class="section-title">รูปภาพแนบ (${r.attachments.length} รูป) <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:.74rem;">— คลิกเพื่อดูเต็มจอ</span></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;" id="lb-thumb-row">
     ${r.attachments.map((url,i)=>`
-      <img src="${url}" data-lb="${i}"
-        style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;display:block;cursor:zoom-in;transition:transform .15s"
-        onmouseover="this.style.transform='scale(1.06)'" onmouseout="this.style.transform=''">
+      <div data-lb="${i}" style="cursor:zoom-in;border-radius:10px;overflow:hidden;aspect-ratio:4/3;border:2px solid #e2e8f0;transition:border-color .18s,transform .18s;box-shadow:0 2px 8px rgba(0,0,0,.08)"
+        onmouseover="this.style.borderColor='#2563eb';this.style.transform='scale(1.03)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.transform=''">
+        <img src="${url}" style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none">
+      </div>
     `).join('')}
   </div>`:''}
 
@@ -558,8 +559,8 @@ window._view = (id) => {
 
   // bind lightbox — set URL array then attach click handlers (avoids embedding base64 in onclick)
   _lbUrls = r.attachments || [];
-  document.querySelectorAll('#lb-thumb-row img[data-lb]').forEach(img => {
-    img.addEventListener('click', () => window._lbOpen(Number(img.dataset.lb)));
+  document.querySelectorAll('#lb-thumb-row [data-lb]').forEach(el => {
+    el.addEventListener('click', () => window._lbOpen(Number(el.dataset.lb)));
   });
 };
 
