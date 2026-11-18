@@ -59,11 +59,11 @@ const ic = (n, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none"
 const ROLE_LABEL = { admin: 'ผู้ดูแลระบบ', manager: 'Warehouse Operations Manager', dept_head: 'หัวหน้าแผนก', author: 'ผู้จัดทำ SOP', viewer: 'ผู้อ่าน' };
 const ACTION_LABEL = {
   create: 'สร้าง SOP ใหม่', copy: 'คัดลอกเป็น SOP ใหม่', edit: 'แก้ไขเนื้อหา', submit: 'ส่งตรวจ', start_review: 'รับเรื่องตรวจสอบ',
-  review_pass: 'ตรวจสอบผ่าน → ส่งผู้จัดการอนุมัติ', approve: 'อนุมัติและประกาศใช้', return: 'ส่งกลับแก้ไข', comment: 'แสดงความคิดเห็น',
+  review_pass: 'ตรวจสอบผ่าน', certify: 'รับรองเอกสาร (Certify)', approve: 'อนุมัติและประกาศใช้', return: 'ส่งกลับแก้ไข', comment: 'แสดงความคิดเห็น',
   obsolete: 'ยกเลิกใช้งาน SOP', revise: 'สร้างฉบับแก้ไข', supersede: 'ถูกแทนที่ด้วยฉบับใหม่', cancel: 'ยกเลิกฉบับร่าง',
   delete: 'ลบฉบับร่าง', review_date: 'ทบทวน / กำหนดวันทบทวนใหม่',
 };
-const ACTION_ICON = { create: 'plus', copy: 'copy', edit: 'edit', submit: 'send', start_review: 'eye', review_pass: 'check', approve: 'shield', return: 'back', comment: 'msg', obsolete: 'ban', revise: 'edit', supersede: 'file', cancel: 'x', delete: 'trash', review_date: 'cal' };
+const ACTION_ICON = { create: 'plus', copy: 'copy', edit: 'edit', submit: 'send', start_review: 'eye', review_pass: 'check', certify: 'shield', approve: 'shield', return: 'back', comment: 'msg', obsolete: 'ban', revise: 'edit', supersede: 'file', cancel: 'x', delete: 'trash', review_date: 'cal' };
 const stLabel = s => (S.statuses && S.statuses[s]) || s;
 const stBadge = s => `<span class="badge-st st-${esc(s)}">${esc(stLabel(s))}</span>`;
 const RV_LABEL = { overdue: 'เลยกำหนดทบทวน', due_soon: 'ใกล้ถึงกำหนดทบทวน', ok: '', none: '' };
@@ -327,7 +327,7 @@ function deptOptions(sel, { all = false, onlyActive = true, onlyCreatable = fals
   if (onlyCreatable && !isPriv()) ds = ds.filter(d => d.id === S.me.department_id);
   return (all ? '<option value="">ทุกแผนก</option>' : '') + ds.map(d => `<option value="${d.id}" ${Number(sel) === d.id ? 'selected' : ''}>${esc(d.code)} – ${esc(d.name)}${d.active ? '' : ' (ปิดใช้งาน)'}</option>`).join('');
 }
-const STATUS_FILTERS = [['', 'ทุกสถานะ'], ['active', 'ใช้งานอยู่ (มีฉบับประกาศใช้)'], ['draft', 'ฉบับร่าง'], ['pending', 'รออนุมัติ (ทุกขั้น)'], ['submitted', 'ส่งตรวจ'], ['dept_review', 'หัวหน้าแผนกตรวจสอบ'], ['manager_approval', 'รอผู้จัดการอนุมัติ'], ['revision_required', 'ส่งกลับแก้ไข'], ['overdue', 'เลยกำหนดทบทวน'], ['due_soon', 'ใกล้ถึงกำหนดทบทวน'], ['obsolete', 'ยกเลิกใช้งาน']];
+const STATUS_FILTERS = [['', 'ทุกสถานะ'], ['active', 'ใช้งานอยู่ (มีฉบับประกาศใช้)'], ['draft', 'ฉบับร่าง'], ['pending', 'รออนุมัติ (ทุกขั้น)'], ['submitted', 'ส่งตรวจ'], ['dept_review', 'หัวหน้าแผนกตรวจสอบ'], ['certifier_review', 'รอผู้รับรอง'], ['manager_approval', 'รอผู้จัดการอนุมัติ'], ['revision_required', 'ส่งกลับแก้ไข'], ['overdue', 'เลยกำหนดทบทวน'], ['due_soon', 'ใกล้ถึงกำหนดทบทวน'], ['obsolete', 'ยกเลิกใช้งาน']];
 const statusOptions = sel => STATUS_FILTERS.map(([v, l]) => `<option value="${v}" ${sel === v ? 'selected' : ''}>${l}</option>`).join('');
 function reviewCell(s) {
   if (!s.next_review_date) return '<span class="muted">-</span>';
@@ -434,7 +434,7 @@ function renderDash(el, d, f) {
     </div>`;
   bindRowClicks(el);
 }
-const TASK_COLOR = { approve: 'var(--amber)', review: '#4338ca', fix: 'var(--red)', overdue: '#991b1b', due_soon: '#d97706', draft: '#94a3b8' };
+const TASK_COLOR = { approve: 'var(--amber)', certify: '#0369a1', review: '#4338ca', fix: 'var(--red)', overdue: '#991b1b', due_soon: '#d97706', draft: '#94a3b8' };
 function taskItem(t) {
   return `<div class="task"><span class="k" style="background:${TASK_COLOR[t.kind]}"></span><div class="grow" style="min-width:0">
     <div class="small" style="font-weight:600;color:${TASK_COLOR[t.kind]}">${esc(t.label)}</div>
@@ -476,7 +476,7 @@ async function pageList(main) {
 async function pageTasks(main) {
   const load = async () => {
     await loadTasks();
-    const groups = [['approve', 'รออนุมัติ'], ['review', 'รอตรวจสอบ'], ['fix', 'ถูกส่งกลับแก้ไข'], ['overdue', 'เลยกำหนดทบทวน'], ['due_soon', 'ใกล้ครบกำหนดทบทวน'], ['draft', 'ฉบับร่างของฉัน']];
+    const groups = [['approve', 'รออนุมัติ'], ['certify', 'รอรับรองเอกสาร'], ['review', 'รอตรวจสอบ'], ['fix', 'ถูกส่งกลับแก้ไข'], ['overdue', 'เลยกำหนดทบทวน'], ['due_soon', 'ใกล้ครบกำหนดทบทวน'], ['draft', 'ฉบับร่างของฉัน']];
     main.innerHTML = `<div class="page-head"><div><h1>งานที่รอฉันดำเนินการ</h1><div class="sub">รายการ SOP ที่ต้องตรวจสอบ อนุมัติ แก้ไข หรือทบทวน</div></div></div>
       ${S.tasks.length ? groups.filter(([k]) => S.tasks.some(t => t.kind === k)).map(([k, l]) => `<div class="card"><div class="hd"><h3>${l}</h3><span class="tag">${S.tasks.filter(t => t.kind === k).length}</span></div><div class="bd" style="padding-top:4px">${S.tasks.filter(t => t.kind === k).map(taskItem).join('')}</div></div>`).join('')
         : '<div class="card"><div class="empty">ไม่มีงานค้าง 🎉</div></div>'}`;
@@ -504,15 +504,17 @@ async function pageVersion(main, vid) {
   const P = await api('GET', '/api/versions/' + vid);
   return renderVersion(main, P);
 }
-const WF_STEPS = [['draft', 'Draft', 'ผู้จัดทำสร้าง SOP'], ['submitted', 'Submitted', 'ส่งให้หัวหน้าแผนกตรวจสอบ'], ['dept_review', 'Department Review', 'หัวหน้าแผนกตรวจสอบ'], ['manager_approval', 'Manager Approval', 'Warehouse Operations Manager อนุมัติ'], ['published', 'Published', 'ประกาศใช้']];
-function stepper(v) {
-  const order = WF_STEPS.map(s => s[0]);
+const WF_STEPS = [['draft', 'Draft', 'ผู้จัดทำสร้าง SOP'], ['submitted', 'Submitted', 'ส่งให้หัวหน้าแผนกตรวจสอบ'], ['dept_review', 'Department Review', 'หัวหน้าแผนกตรวจสอบ'], ['certifier_review', 'Certifier Review', 'ผู้รับรองตรวจสอบ'], ['manager_approval', 'Manager Approval', 'Warehouse Operations Manager อนุมัติ'], ['published', 'Published', 'ประกาศใช้']];
+function stepper(v, hasCertifier) {
+  const steps = hasCertifier ? WF_STEPS : WF_STEPS.filter(s => s[0] !== 'certifier_review');
+  const order = steps.map(s => s[0]);
   let idx = order.indexOf(v.status);
   const bad = v.status === 'revision_required';
   if (bad) idx = 0;
-  if (['superseded', 'obsolete'].includes(v.status)) idx = 5;
-  return `<div class="stepper">${WF_STEPS.map(([k, en, th], i) => {
-    const cls = bad && i === 0 ? 'bad' : i < idx || (idx === 4 && i === 4) || idx === 5 ? 'done' : i === idx ? 'cur' : '';
+  const lastIdx = steps.length - 1;
+  if (['superseded', 'obsolete'].includes(v.status)) idx = steps.length;
+  return `<div class="stepper">${steps.map(([k, en, th], i) => {
+    const cls = bad && i === 0 ? 'bad' : i < idx || idx === steps.length || (idx === lastIdx && i === lastIdx) ? 'done' : i === idx ? 'cur' : '';
     return `<div class="s ${cls}"><div class="n">${cls === 'done' ? '✓' : cls === 'bad' ? '!' : i + 1}</div><div class="lb"><b>${en}</b>${bad && i === 0 ? ' — <span style="color:var(--red)">Revision Required</span>' : ''}<small>${th}</small></div></div>`;
   }).join('')}</div>`;
 }
@@ -526,17 +528,18 @@ function docView(P) {
   const rd = sop.current_version_id === v.id && sop.next_review_date ? sop.next_review_date : v.review_date;
   return `<div class="doc">
     <div class="doc-head"><div class="logo"><img src="${logoUrl()}" alt="logo"></div>
-      <div class="mid"><b>${esc(S.settings.company_name)}</b><div class="small muted">${esc(S.settings.company_name_en || '')}</div><div style="font-weight:600;margin-top:4px">${esc(v.title)}</div></div>
-      <div class="meta"><div>รหัสเอกสาร: <b class="mono">${esc(sop.sop_number)}</b></div><div>Revision: <b>${esc(v.rev)}</b></div><div>วันที่มีผล: <b>${fmtD(v.effective_date)}</b></div><div>แผนก: <b>${esc(sop.dept_code)}</b></div></div></div>
+      <div class="mid"><b>${esc(S.settings.company_name)}</b><div class="small muted">${esc(S.settings.company_name_en || '')}</div>${S.settings.company_address ? `<div class="small muted">${esc(S.settings.company_address)}</div>` : ''}<div style="font-weight:600;margin-top:4px">${esc(v.title)}</div></div>
+      <div class="meta"><div>รหัสเอกสาร: <b class="mono">${esc(sop.sop_number)}</b></div><div>ฉบับที่: <b>${esc(v.rev)}</b></div><div>วันที่มีผล: <b>${fmtD(v.effective_date)}</b></div><div>แผนก: <b>${esc(sop.dept_code)}</b></div></div></div>
     <div class="doc-body">
       <div class="doc-title"><div class="k">STANDARD OPERATING PROCEDURE</div><h1>${esc(v.title)}</h1></div>
       <table class="info-t"><tr><th>SOP Number</th><td class="mono">${esc(sop.sop_number)}</td><th>Department</th><td>${esc(sop.dept_code)} – ${esc(sop.dept_name)}</td></tr>
         <tr><th>Revision</th><td>${esc(v.rev)}</td><th>Status</th><td>${stBadge(v.status)}</td></tr>
         <tr><th>Effective Date</th><td>${fmtD(v.effective_date)}</td><th>Review Date</th><td>${fmtD(rd)}</td></tr>
         <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || '-')}</td><th>Keywords</th><td>${esc(c.keywords || '-')}</td></tr></table>
-      <table class="sig-t"><tr><th>ผู้จัดทำ (Prepared By)</th><th>ผู้ตรวจสอบ (Reviewed By)</th><th>ผู้อนุมัติ (Approved By)</th></tr>
+      <table class="sig-t"><tr><th>ผู้จัดทำ (Prepared By)</th><th>ผู้ตรวจสอบ (Reviewed By)</th><th>ผู้รับรอง (Certified By)</th><th>ผู้อนุมัติ (Approved By)</th></tr>
         <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td>
           <td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? 'ตรวจสอบผ่านระบบแล้ว' : '')}</td>
+          <td>${person(people.certified_by || people.certifier, v.certified_at, v.certified_by ? 'รับรองผ่านระบบแล้ว' : '')}</td>
           <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? 'อนุมัติผ่านระบบแล้ว' : '')}</td></tr></table>
       ${sec(1, 'วัตถุประสงค์ (Objective)', c.objective)}${sec(2, 'ขอบเขต (Scope)', c.scope)}${sec(3, 'ความรับผิดชอบ (Responsibility)', c.responsibility)}
       ${sec(4, 'อุปกรณ์ / เครื่องมือ (Equipment / Tools)', c.equipment)}${sec(5, 'ข้อกำหนดด้านความปลอดภัย (Safety Requirements)', c.safety)}
@@ -569,7 +572,8 @@ function renderVersion(main, P) {
   if (pm.canEdit) A.push(`<a class="btn primary" href="#/edit/${v.id}">${ic('edit')} แก้ไขเนื้อหา</a>`);
   if (pm.canSubmit) A.push(`<button class="btn accent" data-act="submit">${ic('send')} ส่งตรวจ (Submit)</button>`);
   if (pm.canStartReview) A.push(`<button class="btn" data-act="start_review">${ic('eye')} รับเรื่องตรวจสอบ</button>`);
-  if (pm.canReviewPass) A.push(`<button class="btn green" data-act="review_pass">${ic('check')} ตรวจสอบผ่าน → ส่งผู้จัดการ</button>`);
+  if (pm.canReviewPass) A.push(`<button class="btn green" data-act="review_pass">${ic('check')} ตรวจสอบผ่าน</button>`);
+  if (pm.canCertify) A.push(`<button class="btn green" data-act="certify">${ic('shield')} รับรองเอกสาร (Certify)</button>`);
   if (pm.canApprove) A.push(`<button class="btn green" data-act="approve">${ic('shield')} อนุมัติและประกาศใช้</button>`);
   if (pm.canReturn) A.push(`<button class="btn danger" data-act="return">${ic('back')} ส่งกลับแก้ไข</button>`);
   if (pm.canRevise) A.push(`<button class="btn primary" data-act="revise">${ic('edit')} สร้างฉบับแก้ไข (Rev. ใหม่)</button>`);
@@ -591,10 +595,11 @@ function renderVersion(main, P) {
     <div class="sop-layout"><div>${docView(P)}</div>
       <div class="sop-side">
         <div class="card"><div class="hd"><h3>การดำเนินการ</h3></div><div class="bd"><div class="actions">${A.join('') || '<div class="muted small">ไม่มีรายการที่คุณดำเนินการได้ในสถานะนี้</div>'}</div></div></div>
-        <div class="card"><div class="hd"><h3>Workflow การอนุมัติ</h3></div><div class="bd">${stepper(v)}
+        <div class="card"><div class="hd"><h3>Workflow การอนุมัติ</h3></div><div class="bd">${stepper(v, !!P.people.certifier)}
           <dl class="kv" style="margin-top:6px"><dt>ผู้จัดทำ</dt><dd>${esc(P.people.prepared?.display_name || '-')}</dd><dt>ผู้ตรวจสอบ</dt><dd>${esc(P.people.reviewer?.display_name || 'หัวหน้าแผนก ' + sop.dept_code + ' (คนใดก็ได้)')}</dd>
+          ${P.people.certifier ? `<dt>ผู้รับรอง</dt><dd>${esc(P.people.certifier.display_name)}</dd>` : ''}
           <dt>ผู้อนุมัติ</dt><dd>${esc(P.people.approver?.display_name || 'Warehouse Operations Manager')}</dd>${v.submitted_at ? `<dt>ส่งตรวจเมื่อ</dt><dd>${fmtDT(v.submitted_at)}</dd>` : ''}
-          ${v.reviewed_at ? `<dt>ตรวจผ่านเมื่อ</dt><dd>${fmtDT(v.reviewed_at)}</dd>` : ''}${v.approved_at ? `<dt>อนุมัติเมื่อ</dt><dd>${fmtDT(v.approved_at)}</dd>` : ''}</dl></div></div>
+          ${v.reviewed_at ? `<dt>ตรวจผ่านเมื่อ</dt><dd>${fmtDT(v.reviewed_at)}</dd>` : ''}${v.certified_at ? `<dt>รับรองเมื่อ</dt><dd>${fmtDT(v.certified_at)}</dd>` : ''}${v.approved_at ? `<dt>อนุมัติเมื่อ</dt><dd>${fmtDT(v.approved_at)}</dd>` : ''}</dl></div></div>
         <div class="card"><div class="hd"><h3>ส่งออก / อื่น ๆ</h3></div><div class="bd"><div class="actions">${EX.join('')}</div></div></div>
         <div class="card"><div class="hd"><h3>ประวัติเวอร์ชัน</h3><span class="spacer"></span>${P.versions.length > 1 ? `<a class="btn sm" href="#/compare/${sop.id}?a=${(P.versions.find(x => x.id !== v.id) || {}).id}&b=${v.id}">${ic('diff')} เปรียบเทียบ</a>` : ''}</div>
           <div class="table-wrap"><table class="t"><tbody>${verRows}</tbody></table></div></div>
@@ -610,7 +615,7 @@ function renderVersion(main, P) {
     try { const np = await api('GET', '/api/versions/' + v.id); renderVersion(main, np); } catch { }
   };
 }
-const WORK_STATUSES_UI = ['draft', 'submitted', 'dept_review', 'manager_approval', 'revision_required'];
+const WORK_STATUSES_UI = ['draft', 'submitted', 'dept_review', 'certifier_review', 'manager_approval', 'revision_required'];
 
 async function doAction(act, P) {
   const { sop, version: v } = P;
@@ -625,6 +630,10 @@ async function doAction(act, P) {
     case 'review_pass': {
       const c = await askText('ตรวจสอบผ่าน', 'ความคิดเห็นของผู้ตรวจสอบ', { required: false, ok: 'ยืนยันตรวจสอบผ่าน', okClass: 'green' });
       if (c !== null) await wf('review_pass', c); break;
+    }
+    case 'certify': {
+      const c = await askText('รับรองเอกสาร (Certify)', 'ความคิดเห็นของผู้รับรอง', { required: false, ok: 'รับรองเอกสาร', okClass: 'green' });
+      if (c !== null) await wf('certify', c); break;
     }
     case 'approve': {
       const c = await askText('อนุมัติและประกาศใช้', 'ความคิดเห็นของผู้อนุมัติ', { required: false, ok: 'อนุมัติและประกาศใช้', okClass: 'green', extra: `<div class="banner info">${ic('info')}<div>เมื่ออนุมัติ ${esc(v.rev)} จะกลายเป็น <b>Current Version</b> ${sop.current_version_id ? 'และฉบับเดิมจะถูกเก็บเป็นประวัติ (Superseded)' : ''} และจะถูกล็อกห้ามแก้ไข</div></div>` });
@@ -686,7 +695,7 @@ async function pageNew(main) {
   const deptId = isPriv() ? (S.depts.find(d => d.active)?.id) : S.me.department_id;
   const blank = {
     sop: { id: null, sop_number: '', department_id: deptId, current_version_id: null },
-    version: { id: null, revision: 0, rev: 'Rev.00', status: 'draft', title: '', row_ver: null, prepared_by: S.me.id, owner_id: S.me.id, reviewer_id: null, approver_id: null, effective_date: '', review_date: '', change_summary: 'จัดทำครั้งแรก (Initial issue)', content: { objective: '', scope: '', responsibility: '', equipment: '', safety: '', related_docs: '', kpi: '', keywords: '', steps: [{ id: crypto.randomUUID(), title: '', detail: '', images: [] }], attachments: [] } },
+    version: { id: null, revision: 0, rev: 'Rev.00', status: 'draft', title: '', row_ver: null, prepared_by: S.me.id, owner_id: S.me.id, reviewer_id: null, certifier_id: null, approver_id: null, effective_date: '', review_date: '', change_summary: 'จัดทำครั้งแรก (Initial issue)', content: { objective: '', scope: '', responsibility: '', equipment: '', safety: '', related_docs: '', kpi: '', keywords: '', steps: [{ id: crypto.randomUUID(), title: '', detail: '', images: [] }], attachments: [] } },
     files: [],
   };
   return renderEditor(main, blank, true);
@@ -700,7 +709,7 @@ async function pageEdit(main, vid) {
 function renderEditor(main, P, isNew) {
   const sop = P.sop, v = P.version;
   const E = {
-    sop_number: sop.sop_number, department_id: sop.department_id, title: v.title, owner_id: v.owner_id, reviewer_id: v.reviewer_id, approver_id: v.approver_id,
+    sop_number: sop.sop_number, department_id: sop.department_id, title: v.title, owner_id: v.owner_id, reviewer_id: v.reviewer_id, certifier_id: v.certifier_id, approver_id: v.approver_id,
     effective_date: v.effective_date || '', review_date: v.review_date || '', change_summary: v.change_summary || '', row_ver: v.row_ver,
     content: JSON.parse(JSON.stringify(v.content)),
   };
@@ -728,6 +737,7 @@ function renderEditor(main, P, isNew) {
       <div style="grid-column:1/-1"><label class="f">SOP Title <span class="req">*</span></label><input class="in" data-f="title" value="${esc(E.title)}" placeholder="เช่น ขั้นตอนการหยิบสินค้า (Picking) ตามใบสั่งจ่าย"></div>
       <div><label class="f">ผู้รับผิดชอบ (Owner) <span class="req">*</span></label><select class="in" data-f="owner_id">${userOpts(E.owner_id, null, null, '— เลือก —')}</select></div>
       <div><label class="f">ผู้ตรวจสอบ (Reviewer)</label><select class="in" data-f="reviewer_id">${userOpts(E.reviewer_id, ['dept_head', 'manager', 'admin'], prep, '— หัวหน้าแผนกคนใดก็ได้ —')}</select></div>
+      <div><label class="f">ผู้รับรอง (Certifier) <span class="muted small">ไม่บังคับ</span></label><select class="in" data-f="certifier_id">${userOpts(E.certifier_id, ['dept_head', 'manager', 'admin'], prep, '— ไม่มีขั้นตอนนี้ —')}</select></div>
       <div><label class="f">ผู้อนุมัติ (Approver)</label><select class="in" data-f="approver_id">${userOpts(E.approver_id, ['manager', 'admin'], prep, '— Manager คนใดก็ได้ —')}</select></div>
       <div><label class="f">Effective Date (วันเริ่มใช้) <span class="req">*</span></label><input class="in" type="date" data-f="effective_date" value="${esc(E.effective_date)}"></div>
       <div><label class="f">Review Date (วันทบทวน) <span class="req">*</span></label><div class="row" style="flex-wrap:nowrap"><input class="in" type="date" data-f="review_date" value="${esc(E.review_date)}"><button class="btn sm" type="button" id="plus1y" title="ตั้งเป็น ${S.settings.default_review_months} เดือนหลังวันเริ่มใช้">+${S.settings.default_review_months} ด.</button></div></div>
@@ -1020,6 +1030,7 @@ async function pageSettings(main) {
     <div class="card" style="max-width:820px"><div class="bd grid g2">
       <div><label class="f">ชื่อบริษัท (ไทย)</label><input class="in" id="s1" value="${esc(st.company_name)}"></div>
       <div><label class="f">ชื่อบริษัท (อังกฤษ)</label><input class="in" id="s2" value="${esc(st.company_name_en)}"></div>
+      <div style="grid-column:1/-1"><label class="f">ที่อยู่บริษัท (แสดงบนหัวเอกสาร)</label><input class="in" id="s7" value="${esc(st.company_address || '')}"></div>
       <div><label class="f">โลโก้ (PNG/JPG)</label><div class="row"><img id="lg" src="${logoUrl()}" style="height:52px;max-width:140px;object-fit:contain;border:1px solid var(--line);border-radius:8px;padding:4px;background:#fff">
         <label class="btn sm">${ic('img')} เลือกไฟล์<input type="file" accept="image/png,image/jpeg" class="hidden" id="lgIn"></label><button class="btn sm" id="lgRm">ลบโลโก้</button></div></div>
       <div><label class="f">ฟอนต์ในไฟล์ Word</label><select class="in" id="s6">${['Tahoma', 'TH Sarabun New', 'TH SarabunPSK', 'Leelawadee UI', 'Angsana New', 'Cordia New'].map(f => `<option ${st.doc_font === f ? 'selected' : ''}>${f}</option>`).join('')}</select><div class="help">ฟอนต์ต้องติดตั้งในเครื่องที่เปิดไฟล์</div></div>
@@ -1033,7 +1044,7 @@ async function pageSettings(main) {
   $('#lgRm').onclick = () => { st.logo_file_id = ''; $('#lg').src = 'icon.svg'; };
   $('#sv').onclick = async () => {
     try {
-      await api('PUT', '/api/settings', { company_name: $('#s1').value, company_name_en: $('#s2').value, logo_file_id: st.logo_file_id, doc_font: $('#s6').value, review_warn_days: $('#s4').value, default_review_months: $('#s5').value });
+      await api('PUT', '/api/settings', { company_name: $('#s1').value, company_name_en: $('#s2').value, company_address: $('#s7').value, logo_file_id: st.logo_file_id, doc_font: $('#s6').value, review_warn_days: $('#s4').value, default_review_months: $('#s5').value });
       await loadBootstrap(); renderShellParts(); toast('บันทึกการตั้งค่าแล้ว', 'ok');
     } catch (e) { toastErr(e); }
   };

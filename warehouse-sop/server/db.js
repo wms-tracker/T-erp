@@ -12,6 +12,12 @@ fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, 'sop.db'));
 db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
 
+/* ---------- schema migrations (safe to run repeatedly) ---------- */
+const colExists = (tbl, col) => !!db.prepare(`PRAGMA table_info(${tbl})`).all().find(r => r.name === col);
+if (!colExists('sop_versions', 'certifier_id'))  db.exec('ALTER TABLE sop_versions ADD COLUMN certifier_id  INTEGER');
+if (!colExists('sop_versions', 'certified_by'))  db.exec('ALTER TABLE sop_versions ADD COLUMN certified_by  INTEGER');
+if (!colExists('sop_versions', 'certified_at'))  db.exec('ALTER TABLE sop_versions ADD COLUMN certified_at  TEXT');
+
 db.exec(`
 CREATE TABLE IF NOT EXISTS departments(
   id INTEGER PRIMARY KEY, code TEXT UNIQUE NOT NULL COLLATE NOCASE, name TEXT NOT NULL,
@@ -114,6 +120,7 @@ function seed() {
       run('INSERT INTO users(username,display_name,position,role,department_id,password_hash,must_change_pw,active,created_at) VALUES(?,?,?,?,?,?,1,1,?)', u, n, p, r, d, hp, t));
     setSetting('company_name', 'บริษัท ตัวอย่าง จำกัด');
     setSetting('company_name_en', 'Example Co., Ltd.');
+    setSetting('company_address', '');
     setSetting('logo_file_id', '');
     setSetting('review_warn_days', '30');
     setSetting('default_review_months', '12');

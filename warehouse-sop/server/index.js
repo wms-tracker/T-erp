@@ -24,11 +24,12 @@ const MAX_BODY = 40 * 1024 * 1024;
 const ROLES = ['admin', 'manager', 'dept_head', 'author', 'viewer'];
 const STATUS = {
   draft: 'ฉบับร่าง (Draft)', submitted: 'ส่งตรวจ (Submitted)', dept_review: 'หัวหน้าแผนกตรวจสอบ (Department Review)',
+  certifier_review: 'รอผู้รับรอง (Certifier Review)',
   manager_approval: 'รอผู้จัดการอนุมัติ (Manager Approval)', published: 'ประกาศใช้ (Published)',
   revision_required: 'ส่งกลับแก้ไข (Revision Required)', obsolete: 'ยกเลิกใช้งาน (Obsolete)',
   superseded: 'ถูกแทนที่ด้วยฉบับใหม่ (Superseded)', cancelled: 'ยกเลิกร่าง (Cancelled)',
 };
-const WORK_STATUSES = ['draft', 'submitted', 'dept_review', 'manager_approval', 'revision_required'];
+const WORK_STATUSES = ['draft', 'submitted', 'dept_review', 'certifier_review', 'manager_approval', 'revision_required'];
 const PUBLIC_STATUSES = ['published', 'superseded', 'obsolete'];
 const revLabel = r => 'Rev.' + String(r).padStart(2, '0');
 
@@ -71,8 +72,13 @@ const editorsOf = v => { try { return JSON.parse(v.editors || '[]'); } catch { r
 
 function canSeeWork(u, sop, v) {
   if (isPriv(u)) return true;
-  if (v && [v.prepared_by, v.owner_id, v.reviewer_id, v.approver_id].includes(u.id)) return true;
+  if (v && [v.prepared_by, v.owner_id, v.reviewer_id, v.certifier_id, v.approver_id].includes(u.id)) return true;
   return (u.role === 'author' || u.role === 'dept_head') && inDept(u, sop.department_id);
+}
+function canCertify(u, sop, v) {
+  if (separationIssue(u, v)) return false;
+  if (v.certifier_id) return v.certifier_id === u.id;
+  return isPriv(u) || (u.role === 'dept_head' && inDept(u, sop.department_id));
 }
 function canSeeVersion(u, sop, v) { return PUBLIC_STATUSES.includes(v.status) || canSeeWork(u, sop, v); }
 function canCreateIn(u, deptId) { return isPriv(u) || ((u.role === 'author' || u.role === 'dept_head') && inDept(u, deptId)); }
@@ -188,7 +194,7 @@ function filterSops(list, q) {
   if (q.status) {
     const st = String(q.status);
     if (st === 'active') res = res.filter(s => s.current && !s.is_obsolete);
-    else if (st === 'pending') res = res.filter(s => ['submitted', 'dept_review', 'manager_approval'].includes(s.working?.status));
+    else if (st === 'pending') res = res.filter(s => ['submitted', 'dept_review', 'certifier_review', 'manager_approval'].includes(s.working?.status));
     else if (st === 'overdue' || st === 'due_soon') res = res.filter(s => s.review_state === st);
     else if (st === 'published') res = res.filter(s => s.current && !s.is_obsolete && !s.working);
     else res = res.filter(s => s.status === st || s.working?.status === st);
@@ -211,6 +217,7 @@ function myTasks(u) {
     const sop = { id: v.sop_id, department_id: v.department_id };
     const base = { sop_id: v.sop_id, version_id: v.id, sop_number: v.sop_number, dept_code: v.dept_code, title: v.title, rev: revLabel(v.revision), status: v.status, updated_at: v.updated_at };
     if (['submitted', 'dept_review'].includes(v.status) && canReview(u, sop, v)) tasks.push({ ...base, kind: 'review', label: 'รอคุณตรวจสอบ' });
+    else if (v.status === 'certifier_review' && canCertify(u, sop, v)) tasks.push({ ...base, kind: 'certify', label: 'รอคุณรับรองเอกสาร' });
     else if (v.status === 'manager_approval' && canApprove(u, sop, v)) tasks.push({ ...base, kind: 'approve', label: 'รอคุณอนุมัติ' });
     else if (v.status === 'revision_required' && canEdit(u, sop, v) && (v.prepared_by === u.id || !isPriv(u))) tasks.push({ ...base, kind: 'fix', label: 'ถูกส่งกลับให้แก้ไข' });
     else if (v.status === 'draft' && v.prepared_by === u.id) tasks.push({ ...base, kind: 'draft', label: 'ฉบับร่างของคุณ (ยังไม่ส่งตรวจ)' });
@@ -246,15 +253,16 @@ function permissions(u, sop, v) {
     canSubmit: isWorking && canEdit(u, sop, v),
     canStartReview: isWorking && v.status === 'submitted' && canReview(u, sop, v),
     canReviewPass: isWorking && ['submitted', 'dept_review'].includes(v.status) && canReview(u, sop, v),
+    canCertify: isWorking && v.status === 'certifier_review' && canCertify(u, sop, v),
     canApprove: isWorking && v.status === 'manager_approval' && canApprove(u, sop, v),
-    canReturn: isWorking && ((['submitted', 'dept_review'].includes(v.status) && canReview(u, sop, v)) || (v.status === 'manager_approval' && canApprove(u, sop, v))),
+    canReturn: isWorking && ((['submitted', 'dept_review'].includes(v.status) && canReview(u, sop, v)) || (v.status === 'certifier_review' && canCertify(u, sop, v)) || (v.status === 'manager_approval' && canApprove(u, sop, v))),
     canComment: canSeeWork(u, sop, v),
     canRevise: isCurrent && !sop.is_obsolete && !sop.working_version_id && canCreateIn(u, sop.department_id),
     canObsolete: isCurrent && !sop.is_obsolete && isPriv(u),
     canCopy: canCreateIn(u, sop.department_id) || isPriv(u) || u.role === 'dept_head' || u.role === 'author',
     canDeleteDraft: isWorking && ['draft', 'revision_required'].includes(v.status) && (isPriv(u) || v.prepared_by === u.id),
     canSetReviewDate: isCurrent && !sop.is_obsolete && (isPriv(u) || (u.role === 'dept_head' && inDept(u, sop.department_id))),
-    separationNote: work && ['submitted', 'dept_review', 'manager_approval'].includes(v.status) && ['dept_head', 'manager', 'admin'].includes(u.role) ? sep : null,
+    separationNote: work && ['submitted', 'dept_review', 'certifier_review', 'manager_approval'].includes(v.status) && ['dept_head', 'manager', 'admin'].includes(u.role) ? sep : null,
   };
 }
 
@@ -272,8 +280,9 @@ function versionPayload(u, v) {
     sop: { ...sop, review_state: reviewState(sop.next_review_date) },
     version: { ...pv, editors: editorsOf(v), rev: revLabel(v.revision), is_current: v.id === sop.current_version_id, is_working: v.id === sop.working_version_id },
     people: {
-      prepared: userBrief(v.prepared_by), owner: userBrief(v.owner_id), reviewer: userBrief(v.reviewer_id), approver: userBrief(v.approver_id),
-      reviewed_by: userBrief(v.reviewed_by), approved_by: userBrief(v.approved_by),
+      prepared: userBrief(v.prepared_by), owner: userBrief(v.owner_id), reviewer: userBrief(v.reviewer_id),
+      certifier: userBrief(v.certifier_id), approver: userBrief(v.approver_id),
+      reviewed_by: userBrief(v.reviewed_by), certified_by: userBrief(v.certified_by), approved_by: userBrief(v.approved_by),
     },
     files,
     versions,
@@ -292,7 +301,7 @@ function nextNumber(deptId) {
 }
 
 function validateAssignees(body, preparedBy) {
-  for (const [k, roles, label] of [['reviewer_id', ['dept_head', 'manager', 'admin'], 'ผู้ตรวจสอบ'], ['approver_id', ['manager', 'admin'], 'ผู้อนุมัติ']]) {
+  for (const [k, roles, label] of [['reviewer_id', ['dept_head', 'manager', 'admin'], 'ผู้ตรวจสอบ'], ['certifier_id', ['dept_head', 'manager', 'admin'], 'ผู้รับรอง'], ['approver_id', ['manager', 'admin'], 'ผู้อนุมัติ']]) {
     const id = body[k] ? Number(body[k]) : null;
     if (!id) continue;
     const u = userBrief(id);
@@ -366,6 +375,7 @@ route('GET', '/api/bootstrap', ({ user }) => {
 function publicSettings() {
   return {
     company_name: getSetting('company_name'), company_name_en: getSetting('company_name_en'),
+    company_address: getSetting('company_address'),
     logo_file_id: getSetting('logo_file_id'), review_warn_days: getSetting('review_warn_days', '30'),
     default_review_months: getSetting('default_review_months', '12'), doc_font: getSetting('doc_font', 'Tahoma'),
   };
@@ -457,7 +467,7 @@ route('PUT', '/api/users/:id', ({ user, body, params }) => {
 /* ===== Settings ===== */
 route('PUT', '/api/settings', ({ user, body }) => {
   needRole(user, 'admin');
-  for (const k of ['company_name', 'company_name_en', 'logo_file_id', 'review_warn_days', 'default_review_months', 'doc_font']) {
+  for (const k of ['company_name', 'company_name_en', 'company_address', 'logo_file_id', 'review_warn_days', 'default_review_months', 'doc_font']) {
     if (body[k] !== undefined) setSetting(k, String(body[k]).slice(0, 200));
   }
   audit('settings', 0, 'update', body, user.id);
@@ -509,7 +519,7 @@ route('GET', '/api/dashboard', ({ user, query }) => {
     total: list.length,
     active: count(s => s.current && !s.is_obsolete),
     draft: count(s => s.working?.status === 'draft'),
-    pending: count(s => ['submitted', 'dept_review', 'manager_approval'].includes(s.working?.status)),
+    pending: count(s => ['submitted', 'dept_review', 'certifier_review', 'manager_approval'].includes(s.working?.status)),
     revision_required: count(s => s.working?.status === 'revision_required'),
     overdue: count(s => s.review_state === 'overdue'),
     due_soon: count(s => s.review_state === 'due_soon'),
@@ -560,9 +570,10 @@ route('POST', '/api/sops', ({ user, body }) => {
   const t = now();
   const out = tx(() => {
     const s = run('INSERT INTO sops(sop_number,department_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?)', num, deptId, user.id, t, t);
-    const v = run(`INSERT INTO sop_versions(sop_id,revision,status,title,content,prepared_by,owner_id,reviewer_id,approver_id,effective_date,review_date,change_summary,editors,created_at,updated_at,updated_by)
-      VALUES(?,0,'draft',?,?,?,?,?,?,?,?,?,'[]',?,?,?)`, s.id, title, JSON.stringify(cleanContent(body.content)), user.id,
-      body.owner_id || null, body.reviewer_id || null, body.approver_id || null, body.effective_date || null, body.review_date || null,
+    const v = run(`INSERT INTO sop_versions(sop_id,revision,status,title,content,prepared_by,owner_id,reviewer_id,certifier_id,approver_id,effective_date,review_date,change_summary,editors,created_at,updated_at,updated_by)
+      VALUES(?,0,'draft',?,?,?,?,?,?,?,?,?,?,'[]',?,?,?)`, s.id, title, JSON.stringify(cleanContent(body.content)), user.id,
+      body.owner_id || null, body.reviewer_id || null, body.certifier_id || null, body.approver_id || null,
+      body.effective_date || null, body.review_date || null,
       String(body.change_summary || 'จัดทำครั้งแรก (Initial issue)'), t, t, user.id);
     run('UPDATE sops SET working_version_id=? WHERE id=?', v.id, s.id);
     wlog(s.id, v.id, body._copiedFrom ? 'copy' : 'create', null, 'draft', body._copiedFrom ? `คัดลอกจาก ${body._copiedFrom}` : '', user.id);
@@ -600,9 +611,9 @@ route('PUT', '/api/versions/:id', ({ user, body, params }) => {
   const editors = editorsOf(v); if (!editors.includes(user.id) && user.id !== v.prepared_by) editors.push(user.id);
   const t = now();
   tx(() => {
-    run(`UPDATE sop_versions SET title=?, content=?, owner_id=?, reviewer_id=?, approver_id=?, effective_date=?, review_date=?, change_summary=?, editors=?, row_ver=row_ver+1, updated_at=?, updated_by=? WHERE id=?`,
-      title, JSON.stringify(cleanContent(body.content)), body.owner_id || null, body.reviewer_id || null, body.approver_id || null,
-      body.effective_date || null, body.review_date || null, String(body.change_summary ?? v.change_summary).slice(0, 4000), JSON.stringify(editors), t, user.id, v.id);
+    run(`UPDATE sop_versions SET title=?, content=?, owner_id=?, reviewer_id=?, certifier_id=?, approver_id=?, effective_date=?, review_date=?, change_summary=?, editors=?, row_ver=row_ver+1, updated_at=?, updated_by=? WHERE id=?`,
+      title, JSON.stringify(cleanContent(body.content)), body.owner_id || null, body.reviewer_id || null, body.certifier_id !== undefined ? (body.certifier_id || null) : v.certifier_id,
+      body.approver_id || null, body.effective_date || null, body.review_date || null, String(body.change_summary ?? v.change_summary).slice(0, 4000), JSON.stringify(editors), t, user.id, v.id);
     if (numChange) run('UPDATE sops SET sop_number=? WHERE id=?', numChange, sop.id);
     if (deptChange) run('UPDATE sops SET department_id=? WHERE id=?', deptChange, sop.id);
     touchSop(sop.id);
@@ -659,11 +670,26 @@ route('POST', '/api/versions/:id/action', ({ user, body, params }) => {
         wlog(sop.id, v.id, 'start_review', v.status, 'dept_review', String(body.comment || ''), user.id);
         notifyUsers.push(v.prepared_by);
         break;
-      case 'review_pass':
+      case 'review_pass': {
         if (!isWorking || !['submitted', 'dept_review'].includes(v.status)) fail(400, 'สถานะเอกสารไม่ถูกต้อง');
         if (!canReview(user, sop, v)) fail(403, separationIssue(user, v) || 'คุณไม่ใช่ผู้ตรวจสอบของเอกสารนี้');
-        move('manager_approval', ', reviewed_by=?, reviewed_at=?', [user.id, t]);
-        wlog(sop.id, v.id, 'review_pass', v.status, 'manager_approval', String(body.comment || ''), user.id);
+        const nextSt = v.certifier_id ? 'certifier_review' : 'manager_approval';
+        move(nextSt, ', reviewed_by=?, reviewed_at=?', [user.id, t]);
+        wlog(sop.id, v.id, 'review_pass', v.status, nextSt, String(body.comment || ''), user.id);
+        if (nextSt === 'certifier_review') {
+          notifyUsers.push(v.certifier_id);
+        } else {
+          if (v.approver_id) notifyUsers.push(v.approver_id);
+          else all("SELECT id FROM users WHERE active=1 AND role='manager'").forEach(r => notifyUsers.push(r.id));
+        }
+        notifyUsers.push(v.prepared_by);
+        break;
+      }
+      case 'certify':
+        if (!isWorking || v.status !== 'certifier_review') fail(400, 'สถานะเอกสารไม่ถูกต้อง');
+        if (!canCertify(user, sop, v)) fail(403, separationIssue(user, v) || 'คุณไม่ใช่ผู้รับรองของเอกสารนี้');
+        move('manager_approval', ', certified_by=?, certified_at=?', [user.id, t]);
+        wlog(sop.id, v.id, 'certify', v.status, 'manager_approval', String(body.comment || ''), user.id);
         if (v.approver_id) notifyUsers.push(v.approver_id);
         else all("SELECT id FROM users WHERE active=1 AND role='manager'").forEach(r => notifyUsers.push(r.id));
         notifyUsers.push(v.prepared_by);
@@ -684,7 +710,7 @@ route('POST', '/api/versions/:id/action', ({ user, body, params }) => {
       }
       case 'return': {
         if (!isWorking) fail(400, 'สถานะเอกสารไม่ถูกต้อง');
-        const ok = (['submitted', 'dept_review'].includes(v.status) && canReview(user, sop, v)) || (v.status === 'manager_approval' && canApprove(user, sop, v));
+        const ok = (['submitted', 'dept_review'].includes(v.status) && canReview(user, sop, v)) || (v.status === 'certifier_review' && canCertify(user, sop, v)) || (v.status === 'manager_approval' && canApprove(user, sop, v));
         if (!ok) fail(403, separationIssue(user, v) || 'คุณไม่มีสิทธิ์ส่งกลับเอกสารนี้');
         const reason = requireComment(body, 'กรุณาระบุเหตุผลที่ส่งกลับแก้ไข');
         move('revision_required');
@@ -728,9 +754,10 @@ route('POST', '/api/sops/:id/revise', ({ user, params, body }) => {
   const maxRev = get('SELECT MAX(revision) m FROM sop_versions WHERE sop_id=?', sop.id).m;
   const t = now();
   const id = tx(() => {
-    const r = run(`INSERT INTO sop_versions(sop_id,revision,status,title,content,prepared_by,owner_id,reviewer_id,approver_id,effective_date,review_date,change_summary,editors,created_at,updated_at,updated_by)
-      VALUES(?,?,'draft',?,?,?,?,?,?,NULL,NULL,?,'[]',?,?,?)`, sop.id, maxRev + 1, cur.title, cur.content, user.id, cur.owner_id,
-      cur.reviewer_id === user.id ? null : cur.reviewer_id, cur.approver_id === user.id ? null : cur.approver_id, String(body.change_summary || ''), t, t, user.id);
+    const r = run(`INSERT INTO sop_versions(sop_id,revision,status,title,content,prepared_by,owner_id,reviewer_id,certifier_id,approver_id,effective_date,review_date,change_summary,editors,created_at,updated_at,updated_by)
+      VALUES(?,?,'draft',?,?,?,?,?,?,?,NULL,NULL,?,'[]',?,?,?)`, sop.id, maxRev + 1, cur.title, cur.content, user.id, cur.owner_id,
+      cur.reviewer_id === user.id ? null : cur.reviewer_id, cur.certifier_id === user.id ? null : cur.certifier_id,
+      cur.approver_id === user.id ? null : cur.approver_id, String(body.change_summary || ''), t, t, user.id);
     run('UPDATE sops SET working_version_id=?, updated_at=? WHERE id=?', r.id, t, sop.id);
     wlog(sop.id, r.id, 'revise', null, 'draft', `สร้าง ${revLabel(maxRev + 1)} จาก ${revLabel(cur.revision)}`, user.id);
     return r.id;

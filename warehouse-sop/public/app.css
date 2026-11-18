@@ -199,7 +199,7 @@ table.t tr.click { cursor: pointer; } table.t tr.click:hover td { background: #f
 .stepper .s.bad .n { background: var(--red); color: #fff; }
 .stepper .lb { font-size: 13px; padding-top: 2px; } .stepper .lb small { display: block; color: var(--ink-3); font-size: 11.5px; }
 .actions { display: flex; flex-direction: column; gap: 8px; }
-.actions .btn { justify-content: center; }
+.actions .btn { justify-content: center; padding-block: 10px; font-size: 14px; }
 .kv { display: grid; grid-template-columns: 115px 1fr; gap: 6px 10px; font-size: 13px; }
 .kv dt { color: var(--ink-3); } .kv dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
 .presence { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--ink-2); }
