@@ -514,7 +514,9 @@ function navIcon(key, size = 24) {
   return `<svg class="nav-svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 }
 // ตัด emoji นำหน้าข้อความเมนูย่อยออก ให้เหมือนเมนูแบบมินิมอล (ไอคอนอยู่ที่ระดับกลุ่มแล้ว)
-const stripLeadingEmoji = (s) => String(s).replace(/^[\p{Extended_Pictographic}️‍\s]+/u, '');
+const stripLeadingEmoji = (s) => String(s)
+  .replace(/^[\p{Extended_Pictographic}️‍\s]+/u, '')
+  .replace(/^Module\s+\d+\s*/i, '');
 
 const PAGE_DEPARTMENT = {
   "dashboard-sales.html":       "sales",
