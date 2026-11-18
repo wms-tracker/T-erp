@@ -66,10 +66,11 @@ import {
   listLegalRegisters, LEGAL_STATUS,
   computeSafetyKPIs
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { initLightbox } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-annual-report', 'Module 10 — รายงานผลประจำปี คปอ.');
+initLightbox();
 
 const NOW_CE = new Date().getFullYear();
 let selectedYear = NOW_CE;

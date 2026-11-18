@@ -46,16 +46,19 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 </head>
 <body>
 <script type="module">
-import { requireRole } from './js/auth.js';
+import { requireRole, db } from './js/auth.js';
 import { renderShell } from './js/shell.js';
 import {
   listActionPlan, createActionPlanItem, updateActionPlanItem, deleteActionPlanItem,
   KPO_DUTIES
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
+import { getDoc, doc as fsDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { initLightbox, renderThumbs, bindLightbox, printKPODoc } from './js/safety-kpo-print.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-eval', 'Module 11 — ประเมินผลดำเนินงาน');
+initLightbox();
 
 const NOW_CE = new Date().getFullYear();
 const NOW_BE = NOW_CE + 543;
@@ -153,6 +156,7 @@ window._saveEval = async () => {
     remarks[d.key] = document.getElementById(`rm-${d.key}`)?.value?.trim() || '';
   }
   const avg = Math.round(Object.values(scores).reduce((a,b)=>a+b,0) / KPO_DUTIES.length);
+  const attachments = await commitAttachments(currentEval?.id || null, db);
   const payload = {
     year:        currentYear,
     title:       `การประเมิน คปอ. ปี ${currentYear+543}`,
@@ -163,6 +167,7 @@ window._saveEval = async () => {
     status:      'completed',
     kpoDuty:     'duty11',
     targetDate:  new Date().toISOString().slice(0,10),
+    attachments,
   };
   try {
     if (currentEval) await updateActionPlanItem(currentEval.id, payload);
@@ -238,11 +243,34 @@ window._viewEval = (id) => {
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:1.3rem;font-weight:700;color:${scoreColor(avg)}">${avg}%</span>
         <span class="level-chip" style="background:${lv.bg};color:${lv.color}">${lv.label}</span>
+        <button class="btn btn-ghost btn-sm" onclick="window._printDoc('${r.id}')">🖨️ พิมพ์</button>
         <button class="btn btn-ghost btn-sm" onclick="renderHistory()">← กลับ</button>
       </div>
     </div>
-    <div style="padding:16px">${scoreHtml}</div>
+    <div style="padding:16px" id="eval-detail-body">${scoreHtml}${renderThumbs(r.attachments||[])}</div>
   </div>`;
+  bindLightbox(r.attachments||[], document.getElementById('eval-detail-body'));
+};
+
+window._printDoc = async (id) => {
+  const r = evalRecords.find(x=>x.id===id);
+  if (!r) return;
+  const lv = levelLabel(r.avgScore||0);
+  await printKPODoc({
+    r, profile, db, getDoc, fsDoc,
+    moduleTitle: 'Module 11 — ประเมินผลดำเนินงาน คปอ.',
+    infoRows: [
+      ['ปีที่ประเมิน', `${(r.year||NOW_CE)+543}`],
+      ['คะแนนเฉลี่ย', `${r.avgScore||0}%`],
+      ['ระดับ', lv.label],
+      ['วันที่ประเมิน', fmtDate(r.targetDate)],
+      ['ผู้ประเมิน', r.createdBy||'-'],
+    ],
+    textSections: KPO_DUTIES.map(d => ({
+      title: `${d.no}. ${d.short}`,
+      content: `คะแนน: ${r.scores?.[d.key]||0}%${r.remarks?.[d.key] ? ' — ' + r.remarks[d.key] : ''}`,
+    })),
+  });
 };
 
 window._editEval = (id) => {
