@@ -89,7 +89,7 @@ import {
   listCapaRecords, createCapa, updateCapa,
   CAPA_STATUS, DEPARTMENTS
 } from './js/safety-data.js';
-import './js/safety-attach.js';
+import { commitAttachments } from './js/safety-attach.js';
 
 const profile = await requireRole(['safety_officer','kpo','admin','manager']);
 const main = renderShell(profile, 'kpo-action', 'Module 09 — ติดตามผลดำเนินงาน');
@@ -374,6 +374,7 @@ function buildForm(r = {}) {
     <label class="form-label">หมายเหตุ</label>
     <textarea id="f-remark" class="form-textarea">${r.remark||''}</textarea>
   </div>
+  <input type="hidden" id="f-attach-existing" value='${JSON.stringify(r.attachments||[])}'>
   <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:4px">
     ${editingId?`<button class="btn btn-danger btn-sm" onclick="window._confirmDel()">🗑 ลบ</button><div style="flex:1"></div>`:''}
     <button class="btn btn-ghost" onclick="window._closePanel()">ยกเลิก</button>
@@ -404,20 +405,22 @@ window._save = async () => {
   if (!title || !due) { alert('กรุณากรอก หัวข้อ และ กำหนดเสร็จ'); return; }
 
   const status = document.getElementById('f-status2')?.value || 'open';
+  const attachments = await commitAttachments();
   const payload = {
     title,
-    capaType:   document.getElementById('f-type')?.value   || '',
-    source:     document.getElementById('f-src')?.value    || '',
-    action:     document.getElementById('f-action')?.value?.trim() || '',
-    rootCause:  document.getElementById('f-cause')?.value?.trim()  || '',
-    department: document.getElementById('f-dept')?.value   || '',
-    assignedTo: assign || '',
-    dueDate:    due,
-    priority:   document.getElementById('f-prio')?.value   || 'medium',
+    capaType:    document.getElementById('f-type')?.value   || '',
+    source:      document.getElementById('f-src')?.value    || '',
+    action:      document.getElementById('f-action')?.value?.trim() || '',
+    rootCause:   document.getElementById('f-cause')?.value?.trim()  || '',
+    department:  document.getElementById('f-dept')?.value   || '',
+    assignedTo:  assign || '',
+    dueDate:     due,
+    priority:    document.getElementById('f-prio')?.value   || 'medium',
     status,
-    closedDate: status === 'closed' ? (document.getElementById('f-closed')?.value || TODAY) : '',
-    remark:     document.getElementById('f-remark')?.value?.trim() || '',
-    kpoDuty:    'duty9',
+    closedDate:  status === 'closed' ? (document.getElementById('f-closed')?.value || TODAY) : '',
+    remark:      document.getElementById('f-remark')?.value?.trim() || '',
+    attachments,
+    kpoDuty:     'duty9',
   };
 
   try {
@@ -488,6 +491,15 @@ window._view = (id) => {
   ${r.remark?`
   <div class="section-title">หมายเหตุ</div>
   <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:.82rem;color:#374151">${r.remark}</div>`:''}
+
+  ${(r.attachments||[]).length?`
+  <div class="section-title">รูปภาพแนบ (${r.attachments.length} รูป)</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    ${r.attachments.map(url=>`
+      <a href="${url}" target="_blank" rel="noopener">
+        <img src="${url}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;display:block;cursor:zoom-in;">
+      </a>`).join('')}
+  </div>`:''}
 
   <div style="margin-top:16px;display:flex;gap:8px">
     <button class="btn btn-ghost" style="flex:1" onclick="window._closePanel();window._editForm('${r.id}')">✏️ แก้ไข</button>
