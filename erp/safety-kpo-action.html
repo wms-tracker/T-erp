@@ -80,24 +80,54 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 .empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
 .spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
 /* Lightbox */
-#lb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out}
-#lb-overlay.open{display:flex}
-#lb-img{max-width:92vw;max-height:88vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6);object-fit:contain;user-select:none}
-#lb-close{position:fixed;top:16px;right:20px;color:#fff;font-size:1.8rem;cursor:pointer;line-height:1;opacity:.85;z-index:10000}
-#lb-close:hover{opacity:1}
-#lb-counter{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85rem;opacity:.7;pointer-events:none}
-#lb-prev,#lb-next{position:fixed;top:50%;transform:translateY(-50%);color:#fff;font-size:2.4rem;cursor:pointer;opacity:.7;z-index:10000;padding:8px 14px;user-select:none}
-#lb-prev{left:12px}#lb-next{right:12px}
-#lb-prev:hover,#lb-next:hover{opacity:1}
+@keyframes lb-fadein{from{opacity:0}to{opacity:1}}
+@keyframes lb-popin{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+#lb-overlay{
+  display:none;position:fixed;inset:0;z-index:9999;
+  align-items:center;justify-content:center;cursor:zoom-out;
+  background:rgba(8,10,20,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+#lb-overlay.open{display:flex;animation:lb-fadein .22s ease}
+#lb-stage{display:flex;flex-direction:column;align-items:center;gap:14px;cursor:default}
+#lb-img{
+  max-width:88vw;max-height:80vh;border-radius:14px;object-fit:contain;user-select:none;
+  box-shadow:0 24px 80px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08);
+  animation:lb-popin .28s cubic-bezier(.22,1,.36,1);
+}
+#lb-caption{color:rgba(255,255,255,.55);font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;pointer-events:none}
+#lb-close{
+  position:fixed;top:18px;right:22px;z-index:10001;
+  width:38px;height:38px;border-radius:50%;border:none;cursor:pointer;
+  background:rgba(255,255,255,.12);color:#fff;font-size:1.1rem;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);transition:background .18s;
+}
+#lb-close:hover{background:rgba(255,255,255,.25)}
+#lb-prev,#lb-next{
+  position:fixed;top:50%;transform:translateY(-50%);z-index:10001;
+  width:48px;height:80px;border:none;cursor:pointer;
+  background:rgba(255,255,255,.08);color:#fff;font-size:1.8rem;
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(6px);transition:background .18s;user-select:none;
+}
+#lb-prev{left:0;border-radius:0 10px 10px 0}
+#lb-next{right:0;border-radius:10px 0 0 10px}
+#lb-prev:hover,#lb-next:hover{background:rgba(255,255,255,.2)}
+#lb-dots{display:flex;gap:7px;justify-content:center}
+.lb-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);cursor:pointer;transition:all .18s}
+.lb-dot.on{background:#fff;width:20px;border-radius:4px}
 </style>
 </head>
 <body>
 <div id="lb-overlay" onclick="window._lbClose()">
-  <span id="lb-close" onclick="window._lbClose()">✕</span>
-  <span id="lb-prev" onclick="event.stopPropagation();window._lbNav(-1)">&#8249;</span>
-  <img id="lb-img" src="" alt="" onclick="event.stopPropagation()">
-  <span id="lb-next" onclick="event.stopPropagation();window._lbNav(1)">&#8250;</span>
-  <div id="lb-counter"></div>
+  <button id="lb-close" onclick="window._lbClose()">✕</button>
+  <button id="lb-prev" onclick="event.stopPropagation();window._lbNav(-1)">&#8249;</button>
+  <div id="lb-stage" onclick="event.stopPropagation()">
+    <img id="lb-img" src="" alt="">
+    <div id="lb-caption"></div>
+    <div id="lb-dots"></div>
+  </div>
+  <button id="lb-next" onclick="event.stopPropagation();window._lbNav(1)">&#8250;</button>
 </div>
 <script type="module">
 import { requireRole } from './js/auth.js';
@@ -561,16 +591,24 @@ window._lbNav = (dir) => {
   _lbShow();
 };
 function _lbShow() {
-  document.getElementById('lb-img').src = _lbUrls[_lbIdx];
-  document.getElementById('lb-counter').textContent = _lbUrls.length > 1 ? `${_lbIdx+1} / ${_lbUrls.length}` : '';
-  document.getElementById('lb-prev').style.display = _lbUrls.length > 1 ? '' : 'none';
-  document.getElementById('lb-next').style.display = _lbUrls.length > 1 ? '' : 'none';
+  const img = document.getElementById('lb-img');
+  img.style.animation = 'none';
+  img.src = _lbUrls[_lbIdx];
+  requestAnimationFrame(() => { img.style.animation = ''; });
+
+  const multi = _lbUrls.length > 1;
+  document.getElementById('lb-prev').style.display = multi ? '' : 'none';
+  document.getElementById('lb-next').style.display = multi ? '' : 'none';
+  document.getElementById('lb-caption').textContent = multi ? `${_lbIdx + 1} / ${_lbUrls.length}` : '';
+  document.getElementById('lb-dots').innerHTML = multi
+    ? _lbUrls.map((_,i) => `<div class="lb-dot${i===_lbIdx?' on':''}" onclick="event.stopPropagation();window._lbNav(${i - _lbIdx})"></div>`).join('')
+    : '';
 }
 document.addEventListener('keydown', e => {
   if (!document.getElementById('lb-overlay').classList.contains('open')) return;
-  if (e.key === 'Escape') window._lbClose();
-  if (e.key === 'ArrowLeft')  window._lbNav(-1);
-  if (e.key === 'ArrowRight') window._lbNav(1);
+  if (e.key === 'Escape')      window._lbClose();
+  if (e.key === 'ArrowLeft')   window._lbNav(-1);
+  if (e.key === 'ArrowRight')  window._lbNav(1);
 });
 
 /* ───── LOAD ───── */
