@@ -79,9 +79,26 @@ body{font-family:'Sarabun',sans-serif;background:#f8fafc;color:#1e293b}
 /* Empty / spinner */
 .empty{text-align:center;padding:36px 20px;color:#94a3b8;font-size:.85rem}
 .spinner{text-align:center;padding:36px;color:#94a3b8;font-size:.88rem}
+/* Lightbox */
+#lb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;align-items:center;justify-content:center;cursor:zoom-out}
+#lb-overlay.open{display:flex}
+#lb-img{max-width:92vw;max-height:88vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6);object-fit:contain;user-select:none}
+#lb-close{position:fixed;top:16px;right:20px;color:#fff;font-size:1.8rem;cursor:pointer;line-height:1;opacity:.85;z-index:10000}
+#lb-close:hover{opacity:1}
+#lb-counter{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);color:#fff;font-size:.85rem;opacity:.7;pointer-events:none}
+#lb-prev,#lb-next{position:fixed;top:50%;transform:translateY(-50%);color:#fff;font-size:2.4rem;cursor:pointer;opacity:.7;z-index:10000;padding:8px 14px;user-select:none}
+#lb-prev{left:12px}#lb-next{right:12px}
+#lb-prev:hover,#lb-next:hover{opacity:1}
 </style>
 </head>
 <body>
+<div id="lb-overlay" onclick="window._lbClose()">
+  <span id="lb-close" onclick="window._lbClose()">✕</span>
+  <span id="lb-prev" onclick="event.stopPropagation();window._lbNav(-1)">&#8249;</span>
+  <img id="lb-img" src="" alt="" onclick="event.stopPropagation()">
+  <span id="lb-next" onclick="event.stopPropagation();window._lbNav(1)">&#8250;</span>
+  <div id="lb-counter"></div>
+</div>
 <script type="module">
 import { requireRole } from './js/auth.js';
 import { renderShell } from './js/shell.js';
@@ -495,10 +512,12 @@ window._view = (id) => {
   ${(r.attachments||[]).length?`
   <div class="section-title">รูปภาพแนบ (${r.attachments.length} รูป)</div>
   <div style="display:flex;flex-wrap:wrap;gap:8px;">
-    ${r.attachments.map(url=>`
-      <a href="${url}" target="_blank" rel="noopener">
-        <img src="${url}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;display:block;cursor:zoom-in;">
-      </a>`).join('')}
+    ${r.attachments.map((url,i,arr)=>`
+      <img src="${url}"
+        onclick="window._lbOpen(${JSON.stringify(arr)},${i})"
+        style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1.5px solid #e2e8f0;display:block;cursor:zoom-in;transition:transform .15s"
+        onmouseover="this.style.transform='scale(1.06)'" onmouseout="this.style.transform=''">
+    `).join('')}
   </div>`:''}
 
   <div style="margin-top:16px;display:flex;gap:8px">
@@ -521,6 +540,33 @@ window._quickStatus = async (id, status) => {
     }
   } catch(e) { alert('อัปเดตไม่ได้: ' + (e?.message||e)); }
 };
+
+/* ───── LIGHTBOX ───── */
+let _lbUrls = [], _lbIdx = 0;
+window._lbOpen = (urls, idx) => {
+  _lbUrls = urls; _lbIdx = idx;
+  _lbShow();
+  document.getElementById('lb-overlay').classList.add('open');
+};
+window._lbClose = () => {
+  document.getElementById('lb-overlay').classList.remove('open');
+};
+window._lbNav = (dir) => {
+  _lbIdx = (_lbIdx + dir + _lbUrls.length) % _lbUrls.length;
+  _lbShow();
+};
+function _lbShow() {
+  document.getElementById('lb-img').src = _lbUrls[_lbIdx];
+  document.getElementById('lb-counter').textContent = _lbUrls.length > 1 ? `${_lbIdx+1} / ${_lbUrls.length}` : '';
+  document.getElementById('lb-prev').style.display = _lbUrls.length > 1 ? '' : 'none';
+  document.getElementById('lb-next').style.display = _lbUrls.length > 1 ? '' : 'none';
+}
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lb-overlay').classList.contains('open')) return;
+  if (e.key === 'Escape') window._lbClose();
+  if (e.key === 'ArrowLeft')  window._lbNav(-1);
+  if (e.key === 'ArrowRight') window._lbNav(1);
+});
 
 /* ───── LOAD ───── */
 async function load() {
