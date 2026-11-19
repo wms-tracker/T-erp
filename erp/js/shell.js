@@ -55,6 +55,7 @@ const NAV = {
       { key: 'freight-compare',      label: '⚖️ เปรียบเทียบ Carrier', href: 'freight-compare.html' },
       { key: 'freight-calculations', label: '📋 ประวัติการคำนวณ',    href: 'freight-calculations.html' },
       { key: 'freight-zones',        label: '📍 Zone Mapping',        href: 'freight-zones.html' },
+      { key: 'picklist-dimension',   label: '📐 Picklist Dimension',  href: 'https://picklist-dimension.web.app/', target: '_blank' },
     ]},
     { groupKey: 'control-tower', icon: '📡', label: 'Control Tower', items: [
       { key: 'control-tower',       label: '📡 Warehouse Control Tower', href: 'warehouse-control-tower.html' },
@@ -97,6 +98,7 @@ const NAV = {
       { key: 'freight-rates',        label: '💴 Rate Card',              href: 'freight-rates.html' },
       { key: 'freight-zones',        label: '📍 Zone Mapping',           href: 'freight-zones.html' },
       { key: 'freight-import',       label: '⬇️ นำเข้าจาก Excel',        href: 'freight-import.html' },
+      { key: 'picklist-dimension',   label: '📐 Picklist Dimension',     href: 'https://picklist-dimension.web.app/', target: '_blank' },
     ]},
     { groupKey: 'team', icon: '👥', label: 'ทีม', items: [
       { key: 'users',      label: 'จัดการผู้ใช้งาน & สิทธิ์',         href: 'dashboard-admin.html#users' },
@@ -138,9 +140,10 @@ const NAV = {
       { key: 'shipping',   label: 'ติดตามสถานะจัดส่ง',                href: 'view-shipping.html' },
     ]},
     { groupKey: 'freight', icon: '🧮', label: 'ค่าขนส่ง', items: [
-      { key: 'freight-calculator',   label: '🧮 คำนวณค่าขนส่ง',   href: 'freight-calculator.html' },
+      { key: 'freight-calculator',   label: '🧮 คำนวณค่าขนส่ง',      href: 'freight-calculator.html' },
       { key: 'freight-compare',      label: '⚖️ เปรียบเทียบ Carrier', href: 'freight-compare.html' },
-      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณ', href: 'freight-calculations.html' },
+      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณ',    href: 'freight-calculations.html' },
+      { key: 'picklist-dimension',   label: '📐 Picklist Dimension',  href: 'https://picklist-dimension.web.app/', target: '_blank' },
     ]},
   ],
   accounting: [
@@ -430,7 +433,8 @@ const NAV = {
     ]},
     { groupKey: 'freight', icon: '🚚', label: 'ค่าขนส่ง', items: [
       { key: 'freight-dashboard',    label: '📊 แดชบอร์ดค่าขนส่ง (ดูอย่างเดียว)', href: 'freight-dashboard.html' },
-      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณค่าขนส่ง', href: 'freight-calculations.html' },
+      { key: 'freight-calculations', label: '📋 ประวัติการคำนวณค่าขนส่ง',          href: 'freight-calculations.html' },
+      { key: 'picklist-dimension',   label: '📐 Picklist Dimension',               href: 'https://picklist-dimension.web.app/', target: '_blank' },
     ]},
     { groupKey: 'control-tower', icon: '📡', label: 'Control Tower', items: [
       { key: 'control-tower', label: '📡 Warehouse Control Tower', href: 'warehouse-control-tower.html' },
@@ -910,7 +914,8 @@ export function renderShell(profile, activeKey, title) {
       <div class="nav-sec-items">
         ${group.items.map(item => `
           <a href="${item.href}"
-             class="nav-sec-item ${item.key === activeKey ? 'active' : ''}">
+             class="nav-sec-item ${item.key === activeKey ? 'active' : ''}"
+             ${item.target ? `target="${item.target}" rel="noopener noreferrer"` : ''}>
             ${stripLeadingEmoji(item.label)}
           </a>
         `).join('')}
