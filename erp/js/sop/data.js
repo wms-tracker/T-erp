@@ -80,6 +80,7 @@ export function canSeeWork(v) {
 export const canCreateIn = deptId => isPriv() || (["author", "dept_head"].includes(S.role) && inMyDept(deptId));
 export const canCreateAny = () => isPriv() || (["author", "dept_head"].includes(S.role) && !!S.deptId);
 export function separationIssue(v) {
+  if (S.role === "admin") return null;
   if (v.prepared_by === S.uid) return "ผู้จัดทำไม่สามารถตรวจสอบ/อนุมัติ SOP ของตนเองได้";
   if ((v.editors || []).includes(S.uid)) return "ผู้ที่ร่วมแก้ไขเนื้อหาฉบับนี้ไม่สามารถตรวจสอบ/อนุมัติได้";
   return null;
@@ -89,7 +90,8 @@ export function canEdit(v) {
   return isPriv() || v.prepared_by === S.uid || (S.role === "dept_head" && inMyDept(v.department_id));
 }
 export function canReview(v) {
-  if (v.prepared_by === S.uid || S.role === "viewer") return false;
+  if (S.role !== "admin" && (v.prepared_by === S.uid || (v.editors || []).includes(S.uid))) return false;
+  if (S.role === "viewer") return false;
   if (v.reviewer_id) return v.reviewer_id === S.uid;
   if ((v.editors || []).includes(S.uid)) return false;
   return isPriv() || (S.role === "dept_head" && inMyDept(v.department_id));
@@ -376,11 +378,11 @@ function cleanContent(c = {}) {
 function validateAssignees(body, preparedBy) {
   const roleOf = id => (memberById(id)?.sopRole) || "";
   if (body.reviewer_id) {
-    if (body.reviewer_id === preparedBy) fail("ผู้จัดทำไม่สามารถเป็นผู้ตรวจสอบของ SOP ตนเองได้");
+    if (S.role !== "admin" && body.reviewer_id === preparedBy) fail("ผู้จัดทำไม่สามารถเป็นผู้ตรวจสอบของ SOP ตนเองได้");
     if (!["dept_head", "manager", "admin"].includes(roleOf(body.reviewer_id))) fail("ผู้ตรวจสอบที่เลือกไม่มีสิทธิ์ตามบทบาท");
   }
   if (body.approver_id) {
-    if (body.approver_id === preparedBy) fail("ผู้จัดทำไม่สามารถเป็นผู้อนุมัติของ SOP ตนเองได้");
+    if (S.role !== "admin" && body.approver_id === preparedBy) fail("ผู้จัดทำไม่สามารถเป็นผู้อนุมัติของ SOP ตนเองได้");
     if (!["manager", "admin"].includes(roleOf(body.approver_id))) fail("ผู้อนุมัติต้องมีบทบาท Manager หรือ Admin");
   }
 }
