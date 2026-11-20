@@ -363,9 +363,9 @@ function docView(P) {
         <tr><th>วันที่มีผล</th><td>${fmtD(v.effective_date)}</td><th>วันทบทวน</th><td>${fmtD(rd)}</td></tr>
         <tr><th>ผู้รับผิดชอบ</th><td>${esc(people.owner?.display_name || "-")}</td><th>คำสำคัญ</th><td>${esc(c.keywords || "-")}</td></tr></table>
       <table class="sig-t"><tr><th>ผู้จัดทำ</th><th>ผู้ตรวจสอบ</th><th>ผู้รับรอง</th><th>ผู้อนุมัติ</th></tr>
-        <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewed_by || people.reviewer, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
-          <td>${person(people.certified_by || people.certifier, v.certified_at, v.certified_by ? "รับรองผ่านระบบแล้ว" : "")}</td>
-          <td>${person(people.approved_by || people.approver, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
+        <tr><td>${person(people.prepared, v.submitted_at || v.created_at)}</td><td>${person(people.reviewer || people.reviewed_by, v.reviewed_at, v.reviewed_by ? "ตรวจสอบผ่านระบบแล้ว" : "")}</td>
+          <td>${person(people.certifier || people.certified_by, v.certified_at, v.certified_by ? "รับรองผ่านระบบแล้ว" : "")}</td>
+          <td>${person(people.approver || people.approved_by, v.approved_at, v.approved_by ? "อนุมัติผ่านระบบแล้ว" : "")}</td></tr></table>
       ${sec(1, "วัตถุประสงค์", c.objective)}${sec(2, "ขอบเขต", c.scope)}${sec(3, "ความรับผิดชอบ", c.responsibility)}
       ${sec(4, "อุปกรณ์ / เครื่องมือ", c.equipment)}${sec(5, "ข้อกำหนดด้านความปลอดภัย", c.safety)}
       <div class="sec-h">6. ขั้นตอนการปฏิบัติงาน</div>
