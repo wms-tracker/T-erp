@@ -527,9 +527,9 @@ function renderEditor(view, P, isNew) {
       <div><label class="f">Revision</label><input class="in" value="${esc(v.rev)}" readonly></div>
       <div style="grid-column:1/-1"><label class="f">SOP Title <span class="req">*</span></label><input class="in" data-f="title" value="${esc(E.title)}" placeholder="เช่น ขั้นตอนการหยิบสินค้า (Picking) ตามใบสั่งจ่าย"></div>
       <div><label class="f">ผู้รับผิดชอบ (Owner) <span class="req">*</span></label><select class="in" data-f="owner_id">${memberOpts(E.owner_id, null, null, "— เลือก —")}</select></div>
-      <div><label class="f">ผู้ตรวจสอบ (Reviewer)</label><select class="in" data-f="reviewer_id">${memberOpts(E.reviewer_id, ["dept_head", "manager", "admin"], prep, "— หัวหน้าแผนกคนใดก็ได้ —")}</select></div>
-      <div><label class="f">ผู้รับรอง</label><select class="in" data-f="certifier_id">${memberOpts(E.certifier_id, null, prep, "— ไม่ระบุ —")}</select></div>
-      <div><label class="f">ผู้อนุมัติ (Approver)</label><select class="in" data-f="approver_id">${memberOpts(E.approver_id, ["manager", "admin"], prep, "— Manager คนใดก็ได้ —")}</select></div>
+      <div><label class="f">ผู้ตรวจสอบ (Reviewer)</label><select class="in" data-f="reviewer_id">${memberOpts(E.reviewer_id, ["dept_head", "manager", "admin"], S.role === "admin" ? null : prep, "— หัวหน้าแผนกคนใดก็ได้ —")}</select></div>
+      <div><label class="f">ผู้รับรอง</label><select class="in" data-f="certifier_id">${memberOpts(E.certifier_id, null, S.role === "admin" ? null : prep, "— ไม่ระบุ —")}</select></div>
+      <div><label class="f">ผู้อนุมัติ (Approver)</label><select class="in" data-f="approver_id">${memberOpts(E.approver_id, ["manager", "admin"], S.role === "admin" ? null : prep, "— Manager คนใดก็ได้ —")}</select></div>
       <div><label class="f">Effective Date (วันเริ่มใช้) <span class="req">*</span></label><input class="in" type="date" data-f="effective_date" value="${esc(E.effective_date)}"></div>
       <div><label class="f">Review Date (วันทบทวน) <span class="req">*</span></label><div class="row" style="flex-wrap:nowrap"><input class="in" type="date" data-f="review_date" value="${esc(E.review_date)}"><button class="btn sm" type="button" id="plus1y">+${S.settings.default_review_months} ด.</button></div></div>
       <div><label class="f">Keywords (คำสำคัญสำหรับค้นหา)</label><input class="in" data-c="keywords" value="${esc(E.content.keywords)}" placeholder="คั่นด้วยจุลภาค เช่น picking, RF scanner"></div>
