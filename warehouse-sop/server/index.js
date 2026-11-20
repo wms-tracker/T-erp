@@ -88,6 +88,7 @@ function canEdit(u, sop, v) {
   return u.role === 'dept_head' && inDept(u, sop.department_id);
 }
 function separationIssue(u, v) {
+  if (u.role === 'admin') return null;
   if (v.prepared_by === u.id) return 'ผู้จัดทำไม่สามารถตรวจสอบ/อนุมัติ SOP ของตนเองได้';
   if (editorsOf(v).includes(u.id)) return 'ผู้ที่ร่วมแก้ไขเนื้อหาฉบับนี้ไม่สามารถตรวจสอบ/อนุมัติได้';
   return null;
@@ -307,7 +308,7 @@ function validateAssignees(body, preparedBy) {
     const u = userBrief(id);
     if (!u || !u.active) fail(400, `${label}ที่เลือกไม่มีในระบบหรือถูกปิดใช้งาน`);
     if (!roles.includes(u.role)) fail(400, `${label} (${u.display_name}) ไม่มีสิทธิ์ตามบทบาท`);
-    if (id === preparedBy) fail(400, `ผู้จัดทำไม่สามารถเป็น${label}ของ SOP ตนเองได้`);
+    if (id === preparedBy && u.role !== 'admin') fail(400, `ผู้จัดทำไม่สามารถเป็น${label}ของ SOP ตนเองได้`);
   }
   if (body.owner_id && !userBrief(Number(body.owner_id))) fail(400, 'ไม่พบผู้รับผิดชอบที่เลือก');
 }
