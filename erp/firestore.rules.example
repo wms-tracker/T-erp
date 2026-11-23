@@ -10,14 +10,22 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
     function myRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      return userDoc().role;
     }
     function isActive() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.active == true;
+      return userDoc().active == true;
     }
+    // รองรับทั้ง role (string เดิม) และ roles (array ใหม่)
     function hasRole(role) {
-      return isSignedIn() && isActive() && myRole() == role;
+      let u = userDoc();
+      return isSignedIn() && u.get('active', false) == true && (
+        u.role == role ||
+        (u.get('roles', []) is list && role in u.get('roles', []))
+      );
     }
     function isAdmin() { return hasRole('admin'); }
     // แผนก Control Tower ของผู้ใช้ (OB/IB/TS/INV/LOG/QA/RETURN/HK/ACC/LP/AUDIT ตาม erp/js/control-tower/demo-data.js#DEPARTMENTS)
@@ -286,7 +294,7 @@ service cloud.firestore {
     }
     function sopDept() { return sopMember().get('deptId', ''); }
     function sopActive() { return isSignedIn() && isActive(); }
-    function sopPriv() { return sopActive() && sopRole() in ['admin', 'manager']; }
+    function sopPriv() { return sopActive() && sopRole() in ['admin', 'manager', 'managing_director', 'oel_manager']; }
     function sopWriter(deptId) {
       return sopActive() && (sopPriv() || (sopRole() in ['author', 'dept_head'] && sopDept() == deptId));
     }
@@ -304,13 +312,31 @@ service cloud.firestore {
         && (sopPriv() || v.prepared_by == request.auth.uid || (sopRole() == 'dept_head' && sopDept() == v.department_id));
     }
     function sopCanReview(v) {
-      return sopActive() && sopSeparated(v) && sopRole() != 'viewer'
-        && (v.reviewer_id != null ? v.reviewer_id == request.auth.uid
-            : (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id)));
+      // prepared_by ห้ามตรวจสอบเสมอ; editors ห้ามเฉพาะเมื่อไม่มี reviewer_id ระบุไว้
+      return sopActive() && sopRole() != 'viewer'
+        && request.auth.uid != v.prepared_by
+        && (v.reviewer_id != null
+            ? v.reviewer_id == request.auth.uid
+            : (!(request.auth.uid in v.editors)
+               && (sopPriv() || (sopRole() == 'dept_head' && sopDept() == v.department_id))));
     }
     function sopCanApprove(v) {
-      return sopActive() && sopSeparated(v) && sopRole() in ['manager', 'admin']
-        && (v.approver_id == null || v.approver_id == request.auth.uid);
+      // prepared_by ห้ามอนุมัติเสมอ
+      // admin override / designated approver อนุมัติได้ไม่พึ่ง sopRole
+      return sopActive()
+        && request.auth.uid != v.prepared_by
+        && (sopRole() == 'admin'
+            || (v.approver_id != null && v.approver_id == request.auth.uid)
+            || (sopRole() in ['manager', 'managing_director', 'oel_manager']
+                && v.approver_id == null
+                && !(request.auth.uid in v.editors)));
+    }
+    function sopCanCertify(v) {
+      return sopActive()
+        && request.auth.uid != v.prepared_by
+        && (v.certifier_id != null
+            ? v.certifier_id == request.auth.uid
+            : sopPriv() && !(request.auth.uid in v.editors));
     }
     function sopSubmittable(v) {
       return v.title.size() > 0 && v.owner_id != null && v.effective_date is string && v.review_date is string
@@ -334,6 +360,9 @@ service cloud.firestore {
     match /sopMembers/{uid} {
       allow read: if sopActive();
       allow write: if isAdmin();
+      // สมาชิกแก้ชื่อ+ตำแหน่งของตัวเองได้ (ไม่แตะ role/deptId/active)
+      allow update: if sopActive() && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'position', 'updated_at']);
     }
     match /sopSettings/{id} {
       allow read: if sopActive();
@@ -424,7 +453,7 @@ service cloud.firestore {
         return sopActive() && !keys.hasAny(['sop_id', 'department_id', 'revision', 'prepared_by', 'created_at']) && (
           // 1) แก้ไขเนื้อหา (ฉบับร่าง / ถูกส่งกลับ)
           (n.status == o.status && sopCanEdit(o)
-            && keys.hasOnly(['title', 'content', 'owner_id', 'reviewer_id', 'approver_id', 'owner_name', 'reviewer_name', 'approver_name',
+            && keys.hasOnly(['title', 'content', 'owner_id', 'reviewer_id', 'certifier_id', 'approver_id', 'owner_name', 'reviewer_name', 'certifier_name', 'approver_name',
                              'effective_date', 'review_date', 'change_summary', 'editors', 'row_ver', 'updated_at', 'updated_by'])
             && n.row_ver == o.row_ver + 1 && n.updated_by == request.auth.uid
             && n.editors.hasAll(o.editors)
@@ -436,14 +465,25 @@ service cloud.firestore {
             && keys.hasOnly(wf.concat(['submitted_at'])) && sopSubmittable(o))
           // 3) รับเรื่องตรวจสอบ
           || (o.status == 'submitted' && n.status == 'dept_review' && sopCanReview(o) && keys.hasOnly(wf))
-          // 4) ตรวจสอบผ่าน -> รอผู้จัดการอนุมัติ
-          || (o.status in ['submitted', 'dept_review'] && n.status == 'manager_approval' && sopCanReview(o)
+          // 4) ตรวจสอบผ่าน -> รอผู้รับรอง (บังคับทุก SOP)
+          || (o.status in ['submitted', 'dept_review'] && n.status == 'certifier_review' && sopCanReview(o)
             && n.reviewed_by == request.auth.uid && keys.hasOnly(wf.concat(['reviewed_by', 'reviewed_at', 'reviewed_by_name'])))
+          // 4b) รับรองผ่าน -> รอผู้จัดการอนุมัติ (จาก certifier_review หรือ manager_approval ที่ยังไม่มี certified_at)
+          || ((o.status == 'certifier_review' || (o.status == 'manager_approval' && !('certified_at' in o))) && n.status == 'manager_approval' && sopCanCertify(o)
+            && n.certified_by == request.auth.uid && keys.hasOnly(wf.concat(['certified_by', 'certified_at', 'certified_by_name'])))
           // 5) ส่งกลับแก้ไข — ต้องระบุเหตุผล
           || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
-            && ((o.status in ['submitted', 'dept_review'] && sopCanReview(o)) || (o.status == 'manager_approval' && sopCanApprove(o))))
-          // 6) อนุมัติและประกาศใช้ (ล็อกถาวร)
-          || (o.status == 'manager_approval' && n.status == 'published' && sopCanApprove(o)
+            && ((o.status in ['submitted', 'dept_review'] && sopCanReview(o))
+                || (o.status == 'certifier_review' && sopCanCertify(o))
+                || (o.status == 'manager_approval' && sopCanApprove(o))))
+          // 5b) Admin ย้ายกลับไป certifier_review (migration / edge case)
+          || (o.status == 'manager_approval' && n.status == 'certifier_review' && keys.hasOnly(wf) && sopRole() == 'admin')
+          // 5c) Admin force-return — ผู้ดูแล/ผู้จัดการบังคับส่งกลับได้ทุกขั้น (ข้าม separation check)
+          || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
+            && o.status in ['submitted', 'dept_review', 'certifier_review', 'manager_approval'] && sopPriv())
+          // 5b) Admin ส่งกลับผู้รับรอง — เอาออกแล้ว (certifier certify ตรงได้แม้อยู่ที่ manager_approval)
+          // 6) อนุมัติและประกาศใช้ — ต้องมี certified_at ก่อนเสมอ
+          || (o.status == 'manager_approval' && 'certified_at' in o && n.status == 'published' && sopCanApprove(o)
             && n.approved_by == request.auth.uid && n.locked == true && newCur == vid
             && keys.hasOnly(wf.concat(['approved_by', 'approved_at', 'approved_name', 'published_at', 'locked'])))
           // 7) ฉบับเดิมถูกแทนที่ (ใน batch เดียวกับการอนุมัติฉบับใหม่)
@@ -456,7 +496,7 @@ service cloud.firestore {
           // 9) ยกเลิกฉบับที่กำลังทำ
           || (n.status == 'cancelled' && keys.hasOnly(['status', 'updated_at', 'updated_by'])
             && ((o.status in ['draft', 'revision_required'] && o.prepared_by == request.auth.uid)
-                || (o.status in ['draft', 'submitted', 'dept_review', 'manager_approval', 'revision_required'] && sopPriv())))
+                || (o.status in ['draft', 'submitted', 'dept_review', 'certifier_review', 'manager_approval', 'revision_required'] && sopPriv())))
         );
       }
     }
@@ -469,6 +509,123 @@ service cloud.firestore {
       allow create: if sopActive() && sopRole() != 'viewer'
         && request.resource.data.user_id == request.auth.uid && request.resource.data.at == request.time;
       allow update, delete: if false;
+    }
+
+    // ----- Safety module collections (ทุก collection ที่ขึ้นต้นด้วย "safety") -----
+    match /{safetyCol}/{docId} {
+      allow read, write: if isSignedIn() && isActive()
+        && safetyCol.matches('safety.+');
+      match /{sub}/{subId} {
+        allow read, write: if isSignedIn() && isActive()
+          && safetyCol.matches('safety.+');
+      }
+    }
+
+    // ----- KPO annual plan / damage plan collections -----
+    match /annualDamagePlans/{docId} {
+      allow read, write: if isSignedIn() && isActive();
+    }
+    match /kpoRecords/{docId} {
+      allow read, write: if isSignedIn() && isActive();
+    }
+
+    // ----- ESG (Environmental, Social, Governance) -----
+    match /esgMonthly/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','oel_manager'];
+    }
+    match /esgConfig/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow write: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','oel_manager'];
+    }
+
+    // ----- Module E — Environmental (5 sub-module collections) -----
+    // read: ทุก role ที่ login และ active (dashboard/manager ต้องดูได้)
+    // create/update: admin, safety_officer, manager, oel_manager
+    // delete: admin เท่านั้น
+    match /envEnergy/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envWater/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envWaste/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envPackaging/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /envCarbon/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+
+    // ----- Module S — Social (4 sub-module collections) -----
+    match /socWorkforce/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /socAccident/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /socTraining/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /socWelfare/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+
+    // ----- Module G — Governance (4 sub-module collections) -----
+    match /govAudit/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /govLegal/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /govRisk/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
+    }
+    match /govEthics/{docId} {
+      allow read: if isSignedIn() && isActive();
+      allow create, update: if isSignedIn() && isActive()
+        && myRole() in ['admin','safety_officer','manager','oel_manager'];
+      allow delete: if isAdmin();
     }
   }
 }
