@@ -55,7 +55,7 @@ export async function init(profile) {
   if (member?.name) S.name = member.name;
   try { S.companyId = localStorage.getItem("sop_company_id") || ""; } catch {}
   await loadMeta();
-  if (S.role === "admin" && S.companies.length === 0) {
+  if (S.role === "admin" && S._companiesReady && S.companies.length === 0) {
     await migrateToMultiCompany();
     await loadMeta();
   }
@@ -86,16 +86,18 @@ async function migrateToMultiCompany() {
   try { localStorage.setItem("sop_company_id", S.companyId); } catch {}
 }
 export async function loadMeta() {
-  const [d, mm, cSnap] = await Promise.all([
+  const [d, mm] = await Promise.all([
     getDocs(collection(db, "sopDepartments")), getDocs(collection(db, "sopMembers")),
-    getDocs(query(collection(db, "sopCompanies"), orderBy("sort"))),
   ]);
   S.depts = d.docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.code.localeCompare(b.code));
   S.members = mm.docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
-  S.companies = cSnap.docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  let cDocs = []; S._companiesReady = false;
+  try { const cSnap = await getDocs(query(collection(db, "sopCompanies"), orderBy("sort"))); cDocs = cSnap.docs; S._companiesReady = true; } catch {}
+  S.companies = cDocs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
   if (!S.companyId || !S.companies.find(c => c.id === S.companyId)) S.companyId = S.companies[0]?.id || "";
   S.company = S.companies.find(c => c.id === S.companyId) || null;
-  const stSnap = S.companyId ? await getDoc(doc(db, "sopSettings", S.companyId)).catch(() => null) : null;
+  const stId = S.companyId || "main";
+  const stSnap = await getDoc(doc(db, "sopSettings", stId)).catch(() => null);
   S.settings = { ...DEFAULT_SETTINGS, ...(stSnap && stSnap.exists() ? stSnap.data() : {}) };
 }
 
@@ -165,10 +167,10 @@ function permissions(sop, v) {
 /* ---------- queries ที่ผ่านกฎความปลอดภัยตามบทบาท ---------- */
 function sopQueries() {
   const c = collection(db, "sops");
-  const cf = where("company_id", "==", S.companyId);
-  if (isPriv()) return [query(c, cf)];
-  const qs = [query(c, cf, where("has_current", "==", true)), query(c, cf, where("participants", "array-contains", S.uid))];
-  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, cf, where("department_id", "==", S.deptId)));
+  const filters = S.companyId ? [where("company_id", "==", S.companyId)] : [];
+  if (isPriv()) return [filters.length ? query(c, ...filters) : c];
+  const qs = [query(c, ...filters, where("has_current", "==", true)), query(c, ...filters, where("participants", "array-contains", S.uid))];
+  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, ...filters, where("department_id", "==", S.deptId)));
   return qs;
 }
 async function unionDocs(qs) {
