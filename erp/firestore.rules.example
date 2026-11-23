@@ -375,12 +375,13 @@ service cloud.firestore {
       allow read: if sopActive() && (resource == null || resource.data.has_current == true || sopPriv()
         || (sopRole() in ['author', 'dept_head'] && sopDept() == resource.data.department_id)
         || request.auth.uid in resource.data.get('participants', []));
-      allow create: if sopWriter(request.resource.data.department_id)
+      allow create: if sopRole() == 'admin'
+        || (sopWriter(request.resource.data.department_id)
         && request.resource.data.created_by == request.auth.uid
         && request.resource.data.current_version_id == null && request.resource.data.has_current == false
         && request.resource.data.is_obsolete == false && request.resource.data.last_rev == 0
         && request.resource.data.working_version_id == sid + '_r0'
-        && getAfter(sopVDoc(sid + '_r0')).data.prepared_by == request.auth.uid;
+        && getAfter(sopVDoc(sid + '_r0')).data.prepared_by == request.auth.uid);
       allow update: if sopSopUpdateOk(sid);
       // ลบได้เฉพาะ SOP ที่ไม่เคยประกาศใช้ และฉบับร่างถูกยกเลิกใน batch เดียวกัน
       allow delete: if sopActive() && resource.data.has_current == false && resource.data.working_version_id != null
@@ -427,7 +428,7 @@ service cloud.firestore {
     // ----- sopVersions: เนื้อหาแต่ละ Rev. (doc id = {sid}_r{rev}) — ฉบับที่อนุมัติแล้วถูกล็อก -----
     match /sopVersions/{vid} {
       allow read: if sopActive() && (sopIsPublic(resource.data.status) || sopSeesWork(resource.data));
-      allow create: if sopNewVersionOk(vid);
+      allow create: if sopRole() == 'admin' || sopNewVersionOk(vid);
       allow update: if sopVersionUpdateOk(vid);
       allow delete: if false;
 
@@ -481,7 +482,6 @@ service cloud.firestore {
           // 5c) Admin force-return — ผู้ดูแล/ผู้จัดการบังคับส่งกลับได้ทุกขั้น (ข้าม separation check)
           || (n.status == 'revision_required' && sopHasComment(n) && keys.hasOnly(wf)
             && o.status in ['submitted', 'dept_review', 'certifier_review', 'manager_approval'] && sopPriv())
-          // 5b) Admin ส่งกลับผู้รับรอง — เอาออกแล้ว (certifier certify ตรงได้แม้อยู่ที่ manager_approval)
           // 6) อนุมัติและประกาศใช้ — ต้องมี certified_at ก่อนเสมอ
           || (o.status == 'manager_approval' && 'certified_at' in o && n.status == 'published' && sopCanApprove(o)
             && n.approved_by == request.auth.uid && n.locked == true && newCur == vid

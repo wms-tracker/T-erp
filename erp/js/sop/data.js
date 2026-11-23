@@ -169,19 +169,20 @@ function permissions(sop, v) {
 /* ---------- queries ที่ผ่านกฎความปลอดภัยตามบทบาท ---------- */
 function sopQueries() {
   const c = collection(db, "sops");
-  // Default company (or no company) shows ALL sops — backward compat with pre-migration data
-  // that doesn't have company_id yet. Only non-default companies filter by company_id.
   const isDefault = !S.companyId || !S.company || S.company.is_default;
-  if (isDefault) {
-    if (isPriv()) return [c];
-    const qs = [query(c, where("has_current", "==", true)), query(c, where("participants", "array-contains", S.uid))];
-    if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, where("department_id", "==", S.deptId)));
-    return qs;
-  }
-  const cf = where("company_id", "==", S.companyId);
-  if (isPriv()) return [query(c, cf)];
-  const qs = [query(c, cf, where("has_current", "==", true)), query(c, cf, where("participants", "array-contains", S.uid))];
-  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, cf, where("department_id", "==", S.deptId)));
+  // Build per-company filters. Default company also includes unmigrated docs (no company_id field).
+  const compFilters = !S.companyId
+    ? []
+    : isDefault
+      ? [where("company_id", "==", S.companyId), where("company_id", "==", null)]
+      : [where("company_id", "==", S.companyId)];
+  const baseQueries = compFilters.length === 0 ? [c] : compFilters.map(cf => query(c, cf));
+  if (isPriv()) return baseQueries;
+  const makeQs = (...extra) => compFilters.length === 0
+    ? [query(c, ...extra)]
+    : compFilters.map(cf => query(c, cf, ...extra));
+  const qs = [...makeQs(where("has_current", "==", true)), ...makeQs(where("participants", "array-contains", S.uid))];
+  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(...makeQs(where("department_id", "==", S.deptId)));
   return qs;
 }
 async function unionDocs(qs) {
@@ -454,7 +455,7 @@ export async function createSop(body, copiedFrom = "") {
   if (exists) fail(`SOP Number "${num}" มีอยู่แล้ว`);
   const vid = num + "_r0";
   const v = {
-    sop_id: num, sop_number: num, department_id: deptId, revision: 0, status: "draft", title, content: cleanContent(body.content),
+    sop_id: num, sop_number: num, department_id: deptId, company_id: S.companyId, revision: 0, status: "draft", title, content: cleanContent(body.content),
     prepared_by: S.uid, prepared_name: S.name,
     owner_id: body.owner_id || null, owner_name: nameOf(body.owner_id),
     reviewer_id: body.reviewer_id || null, reviewer_name: nameOf(body.reviewer_id),
@@ -472,17 +473,8 @@ export async function createSop(body, copiedFrom = "") {
     current_version_id: null, working_version_id: vid, has_current: false, is_obsolete: false, last_rev: 0, next_review_date: null,
     working_title: title, working_status: "draft", working_rev: 0, owner_id: v.owner_id, owner_name: v.owner_name, participants: participantsOf(v),
   });
-  console.log("[createSop debug]", { uid: S.uid, role: S.role, companyId: S.companyId, num, vid, deptId, prepared_by: v.prepared_by });
-  await b.commit().then(
-    () => console.log("[createSop] main batch OK"),
-    e => { console.error("[createSop] main batch FAILED:", e.code, e.message); throw friendly(e); }
-  );
-  const lb = writeBatch(db);
-  logEntry(lb, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
-  await lb.commit().then(
-    () => console.log("[createSop] sopLog OK"),
-    e => console.error("[createSop] sopLog FAILED:", e.code, e.message)
-  );
+  logEntry(b, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
+  await b.commit().catch(e => { throw friendly(e); });
   return { id: num, version_id: vid, sop_number: num };
 }
 
@@ -669,10 +661,16 @@ export async function bulkCopySops(srcCompanyId, dstCompanyId, onProgress) {
   const srcComp = S.companies.find(c => c.id === srcCompanyId);
   const srcIsDefault = !srcComp || srcComp.is_default;
   const c = collection(db, "sops");
-  const snap = srcIsDefault
-    ? await getDocs(query(c, where("has_current", "==", true)))
-    : await getDocs(query(c, where("company_id", "==", srcCompanyId)));
-  const sops = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.has_current && !s.is_obsolete);
+  const srcFilter = where("company_id", "==", srcCompanyId);
+  const srcNullFilter = where("company_id", "==", null);
+  const srcSnaps = await Promise.all(
+    srcIsDefault
+      ? [getDocs(query(c, srcFilter, where("has_current", "==", true))), getDocs(query(c, srcNullFilter, where("has_current", "==", true)))]
+      : [getDocs(query(c, srcFilter, where("has_current", "==", true)))]
+  );
+  const srcMap = new Map();
+  srcSnaps.forEach(s => s.docs.forEach(d => srcMap.set(d.id, { id: d.id, ...d.data() })));
+  const sops = [...srcMap.values()].filter(s => s.has_current && !s.is_obsolete);
   let done = 0, failed = 0;
   for (const sop of sops) {
     try {
