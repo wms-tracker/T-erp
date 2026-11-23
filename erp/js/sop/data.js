@@ -473,6 +473,7 @@ export async function createSop(body, copiedFrom = "") {
     working_title: title, working_status: "draft", working_rev: 0, owner_id: v.owner_id, owner_name: v.owner_name, participants: participantsOf(v),
   });
   logEntry(b, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
+  console.log("[createSop debug]", { uid: S.uid, role: S.role, companyId: S.companyId, num, vid, deptId, prepared_by: v.prepared_by });
   await b.commit().catch(e => { throw friendly(e); });
   return { id: num, version_id: vid, sop_number: num };
 }
