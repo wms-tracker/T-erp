@@ -75,13 +75,15 @@ async function migrateToMultiCompany() {
     code: "MAIN", active: true, sort: 1, is_default: true, created_at: serverTimestamp(),
   });
   await setDoc(doc(db, "sopSettings", compRef.id), { ...DEFAULT_SETTINGS, ...oldData, updated_at: serverTimestamp() }, { merge: true });
-  const sopsSnap = await getDocs(collection(db, "sops"));
-  let batch = writeBatch(db); let count = 0;
-  for (const d of sopsSnap.docs) {
-    batch.update(d.ref, { company_id: compRef.id }); count++;
-    if (count === 490) { await batch.commit(); batch = writeBatch(db); count = 0; }
-  }
-  if (count > 0) await batch.commit();
+  try {
+    const sopsSnap = await getDocs(collection(db, "sops"));
+    let batch = writeBatch(db); let count = 0;
+    for (const d of sopsSnap.docs) {
+      batch.update(d.ref, { company_id: compRef.id }); count++;
+      if (count === 490) { await batch.commit(); batch = writeBatch(db); count = 0; }
+    }
+    if (count > 0) await batch.commit();
+  } catch (e) { console.warn("Could not tag existing SOPs with company_id:", e); }
   S.companyId = compRef.id;
   try { localStorage.setItem("sop_company_id", S.companyId); } catch {}
 }
@@ -167,10 +169,19 @@ function permissions(sop, v) {
 /* ---------- queries ที่ผ่านกฎความปลอดภัยตามบทบาท ---------- */
 function sopQueries() {
   const c = collection(db, "sops");
-  const filters = S.companyId ? [where("company_id", "==", S.companyId)] : [];
-  if (isPriv()) return [filters.length ? query(c, ...filters) : c];
-  const qs = [query(c, ...filters, where("has_current", "==", true)), query(c, ...filters, where("participants", "array-contains", S.uid))];
-  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, ...filters, where("department_id", "==", S.deptId)));
+  // Default company (or no company) shows ALL sops — backward compat with pre-migration data
+  // that doesn't have company_id yet. Only non-default companies filter by company_id.
+  const isDefault = !S.companyId || !S.company || S.company.is_default;
+  if (isDefault) {
+    if (isPriv()) return [c];
+    const qs = [query(c, where("has_current", "==", true)), query(c, where("participants", "array-contains", S.uid))];
+    if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, where("department_id", "==", S.deptId)));
+    return qs;
+  }
+  const cf = where("company_id", "==", S.companyId);
+  if (isPriv()) return [query(c, cf)];
+  const qs = [query(c, cf, where("has_current", "==", true)), query(c, cf, where("participants", "array-contains", S.uid))];
+  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, cf, where("department_id", "==", S.deptId)));
   return qs;
 }
 async function unionDocs(qs) {
@@ -390,9 +401,14 @@ export const normNumber = s => String(s || "").trim().toUpperCase();
 export async function nextNumber(deptId, companyId = S.companyId) {
   const d = deptById(deptId); if (!d) return "";
   const comp = S.companies.find(c => c.id === companyId);
-  const prefix = (comp && !comp.is_default && comp.code) ? `${comp.code}-${d.code.toUpperCase()}-SOP-` : `${d.code.toUpperCase()}-SOP-`;
+  const isDefault = !comp || comp.is_default;
+  const prefix = (!isDefault && comp.code) ? `${comp.code}-${d.code.toUpperCase()}-SOP-` : `${d.code.toUpperCase()}-SOP-`;
   let rows = [];
-  try { rows = (await getDocs(query(collection(db, "sops"), where("company_id", "==", companyId)))).docs.map(x => ({ id: x.id, ...x.data() })); } catch {}
+  try {
+    rows = isDefault
+      ? (await getDocs(query(collection(db, "sops"), where("department_id", "==", deptId)))).docs.map(x => ({ id: x.id, ...x.data() }))
+      : (await getDocs(query(collection(db, "sops"), where("company_id", "==", companyId)))).docs.map(x => ({ id: x.id, ...x.data() }));
+  } catch {}
   const max = rows.filter(r => (r.sop_number || "").startsWith(prefix)).reduce((m, r) => Math.max(m, parseInt(r.sop_number.slice(prefix.length), 10) || 0), 0);
   return prefix + String(max + 1).padStart(3, "0");
 }
