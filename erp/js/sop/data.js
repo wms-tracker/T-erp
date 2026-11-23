@@ -472,9 +472,17 @@ export async function createSop(body, copiedFrom = "") {
     current_version_id: null, working_version_id: vid, has_current: false, is_obsolete: false, last_rev: 0, next_review_date: null,
     working_title: title, working_status: "draft", working_rev: 0, owner_id: v.owner_id, owner_name: v.owner_name, participants: participantsOf(v),
   });
-  logEntry(b, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
   console.log("[createSop debug]", { uid: S.uid, role: S.role, companyId: S.companyId, num, vid, deptId, prepared_by: v.prepared_by });
-  await b.commit().catch(e => { throw friendly(e); });
+  await b.commit().then(
+    () => console.log("[createSop] main batch OK"),
+    e => { console.error("[createSop] main batch FAILED:", e.code, e.message); throw friendly(e); }
+  );
+  const lb = writeBatch(db);
+  logEntry(lb, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
+  await lb.commit().then(
+    () => console.log("[createSop] sopLog OK"),
+    e => console.error("[createSop] sopLog FAILED:", e.code, e.message)
+  );
   return { id: num, version_id: vid, sop_number: num };
 }
 
