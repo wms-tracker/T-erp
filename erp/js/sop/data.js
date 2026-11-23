@@ -30,7 +30,7 @@ const SEED_DEPTS = [
 ];
 
 /* ---------- state ---------- */
-export const S = { profile: null, uid: null, name: "", role: "viewer", deptId: "", depts: [], members: [], settings: { ...DEFAULT_SETTINGS } };
+export const S = { profile: null, uid: null, name: "", role: "viewer", deptId: "", depts: [], members: [], settings: { ...DEFAULT_SETTINGS }, companies: [], companyId: "", company: null };
 
 const iso = v => (v && typeof v.toDate === "function") ? v.toDate().toISOString() : (v || null);
 const fail = msg => { throw new Error(msg); };
@@ -53,7 +53,12 @@ export async function init(profile) {
     : (member && member.active === false ? "viewer" : (member?.sopRole || (profile.role === "manager" ? "manager" : "viewer")));
   S.deptId = member?.deptId || "";
   if (member?.name) S.name = member.name;
+  try { S.companyId = localStorage.getItem("sop_company_id") || ""; } catch {}
   await loadMeta();
+  if (S.role === "admin" && S.companies.length === 0) {
+    await migrateToMultiCompany();
+    await loadMeta();
+  }
   if (S.role === "admin" && S.depts.length === 0) {
     const b = writeBatch(db);
     SEED_DEPTS.forEach(([code, name, description], i) => b.set(doc(db, "sopDepartments", code), { code, name, description, active: true, sort: i + 1, created_at: serverTimestamp() }));
@@ -61,13 +66,37 @@ export async function init(profile) {
     await loadMeta();
   }
 }
+async function migrateToMultiCompany() {
+  const oldSt = await getDoc(doc(db, "sopSettings", "main")).catch(() => null);
+  const oldData = oldSt && oldSt.exists() ? oldSt.data() : {};
+  const compRef = doc(collection(db, "sopCompanies"));
+  await setDoc(compRef, {
+    name: oldData.company_name || "บริษัทหลัก", name_en: oldData.company_name_en || "",
+    code: "MAIN", active: true, sort: 1, is_default: true, created_at: serverTimestamp(),
+  });
+  await setDoc(doc(db, "sopSettings", compRef.id), { ...DEFAULT_SETTINGS, ...oldData, updated_at: serverTimestamp() }, { merge: true });
+  const sopsSnap = await getDocs(collection(db, "sops"));
+  let batch = writeBatch(db); let count = 0;
+  for (const d of sopsSnap.docs) {
+    batch.update(d.ref, { company_id: compRef.id }); count++;
+    if (count === 490) { await batch.commit(); batch = writeBatch(db); count = 0; }
+  }
+  if (count > 0) await batch.commit();
+  S.companyId = compRef.id;
+  try { localStorage.setItem("sop_company_id", S.companyId); } catch {}
+}
 export async function loadMeta() {
-  const [d, mm, st] = await Promise.all([
-    getDocs(collection(db, "sopDepartments")), getDocs(collection(db, "sopMembers")), getDoc(doc(db, "sopSettings", "main")),
+  const [d, mm, cSnap] = await Promise.all([
+    getDocs(collection(db, "sopDepartments")), getDocs(collection(db, "sopMembers")),
+    getDocs(query(collection(db, "sopCompanies"), orderBy("sort"))),
   ]);
   S.depts = d.docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0) || a.code.localeCompare(b.code));
   S.members = mm.docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.name || "").localeCompare(b.name || "", "th"));
-  S.settings = { ...DEFAULT_SETTINGS, ...(st.exists() ? st.data() : {}) };
+  S.companies = cSnap.docs.map(x => ({ id: x.id, ...x.data() })).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+  if (!S.companyId || !S.companies.find(c => c.id === S.companyId)) S.companyId = S.companies[0]?.id || "";
+  S.company = S.companies.find(c => c.id === S.companyId) || null;
+  const stSnap = S.companyId ? await getDoc(doc(db, "sopSettings", S.companyId)).catch(() => null) : null;
+  S.settings = { ...DEFAULT_SETTINGS, ...(stSnap && stSnap.exists() ? stSnap.data() : {}) };
 }
 
 /* ---------- permissions (สำเนาของ Firestore Rules) ---------- */
@@ -136,9 +165,10 @@ function permissions(sop, v) {
 /* ---------- queries ที่ผ่านกฎความปลอดภัยตามบทบาท ---------- */
 function sopQueries() {
   const c = collection(db, "sops");
-  if (isPriv()) return [c];
-  const qs = [query(c, where("has_current", "==", true)), query(c, where("participants", "array-contains", S.uid))];
-  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, where("department_id", "==", S.deptId)));
+  const cf = where("company_id", "==", S.companyId);
+  if (isPriv()) return [query(c, cf)];
+  const qs = [query(c, cf, where("has_current", "==", true)), query(c, cf, where("participants", "array-contains", S.uid))];
+  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, cf, where("department_id", "==", S.deptId)));
   return qs;
 }
 async function unionDocs(qs) {
@@ -355,12 +385,13 @@ export async function dashboard(f = {}) {
 
 /* ---------- เลข SOP ---------- */
 export const normNumber = s => String(s || "").trim().toUpperCase();
-export async function nextNumber(deptId) {
+export async function nextNumber(deptId, companyId = S.companyId) {
   const d = deptById(deptId); if (!d) return "";
-  const prefix = `${d.code.toUpperCase()}-SOP-`;
+  const comp = S.companies.find(c => c.id === companyId);
+  const prefix = (comp && !comp.is_default && comp.code) ? `${comp.code}-${d.code.toUpperCase()}-SOP-` : `${d.code.toUpperCase()}-SOP-`;
   let rows = [];
-  try { rows = await unionDocs(isPriv() ? [query(collection(db, "sops"), where("department_id", "==", deptId))] : sopQueries()); } catch { }
-  const max = rows.filter(r => r.sop_number.startsWith(prefix)).reduce((m, r) => Math.max(m, parseInt(r.sop_number.slice(prefix.length), 10) || 0), 0);
+  try { rows = (await getDocs(query(collection(db, "sops"), where("company_id", "==", companyId)))).docs.map(x => ({ id: x.id, ...x.data() })); } catch {}
+  const max = rows.filter(r => (r.sop_number || "").startsWith(prefix)).reduce((m, r) => Math.max(m, parseInt(r.sop_number.slice(prefix.length), 10) || 0), 0);
   return prefix + String(max + 1).padStart(3, "0");
 }
 
@@ -419,7 +450,7 @@ export async function createSop(body, copiedFrom = "") {
   const b = writeBatch(db);
   b.set(doc(db, "sopVersions", vid), v);
   b.set(doc(db, "sops", num), {
-    sop_number: num, department_id: deptId, created_by: S.uid, created_at: serverTimestamp(), updated_at: serverTimestamp(),
+    sop_number: num, department_id: deptId, company_id: S.companyId, created_by: S.uid, created_at: serverTimestamp(), updated_at: serverTimestamp(),
     current_version_id: null, working_version_id: vid, has_current: false, is_obsolete: false, last_rev: 0, next_review_date: null,
     working_title: title, working_status: "draft", working_rev: 0, owner_id: v.owner_id, owner_name: v.owner_name, participants: participantsOf(v),
   });
@@ -592,12 +623,19 @@ export async function revise(sopId, changeSummary = "") {
   }).catch(e => { throw friendly(e); });
 }
 
-export async function copySop(P, { department_id, sop_number, title }) {
+export async function copySop(P, { department_id, sop_number, title, company_id }) {
   const v = P.version;
-  return createSop({
-    department_id, sop_number, title: title || (v.title + " (สำเนา)"), content: v.content, owner_id: v.owner_id,
-    change_summary: `จัดทำครั้งแรก (คัดลอกจาก ${P.sop.sop_number} ${v.rev})`,
-  }, `${P.sop.sop_number} ${v.rev}`);
+  const targetCompanyId = company_id || S.companyId;
+  const origCompanyId = S.companyId;
+  S.companyId = targetCompanyId;
+  try {
+    return await createSop({
+      department_id, sop_number, title: title || (v.title + " (สำเนา)"), content: v.content, owner_id: v.owner_id,
+      change_summary: `จัดทำครั้งแรก (คัดลอกจาก ${P.sop.sop_number} ${v.rev})`,
+    }, `${P.sop.sop_number} ${v.rev}`);
+  } finally {
+    S.companyId = origCompanyId;
+  }
 }
 
 export async function deleteDraft(vid) {
@@ -677,7 +715,24 @@ export async function saveOwnProfile(name, position) {
 export async function saveSettings(body) {
   const data = {};
   for (const k of Object.keys(DEFAULT_SETTINGS)) if (body[k] !== undefined) data[k] = typeof DEFAULT_SETTINGS[k] === "number" ? Number(body[k]) || DEFAULT_SETTINGS[k] : String(body[k]).slice(0, 500);
-  await setDoc(doc(db, "sopSettings", "main"), { ...data, updated_at: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, "sopSettings", S.companyId || "main"), { ...data, updated_at: serverTimestamp() }, { merge: true });
+  await loadMeta();
+}
+
+/* ---------- company admin ---------- */
+export async function setActiveCompany(id) {
+  S.companyId = id;
+  try { localStorage.setItem("sop_company_id", id); } catch {}
+  await loadMeta();
+}
+export async function saveCompany(id, body) {
+  const name = String(body.name || "").trim() || fail("กรุณาระบุชื่อบริษัท");
+  const code = String(body.code || "").trim().toUpperCase();
+  if (code && !/^[A-Z0-9_-]{1,10}$/.test(code)) fail("รหัสบริษัทใช้ A-Z ตัวเลข - _ ไม่เกิน 10 ตัว");
+  if (code && S.companies.some(c => c.code === code && c.id !== id)) fail("รหัสบริษัทนี้มีอยู่แล้ว");
+  const data = { name, name_en: String(body.name_en || ""), code, sort: body.sort !== "" && body.sort != null ? Number(body.sort) : (Math.max(0, ...S.companies.map(c => c.sort || 0)) + 1) };
+  if (id) { await updateDoc(doc(db, "sopCompanies", id), data); }
+  else { const ref = doc(collection(db, "sopCompanies")); await setDoc(ref, { ...data, active: true, is_default: false, created_at: serverTimestamp() }); }
   await loadMeta();
 }
 

@@ -118,9 +118,17 @@ function renderTabs() {
     D.canCreateAny() ? ["#/new", "plus", "สร้าง SOP"] : null, ["#/activity", "act", "ประวัติ"],
     ["#/profile", "user", "โปรไฟล์ของฉัน"],
     S.role === "admin" ? ["#/admin/members", "users", "สิทธิ์ SOP"] : null, S.role === "admin" ? ["#/admin/departments", "dept", "แผนก"] : null,
+    S.role === "admin" ? ["#/admin/companies", "build", "บริษัท"] : null,
     S.role === "admin" ? ["#/admin/settings", "gear", "ตั้งค่า"] : null].filter(Boolean);
+  const companySwitcher = S.companies.length > 1
+    ? `<select id="compSw" style="font-size:12px;padding:3px 6px;height:26px;max-width:180px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)">${S.companies.map(c => `<option value="${esc(c.id)}" ${c.id === S.companyId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>`
+    : "";
   $("#sopTabs", ROOT).innerHTML = tabs.map(([h, i, t]) => `<a href="${h}" data-h="${h}">${ic(i)} ${t}</a>`).join("")
-    + `<span class="spacer"></span><span class="small muted" style="align-self:center">${esc(S.name)} · ${esc(D.SOP_ROLES[S.role])}${S.deptId ? " · " + esc(D.deptById(S.deptId)?.code || "") : ""}</span>`;
+    + `<span class="spacer"></span>${companySwitcher}<span class="small muted" style="align-self:center">${esc(S.name)} · ${esc(D.SOP_ROLES[S.role])}${S.deptId ? " · " + esc(D.deptById(S.deptId)?.code || "") : ""}</span>`;
+  if (S.companies.length > 1) {
+    const sw = $("#compSw", ROOT);
+    if (sw) sw.onchange = async e => { await D.setActiveCompany(e.target.value); renderTabs(); route(); };
+  }
 }
 function markTabs() {
   const h = location.hash.split("?")[0];
@@ -154,6 +162,7 @@ const ROUTES = [
   [/^#\/edit\/([^/?]+)$/, pageEdit], [/^#\/new$/, pageNew], [/^#\/compare\/([^/?]+)$/, pageCompare], [/^#\/tasks$/, pageTasks],
   [/^#\/activity$/, pageActivity], [/^#\/profile$/, pageProfile],
   [/^#\/admin\/departments$/, pageDepts], [/^#\/admin\/members$/, pageMembers], [/^#\/admin\/settings$/, pageSettings],
+  [/^#\/admin\/companies$/, pageCompanies],
 ];
 let lastHash = location.hash;
 function qs() { const i = location.hash.indexOf("?"); return Object.fromEntries(new URLSearchParams(i >= 0 ? location.hash.slice(i + 1) : "")); }
@@ -469,14 +478,19 @@ async function doAction(act, P) {
       location.hash = r.had_current ? "#/v/" + enc(r.current_version_id) : "#/sops"; break;
     }
     case "copy": {
+      const multiComp = S.companies.length > 1;
       const r = await modal({
         title: "คัดลอกเป็น SOP ใหม่", ok: "สร้างสำเนา",
         body: `<p class="muted small" style="margin-top:0">คัดลอกเนื้อหาทั้งหมดจาก ${esc(sop.sop_number)} ${esc(v.rev)} เป็น SOP ใหม่ (Rev.00 ฉบับร่าง)</p>
+          ${multiComp ? `<label class="f">บริษัทปลายทาง</label><select class="in" id="cc">${S.companies.map(c => `<option value="${esc(c.id)}" ${c.id === S.companyId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select><div style="height:10px"></div>` : ""}
           <label class="f">แผนก</label><select class="in" id="cd">${deptOptions(D.isPriv() ? sop.department_id : S.deptId, { onlyCreatable: true })}</select><div style="height:10px"></div>
           <label class="f">SOP Number ใหม่</label><input class="in mono" id="cn" readonly placeholder="กำลังโหลด…"><div class="help">ระบบกำหนดอัตโนมัติตามแผนก</div><div style="height:10px"></div>
           <label class="f">ชื่อ SOP</label><input class="in" id="ct" value="${esc(v.title + " (สำเนา)")}">`,
-        onOpen: ov => { const upd = async () => { const n = await D.nextNumber($("#cd", ov).value); $("#cn", ov).value = n; $("#cn", ov).placeholder = n; }; $("#cd", ov).onchange = upd; upd(); },
-        onOk: ov => D.copySop(P, { department_id: $("#cd", ov).value, sop_number: $("#cn", ov).value, title: $("#ct", ov).value.trim() }),
+        onOpen: ov => {
+          const upd = async () => { const cid = multiComp ? ($("#cc", ov)?.value || S.companyId) : S.companyId; const n = await D.nextNumber($("#cd", ov).value, cid); $("#cn", ov).value = n; $("#cn", ov).placeholder = n; };
+          $("#cd", ov).onchange = upd; if (multiComp) $("#cc", ov).onchange = upd; upd();
+        },
+        onOk: ov => D.copySop(P, { department_id: $("#cd", ov).value, sop_number: $("#cn", ov).value, title: $("#ct", ov).value.trim(), company_id: multiComp ? $("#cc", ov)?.value : S.companyId }),
       });
       if (r) { toast("สร้างสำเนาแล้ว: " + esc(r.sop_number), "ok"); location.hash = "#/edit/" + enc(r.version_id); } break;
     }
@@ -837,4 +851,33 @@ async function pageSettings(view) {
     try { await D.saveSettings({ company_name: $("#s1", view).value, company_name_en: $("#s2", view).value, logo_url: st.logo_url, doc_font: $("#s6", view).value, review_warn_days: $("#s4", view).value, default_review_months: $("#s5", view).value }); toast("บันทึกการตั้งค่าแล้ว", "ok"); }
     catch (e) { toastErr(e); }
   };
+}
+
+/* ================= Admin: companies ================= */
+async function pageCompanies(view) {
+  if (S.role !== "admin") throw new Error("เฉพาะผู้ดูแลระบบ");
+  await D.loadMeta();
+  const render = async () => {
+    view.innerHTML = pageHead("บริษัทในเครือ", "จัดการบริษัทที่ใช้ร่วมกันในระบบ SOP", `<button class="btn accent" id="addC">${ic("plus")} เพิ่มบริษัท</button>`)
+      + `<div class="card"><div class="table-wrap"><table class="t"><thead><tr><th>ลำดับ</th><th>ชื่อบริษัท</th><th>ชื่อ (อังกฤษ)</th><th>รหัส</th><th></th></tr></thead><tbody>
+      ${S.companies.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(c.name)}${c.is_default ? ' <span class="tag">หลัก</span>' : ""}</td><td class="muted small">${esc(c.name_en || "—")}</td><td class="mono small">${esc(c.code || "—")}</td>
+        <td style="text-align:right"><button class="btn sm" data-cid="${esc(c.id)}" data-cn="${esc(c.name)}">${ic("edit")} แก้ไข</button></td></tr>`).join("")}
+      </tbody></table></div></div>
+      <div class="card muted small" style="max-width:640px"><b>หมายเหตุ:</b> รหัสบริษัท (เช่น ABC) จะถูกนำหน้าเลข SOP ของบริษัทนั้น เช่น ABC-OB-SOP-001 — บริษัทหลักใช้รูปแบบเดิม (OB-SOP-001)</div>`;
+    const openModal = async (comp) => {
+      const r = await modal({
+        title: comp ? "แก้ไขบริษัท" : "เพิ่มบริษัทใหม่", ok: "บันทึก",
+        body: `<div class="grid g2">
+          <div style="grid-column:1/-1"><label class="f">ชื่อบริษัท (ไทย) <span class="req">*</span></label><input class="in" id="cn" value="${esc(comp?.name || "")}"></div>
+          <div><label class="f">ชื่อบริษัท (อังกฤษ)</label><input class="in" id="cne" value="${esc(comp?.name_en || "")}"></div>
+          <div><label class="f">รหัสบริษัท${comp?.is_default ? "" : " (นำหน้าเลข SOP)"}</label><input class="in mono" id="cc" value="${esc(comp?.code || "")}" ${comp?.is_default ? "readonly" : ""} placeholder="เช่น ABC, HGT2" style="text-transform:uppercase"></div>
+          <div><label class="f">ลำดับการแสดงผล</label><input class="in" type="number" id="cs" value="${comp?.sort ?? ""}"></div></div>`,
+        onOk: ov => D.saveCompany(comp?.id || null, { name: $("#cn", ov).value, name_en: $("#cne", ov).value, code: $("#cc", ov).value, sort: $("#cs", ov).value }),
+      });
+      if (r) { toast("บันทึกแล้ว", "ok"); await D.loadMeta(); await render(); }
+    };
+    $("#addC", view).onclick = () => openModal(null);
+    view.querySelectorAll("[data-cid]").forEach(btn => btn.onclick = () => openModal(S.companies.find(c => c.id === btn.dataset.cid)));
+  };
+  await render();
 }
