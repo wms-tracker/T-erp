@@ -656,6 +656,32 @@ export async function copySop(P, { department_id, sop_number, title, company_id 
   }
 }
 
+export async function bulkCopySops(srcCompanyId, dstCompanyId, onProgress) {
+  const srcComp = S.companies.find(c => c.id === srcCompanyId);
+  const srcIsDefault = !srcComp || srcComp.is_default;
+  const c = collection(db, "sops");
+  const snap = srcIsDefault
+    ? await getDocs(query(c, where("has_current", "==", true)))
+    : await getDocs(query(c, where("company_id", "==", srcCompanyId)));
+  const sops = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.has_current && !s.is_obsolete);
+  let done = 0, failed = 0;
+  for (const sop of sops) {
+    try {
+      const vs = await getDoc(doc(db, "sopVersions", sop.current_version_id));
+      if (!vs.exists()) { failed++; onProgress?.(done, failed, sops.length); continue; }
+      const v = { id: vs.id, ...vs.data() };
+      const num = await nextNumber(sop.department_id, dstCompanyId);
+      await copySop({ sop, version: v }, { department_id: sop.department_id, sop_number: num, title: v.title, company_id: dstCompanyId });
+      done++;
+    } catch (e) {
+      console.warn("bulkCopySops:", sop.sop_number, e);
+      failed++;
+    }
+    onProgress?.(done, failed, sops.length);
+  }
+  return { done, failed, total: sops.length };
+}
+
 export async function deleteDraft(vid) {
   const vRef = doc(db, "sopVersions", vid);
   return runTransaction(db, async tx => {

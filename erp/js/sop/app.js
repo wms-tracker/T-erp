@@ -861,7 +861,10 @@ async function pageCompanies(view) {
     view.innerHTML = pageHead("บริษัทในเครือ", "จัดการบริษัทที่ใช้ร่วมกันในระบบ SOP", `<button class="btn accent" id="addC">${ic("plus")} เพิ่มบริษัท</button>`)
       + `<div class="card"><div class="table-wrap"><table class="t"><thead><tr><th>ลำดับ</th><th>ชื่อบริษัท</th><th>ชื่อ (อังกฤษ)</th><th>รหัส</th><th></th></tr></thead><tbody>
       ${S.companies.map((c, i) => `<tr><td>${i + 1}</td><td>${esc(c.name)}${c.is_default ? ' <span class="tag">หลัก</span>' : ""}</td><td class="muted small">${esc(c.name_en || "—")}</td><td class="mono small">${esc(c.code || "—")}</td>
-        <td style="text-align:right"><button class="btn sm" data-cid="${esc(c.id)}" data-cn="${esc(c.name)}">${ic("edit")} แก้ไข</button></td></tr>`).join("")}
+        <td style="text-align:right;display:flex;gap:6px;justify-content:flex-end">
+          ${S.companies.length > 1 ? `<button class="btn sm" data-copy-to="${esc(c.id)}" data-copy-name="${esc(c.name)}">${ic("copy")} ก๊อปปี้ SOPs</button>` : ""}
+          <button class="btn sm" data-cid="${esc(c.id)}" data-cn="${esc(c.name)}">${ic("edit")} แก้ไข</button>
+        </td></tr>`).join("")}
       </tbody></table></div></div>
       <div class="card muted small" style="max-width:640px"><b>หมายเหตุ:</b> รหัสบริษัท (เช่น ABC) จะถูกนำหน้าเลข SOP ของบริษัทนั้น เช่น ABC-OB-SOP-001 — บริษัทหลักใช้รูปแบบเดิม (OB-SOP-001)</div>`;
     const openModal = async (comp) => {
@@ -878,6 +881,33 @@ async function pageCompanies(view) {
     };
     $("#addC", view).onclick = () => openModal(null);
     view.querySelectorAll("[data-cid]").forEach(btn => btn.onclick = () => openModal(S.companies.find(c => c.id === btn.dataset.cid)));
+    view.querySelectorAll("[data-copy-to]").forEach(btn => btn.onclick = async () => {
+      const dstId = btn.dataset.copyTo, dstName = btn.dataset.copyName;
+      const others = S.companies.filter(c => c.id !== dstId);
+      if (!others.length) return;
+      const r = await modal({
+        title: `ก๊อปปี้ SOPs → ${dstName}`, ok: "เริ่มก๊อปปี้",
+        body: `${others.length > 1 ? `<label class="f">บริษัทต้นทาง</label><select class="in" id="srcCo">${others.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("")}</select><div style="height:10px"></div>` : `<p style="margin-top:0"><b>ต้นทาง:</b> ${esc(others[0].name)}</p>`}
+          <p class="muted small" style="margin-top:0">ก๊อปปี้ SOP ที่ประกาศใช้แล้ว (Published) ทั้งหมด ไปยัง <b>${esc(dstName)}</b><br>สร้างเป็น Rev.00 ฉบับร่าง ต้องส่งอนุมัติใหม่</p>`,
+        onOk: ov => ({ srcId: others.length > 1 ? $("#srcCo", ov).value : others[0].id }),
+      });
+      if (!r) return;
+      const banner = document.createElement("div");
+      banner.className = "banner info"; banner.style.margin = "12px 0";
+      banner.textContent = "กำลังก๊อปปี้ SOPs…";
+      view.querySelector(".card")?.before(banner);
+      btn.disabled = true;
+      try {
+        const res = await D.bulkCopySops(r.srcId, dstId, (done, failed, total) => {
+          banner.textContent = `กำลังก๊อปปี้ SOPs… ${done + failed}/${total}`;
+        });
+        banner.className = "banner ok";
+        banner.textContent = `ก๊อปปี้เสร็จ: ${res.done} SOP${res.failed ? ` · ล้มเหลว ${res.failed} รายการ` : " ทั้งหมด"}`;
+      } catch (e) {
+        banner.className = "banner err";
+        banner.textContent = "เกิดข้อผิดพลาด: " + e.message;
+      } finally { btn.disabled = false; }
+    });
   };
   await render();
 }
