@@ -170,19 +170,17 @@ function permissions(sop, v) {
 function sopQueries() {
   const c = collection(db, "sops");
   const isDefault = !S.companyId || !S.company || S.company.is_default;
-  // Build per-company filters. Default company also includes unmigrated docs (no company_id field).
-  const compFilters = !S.companyId
-    ? []
-    : isDefault
-      ? [where("company_id", "==", S.companyId), where("company_id", "==", null)]
-      : [where("company_id", "==", S.companyId)];
-  const baseQueries = compFilters.length === 0 ? [c] : compFilters.map(cf => query(c, cf));
-  if (isPriv()) return baseQueries;
-  const makeQs = (...extra) => compFilters.length === 0
-    ? [query(c, ...extra)]
-    : compFilters.map(cf => query(c, cf, ...extra));
-  const qs = [...makeQs(where("has_current", "==", true)), ...makeQs(where("participants", "array-contains", S.uid))];
-  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(...makeQs(where("department_id", "==", S.deptId)));
+  if (isDefault) {
+    // Default company fetches all SOPs; non-default company SOPs are excluded client-side in listSops()
+    if (isPriv()) return [c];
+    const qs = [query(c, where("has_current", "==", true)), query(c, where("participants", "array-contains", S.uid))];
+    if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, where("department_id", "==", S.deptId)));
+    return qs;
+  }
+  const cf = where("company_id", "==", S.companyId);
+  if (isPriv()) return [query(c, cf)];
+  const qs = [query(c, cf, where("has_current", "==", true)), query(c, cf, where("participants", "array-contains", S.uid))];
+  if (["author", "dept_head"].includes(S.role) && S.deptId) qs.push(query(c, cf, where("department_id", "==", S.deptId)));
   return qs;
 }
 async function unionDocs(qs) {
@@ -214,11 +212,15 @@ function toListItem(r) {
     title: (working ? working.title : current?.title) || "", current, working, status,
     owner_id: r.owner_id || null, owner_name: r.owner_name || "", approved_name: r.current_approved_by || "",
     updated_at: iso(r.updated_at), created_at: iso(r.created_at),
+    _companyId: r.company_id || null,
     _search: [r.sop_number, dept.code, dept.name, current?.title, working?.title, r.current_search || ""].join(" ").toLowerCase(),
   };
 }
 export async function listSops(f = {}) {
-  const rows = (await unionDocs(sopQueries())).map(toListItem).filter(s => s.current || s.working);
+  const otherIds = new Set(S.companies.filter(c => !c.is_default && c.id !== S.companyId).map(c => c.id));
+  const rows = (await unionDocs(sopQueries())).map(toListItem)
+    .filter(s => s.current || s.working)
+    .filter(s => otherIds.size === 0 || !otherIds.has(s._companyId));
   return filterSops(rows, f).sort((a, b) => a.sop_number.localeCompare(b.sop_number));
 }
 export function filterSops(list, q) {
@@ -661,16 +663,13 @@ export async function bulkCopySops(srcCompanyId, dstCompanyId, onProgress) {
   const srcComp = S.companies.find(c => c.id === srcCompanyId);
   const srcIsDefault = !srcComp || srcComp.is_default;
   const c = collection(db, "sops");
-  const srcFilter = where("company_id", "==", srcCompanyId);
-  const srcNullFilter = where("company_id", "==", null);
-  const srcSnaps = await Promise.all(
-    srcIsDefault
-      ? [getDocs(query(c, srcFilter, where("has_current", "==", true))), getDocs(query(c, srcNullFilter, where("has_current", "==", true)))]
-      : [getDocs(query(c, srcFilter, where("has_current", "==", true)))]
-  );
-  const srcMap = new Map();
-  srcSnaps.forEach(s => s.docs.forEach(d => srcMap.set(d.id, { id: d.id, ...d.data() })));
-  const sops = [...srcMap.values()].filter(s => s.has_current && !s.is_obsolete);
+  const snap = srcIsDefault
+    ? await getDocs(query(c, where("has_current", "==", true)))
+    : await getDocs(query(c, where("company_id", "==", srcCompanyId)));
+  const otherIds = new Set(S.companies.filter(co => !co.is_default && co.id !== srcCompanyId).map(co => co.id));
+  const sops = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(s => s.has_current && !s.is_obsolete)
+    .filter(s => otherIds.size === 0 || !otherIds.has(s.company_id));
   let done = 0, failed = 0;
   for (const sop of sops) {
     try {
