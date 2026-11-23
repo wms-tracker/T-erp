@@ -349,6 +349,10 @@ service cloud.firestore {
     // ต้องเป็นความคิดเห็นใหม่ในคำขอนี้ (last_comment_at = เวลาปัจจุบัน) ไม่ใช่ข้อความเก่าที่ค้างอยู่
     function sopHasComment(n) { return n.last_comment is string && n.last_comment.size() > 0 && n.last_comment_at == request.time; }
 
+    match /sopCompanies/{id} {
+      allow read: if sopActive();
+      allow write: if isAdmin();
+    }
     match /sopDepartments/{id} {
       allow read: if sopActive();
       allow write: if isAdmin();
