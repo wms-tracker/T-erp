@@ -244,6 +244,7 @@ function renderFormPanel(rec={}) {
     <button class="btn btn-ghost" onclick="__closePanel()">ยกเลิก</button>
     <button class="btn btn-green" onclick="__saveForm()">💾 บันทึก</button>
   </div>`);
+  setTimeout(() => window.__injectAttach?.('panel-body'), 0);
 }
 
 window.__saveForm = async () => {

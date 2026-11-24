@@ -268,3 +268,8 @@ export { commitAttachments, commitFileAttachments, loadFileAttachments };
 window.__commitAttach = commitAttachments;
 window.__commitFiles  = commitFileAttachments;
 window.__loadFiles    = loadFileAttachments;
+window.__injectAttach = container => {
+  if (typeof container === 'string') container = document.getElementById(container);
+  if (!container || container.querySelector('#f-attach-zone') || !container.querySelector('input,textarea,select')) return;
+  _inject(container);
+};
