@@ -475,7 +475,8 @@ export async function createSop(body, copiedFrom = "") {
     current_version_id: null, working_version_id: vid, has_current: false, is_obsolete: false, last_rev: 0, next_review_date: null,
     working_title: title, working_status: "draft", working_rev: 0, owner_id: v.owner_id, owner_name: v.owner_name, participants: participantsOf(v),
   });
-  await b.commit().catch(e => { throw friendly(e); });
+  console.log("[createSop]", { uid: S.uid, role: S.role, companyId: S.companyId, num, vid, deptId });
+  await b.commit().catch(e => { console.error("[createSop] FAILED", e.code, e.message); throw friendly(e); });
   const lb = writeBatch(db);
   logEntry(lb, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
   await lb.commit().catch(() => {});
