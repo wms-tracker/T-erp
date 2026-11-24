@@ -158,12 +158,13 @@ window.__editRecord = async id => {
   _agendas=(rec.agendas||[{topic:'',detail:''}]).map(a=>({...a}));
   _resolutions=(rec.resolutions||[]).map(r=>({...r}));
   renderFormPanel(rec);
+  setTimeout(()=>window.__loadFiles?.('safetyMeetings',id),100);
 };
 
 function renderFormPanel(rec={}) {
   openPanel(`
   <div class="panel-hd"><div style="font-weight:700">${_editId?'แก้ไขบันทึกการประชุม':'บันทึกการประชุมใหม่'}</div><button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button></div>
-  <div class="panel-body">
+  <div id="panel-body" class="panel-body">
     <div class="form-grid">
       <div class="fld"><label class="lbl">วันที่ประชุม *</label><input type="date" id="mtDate" value="${rec.meetingDate||today()}"></div>
       <div class="fld"><label class="lbl">ครั้งที่</label><input id="mtNo" value="${rec.meetingNo||''}" placeholder="เช่น 1/2568"></div>
@@ -223,7 +224,8 @@ window.__saveForm = async () => {
   // collect latest input values
   _agendas=_agendas.map((_,i)=>({topic:document.getElementById(`ag-${i}`)?.children[1]?.value||'',detail:document.getElementById(`ag-${i}`)?.children[2]?.value||''}));
   _resolutions=_resolutions.map((_,i)=>({description:document.getElementById(`res-${i}`)?.children[0]?.value||'',assignedTo:document.getElementById(`res-${i}`)?.children[1]?.value||'',dueDate:document.getElementById(`res-${i}`)?.children[2]?.value||'',status:_resolutions[i]?.status||'pending'}));
-  const data={meetingDate:date,meetingNo:document.getElementById('mtNo')?.value||'',meetingType:document.getElementById('mtType')?.value,venue:document.getElementById('mtVenue')?.value||'',attendeeCount:+document.getElementById('mtAttendee')?.value||0,chairman:document.getElementById('mtChair')?.value||'',nextMeetingDate:document.getElementById('mtNext')?.value||'',status:document.getElementById('mtStatus')?.value||'completed',notes:document.getElementById('mtNote')?.value||'',agendas:_agendas.filter(a=>a.topic),resolutions:_resolutions.filter(r=>r.description)};
+  const attachments = await (window.__commitAttach?.() ?? Promise.resolve([]));
+  const data={meetingDate:date,meetingNo:document.getElementById('mtNo')?.value||'',meetingType:document.getElementById('mtType')?.value,venue:document.getElementById('mtVenue')?.value||'',attendeeCount:+document.getElementById('mtAttendee')?.value||0,chairman:document.getElementById('mtChair')?.value||'',nextMeetingDate:document.getElementById('mtNext')?.value||'',status:document.getElementById('mtStatus')?.value||'completed',notes:document.getElementById('mtNote')?.value||'',agendas:_agendas.filter(a=>a.topic),resolutions:_resolutions.filter(r=>r.description),attachments};
   try{
     if(_editId) await updateMeeting(_editId,data);
     else await createMeeting(data,_profile?.uid);

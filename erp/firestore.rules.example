@@ -290,9 +290,12 @@ service cloud.firestore {
     function sopRole() {
       let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       let m = sopMember();
-      return u.role == 'admin' ? 'admin'
+      // รองรับทั้ง role:"admin" (string) และ roles:["admin"] (array) — ตาม auth.js
+      let erpAdmin = u.role == 'admin' || (u.get('roles', []) is list && 'admin' in u.get('roles', []));
+      let erpMgr = u.role == 'manager' || (u.get('roles', []) is list && 'manager' in u.get('roles', []));
+      return erpAdmin ? 'admin'
         : (m.get('active', true) == false ? 'viewer'
-        : m.get('sopRole', u.role == 'manager' ? 'manager' : 'viewer'));
+        : m.get('sopRole', erpMgr ? 'manager' : 'viewer'));
     }
     function sopDept() { return sopMember().get('deptId', ''); }
     function sopActive() { return isSignedIn() && isActive(); }
@@ -377,13 +380,12 @@ service cloud.firestore {
       allow read: if sopActive() && (resource == null || resource.data.has_current == true || sopPriv()
         || (sopRole() in ['author', 'dept_head'] && sopDept() == resource.data.department_id)
         || request.auth.uid in resource.data.get('participants', []));
-      allow create: if sopRole() == 'admin'
-        || (sopWriter(request.resource.data.department_id)
+      allow create: if sopWriter(request.resource.data.department_id)
         && request.resource.data.created_by == request.auth.uid
         && request.resource.data.current_version_id == null && request.resource.data.has_current == false
         && request.resource.data.is_obsolete == false && request.resource.data.last_rev == 0
         && request.resource.data.working_version_id == sid + '_r0'
-        && getAfter(sopVDoc(sid + '_r0')).data.prepared_by == request.auth.uid);
+        && getAfter(sopVDoc(sid + '_r0')).data.prepared_by == request.auth.uid;
       allow update: if sopSopUpdateOk(sid);
       // ลบได้เฉพาะ SOP ที่ไม่เคยประกาศใช้ และฉบับร่างถูกยกเลิกใน batch เดียวกัน
       allow delete: if sopActive() && resource.data.has_current == false && resource.data.working_version_id != null
@@ -430,7 +432,7 @@ service cloud.firestore {
     // ----- sopVersions: เนื้อหาแต่ละ Rev. (doc id = {sid}_r{rev}) — ฉบับที่อนุมัติแล้วถูกล็อก -----
     match /sopVersions/{vid} {
       allow read: if sopActive() && (sopIsPublic(resource.data.status) || sopSeesWork(resource.data));
-      allow create: if sopRole() == 'admin' || sopNewVersionOk(vid);
+      allow create: if sopNewVersionOk(vid);
       allow update: if sopVersionUpdateOk(vid);
       allow delete: if false;
 

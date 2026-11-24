@@ -43,8 +43,10 @@ service cloud.firestore {
     }
 
     // ----- users: อ่าน-เขียนได้เฉพาะแอดมิน, ผู้ใช้อ่านข้อมูลตัวเองได้ -----
+    // self-read ต้องอยู่ก่อน isAdmin() เพื่อป้องกัน recursive get() loop:
+    // sopRole() → get(users/uid) → READ rule → isAdmin() → get(users/uid) → loop
     match /users/{uid} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow read: if (isSignedIn() && request.auth.uid == uid) || isAdmin();
       allow write: if isAdmin();
     }
 
@@ -288,9 +290,12 @@ service cloud.firestore {
     function sopRole() {
       let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
       let m = sopMember();
-      return u.role == 'admin' ? 'admin'
+      // รองรับทั้ง role:"admin" (string) และ roles:["admin"] (array) — ตาม auth.js
+      let erpAdmin = u.role == 'admin' || (u.get('roles', []) is list && 'admin' in u.get('roles', []));
+      let erpMgr = u.role == 'manager' || (u.get('roles', []) is list && 'manager' in u.get('roles', []));
+      return erpAdmin ? 'admin'
         : (m.get('active', true) == false ? 'viewer'
-        : m.get('sopRole', u.role == 'manager' ? 'manager' : 'viewer'));
+        : m.get('sopRole', erpMgr ? 'manager' : 'viewer'));
     }
     function sopDept() { return sopMember().get('deptId', ''); }
     function sopActive() { return isSignedIn() && isActive(); }

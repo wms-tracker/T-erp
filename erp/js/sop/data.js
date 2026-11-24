@@ -453,9 +453,13 @@ export async function createSop(body, copiedFrom = "") {
   const title = String(body.title || "").trim() || fail("กรุณาระบุชื่อ SOP");
   validateAssignees(body, S.uid);
   if (!validDate(body.effective_date) || !validDate(body.review_date)) fail("รูปแบบวันที่ไม่ถูกต้อง");
-  const exists = await getDoc(doc(db, "sops", num)).then(s => s.exists(), () => true);
-  if (exists) fail(`SOP Number "${num}" มีอยู่แล้ว`);
   const vid = num + "_r0";
+  const [sopSnap, verSnap] = await Promise.all([
+    getDoc(doc(db, "sops", num)).catch(() => ({ exists: () => true })),
+    getDoc(doc(db, "sopVersions", vid)).catch(() => ({ exists: () => true })),
+  ]);
+  if (sopSnap.exists()) fail(`SOP Number "${num}" มีอยู่แล้ว`);
+  if (verSnap.exists()) fail(`เวอร์ชัน "${vid}" มีอยู่แล้ว กรุณาลบออกจากระบบก่อนสร้างใหม่`);
   const v = {
     sop_id: num, sop_number: num, department_id: deptId, company_id: S.companyId, revision: 0, status: "draft", title, content: cleanContent(body.content),
     prepared_by: S.uid, prepared_name: S.name,
@@ -475,8 +479,7 @@ export async function createSop(body, copiedFrom = "") {
     current_version_id: null, working_version_id: vid, has_current: false, is_obsolete: false, last_rev: 0, next_review_date: null,
     working_title: title, working_status: "draft", working_rev: 0, owner_id: v.owner_id, owner_name: v.owner_name, participants: participantsOf(v),
   });
-  console.log("[createSop]", { uid: S.uid, role: S.role, companyId: S.companyId, num, vid, deptId });
-  await b.commit().catch(e => { console.error("[createSop] FAILED", e.code, e.message); throw friendly(e); });
+  await b.commit().catch(e => { throw friendly(e); });
   const lb = writeBatch(db);
   logEntry(lb, { sop: { id: num, sop_number: num, department_id: deptId }, v: { ...v, id: vid }, action: copiedFrom ? "copy" : "create", to: "draft", comment: copiedFrom ? `คัดลอกจาก ${copiedFrom}` : "" });
   await lb.commit().catch(() => {});
