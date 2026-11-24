@@ -214,12 +214,13 @@ window.__editRecord = async id => {
   if(!rec) return;
   _editId=id;
   renderFormPanel(rec);
+  setTimeout(()=>window.__loadFiles?.('safetyCommitteeMembers',id),100);
 };
 
 function renderFormPanel(rec={}) {
   openPanel(`
   <div class="panel-hd"><div style="font-weight:700">${_editId?'แก้ไขกรรมการ':'เพิ่มกรรมการใหม่'}</div><button class="btn btn-ghost btn-sm" onclick="__closePanel()">✕</button></div>
-  <div class="panel-body">
+  <div id="panel-body" class="panel-body">
     <div class="form-grid">
       <div class="fld full"><label class="lbl">ชื่อ-นามสกุล *</label><input id="mName" value="${rec.fullName||''}"></div>
       <div class="fld full"><label class="lbl">ตำแหน่งใน คปอ. *</label>
@@ -248,7 +249,8 @@ function renderFormPanel(rec={}) {
 window.__saveForm = async () => {
   const name=document.getElementById('mName')?.value?.trim();
   if(!name) return alert('กรุณาระบุชื่อ');
-  const data={fullName:name,committeeRole:document.getElementById('mRole')?.value,department:document.getElementById('mDept')?.value||'',jobTitle:document.getElementById('mTitle')?.value||'',phone:document.getElementById('mPhone')?.value||'',email:document.getElementById('mEmail')?.value||'',startDate:document.getElementById('mStart')?.value||today(),endDate:document.getElementById('mEnd')?.value||'',status:document.getElementById('mStatus')?.value||'active',notes:document.getElementById('mNote')?.value||''};
+  const attachments = await (window.__commitAttach?.() ?? Promise.resolve([]));
+  const data={fullName:name,committeeRole:document.getElementById('mRole')?.value,department:document.getElementById('mDept')?.value||'',jobTitle:document.getElementById('mTitle')?.value||'',phone:document.getElementById('mPhone')?.value||'',email:document.getElementById('mEmail')?.value||'',startDate:document.getElementById('mStart')?.value||today(),endDate:document.getElementById('mEnd')?.value||'',status:document.getElementById('mStatus')?.value||'active',notes:document.getElementById('mNote')?.value||'',attachments};
   try{
     if(_editId) await updateCommitteeMember(_editId,data);
     else await createCommitteeMember(data,_profile?.uid);

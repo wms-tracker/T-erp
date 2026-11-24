@@ -449,6 +449,7 @@ window._editForm = async (id) => {
   openPanel('panelForm');
   const r = allRecs.find(x => x.id === id) || {};
   document.getElementById('panelFormBody').innerHTML = buildForm(r);
+  window.__loadFiles?.('safetyCapaRecords', id);
 };
 
 window._save = async () => {

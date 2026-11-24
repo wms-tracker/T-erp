@@ -375,6 +375,7 @@ window._editPanel = (id) => {
   document.getElementById('form-title').textContent = '✏️ แก้ไขรายงาน';
   const r = allRecs.find(x => x.id === id) || {};
   document.getElementById('panelFormBody').innerHTML = buildForm(r);
+  window.__loadFiles?.('safetyNearMiss', id);
   openPanel('panelForm');
 };
 
