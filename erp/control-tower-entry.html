@@ -458,6 +458,7 @@ async function renderManpowerForm(el) {
         ${numField('mp-presentOutsourceRegular', 'Outsource ประจำมาจริง (คน)', 0)}
         ${numField('mp-presentOutsourceExtra', 'Outsource เสริมมาจริง (คน)', 0)}
         ${numField('mp-leave', 'Leave (ลา)', 0)}
+        ${numField('mp-dayOff', 'วันหยุดประจำสัปดาห์', 0)}
         ${numField('mp-late', 'Late (สาย)', 0)}
         ${numField('mp-ot', 'OT รวม (ชั่วโมง)', 0)}
       </div>
@@ -467,14 +468,15 @@ async function renderManpowerForm(el) {
     </div>`;
   const HEADCOUNT_FIELDS = ['regular', 'outsourceRegular', 'outsourceExtra'];
   const PRESENT_FIELDS = ['presentRegular', 'presentOutsourceRegular', 'presentOutsourceExtra'];
-  const OTHER_FIELDS = ['leave', 'late', 'ot'];
+  const OTHER_FIELDS = ['leave', 'dayOff', 'late', 'ot'];
   const recalcTotal = () => {
     const total = HEADCOUNT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
     const present = PRESENT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
     const leave = getNum('mp-leave');
-    const absent = Math.max(0, total - present - leave);
+    const dayOff = getNum('mp-dayOff');
+    const absent = Math.max(0, total - present - leave - dayOff);
     let warn = '';
-    if (present + leave > total) warn = ' ⚠️ มาจริง + ลา มากกว่าจำนวนพนักงานทั้งหมด — ตรวจสอบตัวเลขอีกครั้ง';
+    if (present + leave + dayOff > total) warn = ' ⚠️ มาจริง + ลา + หยุด มากกว่าจำนวนพนักงานทั้งหมด — ตรวจสอบตัวเลขอีกครั้ง';
     document.getElementById('mp-total').innerHTML = `จำนวนพนักงานทั้งหมด = <b>${fmtNum(total)}</b> · มาจริงรวม = <b>${fmtNum(present)}</b> · ขาด (คำนวณ) = <b>${fmtNum(absent)}</b>${warn}`;
   };
   [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => document.getElementById(`mp-${f}`).addEventListener('input', recalcTotal));
@@ -494,7 +496,7 @@ async function renderManpowerForm(el) {
     if (!date) { msg.textContent = 'กรุณาเลือกวันที่'; msg.classList.add('error'); return; }
     const total = HEADCOUNT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
     const present = PRESENT_FIELDS.reduce((s, f) => s + getNum(`mp-${f}`), 0);
-    const absent = Math.max(0, total - present - getNum('mp-leave'));
+    const absent = Math.max(0, total - present - getNum('mp-leave') - getNum('mp-dayOff'));
     const payload = { date, department: dept, total, present, absent, status: document.getElementById('mp-status').value, updatedBy: profile.uid, updatedByName: profile.name || profile.email, updatedAt: serverTimestamp() };
     [...HEADCOUNT_FIELDS, ...PRESENT_FIELDS, ...OTHER_FIELDS].forEach(f => payload[f] = getNum(`mp-${f}`));
     try {
