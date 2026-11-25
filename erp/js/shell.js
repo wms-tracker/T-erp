@@ -60,6 +60,7 @@ const NAV = {
     { groupKey: 'control-tower', icon: '📡', label: 'Control Tower', items: [
       { key: 'control-tower',       label: '📡 Warehouse Control Tower', href: 'warehouse-control-tower.html' },
       { key: 'control-tower-entry', label: '📝 กรอกข้อมูลรายวัน',        href: 'control-tower-entry.html' },
+      { key: 'employee-performance',label: '👤 Employee KPI',             href: 'employee-performance.html' },
     ]},
   ],
   admin: [
@@ -114,6 +115,7 @@ const NAV = {
     { groupKey: 'control-tower', icon: '📡', label: 'Control Tower', items: [
       { key: 'control-tower',       label: '📡 Warehouse Control Tower', href: 'warehouse-control-tower.html' },
       { key: 'control-tower-entry', label: '📝 กรอกข้อมูลรายวัน',        href: 'control-tower-entry.html' },
+      { key: 'employee-performance',label: '👤 Employee KPI',             href: 'employee-performance.html' },
     ]},
     { groupKey: 'safety-home', icon: '🛡', label: 'ความปลอดภัย', items: [
       { key: 'safety-dashboard', label: 'KPO Safety Dashboard', href: 'safety.html' },
