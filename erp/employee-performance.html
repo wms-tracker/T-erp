@@ -441,7 +441,8 @@ async function renderDailyStats() {
     const dept = gv('statDept'), q = gv('statSearch').toLowerCase();
     if(dept) rows = rows.filter(r=>r.department===dept);
     if(q) rows = rows.filter(r=>(r.employeeName||'').toLowerCase().includes(q));
-    document.getElementById('statTbody').innerHTML = rows.length ? rows.map(r=>`
+    const tbody = document.getElementById('statTbody'); if(!tbody) return;
+    tbody.innerHTML = rows.length ? rows.map(r=>`
       <tr>
         <td>${fmtDate(r.date)}</td>
         <td>${esc(r.employeeName)}</td>
