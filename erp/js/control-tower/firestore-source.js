@@ -62,12 +62,13 @@ async function fetchManpowerFromSheets() {
       if (!date || !dept) continue;
       const k = `${date}|${dept}`;
       if (!agg[k]) {
-        agg[k] = { date, department: dept, regular: 0, outsourceRegular: 0, outsourceRequested: 0, outsourceActual: 0 };
+        agg[k] = { date, department: dept, regular: 0, outsourceRegular: 0, outsourceRequested: 0, outsourceActual: 0, ot: 0 };
       }
       agg[k].regular            += Number(r.regular)            || 0;
       agg[k].outsourceRegular   += Number(r.outsourceRegular)   || 0;
       agg[k].outsourceRequested += Number(r.outsourceRequested) || 0;
       agg[k].outsourceActual    += Number(r.outsourceActual)    || 0;
+      agg[k].ot                 += (Number(r.otRegularHours) + Number(r.otOutsourceHours)) || 0;
     }
 
     return Object.values(agg).map(a => ({
@@ -75,7 +76,7 @@ async function fetchManpowerFromSheets() {
       outsourceExtra: a.outsourceActual,  // alias ที่ mergeAttendance ใช้
       get total()   { return this.regular + this.outsourceRegular + this.outsourceActual; },
       get present() { return this.total; },
-      absent: 0, leave: 0, late: 0, ot: 0,
+      absent: 0, leave: 0, late: 0, ot: a.ot,
     }));
   } catch (err) {
     console.warn('[control-tower] โหลด Manpower จาก Sheets ไม่สำเร็จ:', err.message);
