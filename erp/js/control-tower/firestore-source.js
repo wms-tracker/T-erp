@@ -32,7 +32,8 @@ const MANPOWER_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyaQdRugPff
 // แปลงชื่อแผนกใน Sheets → code ที่ Control Tower ใช้ (DEPARTMENTS ใน demo-data.js)
 const DEPT_CODE_MAP = {
   'Outbound': 'OB', 'Outbound เช้า': 'OB', 'Outbound บ่าย': 'OB', 'OB': 'OB',
-  'Inbound': 'IB', 'Checker': 'IB', 'IB': 'IB',
+  'Inbound': 'IB', 'IB': 'IB',
+  'Checker': 'AUDIT',
   'Transportation': 'TS', 'TS': 'TS',
   'Inventory': 'INV', 'INV': 'INV',
   'Logistics': 'LOG', 'LOG': 'LOG',
