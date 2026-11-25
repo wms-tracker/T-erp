@@ -236,6 +236,7 @@ body.tv-mode .mp-detail-grid .mp-d-val { font-size: 1.5rem; }
       <span class="role-pill" id="rolePill">Manager</span>
       <a href="dashboard-warehouse.html" class="btn home-icon-btn" title="หน้าหลัก" style="padding:7px 9px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></a>
       <a href="control-tower-entry.html" class="btn" title="ไปหน้ากรอกข้อมูลรายวัน">📝 กรอกข้อมูล</a>
+      <a href="employee-performance.html" class="btn" title="ระบบสถิติและประเมินผลพนักงาน">👤 Employee KPI</a>
       <a href="control-tower-audit.html" class="btn" id="btnAuditLog" title="ประวัติการแก้ไขข้อมูล" style="display:none;">📜 Audit Log</a>
       <select id="warehouseSelect" title="Warehouse"></select>
       <select id="rangeSelect" title="ช่วงเวลา">
@@ -371,6 +372,34 @@ body.tv-mode .mp-detail-grid .mp-d-val { font-size: 1.5rem; }
       <div class="card">
         <div class="section-head"><h2 style="font-size:.9rem;">Recent Incidents</h2></div>
         <div id="recentIncidents"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section no-print" id="sec-employee-perf">
+    <div class="section-head">
+      <h2>👤 EMPLOYEE STATISTICS &amp; PERFORMANCE</h2>
+      <span class="tag">ระบบใหม่</span>
+    </div>
+    <div class="card" style="border-left:4px solid var(--accent);">
+      <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;">
+        <div>
+          <div style="font-size:.88rem;font-weight:700;color:var(--text);margin-bottom:6px;">EMPLOYEE STATISTICS &amp; PERFORMANCE MANAGEMENT</div>
+          <div style="font-size:.8rem;color:var(--text-muted);line-height:1.6;margin-bottom:12px;">
+            ระบบบริหารจัดการข้อมูลพนักงานและสถิติผลการปฏิบัติงาน ครอบคลุม 8 Module ได้แก่
+            จัดการพนักงาน · บันทึกสถิติรายวัน · ประวัติข้อผิดพลาด · สถิติเข้างาน ·
+            KPI &amp; Competency · Dashboard รายบุคคล · ประเมินผล · ประวัติการทำงาน
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="employee-performance.html#employees" class="btn" style="font-size:.82rem;padding:7px 13px;">👥 จัดการพนักงาน</a>
+            <a href="employee-performance.html#stats" class="btn" style="font-size:.82rem;padding:7px 13px;">📋 บันทึกสถิติรายวัน</a>
+            <a href="employee-performance.html#incidents" class="btn" style="font-size:.82rem;padding:7px 13px;">⚠️ ประวัติข้อผิดพลาด</a>
+            <a href="employee-performance.html#eval" class="btn" style="font-size:.82rem;padding:7px 13px;">📊 ประเมินผล</a>
+          </div>
+        </div>
+        <a href="employee-performance.html" class="btn btn-primary" style="white-space:nowrap;padding:12px 20px;font-size:.9rem;">
+          เข้าระบบ →
+        </a>
       </div>
     </div>
   </section>
