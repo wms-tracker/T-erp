@@ -1,0 +1,26 @@
+// ===================================================================
+// Firebase Storage Security Rules — คัดลอกไปวางที่ Firebase Console
+// (Storage -> Rules) แล้วกด Publish
+// ===================================================================
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // helper: ตรวจว่า login แล้ว
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // ----- safety/{page}/...  — รูปแนบจาก safety-attach.js -----
+    // อ่านได้: login แล้ว
+    // เขียนได้: login แล้ว, ไฟล์เป็นรูปภาพ, ขนาดไม่เกิน 10 MB
+    match /safety/{allPaths=**} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn()
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if isSignedIn();
+    }
+
+  }
+}

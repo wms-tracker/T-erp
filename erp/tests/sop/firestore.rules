@@ -534,6 +534,25 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && isActive();
     }
 
+    // ----- Employee Performance (epEmployees, epDailyStats, epIncidents, epAttendance, epKpiTemplates, epEvaluations, epEvents) -----
+    // read: ทุกคนที่ login และ active
+    // create/update: admin, manager, warehouse (กรอกข้อมูล)
+    // delete: admin/manager เท่านั้น
+    match /{epCol}/{docId} {
+      allow read: if isSignedIn() && isActive()
+        && epCol.matches('ep.+');
+      allow create, update: if isSignedIn() && isActive()
+        && epCol.matches('ep.+')
+        && (isAdmin() || hasRole('manager') || hasRole('warehouse'));
+      allow delete: if isSignedIn() && isActive()
+        && epCol.matches('ep.+')
+        && (isAdmin() || hasRole('manager'));
+      match /fileAttachments/{fileId} {
+        allow read, write: if isSignedIn() && isActive()
+          && epCol.matches('ep.+');
+      }
+    }
+
     // ----- ESG (Environmental, Social, Governance) -----
     match /esgMonthly/{docId} {
       allow read: if isSignedIn() && isActive();
