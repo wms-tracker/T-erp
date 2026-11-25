@@ -29,6 +29,21 @@ const ACCIDENT_DAYS = 400;
 // ถ้าไม่ต้องการใช้ให้ตั้งเป็น '' หรือ null
 const MANPOWER_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyaQdRugPffzstMq72-beSRI5h2CVLC4k_EhZ4nkTd665Z3iU_mB7bHEjXt6eAPPlwFsQ/exec';
 
+// แปลงชื่อแผนกใน Sheets → code ที่ Control Tower ใช้ (DEPARTMENTS ใน demo-data.js)
+const DEPT_CODE_MAP = {
+  'Outbound': 'OB', 'Outbound เช้า': 'OB', 'Outbound บ่าย': 'OB', 'OB': 'OB',
+  'Inbound': 'IB', 'Checker': 'IB', 'IB': 'IB',
+  'Transportation': 'TS', 'TS': 'TS',
+  'Inventory': 'INV', 'INV': 'INV',
+  'Logistics': 'LOG', 'LOG': 'LOG',
+  'Quality Assurance': 'QA', 'QA': 'QA',
+  'Return': 'RETURN', 'RETURN': 'RETURN',
+  'Housekeeping': 'HK', 'HK': 'HK',
+  'Accounting': 'ACC', 'ACC': 'ACC',
+  'Loss Prevention': 'LP', 'LP': 'LP',
+  'Audit': 'AUDIT', 'AUDIT': 'AUDIT',
+};
+
 async function fetchManpowerFromSheets() {
   if (!MANPOWER_SHEETS_URL) return [];
   try {
@@ -36,19 +51,31 @@ async function fetchManpowerFromSheets() {
     if (!res.ok) throw new Error(res.status);
     const rows = await res.json();
     if (!Array.isArray(rows)) return [];
-    // แปลง Sheet row → format เดียวกับ wctManpowerDaily
-    return rows.map(r => ({
-      date:              String(r.date || '').slice(0, 10),
-      department:        String(r.department || '').trim(),
-      regular:           Number(r.regular)           || 0,
-      outsourceRegular:  Number(r.outsourceRegular)  || 0,
-      outsourceExtra:    Number(r.outsourceActual)   || 0,  // ใช้ค่า "มาจริง"
-      outsourceRequested:Number(r.outsourceRequested)|| 0,  // extra field
-      // คำนวณ total/present จากตัวเลขจริง
-      get total()   { return this.regular + this.outsourceRegular + this.outsourceExtra; },
+
+    // รวมแถวที่ map ไปยัง dept code เดียวกัน (เช่น OB เช้า + OB บ่าย → OB)
+    const agg = {};
+    for (const r of rows) {
+      const date = String(r.date || '').slice(0, 10);
+      const rawDept = String(r.department || '').trim();
+      const dept = DEPT_CODE_MAP[rawDept];
+      if (!date || !dept) continue;
+      const k = `${date}|${dept}`;
+      if (!agg[k]) {
+        agg[k] = { date, department: dept, regular: 0, outsourceRegular: 0, outsourceRequested: 0, outsourceActual: 0 };
+      }
+      agg[k].regular            += Number(r.regular)            || 0;
+      agg[k].outsourceRegular   += Number(r.outsourceRegular)   || 0;
+      agg[k].outsourceRequested += Number(r.outsourceRequested) || 0;
+      agg[k].outsourceActual    += Number(r.outsourceActual)    || 0;
+    }
+
+    return Object.values(agg).map(a => ({
+      ...a,
+      outsourceExtra: a.outsourceActual,  // alias ที่ mergeAttendance ใช้
+      get total()   { return this.regular + this.outsourceRegular + this.outsourceActual; },
       get present() { return this.total; },
       absent: 0, leave: 0, late: 0, ot: 0,
-    })).filter(r => r.date && r.department);
+    }));
   } catch (err) {
     console.warn('[control-tower] โหลด Manpower จาก Sheets ไม่สำเร็จ:', err.message);
     return [];
