@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Employee Performance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#eef1f7;--panel:#fff;--panel-2:#f5f7fb;--text:#16213e;--text-muted:#5c6584;
+  --border:#dde2ee;--accent:#2e6cf6;--accent-2:#5a8dfb;
+  --ok:#17a673;--ok-bg:rgba(23,166,115,.12);
+  --warn:#d99a1f;--warn-bg:rgba(217,154,31,.14);
+  --bad:#e14b4b;--bad-bg:rgba(225,75,75,.13);
+  --shadow:0 4px 20px rgba(20,30,60,.08);
+  --nav-w:216px;--top-h:52px;
+}
+:root[data-theme=dark]{
+  --bg:#0b1120;--panel:#141d33;--panel-2:#101728;--text:#e8ecfb;--text-muted:#93a0c4;
+  --border:#253156;--accent:#5a8dfb;--accent-2:#7fa6ff;
+  --ok:#2fd196;--warn:#f0b429;--bad:#ff5c5c;
+  --shadow:0 6px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI','Sarabun',Tahoma,sans-serif;font-size:14px;}
+a{color:var(--accent);text-decoration:none;}
+/* ── Layout ── */
+.ep-shell{display:flex;height:100vh;overflow:hidden;}
+.ep-nav{width:var(--nav-w);flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;transition:width .2s;}
+.ep-main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.ep-topbar{height:var(--top-h);flex-shrink:0;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 18px;box-shadow:var(--shadow);}
+.ep-content{flex:1;overflow-y:auto;padding:20px 20px 40px;}
+/* ── Nav ── */
+.nav-brand{padding:14px 16px 10px;border-bottom:1px solid var(--border);}
+.nav-brand .logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:.85rem;flex-shrink:0;}
+.nav-brand .brand-title{font-size:.74rem;font-weight:700;color:var(--text);margin-top:4px;line-height:1.3;}
+.nav-brand .brand-sub{font-size:.64rem;color:var(--text-muted);}
+.nav-items{padding:8px 0;flex:1;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;border-radius:0;border-left:3px solid transparent;font-size:.83rem;color:var(--text-muted);transition:all .15s;user-select:none;}
+.nav-item:hover{background:var(--panel-2);color:var(--text);}
+.nav-item.active{background:var(--panel-2);color:var(--accent);border-left-color:var(--accent);font-weight:600;}
+.nav-icon{font-size:1rem;width:20px;text-align:center;flex-shrink:0;}
+.nav-label{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nav-badge{background:var(--bad);color:#fff;border-radius:10px;font-size:.65rem;padding:1px 6px;font-weight:700;}
+/* ── Topbar ── */
+.tb-title{font-weight:700;font-size:.95rem;color:var(--text);}
+.tb-sub{font-size:.72rem;color:var(--text-muted);}
+.tb-sep{width:1px;height:20px;background:var(--border);}
+.tb-right{display:flex;align-items:center;gap:8px;margin-left:auto;}
+/* ── Buttons / Inputs ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:.83rem;font-weight:600;background:var(--panel-2);color:var(--text);font-family:inherit;transition:.15s;}
+.btn:hover{filter:brightness(1.04);}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border:none;}
+.btn-ok{background:var(--ok);color:#fff;border:none;}
+.btn-bad{background:var(--bad);color:#fff;border:none;}
+.btn-sm{padding:4px 10px;font-size:.76rem;}
+.btn-icon{padding:6px 8px;}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;font-size:.85rem;background:var(--panel-2);color:var(--text);font-family:inherit;color-scheme:light dark;}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;}
+/* ── Cards / Common ── */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);}
+.page-head{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+.page-head h2{font-size:1rem;font-weight:700;}
+.page-head .ml-auto{margin-left:auto;}
+.search-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.search-bar input,.search-bar select{width:auto;flex:1;min-width:140px;}
+/* ── Table ── */
+.tbl-wrap{overflow-x:auto;}
+table.dt{width:100%;border-collapse:collapse;font-size:.82rem;}
+table.dt th{background:var(--panel-2);padding:9px 12px;text-align:left;font-weight:600;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+table.dt td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;}
+table.dt tr:hover td{background:var(--panel-2);}
+table.dt .actions{display:flex;gap:4px;}
+/* ── Side Panel ── */
+.ep-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:200;display:none;}
+.ep-panel{position:fixed;right:0;top:0;height:100dvh;width:min(560px,100vw);background:var(--panel);box-shadow:-4px 0 24px rgba(0,0,0,.18);z-index:201;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease;}
+.ep-panel.open{transform:translateX(0);}
+.ep-overlay.open{display:block;}
+.panel-hd{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.panel-hd h3{font-size:.95rem;font-weight:700;}
+.panel-body{flex:1;overflow-y:auto;padding:20px;}
+.panel-ft{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;}
+/* ── Form ── */
+.fld{margin-bottom:12px;}
+.fld label{display:block;font-size:.77rem;font-weight:600;color:var(--text-muted);margin-bottom:5px;}
+.fld-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fld-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.required::after{content:' *';color:var(--bad);}
+/* ── Badge ── */
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:.72rem;font-weight:700;}
+.badge-ok{background:var(--ok-bg);color:var(--ok);}
+.badge-warn{background:var(--warn-bg);color:var(--warn);}
+.badge-bad{background:var(--bad-bg);color:var(--bad);}
+.badge-gray{background:var(--panel-2);color:var(--text-muted);}
+/* ── KPI Gauge ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;}
+.kpi-box{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center;}
+.kpi-box .kv{font-size:1.6rem;font-weight:800;color:var(--accent);}
+.kpi-box .kl{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
+/* ── Timeline ── */
+.timeline{position:relative;padding-left:20px;}
+.timeline::before{content:'';position:absolute;left:7px;top:0;bottom:0;width:2px;background:var(--border);}
+.tl-item{position:relative;margin-bottom:16px;}
+.tl-dot{position:absolute;left:-16px;top:3px;width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--panel);}
+.tl-body{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:10px 13px;}
+.tl-date{font-size:.7rem;color:var(--text-muted);margin-bottom:3px;}
+.tl-title{font-size:.84rem;font-weight:600;}
+.tl-desc{font-size:.78rem;color:var(--text-muted);margin-top:3px;}
+/* ── Chart container ── */
+.chart-box{position:relative;height:220px;}
+/* ── Severity colors ── */
+.sev-minor{background:#e0f2fe;color:#0369a1;}
+.sev-moderate{background:#fef3c7;color:#92400e;}
+.sev-serious{background:#fce7f3;color:#9d174d;}
+.sev-critical{background:#fee2e2;color:#991b1b;}
+/* ── Spinner ── */
+.spin{text-align:center;padding:40px;color:var(--text-muted);font-size:.85rem;}
+/* ── Stats grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:16px;}
+.stat-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center;}
+.stat-card .sv{font-size:1.5rem;font-weight:800;}
+.stat-card .sl{font-size:.7rem;color:var(--text-muted);margin-top:2px;}
+/* ── Score input ── */
+.score-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);}
+.score-row:last-child{border-bottom:none;}
+.score-stars{display:flex;gap:3px;}
+.score-stars span{cursor:pointer;font-size:1.2rem;line-height:1;color:#cbd5e1;transition:.1s;}
+.score-stars span.on{color:#f59e0b;}
+/* ── Responsive ── */
+@media(max-width:680px){
+  .ep-nav{position:fixed;left:0;top:0;bottom:0;z-index:100;transform:translateX(-100%);transition:transform .2s;}
+  .ep-nav.mob-open{transform:translateX(0);}
+  .ep-shell{flex-direction:column;}
+  .fld-row,.fld-row-3{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="ep-shell">
+  <!-- Sidebar -->
+  <nav class="ep-nav" id="epNav">
+    <div class="nav-brand">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="logo">EP</div>
+        <div>
+          <div class="nav-brand brand-title">Employee Performance</div>
+          <div class="nav-brand brand-sub">HORIZON WAREHOUSE</div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-items" id="navItems"></div>
+    <div style="padding:12px 16px;border-top:1px solid var(--border);">
+      <a href="warehouse-control-tower.html" class="btn" style="width:100%;justify-content:center;font-size:.78rem;">← Control Tower</a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <div class="ep-main">
+    <header class="ep-topbar">
+      <button class="btn btn-icon" id="mobMenuBtn" style="display:none;" title="เมนู">☰</button>
+      <div>
+        <div class="tb-title" id="tbTitle">พนักงาน</div>
+        <div class="tb-sub" id="tbSub">จัดการข้อมูลพนักงาน</div>
+      </div>
+      <div class="tb-right">
+        <span id="userPill" class="badge badge-gray"></span>
+        <button class="btn btn-icon" id="themeBtn" title="สลับธีม">🌙</button>
+      </div>
+    </header>
+    <div class="ep-content" id="epContent"><div class="spin">กำลังโหลด...</div></div>
+  </div>
+</div>
+
+<!-- Side Panel -->
+<div class="ep-overlay" id="epOverlay"></div>
+<div class="ep-panel" id="epPanel">
+  <div class="panel-hd">
+    <h3 id="panelTitle">—</h3>
+    <button class="btn btn-icon" id="closePanel">✕</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-ft" id="panelFt"></div>
+</div>
+
+<script type="module">
+import { requireRole, currentUser } from './js/auth.js';
+import {
+  collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  query, where, orderBy, limit, serverTimestamp, Timestamp
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { db } from './js/auth.js';
+
+// ── Bootstrap ───────────────────────────────────────────────────
+const profile = await requireRole(['admin','manager','warehouse','safety_officer','kpo']);
+const isAdmin = ['admin','manager'].includes(profile.role);
+
+document.getElementById('userPill').textContent = profile.name || profile.email || profile.role;
+
+// ── Theme ────────────────────────────────────────────────────────
+const themeBtn = document.getElementById('themeBtn');
+const applyTheme = t => { document.documentElement.setAttribute('data-theme',t); themeBtn.textContent = t==='dark'?'☀️':'🌙'; };
+applyTheme(localStorage.getItem('ep_theme')||'light');
+themeBtn.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  localStorage.setItem('ep_theme',next); applyTheme(next);
+});
+
+// ── Mobile menu ──────────────────────────────────────────────────
+const mobBtn = document.getElementById('mobMenuBtn');
+const epNav  = document.getElementById('epNav');
+if(window.innerWidth<=680){ mobBtn.style.display=''; }
+mobBtn.addEventListener('click',()=>epNav.classList.toggle('mob-open'));
+
+// ── Panel ────────────────────────────────────────────────────────
+const overlay  = document.getElementById('epOverlay');
+const epPanel  = document.getElementById('epPanel');
+const panelTitle = document.getElementById('panelTitle');
+const panelBody  = document.getElementById('panelBody');
+const panelFt    = document.getElementById('panelFt');
+let _onPanelSave = null;
+
+function openPanel(title, bodyHtml, ftHtml, onSave) {
+  panelTitle.textContent = title;
+  panelBody.innerHTML = bodyHtml;
+  panelFt.innerHTML = ftHtml || `<button class="btn" id="pBtnClose">ยกเลิก</button><button class="btn btn-primary" id="pBtnSave">💾 บันทึก</button>`;
+  epPanel.classList.add('open'); overlay.classList.add('open');
+  _onPanelSave = onSave;
+  document.getElementById('pBtnClose')?.addEventListener('click', closePanel);
+  document.getElementById('pBtnSave')?.addEventListener('click', () => _onPanelSave?.());
+}
+function closePanel() { epPanel.classList.remove('open'); overlay.classList.remove('open'); _onPanelSave=null; }
+document.getElementById('closePanel').addEventListener('click', closePanel);
+overlay.addEventListener('click', closePanel);
+
+// ── Helpers ──────────────────────────────────────────────────────
+const C = document.getElementById('epContent');
+const esc = s => String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const todayStr = () => new Date().toISOString().slice(0,10);
+const fmtDate  = s => s ? s.replace(/-/g,'/') : '—';
+const fmtTS    = ts => { if(!ts) return '—'; const d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'}); };
+const gv = id => document.getElementById(id)?.value?.trim() ?? '';
+const gvn = id => Number(document.getElementById(id)?.value||0);
+function showMsg(id, msg, type='ok'){ const el=document.getElementById(id); if(el){el.textContent=msg; el.className='msg '+type; setTimeout(()=>el.textContent='',3000);} }
+
+const DEPTS = [
+  {code:'OB',  label:'Outbound (OB)'},
+  {code:'3PL', label:'Logistics 3PL'},
+  {code:'LOG', label:'Logistics'},
+  {code:'INV', label:'Inventory'},
+];
+const deptLabel = c => DEPTS.find(d=>d.code===c)?.label || c || '—';
+const deptOpts  = (sel='') => DEPTS.map(d=>`<option value="${d.code}" ${d.code===sel?'selected':''}>${esc(d.label)}</option>`).join('');
+const empStatusLabel = { active:'ปฏิบัติงาน', resigned:'ลาออก', transferred:'โอนย้าย' };
+const severityLabel  = { minor:'เล็กน้อย', moderate:'ปานกลาง', serious:'ร้ายแรง', critical:'วิกฤต' };
+const incidentTypes  = ['ข้อผิดพลาดในการปฏิบัติงาน','ไม่ปฏิบัติตาม SOP','กระทำผิดระเบียบ','ความผิดพลาดด้านข้อมูล','ความผิดพลาดด้านสินค้า','ความผิดพลาดด้านการจัดส่ง','ความปลอดภัยในการทำงาน','ทรัพย์สินเสียหาย','การทำงานล่าช้า','อื่น ๆ'];
+const incidentStatuses = { pending:'รอตรวจสอบ', verified:'ตรวจสอบแล้ว', confirmed:'ยืนยันแล้ว', rejected:'ยกเลิก' };
+
+// ── Employee cache ───────────────────────────────────────────────
+let _empCache = [];
+async function fetchEmps() {
+  const snap = await getDocs(query(collection(db,'epEmployees'), orderBy('fullName')));
+  _empCache = snap.docs.map(d=>({id:d.id,...d.data()}));
+  return _empCache;
+}
+const empOpts = (sel='',filter={}) => {
+  let list = _empCache.filter(e=>e.status==='active');
+  if(filter.dept) list = list.filter(e=>e.department===filter.dept);
+  return list.map(e=>`<option value="${e.id}" ${e.id===sel?'selected':''}>${esc(e.fullName)} (${e.employeeCode})</option>`).join('');
+};
+
+// ── Auto-generate IDs ────────────────────────────────────────────
+async function genId(prefix, col) {
+  const snap = await getDocs(query(collection(db,col), orderBy('createdAt','desc'), limit(1)));
+  const last = snap.docs[0]?.data()?.[prefix+'No'] || `${prefix}-0000`;
+  const num = parseInt(last.split('-').pop()||0)+1;
+  return `${prefix}-${String(num).padStart(4,'0')}`;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MODULES
+// ══════════════════════════════════════════════════════════════════
+
+// ── MODULE 1: Employee Management ────────────────────────────────
+async function renderEmployees() {
+  C.innerHTML = `<div class="spin">กำลังโหลด...</div>`;
+  const emps = await fetchEmps();
+  const all = _empCache;
+
+  C.innerHTML = `
+  <div class="page-head">
+    <h2>👥 จัดการพนักงาน</h2>
+    <span style="font-size:.78rem;color:var(--text-muted);">ทั้งหมด ${all.length} คน · ปฏิบัติงาน ${all.filter(e=>e.status==='active').length} คน</span>
+    ${isAdmin?`<button class="btn btn-primary ml-auto" id="btnAddEmp">+ เพิ่มพนักงาน</button>`:''}
+  </div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="search-bar">
+      <input id="empSearch" placeholder="ค้นหาชื่อ / รหัส..." />
+      <select id="empDeptF"><option value="">ทุกแผนก</option>${DEPTS.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select>
+      <select id="empStatF"><option value="">ทุกสถานะ</option><option value="active">ปฏิบัติงาน</option><option value="resigned">ลาออก</option><option value="transferred">โอนย้าย</option></select>
+    </div>
+    <div class="tbl-wrap">
+      <table class="dt" id="empTable">
+        <thead><tr><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>แผนก</th><th>ตำแหน่ง</th><th>หัวหน้า</th><th>เริ่มงาน</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody id="empTbody"></tbody>
+      </table>
+    </div>
+  </div>`;
+
+  renderEmpRows(all);
+
+  document.getElementById('btnAddEmp')?.addEventListener('click', () => openEmpForm());
+  ['empSearch','empDeptF','empStatF'].forEach(id => document.getElementById(id)?.addEventListener('input', filterEmps));
+
+  function filterEmps() {
+    const q  = gv('empSearch').toLowerCase();
+    const d  = gv('empDeptF');
+    const st = gv('empStatF');
+    const filtered = all.filter(e =>
+      (!q || (e.fullName||'').toLowerCase().includes(q) || (e.employeeCode||'').toLowerCase().includes(q)) &&
+      (!d || e.department===d) &&
+      (!st || e.status===st)
+    );
+    renderEmpRows(filtered);
+  }
+
+  function renderEmpRows(list) {
+    document.getElementById('empTbody').innerHTML = list.length ? list.map(e => `
+      <tr>
+        <td><b>${esc(e.employeeCode)}</b></td>
+        <td>${esc(e.fullName)}</td>
+        <td>${esc(deptLabel(e.department))}</td>
+        <td>${esc(e.position||'—')}</td>
+        <td>${esc(e.supervisor||'—')}</td>
+        <td>${fmtDate(e.startDate)}</td>
+        <td><span class="badge ${e.status==='active'?'badge-ok':e.status==='resigned'?'badge-bad':'badge-warn'}">${empStatusLabel[e.status]||e.status}</span></td>
+        <td><div class="actions">
+          ${isAdmin?`<button class="btn btn-sm" data-edit="${e.id}">แก้ไข</button>`:''}
+          <button class="btn btn-sm" data-view="${e.id}">ดู</button>
+        </div></td>
+      </tr>`).join('') : `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">ไม่พบข้อมูล</td></tr>`;
+    document.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', e => openEmpForm(all.find(x=>x.id===e.target.dataset.edit))));
+    document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', e => openEmpDetail(all.find(x=>x.id===e.target.dataset.view))));
+  }
+}
+
+function empFormHtml(e={}) {
+  return `
+  <div class="fld-row">
+    <div class="fld"><label class="required">รหัสพนักงาน</label><input id="fEmpCode" value="${esc(e.employeeCode||'')}" placeholder="EMP001"/></div>
+    <div class="fld"><label class="required">ชื่อ-นามสกุล</label><input id="fEmpName" value="${esc(e.fullName||'')}"/></div>
+  </div>
+  <div class="fld-row">
+    <div class="fld"><label class="required">แผนก</label><select id="fEmpDept"><option value="">— เลือก —</option>${deptOpts(e.department)}</select></div>
+    <div class="fld"><label>ตำแหน่ง</label><input id="fEmpPos" value="${esc(e.position||'')}"/></div>
+  </div>
+  <div class="fld-row">
+    <div class="fld"><label>หัวหน้างาน</label><input id="fEmpSup" value="${esc(e.supervisor||'')}"/></div>
+    <div class="fld"><label class="required">วันที่เริ่มงาน</label><input type="date" id="fEmpStart" value="${e.startDate||todayStr()}"/></div>
+  </div>
+  <div class="fld-row">
+    <div class="fld"><label>สถานะ</label><select id="fEmpStat">
+      <option value="active" ${(e.status||'active')==='active'?'selected':''}>ปฏิบัติงาน</option>
+      <option value="resigned" ${e.status==='resigned'?'selected':''}>ลาออก</option>
+      <option value="transferred" ${e.status==='transferred'?'selected':''}>โอนย้าย</option>
+    </select></div>
+    <div class="fld"><label>วันที่สิ้นสุด</label><input type="date" id="fEmpEnd" value="${e.endDate||''}"/></div>
+  </div>
+  <div id="empMsg" class="msg" style="margin-top:8px;min-height:18px;font-size:.82rem;"></div>`;
+}
+
+function openEmpForm(e={}) {
+  const isEdit = !!e.id;
+  openPanel(isEdit?'✏️ แก้ไขพนักงาน':'➕ เพิ่มพนักงาน', empFormHtml(e), null, async () => {
+    const code = gv('fEmpCode'), name = gv('fEmpName'), dept = gv('fEmpDept'), start = gv('fEmpStart');
+    if(!code||!name||!dept||!start){ showMsg('empMsg','กรุณากรอกข้อมูลที่จำเป็น','error'); return; }
+    const data = { employeeCode:code, fullName:name, department:dept, position:gv('fEmpPos'), supervisor:gv('fEmpSup'), startDate:start, status:gv('fEmpStat'), endDate:gv('fEmpEnd')||null, updatedAt:serverTimestamp() };
+    try {
+      if(isEdit) await updateDoc(doc(db,'epEmployees',e.id), data);
+      else { data.createdAt = serverTimestamp(); data.createdBy = profile.uid; await addDoc(collection(db,'epEmployees'), data); }
+      closePanel(); renderEmployees();
+    } catch(err) { showMsg('empMsg','บันทึกไม่สำเร็จ: '+(err.message||err),'error'); }
+  });
+}
+
+function openEmpDetail(e) {
+  if(!e) return;
+  openPanel(`👤 ${e.fullName}`, `
+    <div style="display:grid;gap:10px;font-size:.85rem;">
+      <div class="fld-row">
+        <div><span style="color:var(--text-muted)">รหัส:</span> <b>${esc(e.employeeCode)}</b></div>
+        <div><span style="color:var(--text-muted)">แผนก:</span> ${esc(deptLabel(e.department))}</div>
+      </div>
+      <div class="fld-row">
+        <div><span style="color:var(--text-muted)">ตำแหน่ง:</span> ${esc(e.position||'—')}</div>
+        <div><span style="color:var(--text-muted)">หัวหน้า:</span> ${esc(e.supervisor||'—')}</div>
+      </div>
+      <div class="fld-row">
+        <div><span style="color:var(--text-muted)">เริ่มงาน:</span> ${fmtDate(e.startDate)}</div>
+        <div><span style="color:var(--text-muted)">สถานะ:</span> <span class="badge ${e.status==='active'?'badge-ok':'badge-bad'}">${empStatusLabel[e.status]||e.status}</span></div>
+      </div>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="document.getElementById('navItems').querySelector('[data-mod=dashboard]').click();window._dashEmpId='${e.id}';setTimeout(()=>window._dashLoad?.(),100);">📊 ดู Dashboard</button>
+      <button class="btn" onclick="document.getElementById('navItems').querySelector('[data-mod=history]').click();window._histEmpId='${e.id}';setTimeout(()=>window._histLoad?.(),100);">📜 ดูประวัติ</button>
+    </div>
+  `, `<button class="btn" id="pBtnClose">ปิด</button>`, null);
+  document.getElementById('panelFt').innerHTML = `<button class="btn" onclick="document.getElementById('closePanel').click()">ปิด</button>`;
+}
+
+// ── MODULE 2: Daily Stats ─────────────────────────────────────────
+async function renderDailyStats() {
+  await fetchEmps();
+  C.innerHTML = `
+  <div class="page-head">
+    <h2>📋 บันทึกสถิติรายวัน</h2>
+    <button class="btn btn-primary ml-auto" id="btnAddStat">+ บันทึกใหม่</button>
+  </div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="search-bar">
+      <input type="date" id="statDate" value="${todayStr()}" style="width:160px;flex:none;"/>
+      <select id="statDept"><option value="">ทุกแผนก</option>${DEPTS.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select>
+      <input id="statSearch" placeholder="ค้นหาชื่อพนักงาน..."/>
+    </div>
+    <div class="tbl-wrap">
+      <table class="dt">
+        <thead><tr><th>วันที่</th><th>พนักงาน</th><th>แผนก</th><th>งานทั้งหมด</th><th>สำเร็จ</th><th>ผิดพลาด</th><th>ถูกต้อง%</th><th>Productivity%</th><th>บันทึกโดย</th><th></th></tr></thead>
+        <tbody id="statTbody"><tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">เลือกวันที่เพื่อโหลดข้อมูล</td></tr></tbody>
+      </table>
+    </div>
+  </div>`;
+  document.getElementById('btnAddStat').addEventListener('click', () => openStatForm());
+  document.getElementById('statDate').addEventListener('change', loadStats);
+  document.getElementById('statDept').addEventListener('change', loadStats);
+  document.getElementById('statSearch').addEventListener('input', loadStats);
+  await loadStats();
+
+  async function loadStats() {
+    const date = gv('statDate'); if(!date) return;
+    const snap = await getDocs(query(collection(db,'epDailyStats'), where('date','==',date)));
+    let rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const dept = gv('statDept'), q = gv('statSearch').toLowerCase();
+    if(dept) rows = rows.filter(r=>r.department===dept);
+    if(q) rows = rows.filter(r=>(r.employeeName||'').toLowerCase().includes(q));
+    document.getElementById('statTbody').innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td>${fmtDate(r.date)}</td>
+        <td>${esc(r.employeeName)}</td>
+        <td>${esc(deptLabel(r.department))}</td>
+        <td style="text-align:right;">${r.totalTasks||0}</td>
+        <td style="text-align:right;">${r.completedTasks||0}</td>
+        <td style="text-align:right;color:${r.errorTasks>0?'var(--bad)':'inherit'};">${r.errorTasks||0}</td>
+        <td style="text-align:right;">${r.accuracy||0}%</td>
+        <td style="text-align:right;">${r.productivity||0}%</td>
+        <td>${esc(r.recordedByName||'—')}</td>
+        <td>${isAdmin?`<button class="btn btn-sm" data-del="${r.id}">ลบ</button>`:''}</td>
+      </tr>`).join('') : `<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--text-muted);">ไม่มีข้อมูลวันนี้</td></tr>`;
+    document.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async e => {
+      if(!confirm('ลบรายการนี้?')) return;
+      await deleteDoc(doc(db,'epDailyStats',e.target.dataset.del)); await loadStats();
+    }));
+  }
+}
+
+function openStatForm() {
+  openPanel('📋 บันทึกสถิติรายวัน', `
+  <div class="fld-row">
+    <div class="fld"><label class="required">พนักงาน</label><select id="fStEmp"><option value="">— เลือก —</option>${empOpts()}</select></div>
+    <div class="fld"><label class="required">วันที่</label><input type="date" id="fStDate" value="${todayStr()}"/></div>
+  </div>
+  <div class="fld-row-3">
+    <div class="fld"><label>งานทั้งหมด</label><input type="number" id="fStTotal" value="0" min="0"/></div>
+    <div class="fld"><label>งานสำเร็จ</label><input type="number" id="fStDone" value="0" min="0"/></div>
+    <div class="fld"><label>งานผิดพลาด</label><input type="number" id="fStErr" value="0" min="0"/></div>
+  </div>
+  <div class="fld-row-3">
+    <div class="fld"><label>ต้องแก้ไข</label><input type="number" id="fStRework" value="0" min="0"/></div>
+    <div class="fld"><label>ส่งล่าช้า</label><input type="number" id="fStLate" value="0" min="0"/></div>
+    <div class="fld"><label>ถูกต้อง (%)</label><input type="number" id="fStAcc" value="100" min="0" max="100"/></div>
+  </div>
+  <div class="fld-row-3">
+    <div class="fld"><label>SOP (%)</label><input type="number" id="fStSop" value="100" min="0" max="100"/></div>
+    <div class="fld"><label>Productivity (%)</label><input type="number" id="fStProd" value="100" min="0" max="100"/></div>
+    <div class="fld"><label>Teamwork (1-5)</label><input type="number" id="fStTeam" value="3" min="1" max="5"/></div>
+  </div>
+  <div class="fld"><label>หมายเหตุจากหัวหน้า</label><textarea id="fStNote" rows="2"></textarea></div>
+  <div id="statMsg" class="msg" style="min-height:18px;font-size:.82rem;"></div>`, null, async () => {
+    const empId = gv('fStEmp'), date = gv('fStDate');
+    if(!empId||!date){ showMsg('statMsg','กรุณาเลือกพนักงานและวันที่','error'); return; }
+    const emp = _empCache.find(e=>e.id===empId);
+    const data = {
+      employeeId:empId, employeeName:emp?.fullName||'', employeeCode:emp?.employeeCode||'',
+      department:emp?.department||'', date, totalTasks:gvn('fStTotal'), completedTasks:gvn('fStDone'),
+      errorTasks:gvn('fStErr'), reworkTasks:gvn('fStRework'), lateTasks:gvn('fStLate'),
+      accuracy:gvn('fStAcc'), sopCompliance:gvn('fStSop'), productivity:gvn('fStProd'),
+      teamwork:gvn('fStTeam'), supervisorNote:gv('fStNote'),
+      recordedBy:profile.uid, recordedByName:profile.name||profile.email, createdAt:serverTimestamp()
+    };
+    try { await addDoc(collection(db,'epDailyStats'), data); closePanel(); renderDailyStats(); }
+    catch(e){ showMsg('statMsg','บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  });
+}
+
+// ── MODULE 3: Incidents ───────────────────────────────────────────
+async function renderIncidents() {
+  await fetchEmps();
+  C.innerHTML = `
+  <div class="page-head">
+    <h2>⚠️ ประวัติข้อผิดพลาด & เหตุการณ์</h2>
+    <button class="btn btn-primary ml-auto" id="btnAddInc">+ แจ้งเหตุการณ์</button>
+  </div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="search-bar">
+      <input id="incSearch" placeholder="ค้นหา เลขที่ / ชื่อพนักงาน..."/>
+      <select id="incDept"><option value="">ทุกแผนก</option>${DEPTS.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select>
+      <select id="incSev"><option value="">ทุกระดับ</option>${Object.entries(severityLabel).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+      <select id="incStat"><option value="">ทุกสถานะ</option>${Object.entries(incidentStatuses).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+    </div>
+    <div class="tbl-wrap">
+      <table class="dt">
+        <thead><tr><th>เลขที่</th><th>วันที่</th><th>พนักงาน</th><th>แผนก</th><th>ประเภท</th><th>ความรุนแรง</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody id="incTbody"></tbody>
+      </table>
+    </div>
+  </div>`;
+  document.getElementById('btnAddInc').addEventListener('click', () => openIncForm());
+  ['incSearch','incDept','incSev','incStat'].forEach(id => document.getElementById(id)?.addEventListener('input', loadInc));
+  await loadInc();
+
+  async function loadInc() {
+    const snap = await getDocs(query(collection(db,'epIncidents'), orderBy('createdAt','desc'), limit(100)));
+    let rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const q=gv('incSearch').toLowerCase(), d=gv('incDept'), sev=gv('incSev'), st=gv('incStat');
+    if(q) rows=rows.filter(r=>(r.incidentNo||'').toLowerCase().includes(q)||(r.employeeName||'').toLowerCase().includes(q));
+    if(d) rows=rows.filter(r=>r.department===d);
+    if(sev) rows=rows.filter(r=>r.severity===sev);
+    if(st) rows=rows.filter(r=>r.status===st);
+    document.getElementById('incTbody').innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td><b>${esc(r.incidentNo)}</b></td>
+        <td>${fmtDate(r.incidentDate)}</td>
+        <td>${esc(r.employeeName)}</td>
+        <td>${esc(deptLabel(r.department))}</td>
+        <td style="font-size:.78rem;">${esc(r.type||'—')}</td>
+        <td><span class="badge sev-${r.severity}">${severityLabel[r.severity]||r.severity}</span></td>
+        <td><span class="badge ${r.status==='confirmed'?'badge-bad':r.status==='verified'?'badge-ok':r.status==='rejected'?'badge-gray':'badge-warn'}">${incidentStatuses[r.status]||r.status}</span></td>
+        <td><div class="actions">
+          <button class="btn btn-sm" data-view="${r.id}">ดู</button>
+          ${isAdmin?`<button class="btn btn-sm" data-edit="${r.id}">แก้ไข</button>`:''}
+        </div></td>
+      </tr>`).join('') : `<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">ไม่พบข้อมูล</td></tr>`;
+    document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',async e=>{
+      const snap2=await getDoc(doc(db,'epIncidents',e.target.dataset.view));
+      if(snap2.exists()) openIncDetail({id:snap2.id,...snap2.data()});
+    }));
+    document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',async e=>{
+      const snap2=await getDoc(doc(db,'epIncidents',e.target.dataset.edit));
+      if(snap2.exists()) openIncForm({id:snap2.id,...snap2.data()});
+    }));
+  }
+}
+
+function incFormHtml(r={}) {
+  const typeOpts = incidentTypes.map((t,i)=>`<option value="${t}" ${r.type===t?'selected':''}>${t}</option>`).join('');
+  const sevOpts  = Object.entries(severityLabel).map(([k,v])=>`<option value="${k}" ${r.severity===k?'selected':''}>${v}</option>`).join('');
+  const statOpts = Object.entries(incidentStatuses).map(([k,v])=>`<option value="${k}" ${(r.status||'pending')===k?'selected':''}>${v}</option>`).join('');
+  return `
+  <div class="fld-row">
+    <div class="fld"><label class="required">พนักงาน</label><select id="fIEmp"><option value="">— เลือก —</option>${empOpts(r.employeeId)}</select></div>
+    <div class="fld"><label class="required">วันที่เกิดเหตุ</label><input type="date" id="fIDate" value="${r.incidentDate||todayStr()}"/></div>
+  </div>
+  <div class="fld-row">
+    <div class="fld"><label class="required">ประเภทเหตุการณ์</label><select id="fIType">${typeOpts}</select></div>
+    <div class="fld"><label class="required">ระดับความรุนแรง</label><select id="fISev"><option value="">— เลือก —</option>${sevOpts}</select></div>
+  </div>
+  <div class="fld"><label class="required">รายละเอียดเหตุการณ์</label><textarea id="fIDesc" rows="2">${esc(r.description||'')}</textarea></div>
+  <div class="fld"><label class="required">เหตุผลที่เกิดเหตุการณ์</label><textarea id="fIReason" rows="2">${esc(r.reason||'')}</textarea></div>
+  <div class="fld"><label>สาเหตุที่แท้จริง (Root Cause)</label><textarea id="fIRoot" rows="2">${esc(r.rootCause||'')}</textarea></div>
+  <div class="fld-row">
+    <div class="fld"><label>ผลกระทบ</label><textarea id="fIImpact" rows="2">${esc(r.impact||'')}</textarea></div>
+    <div class="fld"><label>วิธีแก้ไข</label><textarea id="fIFix" rows="2">${esc(r.correction||'')}</textarea></div>
+  </div>
+  <div class="fld"><label>แนวทางป้องกันซ้ำ</label><textarea id="fIPrev" rows="2">${esc(r.prevention||'')}</textarea></div>
+  <div class="fld"><label>คำชี้แจงของพนักงาน</label><textarea id="fIStmt" rows="2">${esc(r.employeeStatement||'')}</textarea></div>
+  <div class="fld"><label>สถานะ</label><select id="fIStat">${statOpts}</select></div>
+  <div id="incMsg" class="msg" style="min-height:18px;font-size:.82rem;"></div>`;
+}
+
+async function openIncForm(r={}) {
+  await fetchEmps();
+  const isEdit = !!r.id;
+  openPanel(isEdit?'✏️ แก้ไขเหตุการณ์':'⚠️ แจ้งเหตุการณ์ใหม่', incFormHtml(r), null, async () => {
+    const empId=gv('fIEmp'), date=gv('fIDate'), type=gv('fIType'), sev=gv('fISev'), desc=gv('fIDesc'), reason=gv('fIReason');
+    if(!empId||!date||!type||!sev||!desc||!reason){ showMsg('incMsg','กรุณากรอกข้อมูลที่จำเป็น','error'); return; }
+    const emp = _empCache.find(e=>e.id===empId);
+    const data = {
+      employeeId:empId, employeeName:emp?.fullName||'', employeeCode:emp?.employeeCode||'',
+      department:emp?.department||'', incidentDate:date, type, severity:sev,
+      description:desc, reason, rootCause:gv('fIRoot'), impact:gv('fIImpact'),
+      correction:gv('fIFix'), prevention:gv('fIPrev'), employeeStatement:gv('fIStmt'),
+      status:gv('fIStat')||'pending', recordedBy:profile.uid, recordedByName:profile.name||profile.email,
+      updatedAt:serverTimestamp()
+    };
+    try {
+      if(isEdit) await updateDoc(doc(db,'epIncidents',r.id), data);
+      else { data.incidentNo = await genId('INC','epIncidents'); data.createdAt=serverTimestamp(); await addDoc(collection(db,'epIncidents'), data); }
+      closePanel(); renderIncidents();
+    } catch(e){ showMsg('incMsg','บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  });
+}
+
+function openIncDetail(r) {
+  const html = `
+  <div style="font-size:.84rem;display:grid;gap:10px;">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:1.1rem;font-weight:800;">${esc(r.incidentNo)}</span>
+      <span class="badge sev-${r.severity}">${severityLabel[r.severity]}</span>
+      <span class="badge ${r.status==='confirmed'?'badge-bad':r.status==='verified'?'badge-ok':'badge-warn'}">${incidentStatuses[r.status]}</span>
+    </div>
+    <div class="fld-row">
+      <div><b>พนักงาน:</b> ${esc(r.employeeName)} (${esc(r.employeeCode)})</div>
+      <div><b>วันที่:</b> ${fmtDate(r.incidentDate)}</div>
+    </div>
+    <div><b>ประเภท:</b> ${esc(r.type)}</div>
+    <div><b>รายละเอียด:</b><br/><div style="background:var(--panel-2);padding:8px;border-radius:6px;margin-top:4px;">${esc(r.description)}</div></div>
+    <div><b>เหตุผล:</b><br/><div style="background:var(--panel-2);padding:8px;border-radius:6px;margin-top:4px;">${esc(r.reason)}</div></div>
+    ${r.rootCause?`<div><b>Root Cause:</b> ${esc(r.rootCause)}</div>`:''}
+    ${r.impact?`<div><b>ผลกระทบ:</b> ${esc(r.impact)}</div>`:''}
+    ${r.correction?`<div><b>วิธีแก้ไข:</b> ${esc(r.correction)}</div>`:''}
+    ${r.prevention?`<div><b>ป้องกันซ้ำ:</b> ${esc(r.prevention)}</div>`:''}
+    ${r.employeeStatement?`<div><b>คำชี้แจงพนักงาน:</b> ${esc(r.employeeStatement)}</div>`:''}
+    <div style="color:var(--text-muted);font-size:.75rem;">บันทึกโดย: ${esc(r.recordedByName||'—')}</div>
+  </div>`;
+  openPanel(`⚠️ ${r.incidentNo}`, html, `<button class="btn" id="pBtnClose">ปิด</button>${isAdmin?`<button class="btn btn-primary" onclick="document.getElementById('closePanel').click()">แก้ไขสถานะ</button>`:''}`, null);
+  document.getElementById('pBtnClose').addEventListener('click', closePanel);
+}
+
+// ── MODULE 4: Attendance ──────────────────────────────────────────
+async function renderAttendance() {
+  await fetchEmps();
+  const now = new Date();
+  C.innerHTML = `
+  <div class="page-head">
+    <h2>📅 สถิติการเข้างาน</h2>
+    <button class="btn btn-primary ml-auto" id="btnAddAtt">+ บันทึก/แก้ไข</button>
+  </div>
+  <div class="card">
+    <div class="search-bar">
+      <select id="attYear"><option value="${now.getFullYear()}">${now.getFullYear()}</option><option value="${now.getFullYear()-1}">${now.getFullYear()-1}</option></select>
+      <select id="attMonth">${Array.from({length:12},(_,i)=>`<option value="${i+1}" ${i+1===now.getMonth()+1?'selected':''}>${i+1} — ${['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][i]}</option>`).join('')}</select>
+      <select id="attDept"><option value="">ทุกแผนก</option>${DEPTS.map(d=>`<option value="${d.code}">${d.label}</option>`).join('')}</select>
+    </div>
+    <div class="tbl-wrap">
+      <table class="dt">
+        <thead><tr><th>พนักงาน</th><th>แผนก</th><th>วันทำงาน</th><th>มาสาย (ครั้ง)</th><th>สายรวม (นาที)</th><th>ลาป่วย</th><th>ลากิจ</th><th>พักร้อน</th><th>ขาด</th><th>ใบตักเตือน</th><th></th></tr></thead>
+        <tbody id="attTbody"></tbody>
+      </table>
+    </div>
+  </div>`;
+  document.getElementById('btnAddAtt').addEventListener('click', () => openAttForm());
+  ['attYear','attMonth','attDept'].forEach(id => document.getElementById(id)?.addEventListener('change', loadAtt));
+  await loadAtt();
+
+  async function loadAtt() {
+    const y=parseInt(gv('attYear')), m=parseInt(gv('attMonth')), d=gv('attDept');
+    const snap = await getDocs(query(collection(db,'epAttendance'), where('year','==',y), where('month','==',m)));
+    let rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(d) rows = rows.filter(r=>r.department===d);
+    document.getElementById('attTbody').innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td>${esc(r.employeeName)}</td>
+        <td>${esc(deptLabel(r.department))}</td>
+        <td style="text-align:right;">${r.workDays||0}</td>
+        <td style="text-align:right;color:${r.lateTimes>0?'var(--warn)':'inherit'};">${r.lateTimes||0}</td>
+        <td style="text-align:right;">${r.lateMinutes||0}</td>
+        <td style="text-align:right;">${r.sickLeave||0}</td>
+        <td style="text-align:right;">${r.personalLeave||0}</td>
+        <td style="text-align:right;">${r.vacationLeave||0}</td>
+        <td style="text-align:right;color:${r.absentDays>0?'var(--bad)':'inherit'};">${r.absentDays||0}</td>
+        <td style="text-align:right;color:${r.warningLetters>0?'var(--bad)':'inherit'};font-weight:${r.warningLetters>0?700:400};">${r.warningLetters||0}</td>
+        <td>${isAdmin?`<button class="btn btn-sm" data-edit-att="${r.id}">แก้ไข</button>`:''}</td>
+      </tr>`).join('') : `<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text-muted);">ยังไม่มีข้อมูลเดือนนี้</td></tr>`;
+    document.querySelectorAll('[data-edit-att]').forEach(b=>b.addEventListener('click', async e=>{
+      const snap2=await getDoc(doc(db,'epAttendance',e.target.dataset.editAtt));
+      if(snap2.exists()) openAttForm({id:snap2.id,...snap2.data()});
+    }));
+  }
+}
+
+function openAttForm(r={}) {
+  const now = new Date();
+  openPanel(r.id?'✏️ แก้ไขสถิติเข้างาน':'📅 บันทึกสถิติเข้างาน', `
+  <div class="fld-row">
+    <div class="fld"><label class="required">พนักงาน</label><select id="fAtEmp"><option value="">— เลือก —</option>${empOpts(r.employeeId)}</select></div>
+  </div>
+  <div class="fld-row">
+    <div class="fld"><label class="required">ปี (พ.ศ.)</label><input type="number" id="fAtYear" value="${r.year||now.getFullYear()}"/></div>
+    <div class="fld"><label class="required">เดือน (1-12)</label><input type="number" id="fAtMonth" value="${r.month||now.getMonth()+1}" min="1" max="12"/></div>
+  </div>
+  <div class="fld-row-3">
+    <div class="fld"><label>วันทำงาน</label><input type="number" id="fAtWork" value="${r.workDays||0}" min="0"/></div>
+    <div class="fld"><label>มาสาย (ครั้ง)</label><input type="number" id="fAtLateT" value="${r.lateTimes||0}" min="0"/></div>
+    <div class="fld"><label>สายรวม (นาที)</label><input type="number" id="fAtLateM" value="${r.lateMinutes||0}" min="0"/></div>
+  </div>
+  <div class="fld-row-3">
+    <div class="fld"><label>ลาป่วย (วัน)</label><input type="number" id="fAtSick" value="${r.sickLeave||0}" min="0"/></div>
+    <div class="fld"><label>ลากิจ (วัน)</label><input type="number" id="fAtPersonal" value="${r.personalLeave||0}" min="0"/></div>
+    <div class="fld"><label>พักร้อน (วัน)</label><input type="number" id="fAtVac" value="${r.vacationLeave||0}" min="0"/></div>
+  </div>
+  <div class="fld-row">
+    <div class="fld"><label>ขาดงาน (วัน)</label><input type="number" id="fAtAbsent" value="${r.absentDays||0}" min="0"/></div>
+    <div class="fld"><label>ใบตักเตือน (ใบ)</label><input type="number" id="fAtWarn" value="${r.warningLetters||0}" min="0"/></div>
+  </div>
+  <div id="attMsg" class="msg" style="min-height:18px;font-size:.82rem;"></div>`, null, async () => {
+    const empId=gv('fAtEmp'), y=parseInt(gv('fAtYear')), m=parseInt(gv('fAtMonth'));
+    if(!empId||!y||!m){ showMsg('attMsg','กรุณากรอกข้อมูลที่จำเป็น','error'); return; }
+    const emp=_empCache.find(e=>e.id===empId);
+    const data = {
+      employeeId:empId, employeeName:emp?.fullName||'', employeeCode:emp?.employeeCode||'',
+      department:emp?.department||'', year:y, month:m,
+      workDays:gvn('fAtWork'), lateTimes:gvn('fAtLateT'), lateMinutes:gvn('fAtLateM'),
+      sickLeave:gvn('fAtSick'), personalLeave:gvn('fAtPersonal'), vacationLeave:gvn('fAtVac'),
+      absentDays:gvn('fAtAbsent'), warningLetters:gvn('fAtWarn'),
+      updatedAt:serverTimestamp(), updatedBy:profile.uid
+    };
+    try {
+      if(r.id) await updateDoc(doc(db,'epAttendance',r.id), data);
+      else { data.createdAt=serverTimestamp(); await addDoc(collection(db,'epAttendance'), data); }
+      closePanel(); renderAttendance();
+    } catch(e){ showMsg('attMsg','บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  });
+}
+
+// ── MODULE 5: KPI Templates ───────────────────────────────────────
+async function renderKpi() {
+  C.innerHTML = `
+  <div class="page-head">
+    <h2>🎯 KPI & Competency ตามแผนก</h2>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+    ${DEPTS.map(d=>`<button class="btn ${d.code==='OB'?'btn-primary':''}" data-kpi-dept="${d.code}">${d.label}</button>`).join('')}
+  </div>
+  <div id="kpiContent"><div class="spin">กำลังโหลด...</div></div>`;
+  let activeDept = 'OB';
+  document.querySelectorAll('[data-kpi-dept]').forEach(b => b.addEventListener('click', async e => {
+    activeDept = e.target.dataset.kpiDept;
+    document.querySelectorAll('[data-kpi-dept]').forEach(x=>x.classList.toggle('btn-primary', x.dataset.kpiDept===activeDept));
+    document.querySelectorAll('[data-kpi-dept]').forEach(x=>{ if(x.dataset.kpiDept!==activeDept) x.classList.remove('btn-primary'); });
+    await loadKpiDept(activeDept);
+  }));
+  await loadKpiDept('OB');
+
+  async function loadKpiDept(dept) {
+    const kc = document.getElementById('kpiContent');
+    kc.innerHTML = `<div class="spin">กำลังโหลด...</div>`;
+    const snap = await getDoc(doc(db,'epKpiTemplates',dept));
+    const tmpl = snap.exists() ? snap.data() : { kpis: defaultKpis(dept) };
+    kc.innerHTML = `
+    <div class="card">
+      <div class="page-head" style="margin-bottom:12px;">
+        <h2 style="font-size:.9rem;">KPI แผนก ${esc(deptLabel(dept))}</h2>
+        ${isAdmin?`<button class="btn btn-primary ml-auto btn-sm" id="btnAddKpi">+ เพิ่ม KPI</button>`:''}
+      </div>
+      <div class="tbl-wrap">
+        <table class="dt">
+          <thead><tr><th>ชื่อ KPI</th><th>น้ำหนัก%</th><th>เกณฑ์ระดับ 1</th><th>เกณฑ์ระดับ 3</th><th>เกณฑ์ระดับ 5</th><th>สถานะ</th>${isAdmin?'<th></th>':''}</tr></thead>
+          <tbody>${(tmpl.kpis||[]).map((k,i)=>`
+            <tr>
+              <td><b>${esc(k.name)}</b></td>
+              <td style="text-align:right;">${k.weight||0}%</td>
+              <td style="font-size:.76rem;color:var(--bad);">${esc(k.c1||'—')}</td>
+              <td style="font-size:.76rem;color:var(--warn);">${esc(k.c3||'—')}</td>
+              <td style="font-size:.76rem;color:var(--ok);">${esc(k.c5||'—')}</td>
+              <td><span class="badge ${k.active!==false?'badge-ok':'badge-gray'}">${k.active!==false?'ใช้งาน':'ปิด'}</span></td>
+              ${isAdmin?`<td><button class="btn btn-sm" data-edit-kpi="${i}">แก้ไข</button></td>`:''}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+    document.getElementById('btnAddKpi')?.addEventListener('click', () => openKpiForm(dept, tmpl));
+    document.querySelectorAll('[data-edit-kpi]').forEach(b=>b.addEventListener('click',e=>{
+      const idx=parseInt(e.target.dataset.editKpi);
+      openKpiForm(dept, tmpl, idx);
+    }));
+  }
+}
+
+function defaultKpis(dept) {
+  const base = [
+    { name:'ความถูกต้องในการทำงาน', weight:25, c1:'<80%', c3:'85-89%', c5:'≥95%', active:true },
+    { name:'Productivity / ผลผลิต', weight:25, c1:'<70%', c3:'80-89%', c5:'≥95%', active:true },
+    { name:'การปฏิบัติตาม SOP', weight:20, c1:'<80%', c3:'85-89%', c5:'100%', active:true },
+    { name:'การทำงานร่วมกับทีม', weight:15, c1:'มีปัญหาบ่อย', c3:'ค่อนข้างดี', c5:'ดีเยี่ยม', active:true },
+    { name:'ตรงต่อเวลา / ส่งงานตามกำหนด', weight:15, c1:'ล่าช้า >3 ครั้ง/เดือน', c3:'ล่าช้า 1-2 ครั้ง', c5:'ไม่ล่าช้า', active:true },
+  ];
+  return base;
+}
+
+function openKpiForm(dept, tmpl, editIdx=null) {
+  const isEdit = editIdx !== null;
+  const k = isEdit ? (tmpl.kpis[editIdx]||{}) : {};
+  openPanel(isEdit?'✏️ แก้ไข KPI':'➕ เพิ่ม KPI', `
+  <div class="fld"><label class="required">ชื่อ KPI</label><input id="fKName" value="${esc(k.name||'')}"/></div>
+  <div class="fld"><label class="required">น้ำหนัก (%)</label><input type="number" id="fKWeight" value="${k.weight||10}" min="1" max="100"/></div>
+  <div class="fld"><label>เกณฑ์ระดับ 1 (ต่ำสุด)</label><input id="fKC1" value="${esc(k.c1||'')}"/></div>
+  <div class="fld"><label>เกณฑ์ระดับ 2</label><input id="fKC2" value="${esc(k.c2||'')}"/></div>
+  <div class="fld"><label>เกณฑ์ระดับ 3</label><input id="fKC3" value="${esc(k.c3||'')}"/></div>
+  <div class="fld"><label>เกณฑ์ระดับ 4</label><input id="fKC4" value="${esc(k.c4||'')}"/></div>
+  <div class="fld"><label>เกณฑ์ระดับ 5 (สูงสุด)</label><input id="fKC5" value="${esc(k.c5||'')}"/></div>
+  <div class="fld"><label>สถานะ</label><select id="fKActive"><option value="1" ${k.active!==false?'selected':''}>ใช้งาน</option><option value="0" ${k.active===false?'selected':''}>ปิดใช้งาน</option></select></div>
+  <div id="kpiMsg" class="msg" style="min-height:18px;font-size:.82rem;"></div>`, null, async () => {
+    const name=gv('fKName'), weight=gvn('fKWeight');
+    if(!name||!weight){ showMsg('kpiMsg','กรุณากรอกชื่อ KPI และน้ำหนัก','error'); return; }
+    const item = { name, weight, c1:gv('fKC1'), c2:gv('fKC2'), c3:gv('fKC3'), c4:gv('fKC4'), c5:gv('fKC5'), active:gv('fKActive')==='1' };
+    const kpis = [...(tmpl.kpis||[])];
+    if(isEdit) kpis[editIdx]=item; else kpis.push(item);
+    try { await setDoc(doc(db,'epKpiTemplates',dept), { kpis, dept, updatedAt:serverTimestamp() }); closePanel(); renderKpi(); }
+    catch(e){ showMsg('kpiMsg','บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  });
+}
+
+// ── MODULE 6: Dashboard ───────────────────────────────────────────
+async function renderDashboard() {
+  await fetchEmps();
+  window._dashLoad = async () => {
+    const empId = window._dashEmpId || gv('dashEmpSel');
+    if(!empId) return;
+    window._dashEmpId = null;
+    document.getElementById('dashEmpSel').value = empId;
+    await loadDashData(empId);
+  };
+  C.innerHTML = `
+  <div class="page-head"><h2>📊 Dashboard พนักงานรายบุคคล</h2></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:.82rem;font-weight:600;">เลือกพนักงาน:</label>
+      <select id="dashEmpSel" style="max-width:280px;"><option value="">— เลือกพนักงาน —</option>${empOpts()}</select>
+    </div>
+  </div>
+  <div id="dashMain"></div>`;
+  document.getElementById('dashEmpSel').addEventListener('change', e => loadDashData(e.target.value));
+  window._dashLoad?.();
+
+  async function loadDashData(empId) {
+    if(!empId) return;
+    const dm = document.getElementById('dashMain');
+    dm.innerHTML = `<div class="spin">กำลังโหลด...</div>`;
+    const emp = _empCache.find(e=>e.id===empId);
+    if(!emp){ dm.innerHTML=`<div class="spin">ไม่พบพนักงาน</div>`; return; }
+
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth()+1;
+    const [statsSnap, incSnap, attSnap] = await Promise.all([
+      getDocs(query(collection(db,'epDailyStats'), where('employeeId','==',empId), orderBy('date','desc'), limit(30))),
+      getDocs(query(collection(db,'epIncidents'), where('employeeId','==',empId), orderBy('createdAt','desc'), limit(50))),
+      getDocs(query(collection(db,'epAttendance'), where('employeeId','==',empId), where('year','==',y), where('month','==',m))),
+    ]);
+    const stats = statsSnap.docs.map(d=>d.data());
+    const incs  = incSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const att   = attSnap.docs[0]?.data() || {};
+
+    const avgProd = stats.length ? Math.round(stats.reduce((s,r)=>s+(r.productivity||0),0)/stats.length) : 0;
+    const avgAcc  = stats.length ? Math.round(stats.reduce((s,r)=>s+(r.accuracy||0),0)/stats.length) : 0;
+    const totalErr = stats.reduce((s,r)=>s+(r.errorTasks||0),0);
+    const confirmed = incs.filter(i=>i.status==='confirmed').length;
+    const pending   = incs.filter(i=>i.status==='pending').length;
+
+    dm.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="sv" style="color:var(--accent);">${avgProd}%</div><div class="sl">Productivity เฉลี่ย</div></div>
+      <div class="stat-card"><div class="sv" style="color:var(--ok);">${avgAcc}%</div><div class="sl">ความถูกต้องเฉลี่ย</div></div>
+      <div class="stat-card"><div class="sv" style="color:${totalErr>0?'var(--bad)':'var(--ok)'};">${totalErr}</div><div class="sl">งานผิดพลาด (30 วัน)</div></div>
+      <div class="stat-card"><div class="sv" style="color:${confirmed>0?'var(--bad)':'var(--ok)'};">${confirmed}</div><div class="sl">เหตุการณ์ที่ยืนยัน</div></div>
+      <div class="stat-card"><div class="sv" style="color:${pending>0?'var(--warn)':'var(--ok)'};">${pending}</div><div class="sl">รอตรวจสอบ</div></div>
+      <div class="stat-card"><div class="sv" style="color:${(att.warningLetters||0)>0?'var(--bad)':'var(--ok)'};">${att.warningLetters||0}</div><div class="sl">ใบตักเตือนเดือนนี้</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="card"><div style="font-weight:700;margin-bottom:10px;font-size:.85rem;">📊 Productivity 30 วันล่าสุด</div><div class="chart-box"><canvas id="chartProd"></canvas></div></div>
+      <div class="card"><div style="font-weight:700;margin-bottom:10px;font-size:.85rem;">📅 การเข้างานเดือนนี้</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.82rem;">
+          <div>วันทำงาน: <b>${att.workDays||0}</b></div>
+          <div>มาสาย: <b style="color:${(att.lateTimes||0)>0?'var(--warn)':'inherit'}">${att.lateTimes||0} ครั้ง (${att.lateMinutes||0} นาที)</b></div>
+          <div>ลาป่วย: <b>${att.sickLeave||0} วัน</b></div>
+          <div>ลากิจ: <b>${att.personalLeave||0} วัน</b></div>
+          <div>พักร้อน: <b>${att.vacationLeave||0} วัน</b></div>
+          <div>ขาดงาน: <b style="color:${(att.absentDays||0)>0?'var(--bad)':'inherit'}">${att.absentDays||0} วัน</b></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:10px;font-size:.85rem;">⚠️ เหตุการณ์ล่าสุด</div>
+      ${incs.slice(0,5).length ? `<table class="dt"><thead><tr><th>เลขที่</th><th>วันที่</th><th>ประเภท</th><th>ความรุนแรง</th><th>สถานะ</th></tr></thead><tbody>
+        ${incs.slice(0,5).map(i=>`<tr><td>${esc(i.incidentNo)}</td><td>${fmtDate(i.incidentDate)}</td><td style="font-size:.76rem">${esc(i.type)}</td><td><span class="badge sev-${i.severity}">${severityLabel[i.severity]}</span></td><td><span class="badge ${i.status==='confirmed'?'badge-bad':'badge-warn'}">${incidentStatuses[i.status]}</span></td></tr>`).join('')}
+      </tbody></table>` : `<div style="color:var(--text-muted);font-size:.82rem;">ไม่มีเหตุการณ์</div>`}
+    </div>`;
+
+    // Chart
+    if(stats.length) {
+      const labels = [...stats].reverse().slice(-14).map(r=>r.date?.slice(5)||'');
+      const vals   = [...stats].reverse().slice(-14).map(r=>r.productivity||0);
+      new Chart(document.getElementById('chartProd'), {
+        type:'line', data:{ labels, datasets:[{ data:vals, borderColor:'#2e6cf6', backgroundColor:'rgba(46,108,246,.1)', tension:.4, fill:true, pointRadius:3 }] },
+        options:{ plugins:{ legend:{display:false} }, scales:{ y:{min:0,max:100,ticks:{callback:v=>v+'%'}} }, animation:{duration:400} }
+      });
+    }
+  }
+}
+
+// ── MODULE 7: Evaluation ──────────────────────────────────────────
+async function renderEvaluation() {
+  await fetchEmps();
+  C.innerHTML = `
+  <div class="page-head"><h2>📝 ประเมินผลพนักงาน</h2><button class="btn btn-primary ml-auto" id="btnNewEval">+ สร้างแบบประเมิน</button></div>
+  <div class="card" style="margin-bottom:14px;">
+    <div class="tbl-wrap">
+      <table class="dt">
+        <thead><tr><th>พนักงาน</th><th>แผนก</th><th>รอบประเมิน</th><th>คะแนน KPI</th><th>สถานะ</th><th>สร้างเมื่อ</th><th></th></tr></thead>
+        <tbody id="evalTbody"></tbody>
+      </table>
+    </div>
+  </div>`;
+  document.getElementById('btnNewEval').addEventListener('click', () => openEvalForm());
+  await loadEvals();
+
+  async function loadEvals() {
+    const snap = await getDocs(query(collection(db,'epEvaluations'), orderBy('createdAt','desc'), limit(50)));
+    const rows = snap.docs.map(d=>({id:d.id,...d.data()}));
+    document.getElementById('evalTbody').innerHTML = rows.length ? rows.map(r=>`
+      <tr>
+        <td>${esc(r.employeeName)}</td>
+        <td>${esc(deptLabel(r.department))}</td>
+        <td style="font-size:.78rem;">${fmtDate(r.periodStart)} — ${fmtDate(r.periodEnd)}</td>
+        <td style="text-align:center;font-weight:700;color:${(r.totalScore||0)>=80?'var(--ok)':(r.totalScore||0)>=60?'var(--warn)':'var(--bad)'};">${r.totalScore ? r.totalScore.toFixed(1)+'%' : '—'}</td>
+        <td><span class="badge ${r.status==='approved'?'badge-ok':r.status==='submitted'?'badge-warn':'badge-gray'}">${r.status==='approved'?'อนุมัติแล้ว':r.status==='submitted'?'รอพิจารณา':'ร่าง'}</span></td>
+        <td>${fmtTS(r.createdAt)}</td>
+        <td><button class="btn btn-sm" data-view-eval="${r.id}">ดูผล</button></td>
+      </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted);">ยังไม่มีผลประเมิน</td></tr>`;
+    document.querySelectorAll('[data-view-eval]').forEach(b=>b.addEventListener('click', async e=>{
+      const snap2=await getDoc(doc(db,'epEvaluations',e.target.dataset.viewEval));
+      if(snap2.exists()) openEvalDetail({id:snap2.id,...snap2.data()});
+    }));
+  }
+}
+
+function openEvalForm() {
+  openPanel('📝 สร้างแบบประเมิน', `
+  <div class="fld"><label class="required">พนักงาน</label><select id="fEvEmp"><option value="">— เลือก —</option>${empOpts()}</select></div>
+  <div class="fld-row">
+    <div class="fld"><label class="required">วันเริ่มรอบ</label><input type="date" id="fEvStart"/></div>
+    <div class="fld"><label class="required">วันสิ้นสุดรอบ</label><input type="date" id="fEvEnd"/></div>
+  </div>
+  <div class="fld"><label>ความเห็นหัวหน้างาน</label><textarea id="fEvComment" rows="3"></textarea></div>
+  <div class="fld"><label>คะแนนหัวหน้างาน (0-100)</label><input type="number" id="fEvScore" value="" min="0" max="100" placeholder="ระบุคะแนนภาพรวม"/></div>
+  <div class="fld"><label>สถานะ</label><select id="fEvStat"><option value="draft">ร่าง</option><option value="submitted">รอพิจารณา</option><option value="approved">อนุมัติ</option></select></div>
+  <div id="evalMsg" class="msg" style="min-height:18px;font-size:.82rem;"></div>`, null, async () => {
+    const empId=gv('fEvEmp'), start=gv('fEvStart'), end=gv('fEvEnd');
+    if(!empId||!start||!end){ showMsg('evalMsg','กรุณากรอกข้อมูลที่จำเป็น','error'); return; }
+    const emp=_empCache.find(e=>e.id===empId);
+    const supervisorScore = gv('fEvScore') ? parseFloat(gv('fEvScore')) : null;
+    const data = {
+      employeeId:empId, employeeName:emp?.fullName||'', employeeCode:emp?.employeeCode||'',
+      department:emp?.department||'', periodStart:start, periodEnd:end,
+      supervisorComment:gv('fEvComment'), supervisorScore, totalScore:supervisorScore,
+      status:gv('fEvStat'), createdBy:profile.uid, createdByName:profile.name||profile.email,
+      createdAt:serverTimestamp()
+    };
+    try { await addDoc(collection(db,'epEvaluations'), data); closePanel(); renderEvaluation(); }
+    catch(e){ showMsg('evalMsg','บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  });
+}
+
+function openEvalDetail(r) {
+  openPanel(`📝 ผลประเมิน — ${r.employeeName}`, `
+  <div style="font-size:.84rem;display:grid;gap:10px;">
+    <div class="fld-row">
+      <div><b>พนักงาน:</b> ${esc(r.employeeName)}</div>
+      <div><b>แผนก:</b> ${esc(deptLabel(r.department))}</div>
+    </div>
+    <div><b>รอบประเมิน:</b> ${fmtDate(r.periodStart)} ถึง ${fmtDate(r.periodEnd)}</div>
+    <div style="text-align:center;padding:16px;background:var(--panel-2);border-radius:10px;">
+      <div style="font-size:2.5rem;font-weight:800;color:${(r.totalScore||0)>=80?'var(--ok)':(r.totalScore||0)>=60?'var(--warn)':'var(--bad)'};">${r.totalScore ? r.totalScore.toFixed(1)+'%' : '—'}</div>
+      <div style="font-size:.78rem;color:var(--text-muted);">คะแนนรวม</div>
+    </div>
+    ${r.supervisorComment?`<div><b>ความเห็นหัวหน้า:</b><div style="background:var(--panel-2);padding:8px;border-radius:6px;margin-top:4px;">${esc(r.supervisorComment)}</div></div>`:''}
+    <div><b>สถานะ:</b> <span class="badge ${r.status==='approved'?'badge-ok':r.status==='submitted'?'badge-warn':'badge-gray'}">${r.status==='approved'?'อนุมัติแล้ว':r.status==='submitted'?'รอพิจารณา':'ร่าง'}</span></div>
+    <div style="color:var(--text-muted);font-size:.75rem;">สร้างโดย: ${esc(r.createdByName||'—')} · ${fmtTS(r.createdAt)}</div>
+  </div>`, `<button class="btn" id="pBtnClose">ปิด</button>`, null);
+  document.getElementById('pBtnClose').addEventListener('click', closePanel);
+}
+
+// ── MODULE 8: History ─────────────────────────────────────────────
+async function renderHistory() {
+  await fetchEmps();
+  window._histLoad = async () => {
+    const empId = window._histEmpId || gv('histEmpSel');
+    if(!empId) return;
+    window._histEmpId = null;
+    document.getElementById('histEmpSel').value = empId;
+    await loadHist(empId);
+  };
+  C.innerHTML = `
+  <div class="page-head"><h2>📜 ประวัติการทำงาน</h2>
+    ${isAdmin?`<button class="btn btn-primary ml-auto" id="btnAddEvent">+ เพิ่มเหตุการณ์</button>`:''}
+  </div>
+  <div class="card" style="margin-bottom:14px;">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:.82rem;font-weight:600;">เลือกพนักงาน:</label>
+      <select id="histEmpSel" style="max-width:280px;"><option value="">— เลือกพนักงาน —</option>${empOpts()}</select>
+    </div>
+  </div>
+  <div id="histMain"></div>`;
+  document.getElementById('histEmpSel').addEventListener('change', e => loadHist(e.target.value));
+  document.getElementById('btnAddEvent')?.addEventListener('click', () => openEventForm());
+  window._histLoad?.();
+
+  async function loadHist(empId) {
+    if(!empId) return;
+    const hm = document.getElementById('histMain');
+    hm.innerHTML = `<div class="spin">กำลังโหลด...</div>`;
+
+    const [evSnap, evalSnap, incSnap] = await Promise.all([
+      getDocs(query(collection(db,'epEvents'), where('employeeId','==',empId), orderBy('eventDate','desc'), limit(50))),
+      getDocs(query(collection(db,'epEvaluations'), where('employeeId','==',empId), orderBy('createdAt','desc'), limit(10))),
+      getDocs(query(collection(db,'epIncidents'), where('employeeId','==',empId), orderBy('incidentDate','desc'), limit(20))),
+    ]);
+
+    const events = [
+      ...evSnap.docs.map(d=>({...d.data(), _type:'event', _date:d.data().eventDate})),
+      ...evalSnap.docs.map(d=>({...d.data(), _type:'eval', _date:d.data().periodEnd})),
+      ...incSnap.docs.map(d=>({...d.data(), _type:'incident', _date:d.data().incidentDate})),
+    ].sort((a,b)=>(b._date||'').localeCompare(a._date||''));
+
+    hm.innerHTML = `<div class="timeline">${events.length ? events.map(e=>{
+      if(e._type==='event') return `<div class="tl-item"><div class="tl-dot" style="background:${e.type==='warning'?'var(--bad)':e.type==='praise'?'var(--ok)':'var(--accent)'}"></div><div class="tl-body"><div class="tl-date">${fmtDate(e.eventDate)}</div><div class="tl-title">${e.type==='warning'?'⚠️':e.type==='praise'?'⭐':e.type==='training'?'📚':'📌'} ${esc(e.title)}</div><div class="tl-desc">${esc(e.description||'')}</div></div></div>`;
+      if(e._type==='eval') return `<div class="tl-item"><div class="tl-dot" style="background:var(--warn)"></div><div class="tl-body"><div class="tl-date">${fmtDate(e.periodEnd)}</div><div class="tl-title">📝 ผลประเมิน: <b style="color:${(e.totalScore||0)>=80?'var(--ok)':'var(--warn)'};">${e.totalScore ? e.totalScore.toFixed(1)+'%' : '—'}</b></div><div class="tl-desc">รอบ ${fmtDate(e.periodStart)} — ${fmtDate(e.periodEnd)}</div></div></div>`;
+      if(e._type==='incident') return `<div class="tl-item"><div class="tl-dot" style="background:var(--bad)"></div><div class="tl-body"><div class="tl-date">${fmtDate(e.incidentDate)}</div><div class="tl-title">⚠️ เหตุการณ์: ${esc(e.incidentNo)} — ${esc(e.type)}</div><div class="tl-desc"><span class="badge sev-${e.severity}">${severityLabel[e.severity]}</span> ${esc(e.description||'').slice(0,60)}</div></div></div>`;
+    }).join('') : `<div class="spin">ไม่มีประวัติ</div>`}</div>`;
+  }
+}
+
+function openEventForm() {
+  openPanel('📌 เพิ่มเหตุการณ์ในประวัติ', `
+  <div class="fld"><label class="required">พนักงาน</label><select id="fEvtEmp"><option value="">— เลือก —</option>${empOpts()}</select></div>
+  <div class="fld-row">
+    <div class="fld"><label class="required">วันที่</label><input type="date" id="fEvtDate" value="${todayStr()}"/></div>
+    <div class="fld"><label class="required">ประเภท</label><select id="fEvtType">
+      <option value="general">ทั่วไป</option>
+      <option value="training">การอบรม</option>
+      <option value="praise">คำชม / รางวัล</option>
+      <option value="warning">หนังสือตักเตือน</option>
+      <option value="transfer">โอนย้าย</option>
+    </select></div>
+  </div>
+  <div class="fld"><label class="required">หัวข้อ</label><input id="fEvtTitle"/></div>
+  <div class="fld"><label>รายละเอียด</label><textarea id="fEvtDesc" rows="3"></textarea></div>
+  <div id="evtMsg" class="msg" style="min-height:18px;font-size:.82rem;"></div>`, null, async () => {
+    const empId=gv('fEvtEmp'), date=gv('fEvtDate'), title=gv('fEvtTitle');
+    if(!empId||!date||!title){ showMsg('evtMsg','กรุณากรอกข้อมูลที่จำเป็น','error'); return; }
+    const emp=_empCache.find(e=>e.id===empId);
+    try {
+      await addDoc(collection(db,'epEvents'), {
+        employeeId:empId, employeeName:emp?.fullName||'', department:emp?.department||'',
+        eventDate:date, type:gv('fEvtType'), title, description:gv('fEvtDesc'),
+        createdBy:profile.uid, createdByName:profile.name||profile.email, createdAt:serverTimestamp()
+      });
+      closePanel(); renderHistory();
+    } catch(e){ showMsg('evtMsg','บันทึกไม่สำเร็จ: '+e.message,'error'); }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════════════════════════
+const MODULES = [
+  { key:'employees', icon:'👥', label:'จัดการพนักงาน', sub:'ข้อมูลและประวัติ', fn:renderEmployees },
+  { key:'stats',     icon:'📋', label:'สถิติรายวัน',   sub:'บันทึกประจำวัน',  fn:renderDailyStats },
+  { key:'incidents', icon:'⚠️', label:'ข้อผิดพลาด',   sub:'เหตุการณ์&บันทึก', fn:renderIncidents },
+  { key:'attendance',icon:'📅', label:'การเข้างาน',    sub:'การขาด/ลา/สาย',   fn:renderAttendance },
+  { key:'kpi',       icon:'🎯', label:'KPI & Competency', sub:'เกณฑ์ประเมิน', fn:renderKpi },
+  { key:'dashboard', icon:'📊', label:'Dashboard',      sub:'ภาพรวมรายบุคคล',  fn:renderDashboard },
+  { key:'evaluation',icon:'📝', label:'ประเมินผล',      sub:'รายรอบ',          fn:renderEvaluation },
+  { key:'history',   icon:'📜', label:'ประวัติ',        sub:'Timeline',        fn:renderHistory },
+];
+
+const tbTitle = document.getElementById('tbTitle');
+const tbSub   = document.getElementById('tbSub');
+let activeKey = 'employees';
+
+document.getElementById('navItems').innerHTML = MODULES.map(m=>`
+  <div class="nav-item ${m.key===activeKey?'active':''}" data-mod="${m.key}">
+    <span class="nav-icon">${m.icon}</span>
+    <span class="nav-label">${m.label}</span>
+  </div>`).join('');
+
+document.querySelectorAll('.nav-item[data-mod]').forEach(el => el.addEventListener('click', async () => {
+  activeKey = el.dataset.mod;
+  document.querySelectorAll('.nav-item[data-mod]').forEach(x=>x.classList.toggle('active', x.dataset.mod===activeKey));
+  const mod = MODULES.find(m=>m.key===activeKey);
+  tbTitle.textContent = mod.label;
+  tbSub.textContent   = mod.sub;
+  epNav.classList.remove('mob-open');
+  await mod.fn();
+}));
+
+// ── Initial load ──────────────────────────────────────────────────
+tbTitle.textContent = MODULES[0].label;
+tbSub.textContent   = MODULES[0].sub;
+await renderEmployees();
+</script>
+</body>
+</html>
