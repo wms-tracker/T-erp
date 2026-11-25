@@ -27,7 +27,7 @@ const ACCIDENT_DAYS = 400;
 // ── Google Sheets Manpower source ────────────────────────────────────────────
 // วาง URL ของ Apps Script Web App ที่ deploy แล้ว (ต้องตั้ง doGet ให้ return JSON)
 // ถ้าไม่ต้องการใช้ให้ตั้งเป็น '' หรือ null
-const MANPOWER_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwuKyxlVpRGMN8tMrfhM16-7AuZB56BPVRAESR4RyqOR4beJTBbqajhHD9rx9i5LBmFUA/exec';
+const MANPOWER_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyaQdRugPffzstMq72-beSRI5h2CVLC4k_EhZ4nkTd665Z3iU_mB7bHEjXt6eAPPlwFsQ/exec';
 
 async function fetchManpowerFromSheets() {
   if (!MANPOWER_SHEETS_URL) return [];
