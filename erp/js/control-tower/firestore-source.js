@@ -21,8 +21,39 @@ import {
   collection, query, where, orderBy, getDocs, limit,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-const DETAIL_DAYS = 60;    // โหลดย้อนหลังกี่วัน (พอสำหรับ "เดือนนี้/ปีนี้" ระดับ SME — ปรับเพิ่มได้ถ้าต้องการ)
-const ACCIDENT_DAYS = 400; // ครอบคลุม "ปีนี้ / ปีก่อน" สำหรับกราฟ Accident รายเดือน
+const DETAIL_DAYS = 60;
+const ACCIDENT_DAYS = 400;
+
+// ── Google Sheets Manpower source ────────────────────────────────────────────
+// วาง URL ของ Apps Script Web App ที่ deploy แล้ว (ต้องตั้ง doGet ให้ return JSON)
+// ถ้าไม่ต้องการใช้ให้ตั้งเป็น '' หรือ null
+const MANPOWER_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwuKyxlVpRGMN8tMrfhM16-7AuZB56BPVRAESR4RyqOR4beJTBbqajhHD9rx9i5LBmFUA/exec';
+
+async function fetchManpowerFromSheets() {
+  if (!MANPOWER_SHEETS_URL) return [];
+  try {
+    const res = await fetch(MANPOWER_SHEETS_URL);
+    if (!res.ok) throw new Error(res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows)) return [];
+    // แปลง Sheet row → format เดียวกับ wctManpowerDaily
+    return rows.map(r => ({
+      date:              String(r.date || '').slice(0, 10),
+      department:        String(r.department || '').trim(),
+      regular:           Number(r.regular)           || 0,
+      outsourceRegular:  Number(r.outsourceRegular)  || 0,
+      outsourceExtra:    Number(r.outsourceActual)   || 0,  // ใช้ค่า "มาจริง"
+      outsourceRequested:Number(r.outsourceRequested)|| 0,  // extra field
+      // คำนวณ total/present จากตัวเลขจริง
+      get total()   { return this.regular + this.outsourceRegular + this.outsourceExtra; },
+      get present() { return this.total; },
+      absent: 0, leave: 0, late: 0, ot: 0,
+    })).filter(r => r.date && r.department);
+  } catch (err) {
+    console.warn('[control-tower] โหลด Manpower จาก Sheets ไม่สำเร็จ:', err.message);
+    return [];
+  }
+}
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function dateStr(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -104,18 +135,25 @@ export async function loadFromFirestore(now = new Date()) {
   const accidentSince = addDays(now, -ACCIDENT_DAYS);
   const todayKey = dateStr(now);
 
-  const [outboundRows, inboundRows, transportRows, manpowerRows, accidentRows] = await Promise.all([
+  const [outboundRows, inboundRows, transportRows, manpowerRows, accidentRows, sheetsRows] = await Promise.all([
     fetchSince('wctOutboundDaily', since),
     fetchSince('wctInboundDaily', since),
     fetchSince('wctTransportDaily', since),
-    fetchSince('wctManpowerDaily', accidentSince), // โหลดยาวกว่าเพื่อให้ Attendance Trend/Manpower snapshot ย้อนหลังได้พอ
+    fetchSince('wctManpowerDaily', accidentSince),
     fetchSince('wctAccidents', accidentSince),
+    fetchManpowerFromSheets(),
   ]);
 
   const dailyOutbound = mergeDailyOutbound(outboundRows);
   const dailyInbound = mergeDailyInbound(inboundRows);
   const dailyTransport = mergeDailyTransport(transportRows);
-  const attendanceHistory = mergeAttendance(manpowerRows);
+  // Sheets data override Firestore: ถ้า Sheets มีข้อมูลวันไหน/แผนกไหน ใช้ Sheets ก่อน
+  const firestoreAtt = mergeAttendance(manpowerRows);
+  const sheetsAtt    = mergeAttendance(sheetsRows);
+  const attendanceHistory = { ...firestoreAtt };
+  for (const [date, depts] of Object.entries(sheetsAtt)) {
+    attendanceHistory[date] = { ...(attendanceHistory[date] || {}), ...depts };
+  }
 
   const accidents = accidentRows.map(a => ({
     id: a.id, accident_no: a.accident_no || a.id, date: a.date, time: a.time || '', location: a.location || '',
