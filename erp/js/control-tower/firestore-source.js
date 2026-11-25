@@ -57,7 +57,7 @@ async function fetchManpowerFromSheets() {
     const agg = {};
     for (const r of rows) {
       const date = String(r.date || '').slice(0, 10);
-      const rawDept = String(r.department || '').trim();
+      const rawDept = String(r.department || '').trim().replace(/\s+/g, ' ');
       const dept = DEPT_CODE_MAP[rawDept];
       if (!date || !dept) continue;
       const k = `${date}|${dept}`;
