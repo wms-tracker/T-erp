@@ -37,7 +37,7 @@ const DEPT_CODE_MAP = {
   'Inventory': 'INV', 'INV': 'INV',
   'Logistics': 'LOG', 'LOG': 'LOG',
   'Quality Assurance': 'QA', 'QA': 'QA',
-  'Return': 'RETURN', 'RETURN': 'RETURN',
+  'Return': 'RETURN', 'Return & claim': 'RETURN', 'Return & Claim': 'RETURN', 'RETURN': 'RETURN',
   'Housekeeping': 'HK', 'HK': 'HK',
   'Accounting': 'ACC', 'ACC': 'ACC',
   'Loss Prevention': 'LP', 'LP': 'LP',
