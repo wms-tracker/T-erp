@@ -454,9 +454,9 @@ export async function createSop(body, copiedFrom = "") {
   validateAssignees(body, S.uid);
   if (!validDate(body.effective_date) || !validDate(body.review_date)) fail("รูปแบบวันที่ไม่ถูกต้อง");
   const vid = num + "_r0";
-  const [sopSnap, verSnap] = await Promise.all([
-    getDoc(doc(db, "sops", num)).catch(() => ({ exists: () => true })),
-    getDoc(doc(db, "sopVersions", vid)).catch(() => ({ exists: () => true })),
+  const [sopSnap] = await Promise.all([
+    getDoc(doc(db, "sops", num)).catch(() => ({ exists: () => false })),
+    getDoc(doc(db, "sopVersions", vid)).catch(() => ({ exists: () => false })),
   ]);
   if (sopSnap.exists()) fail(`SOP Number "${num}" มีอยู่แล้ว`);
   // ถ้า sopSnap ไม่มีแต่ verSnap มี = orphaned doc จากการสร้างค้างกลางทาง → b.set จะ overwrite ได้เลย
