@@ -459,7 +459,7 @@ export async function createSop(body, copiedFrom = "") {
     getDoc(doc(db, "sopVersions", vid)).catch(() => ({ exists: () => true })),
   ]);
   if (sopSnap.exists()) fail(`SOP Number "${num}" มีอยู่แล้ว`);
-  if (verSnap.exists()) fail(`เวอร์ชัน "${vid}" มีอยู่แล้ว กรุณาลบออกจากระบบก่อนสร้างใหม่`);
+  // ถ้า sopSnap ไม่มีแต่ verSnap มี = orphaned doc จากการสร้างค้างกลางทาง → b.set จะ overwrite ได้เลย
   const v = {
     sop_id: num, sop_number: num, department_id: deptId, company_id: S.companyId, revision: 0, status: "draft", title, content: cleanContent(body.content),
     prepared_by: S.uid, prepared_name: S.name,
